@@ -1,0 +1,63 @@
+# 기여 규칙
+
+이 저장소는 `main`을 검토와 검증이 끝난 상태로 유지하는 GitHub Flow를 사용한다. `main` 변경은 Pull Request를 통해서만 병합하며, force push와 branch 삭제를 허용하지 않는다.
+
+## Issue
+
+구현 전에 문제와 완료 조건을 설명하는 GitHub Issue를 만든다. Issue 제목과 본문은 영어로 작성하며, 제목은 `Simplify`, `Remove`, `Define`처럼 변경 목적을 나타내는 동사로 시작한다.
+
+Issue 본문에는 다음 항목을 사용한다.
+
+- `Context`: 문제와 변경이 필요한 이유
+- `Scope` 또는 `Decisions`: 이번 Issue에서 다룰 변경
+- `Acceptance criteria`: 완료를 확인할 수 있는 조건
+- `Out of scope`: 이번 Issue에서 제외하는 내용
+- `Dependencies`: 선행 Issue가 있을 때 `Depends on #번호`로 표시
+- `Blocker`: 외부 결정이나 준비가 필요할 때만 표시
+
+한 Issue에는 독립적으로 구현하고 검증할 수 있는 하나의 관심사만 담는다. 기본적으로 하나의 Issue에 하나의 작업 브랜치와 하나의 Pull Request를 사용한다.
+
+Issue에는 `bug`, `enhancement`, `documentation`, `question` 중 성격에 맞는 주 라벨 하나를 붙인다. `accessibility`, `help wanted`, `good first issue` 같은 보조 라벨은 실제 의미가 있을 때만 추가한다.
+
+## 브랜치
+
+최신 `main`에서 `<종류>/<Issue 번호>-<짧은 주제>` 형식의 단기 브랜치를 만든다. 예: `docs/2-github-flow-conventions`.
+
+작업 브랜치는 한 사람이 소유한다. 다른 사람이 같은 변경을 이어가야 한다면 기존 브랜치를 공유하지 않고 최신 `main`에서 별도 브랜치를 만든 뒤 필요한 커밋만 합의하여 가져온다.
+
+`main`, 다른 사람이 소유한 브랜치와 공유 중인 브랜치는 rebase하거나 force push하지 않는다. 충돌 해결을 위해 로컬 rebase가 꼭 필요할 때만 현재 작업자가 단독 소유한 브랜치에서 수행한다. 원격 브랜치 기록을 갱신해야 한다면 대상 브랜치와 worktree를 다시 확인하고 `--force-with-lease`만 사용한다.
+
+## 커밋
+
+커밋 제목은 `<종류>: <변경 요약>` 형식을 사용한다.
+
+- `feat`: 사용자 기능
+- `fix`: 오류 수정
+- `docs`: 문서와 설계
+- `test`: 검증 코드
+- `refactor`: 동작을 바꾸지 않는 구조 개선
+- `chore`: 위 종류에 속하지 않는 저장소 관리
+
+한 커밋에는 한 기능, 모듈, 수정, 테스트 또는 문서 변경만 담는다. 서로 다른 목적의 변경, 자동 생성 파일과 수동 변경, 무관한 정리는 한 커밋에 섞지 않는다.
+
+## Pull Request
+
+관련 검증을 통과한 뒤 Issue를 연결한 Pull Request를 연다. Pull Request 본문에는 다음 내용을 포함한다.
+
+- `Closes #Issue 번호` 형식의 연결된 Issue
+- 변경한 내용과 변경 이유
+- 사용자에게 보이는 결과와 제외 범위
+- 실행한 검증과 결과
+- 남은 위험이나 후속 작업
+
+Pull Request에는 연결된 Issue를 해결하는 파일만 포함한다. 병합 전에 staged diff, `git diff --check`, 관련 검증과 최종 변경 파일 목록을 확인한다. 완료되지 않았거나 검증에 실패한 변경은 Draft Pull Request로 두거나 병합하지 않는다.
+
+## 리뷰와 병합
+
+리뷰는 요구사항 충족, 데이터 무결성, 실패 처리, 유지보수 가능성과 불필요한 복잡도를 확인한다. 리뷰 의견이 기존 커밋과 다른 목적이라면 새 커밋으로 분리한다.
+
+작은 논리 커밋을 보존하고 `main` 기록을 선형으로 유지하기 위해 GitHub의 Rebase merge를 사용한다. 일반적인 병합에서는 PR 브랜치를 로컬에서 다시 쓰지 않는다. 충돌이 있을 때만 단독 소유 브랜치에서 최신 `main`을 반영하고 다시 검증한다.
+
+Pull Request가 병합되면 연결된 Issue를 닫고 원격 작업 브랜치를 삭제한다. Issue만 수동으로 닫았거나 Pull Request를 병합하지 않고 닫은 경우에는 브랜치를 자동 삭제 대상으로 보지 않는다.
+
+원격 push, Pull Request 생성과 병합, 저장소 설정 변경, release와 tag 생성은 각각 명시적으로 확인할 수 있는 별도 작업으로 취급한다.
