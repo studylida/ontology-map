@@ -4,7 +4,7 @@
 >
 > 기준: 요구사항 워크숍에서 확정한 HBF 공개 자료 POC
 >
-> 범위: 불변 정규화 원문부터 지식 후보, 기준 지식그래프, 파생 데이터, 동적 지도 공개까지
+> 범위: 미리 준비된 불변 정규화 문서부터 지식 후보, 기준 지식그래프, 파생 데이터, 동적 지도 공개까지
 
 ## 1. 문서의 목적과 결정 경계
 
@@ -19,9 +19,9 @@
 이 데이터 모델은 그래프 테이블 몇 개가 아니라 근거 있는 지식이 만들어지고 공개되는 컴파일 파이프라인을 표현한다.
 
 ```text
-GDELT 기사 발견
-→ HTML을 일시적으로 수신하고 정규화
-→ 수집 이력과 불변 정규화 본문 버전 저장
+준비된 정규화 문서 묶음 입력
+→ 문서 내용과 메타데이터 검사
+→ 불변 문서 버전 저장
 → Agent 구조화 출력과 지식 후보 저장
 → lint·동일 대상·중복·온톨로지 검사
 → 짧은 트랜잭션으로 기준 지식그래프 승격
@@ -32,10 +32,10 @@ GDELT 기사 발견
 
 핵심 원칙은 다음과 같다.
 
-- HTML은 정규화 입력으로만 일시 사용하고 저장하지 않는다. 보존하는 원문은 정규화된 텍스트와 메타데이터다.
+- 자료 발견, 크롤링과 HTML 정규화는 제품 DB 바깥의 준비 과정이다. 제품은 준비된 정규화 텍스트와 메타데이터만 입력받는다.
 - Agent 출력은 후보일 뿐이다. 내부 식별자, 동일 대상 병합, 허용 유형, 승격, 상태와 무결성은 일반 코드와 DB가 결정한다.
 - 기준 지식의 의미를 덮어쓰지 않는다. 의미가 달라지면 새 기록을 만들고 기존 기록의 상태와 이력을 보존한다.
-- 출처, 출처 버전, 관측, Claim, 관계의 연결을 따라가면 모든 공개 지식의 Evidence Trace를 재현할 수 있어야 한다.
+- 준비된 문서 버전, 관측, Claim과 관계의 연결을 따라가면 모든 공개 지식의 Evidence Trace를 재현할 수 있어야 한다.
 - 지도는 기준 데이터가 아니다. 공개 준비된 지식에서 중심 노드의 직접 이웃과 중요한 2단계 이웃을 매번 계산하고, 브라우저가 3D처럼 보이는 좌표를 배치한다.
 - 공개 준비가 실패한 변경 묶음은 기준 그래프에 남지만 일반 검색과 지도에는 나타나지 않는다. 이전 공개 결과는 계속 제공한다.
 - 사람이 거절한 지식은 공개 준비 상태와 관계없이 지도와 일반 검색에서 즉시 제외하지만 DB에서는 삭제하지 않는다.
@@ -50,7 +50,7 @@ Agent는 다음과 같은 버전 있는 계약으로만 결과를 반환한다.
 ```json
 {
   "schema_version": "candidate-v1",
-  "source_version_id": "source-version-id",
+  "source_document_id": "source-document-id",
   "nodes": [],
   "events": [],
   "relations": [],
@@ -81,7 +81,7 @@ JSON 안의 각 후보는 `candidate_item` 행으로 꺼내 개별 상태를 관
 - 관측 범위는 Unicode 문자 기준의 반열린 구간 `[start, end)`로 저장한다. byte 위치나 UTF-16 code unit 위치를 섞지 않는다.
 - 관측에는 범위뿐 아니라 인용문과 인용문 해시를 함께 저장한다.
 - 저장된 범위에서 잘라낸 문자열, 인용문, 인용문 해시가 일치하지 않으면 차단 lint로 처리한다.
-- 기존 관측을 새 출처 버전으로 자동 이동하지 않는다.
+- 기존 관측을 새 문서 버전으로 자동 이동하지 않는다.
 
 ### 4.3 시간
 
@@ -89,7 +89,7 @@ JSON 안의 각 후보는 `candidate_item` 행으로 꺼내 개별 상태를 관
 |---|---|---|
 | `published_at` | 출처가 자료를 처음 게시한 시점 | 사용 |
 | `source_modified_at` | 출처가 해당 버전까지 자료를 수정한 시점 | 사용하지 않음 |
-| `retrieved_at` | 시스템이 해당 출처를 가져오려고 시도한 시점 | 사용하지 않음 |
+| `last_checked_at` | 준비된 문서가 마지막으로 같은 내용인지 확인된 시점 | 사용하지 않음 |
 | `observed_at` | 시스템이 원문 위치에서 Claim을 발견한 시점 | 사용하지 않음 |
 | 사건 시작·종료 | 실제 사건이 발생한 시점이나 기간 | 지도 관심도와 분리 |
 | 관계 유효 시작·종료 | 관계가 유효하다고 주장되는 기간 | 지도 관심도와 분리 |
@@ -104,33 +104,25 @@ JSON 안의 각 후보는 `candidate_item` 행으로 꺼내 개별 상태를 관
 
 ### 4.5 POC 보존
 
-HBF POC 동안 출처, 출처 버전, 기준 지식, 후보, 상태·거절 이력, 계보, 실패 기록과 파생 결과를 자동 삭제하지 않는다. POC 이후 실제 저장량과 재생성 비용을 측정한 뒤 사용되지 않는 파생 결과에만 정리 정책을 검토한다. 기준 지식, Evidence Trace와 거절 이력은 자동 정리 대상에서 제외한다.
+HBF POC 동안 문서 버전, 기준 지식, 후보, 상태·거절 이력, 계보, 실패 기록과 파생 결과를 자동 삭제하지 않는다. POC 이후 실제 저장량과 재생성 비용을 측정한 뒤 사용되지 않는 파생 결과에만 정리 정책을 검토한다. 기준 지식, Evidence Trace와 거절 이력은 자동 정리 대상에서 제외한다.
 
 ## 5. 논리 ER 구조
 
 Mermaid 그림은 논리 엔터티와 카디널리티만 보여준다. 필드와 제약은 뒤의 데이터 사전이 기준이며, 그림의 배치는 제품 지도 배치와 무관하다.
 
-### 5.1 출처와 독립 근거
+### 5.1 준비된 문서와 독립 근거
 
 ```mermaid
 erDiagram
-    CORPUS_SNAPSHOT ||--o{ DISCOVERY_SNAPSHOT : contains
-    DISCOVERY_SNAPSHOT ||--o{ DISCOVERY_HIT : returns
-    DISCOVERY_HIT }o--o| SOURCE : discovers
-    SOURCE ||--o{ SOURCE_VERSION : versions
-    SOURCE ||--o{ SOURCE_RETRIEVAL : fetches
-    SOURCE_VERSION |o--o{ SOURCE_RETRIEVAL : resolves_to
-    CORPUS_SNAPSHOT ||--o{ CORPUS_SOURCE_VERSION : fixes
-    SOURCE_VERSION ||--o{ CORPUS_SOURCE_VERSION : included_as
-    EVIDENCE_GROUP ||--o{ EVIDENCE_GROUP_MEMBER : groups
-    SOURCE_VERSION ||--o{ EVIDENCE_GROUP_MEMBER : belongs_to
+    EVIDENCE_GROUP ||--o{ EVIDENCE_GROUP_ASSIGNMENT : groups
+    SOURCE_DOCUMENT ||--o{ EVIDENCE_GROUP_ASSIGNMENT : belongs_to
 ```
 
 ### 5.2 Agent 실행과 지식 후보
 
 ```mermaid
 erDiagram
-    SOURCE_VERSION ||--o{ MODEL_TASK : inputs
+    SOURCE_DOCUMENT ||--o{ MODEL_TASK : inputs
     MODEL_TASK ||--o{ AGENT_ATTEMPT : retries
     AGENT_ATTEMPT ||--o| STRUCTURED_OUTPUT : produces
     STRUCTURED_OUTPUT ||--o{ CANDIDATE_ITEM : contains
@@ -182,7 +174,7 @@ erDiagram
 
 ```mermaid
 erDiagram
-    SOURCE_VERSION ||--o{ OBSERVATION : contains
+    SOURCE_DOCUMENT ||--o{ OBSERVATION : contains
     CLAIM ||--o{ CLAIM_OBSERVATION : evidenced_by
     OBSERVATION ||--o{ CLAIM_OBSERVATION : supports
     CLAIM ||--o{ EVENT_TEMPORAL_BASIS : supports
@@ -229,109 +221,40 @@ erDiagram
 
 ## 6. 데이터 사전
 
-### 6.1 수집 범위와 출처
+### 6.1 준비된 문서와 독립 근거
 
-#### `corpus_snapshot`
+#### `source_document`
 
-재현 가능한 고정 seed snapshot의 범위를 나타낸다.
-
-| 필드 | 의미와 규칙 |
-|---|---|
-| `corpus_snapshot_id` | 불변 내부 식별자 |
-| `name` | 예: `HBF POC 1-year seed` |
-| `scope_query` | HBF 중심 수집 조건의 정규화된 표현 |
-| `range_start`, `range_end` | 포함할 출처 게시 시점의 1년 범위 |
-| `manifest_hash` | 포함된 출처 버전과 발견 기록의 재현성 검증값 |
-| `created_at` | snapshot 고정 시점 |
-
-하나의 출처 버전이 snapshot에 포함됐다는 사실은 별도의 snapshot 구성 관계로 관리한다. 이는 애플리케이션 코드 곳곳에 SQL 값을 넣는 하드코딩이 아니라 동일한 seed를 다시 적재하기 위한 고정 manifest다.
-
-#### `corpus_source_version`
-
-고정 seed snapshot과 포함된 출처 버전을 연결한다. 같은 snapshot 안에서 같은 출처 버전은 한 번만 포함되며, 포함 순서와 선정 이유를 기록해 seed 적재와 검증을 재현한다.
-
-#### `discovery_snapshot`
-
-GDELT 기사 발견 요청과 응답을 기록한다. GDELT는 상세 Claim의 근거가 아니라 기사 발견 수단이다.
+제품 밖에서 미리 정규화된 문서 한 버전을 저장한다. 같은 자료의 내용이나 버전 메타데이터가 달라지면 기존 행을 덮어쓰지 않고 `version_no`를 올린 새 행에 본문 전체를 다시 저장한다.
 
 | 필드 | 의미와 규칙 |
 |---|---|
-| `discovery_snapshot_id` | 발견 요청 식별자 |
-| `corpus_snapshot_id` | 어느 seed 수집에 속하는지 표시 |
-| `query_parameters` | 정규화된 GDELT 질의 조건 |
-| `requested_at` | 요청 시점 |
-| `protocol` | `https` 또는 POC 예외인 `http` |
-| `https_failure_reason` | HTTP 예외를 사용한 경우 재현 가능한 HTTPS 실패 이유 |
-| `response_body` | 검증을 통과한 GDELT 응답 |
-| `response_hash` | 응답 무결성 검증값 |
-| `schema_validation_status` | 응답 계약 검사 결과 |
-
-HTTP는 GDELT API와 HTTPS 통신이 재현 가능하게 실패한 요청에만 허용한다. 자격 증명과 쿠키를 HTTP로 보내지 않는다. 발견된 실제 기사는 HTTPS로 가져오며 HTTP fallback을 적용하지 않는다.
-
-#### `discovery_hit`
-
-GDELT 응답에서 발견한 기사 후보 한 건이다. 기사 URL과 GDELT 메타데이터를 보존하되 이 레코드 자체는 Claim 근거가 아니다.
-
-#### `source`
-
-같은 논리 출처의 정체성을 나타낸다.
-
-| 필드 | 의미와 규칙 |
-|---|---|
-| `source_id` | 불변 내부 식별자 |
-| `canonical_url` | 현재 대표 URL. 과거 수집 당시 URL은 버전과 수집 이력에 보존함 |
+| `source_document_id` | 이 문서 버전의 불변 내부 식별자 |
+| `source_key` | 같은 논리 자료의 여러 버전을 묶는 안정된 키 |
+| `version_no` | 같은 `source_key` 안에서 1부터 증가하는 버전 번호 |
+| `canonical_url` | 준비된 자료가 가리키는 대표 URL |
 | `publisher_name` | 매체 메타데이터 |
-| `created_at` | 최초 등록 시점 |
-
-실제 요청 URL은 수집 시도에, 수집 당시 대표 URL은 출처 버전에 저장한다. 다른 URL이 같은 원문 계보인지에 대한 판정은 `source` 병합이 아니라 독립 근거 묶음에서 관리한다.
-
-#### `source_retrieval`
-
-출처를 가져오려고 시도한 사실을 append-only로 기록한다. 같은 본문 버전을 여러 번 가져오거나 가져오기에 실패해도 각 시도를 별도 행으로 남긴다.
-
-| 필드 | 의미와 규칙 |
-|---|---|
-| `source_retrieval_id` | 수집 시도 식별자 |
-| `source_id` | 대상 논리 출처 |
-| `discovery_hit_id` | 이 URL을 발견한 기록. 직접 재수집이면 비워 둘 수 있음 |
-| `request_url`, `final_url` | 요청 URL과 redirect를 반영한 최종 URL |
-| `protocol` | 실제 기사 수집에 사용한 `https` |
-| `retrieved_at` | 수집 시도 시점 |
-| `http_status`, `failure_reason` | 응답 상태와 실패 이유 |
-| `source_version_id` | 정규화에 성공해 생성하거나 재사용한 버전. 실패하면 비어 있음 |
-
-기사 HTML은 이 처리 중에만 사용하고 저장하지 않는다. GDELT API의 제한된 HTTP 예외와 달리 실제 기사 수집에는 HTTP fallback을 적용하지 않는다.
-
-#### `source_version`
-
-같은 URL에서 관측한 본문이나 버전 메타데이터가 바뀔 때마다 추가하는 불변 버전이다. 기존 버전을 덮어쓰지 않는다.
-
-| 필드 | 의미와 규칙 |
-|---|---|
-| `source_version_id` | 불변 버전 식별자 |
-| `source_id` | 논리 출처 |
-| `title` | 해당 버전에서 관측한 제목 |
-| `author_text` | 해당 버전에서 관측한 작성자 원문 |
+| `title` | 해당 버전의 제목 |
+| `author_text` | 해당 버전의 작성자 원문 |
 | `original_language` | 해당 버전 본문의 언어 |
-| `canonical_url_at_capture` | 이 버전을 수집할 때 정규화한 대표 URL |
 | `normalized_body` | 보존 대상인 정규화 본문 |
-| `body_hash` | 정규화 본문 해시 |
-| `published_at` | 출처의 최초 게시 시점 |
-| `source_modified_at` | 출처가 표시한 수정 시점 |
+| `body_hash` | 정규화 본문 비교와 복제 문서 판정에 사용하는 해시 |
+| `published_at`, `source_modified_at` | 게시 시점과 출처가 표시한 수정 시점 |
 | `published_precision`, `modified_precision` | 게시·수정 시점의 정밀도 |
-| `normalization_rule_version` | 동일 본문을 재현하기 위한 정규화 규칙 버전 |
-| `version_fingerprint` | 본문과 버전 메타데이터를 함께 반영한 결정적 해시 |
+| `last_checked_at` | 같은 자료를 마지막으로 확인한 시점 |
+| `last_check_status` | 마지막 확인의 성공 또는 실패 상태 |
+| `created_at` | 이 버전 행을 저장한 시점 |
 
-`version_fingerprint`는 정규화 본문, 제목, 작성자, 게시·수정 시점, 언어, 수집 당시 대표 URL과 정규화 규칙 버전으로 계산한다. `source_id + version_fingerprint`가 같으면 기존 버전을 재사용하고 새 `source_retrieval`만 추가한다. 본문이 같아도 이 메타데이터가 달라지면 새 출처 버전을 만든다. 수집 시점과 HTTP 상태는 fingerprint에 넣지 않는다. `body_hash`는 복제 본문과 근거 계보를 판정하는 별도 값으로 유지한다. 기사에 접근하지 못하고 메타데이터만 있는 수집 기록은 상세 Claim과 관측의 근거로 사용할 수 없다.
+`source_key + version_no`는 고유해야 한다. 준비된 자료를 다시 확인했을 때 본문 해시와 버전 메타데이터가 같으면 새 행을 만들지 않고 현재 버전의 `last_checked_at`과 `last_check_status`만 갱신한다. 본문, 제목, 작성자, 게시·수정 시점처럼 Evidence Trace의 의미에 영향을 주는 값이 달라지면 다음 버전 번호로 새 행을 만든다. 수집 방법, GDELT 응답, 검색 순위, HTTP 통신과 개별 재시도는 제품 DB에서 관리하지 않는다.
 
-#### `evidence_group`과 `evidence_group_member`
+#### `evidence_group`과 `evidence_group_assignment`
 
 독립 근거 묶음은 기사 수가 아니라 원문 계보 기준으로 근거의 독립성을 계산하는 단위다.
 
-- 같은 출처 버전의 여러 원문 위치, 동일 본문 해시의 복제 기사, 명시적 재게시, 확인된 번역·재전송은 하나의 묶음으로 본다.
+- 같은 문서 버전의 여러 원문 위치, 동일 본문 해시의 복제 기사, 명시적 재게시, 확인된 번역·재전송은 하나의 묶음으로 본다.
 - 정확히 같은 본문 해시는 일반 코드가 자동으로 묶는다.
 - 보도자료 재게시처럼 모호한 계보는 Agent가 후보만 제안하고 사람이 최종 병합한다.
-- `evidence_group_member`에는 할당 방식, 판단 이유, 처리 주체, 적용 시작·종료 시점을 남긴다. 재할당할 때 이전 행의 적용 기간을 닫고 새 행을 추가하여 과거 판정을 덮어쓰지 않는다.
+- `evidence_group_assignment`에는 문서 버전과 근거 묶음, 할당 방식, 판단 이유, 처리 주체, 적용 시작·종료 시점을 남긴다. 재할당할 때 이전 행의 적용 기간을 닫고 새 행을 추가하여 과거 판정을 덮어쓰지 않는다.
 - 관계선 굵기와 노드 활동량은 해당 기간의 지지 Claim에서 도달 가능한 서로 다른 `evidence_group_id` 수를 기준으로 계산한다.
 
 ### 6.2 Agent 실행과 후보
@@ -344,7 +267,7 @@ GDELT 응답에서 발견한 기사 후보 한 건이다. 기사 URL과 GDELT �
 |---|---|
 | `model_task_id` | 작업 식별자 |
 | `task_kind` | 추출, 동일 대상 후보, 근거 계보 후보, 충돌 정리, 맥락 설명, 후속 질문, 임베딩 등 |
-| `source_version_id` | 원문 추출 작업일 때 입력 출처 버전 |
+| `source_document_id` | 원문 추출 작업일 때 입력 문서 버전 |
 | `input_hash` | 실제 입력 내용 해시 |
 | `output_schema_version` | 기대하는 구조화 출력 계약 버전 |
 | `model_version`, `prompt_version` | 실행 계보 |
@@ -379,7 +302,7 @@ GDELT 응답에서 발견한 기사 후보 한 건이다. 기사 URL과 GDELT �
 | `current_state` | 제안됨, 검사 중, 차단됨, 보류, 거절, 승격 |
 | `hold_or_reject_reason` | 보류·거절 이유 |
 
-동일한 출처 버전에서 동일 fingerprint로 거절된 후보는 반복 생성과 모델 비용을 억제한다. 새로운 출처 버전이나 새로운 근거가 있으면 같은 의미에 대한 새 후보를 만들 수 있다.
+동일한 문서 버전에서 같은 fingerprint로 거절된 후보는 반복 생성과 모델 비용을 억제한다. 새로운 문서 버전이나 새로운 근거가 있으면 같은 의미에 대한 새 후보를 만들 수 있다.
 
 #### `candidate_state_event`
 
@@ -484,7 +407,7 @@ GDELT 응답에서 발견한 기사 후보 한 건이다. 기사 URL과 GDELT �
 
 각 `knowledge_item`은 정확히 하나의 노드·관계·Claim 하위 레코드를 가져야 한다. Agent는 기준 지식 상태를 직접 만들지 못한다.
 
-`근거 확인됨`은 사실로 확정됐다는 뜻이 아니다. 출처 버전과 원문 위치가 존재하고, 인용 범위가 Claim을 실제로 뒷받침하며, 노드·관계 유형과 시간·동일 대상 검사를 통과하고, 모든 차단 lint를 통과했으며, 동일한 거절 후보의 반복이 아님을 뜻한다.
+`근거 확인됨`은 사실로 확정됐다는 뜻이 아니다. 문서 버전과 원문 위치가 존재하고, 인용 범위가 Claim을 실제로 뒷받침하며, 노드·관계 유형과 시간·동일 대상 검사를 통과하고, 모든 차단 lint를 통과했으며, 동일한 거절 후보의 반복이 아님을 뜻한다.
 
 #### `knowledge_state_event`
 
@@ -547,12 +470,12 @@ DB 제약은 `value_kind`에 해당하는 값 열만 정확히 하나의 값 묶
 
 #### `observation`
 
-특정 출처 버전의 정확한 원문 위치에서 근거를 발견했다는 기록이다.
+특정 문서 버전의 정확한 원문 위치에서 근거를 발견했다는 기록이다.
 
 | 필드 | 의미와 규칙 |
 |---|---|
 | `observation_id` | 관측 식별자 |
-| `source_version_id` | 불변 정규화 본문 버전 |
+| `source_document_id` | 불변 정규화 문서 버전 |
 | `start_char`, `end_char` | Unicode 문자 기준 `[start, end)` |
 | `quote_text`, `quote_hash` | 해당 범위의 인용문과 검증 해시 |
 | `paragraph_number` | 필요할 때 보조 위치 정보 |
@@ -597,7 +520,7 @@ lint 실행은 후보, 승격 묶음 또는 기준 지식 중 정확히 하나�
 | `started_at`, `committed_at` | 트랜잭션 이력 |
 | `failure_reason` | 원자 승격 실패 이유 |
 
-`promotion_member`는 후보 하나가 생성하거나 기존 기록에 연결한 기준 레코드를 1:N으로 추적한다. 한 행은 `knowledge_item`, `observation`, `node_name`, `node_merge`, `event_temporal_extent`, `evidence_group_member` 가운데 정확히 하나만 가리킨다. 사건 후보 하나가 사건 노드와 시간 범위, 이름을 함께 만들거나 Claim 후보가 관측 연결을 만들 수 있으므로 후보에 단일 `promoted_item_id`를 두지 않는다. 여러 출처의 후보가 같은 기존 관계를 가리킬 때도 각 승격 계보를 별도 member로 남긴다. 외부 수집, Agent 호출과 lint는 이 트랜잭션 밖에서 끝낸다. 트랜잭션 안에서는 식별자 발급, 최종 중복·제약 검사, 기준 레코드와 상태 이력 생성, 후보의 승격 표시만 수행한다. 일부만 성공할 수 없으며 실패하면 전체 묶음을 롤백한다.
+`promotion_member`는 후보 하나가 생성하거나 기존 기록에 연결한 기준 레코드를 1:N으로 추적한다. 한 행은 `knowledge_item`, `observation`, `node_name`, `node_merge`, `event_temporal_extent`, `evidence_group_assignment` 가운데 정확히 하나만 가리킨다. 사건 후보 하나가 사건 노드와 시간 범위, 이름을 함께 만들거나 Claim 후보가 관측 연결을 만들 수 있으므로 후보에 단일 `promoted_item_id`를 두지 않는다. 여러 출처의 후보가 같은 기존 관계를 가리킬 때도 각 승격 계보를 별도 member로 남긴다. 문서 준비, Agent 호출과 lint는 이 트랜잭션 밖에서 끝낸다. 트랜잭션 안에서는 식별자 발급, 최종 중복·제약 검사, 기준 레코드와 상태 이력 생성, 후보의 승격 표시만 수행한다. 일부만 성공할 수 없으며 실패하면 전체 묶음을 롤백한다.
 
 #### `derivation_run`
 
@@ -617,7 +540,7 @@ lint 실행은 후보, 승격 묶음 또는 기준 지식 중 정확히 하나�
 
 `publication_state`에는 승격 묶음 식별자, 현재 상태, 성공할 때만 채우는 `publication_seq`, lease 처리 주체와 만료 시점, 시작·완료 시점과 실패 이유를 저장한다.
 
-HBF POC의 최초 1년 seed snapshot은 하나의 승격·공개 단위로 처리한다. 이후 증분 변경도 한 번에 하나의 공개 준비 작업만 실행한다. 준비가 끝내 실패하면 해당 작업을 `failed`로 닫고 다음 독립 작업을 처리할 수 있다. `publication_dependency`는 현재 묶음이 의미상 참조하는 선행 승격 묶음을 기록하며, 선행 묶음이 아직 `ready`가 아니면 현재 묶음을 공개할 수 없다. 실패한 묶음을 나중에 다시 준비할 때도 이 직렬 실행 규칙을 따른다.
+HBF POC의 최초 1년 고정 입력 묶음은 하나의 승격·공개 단위로 처리한다. 이후 증분 변경도 한 번에 하나의 공개 준비 작업만 실행한다. 준비가 끝내 실패하면 해당 작업을 `failed`로 닫고 다음 독립 작업을 처리할 수 있다. `publication_dependency`는 현재 묶음이 의미상 참조하는 선행 승격 묶음을 기록하며, 선행 묶음이 아직 `ready`가 아니면 현재 묶음을 공개할 수 없다. 실패한 묶음을 나중에 다시 준비할 때도 이 직렬 실행 규칙을 따른다.
 
 `publication_seq`는 공개를 원자적으로 완료할 때 DB sequence에서 발급하는 단조 증가 번호이며 공개 순서의 유일한 기준이다. 생성·완료 시각은 감사용이고 최신 판정에 쓰지 않는다. `publication_state_event`는 이전 상태, 새 상태, 이유, 처리 주체와 처리 시점을 append-only로 저장한다.
 
@@ -657,7 +580,7 @@ HBF POC의 최초 1년 seed snapshot은 하나의 승격·공개 단위로 처�
 
 #### `node_context`
 
-노드별 한국어 맥락 설명을 버전별로 저장한다. `derivation_run_id`, 입력 지식 범위와 해시, 생성 모델·프롬프트·출력 스키마 버전, 본문과 생성 시점을 가진다. `node_context_basis`는 설명을 만드는 데 사용한 Claim·관계 등 `knowledge_item`과 기여 종류를 연결한다. 공개되는 설명에는 현재 공개 가능한 Claim 근거가 하나 이상 있어야 한다. Claim은 관측을 통해 출처 버전과 정확한 원문 위치로 이어지므로 상세 패널에서 설명의 Evidence Trace를 재현할 수 있다. 노드를 클릭할 때 LLM을 호출하지 않고 공개 준비된 현재 결과를 읽는다.
+노드별 한국어 맥락 설명을 버전별로 저장한다. `derivation_run_id`, 입력 지식 범위와 해시, 생성 모델·프롬프트·출력 스키마 버전, 본문과 생성 시점을 가진다. `node_context_basis`는 설명을 만드는 데 사용한 Claim·관계 등 `knowledge_item`과 기여 종류를 연결한다. 공개되는 설명에는 현재 공개 가능한 Claim 근거가 하나 이상 있어야 한다. Claim은 관측을 통해 문서 버전과 정확한 원문 위치로 이어지므로 상세 패널에서 설명의 Evidence Trace를 재현할 수 있다. 노드를 클릭할 때 LLM을 호출하지 않고 공개 준비된 현재 결과를 읽는다.
 
 #### `followup_question`
 
@@ -673,10 +596,8 @@ HBF POC의 최초 1년 seed snapshot은 하나의 승격·공개 단위로 처�
 
 | 관계 | 카디널리티와 핵심 제약 |
 |---|---|
-| corpus_snapshot → corpus_source_version ← source_version | N:M, 고정 seed 안에서 같은 출처 버전은 한 번만 포함됨 |
-| source → source_version | 1:N, 본문 변경은 새 버전이며 이전 버전을 덮어쓰지 않음 |
-| source → source_retrieval → source_version | 1:N:0..1, 실패한 수집은 버전이 없고 같은 버전을 여러 번 수집할 수 있음 |
-| source_version ↔ evidence_group | N:1, 하나의 버전은 한 시점에 하나의 독립 근거 묶음에 속하며 재할당 이력은 보존함 |
+| source document의 `source_key` → version | 1:N, 같은 자료의 본문이나 메타데이터 변경은 다음 `version_no` 행으로 추가함 |
+| source_document ↔ evidence_group | N:1, 하나의 문서 버전은 한 시점에 하나의 독립 근거 묶음에 속하며 재할당 이력은 보존함 |
 | model_task → agent_attempt | 1:N, 시도 순서가 작업 안에서 고유함 |
 | agent_attempt → structured_output | 1:0..1, 계약 검증 성공 시에만 존재함 |
 | structured_output → candidate_item | 1:N, JSON Pointer가 출력 안에서 고유함 |
@@ -689,7 +610,7 @@ HBF POC의 최초 1년 seed snapshot은 하나의 승격·공개 단위로 처�
 | relation → claim_relation ← claim | N:M, Claim은 관계를 지지하거나 반박함 |
 | claim → claim_attribute_value | 1:N, 관계 연결이 없다면 최소 하나가 필요함 |
 | claim → claim_observation ← observation | N:M, Claim마다 최소 한 관측 필요 |
-| source_version → observation | 1:N, 관측 범위는 해당 버전 본문에서만 검증함 |
+| source_document → observation | 1:N, 관측 범위는 해당 문서 버전 본문에서만 검증함 |
 | promotion_batch → promotion_member ← candidate_item | 1:N, 후보 하나는 정확히 유형이 지정된 기준 레코드를 여러 개 만들 수 있음 |
 | promotion_batch → publication_state | 1:1, 승격 커밋 뒤 공개 준비 상태 관리 |
 | publication_state → publication_dependency | 1:N, 참조하는 선행 묶음이 ready여야 공개 가능 |
@@ -751,8 +672,7 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 ### 9.1 DB에서 반드시 막을 규칙
 
 - 모든 내부 식별자와 버전 식별자는 변경하지 않는다.
-- 같은 `source_id + version_fingerprint`는 하나의 출처 버전만 가질 수 있다.
-- 수집 시도가 연결한 출처 버전은 같은 `source_id`에 속해야 한다.
+- 같은 `source_key + version_no`는 하나의 문서 버전만 가질 수 있다.
 - ontology member는 노드 유형, 관계 유형, 속성 revision 가운데 정확히 하나만 가리켜야 한다.
 - relation endpoint와 관계 유형 revision의 허용 노드 유형이 일치해야 한다.
 - 대칭 관계의 endpoint 순서는 결정적으로 정규화한다.
@@ -781,7 +701,7 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 - URL 정규화와 본문 정규화
 - 인용 범위와 인용문의 실제 일치 검사
 - 정확히 같은 본문 해시의 독립 근거 묶음 자동 배정
-- 출처 버전 fingerprint와 관계 identity key의 결정적 계산
+- 문서 `source_key`, 다음 `version_no`와 관계 identity key의 결정적 계산
 - 명확한 외부 식별자와 승인된 별칭을 이용한 동일 대상 판정
 - 관계 identity와 대칭 endpoint 정규화
 - 후보 fingerprint와 반복 거절 억제
@@ -802,7 +722,7 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 
 | 구분 | 검사 예시 | 결과 |
 |---|---|---|
-| 차단 | 출처 버전 또는 정확한 원문 위치 없음 | 승격 금지 |
+| 차단 | 문서 버전 또는 정확한 원문 위치 없음 | 승격 금지 |
 | 차단 | 저장 범위, 인용문과 본문이 불일치 | 승격 금지 |
 | 차단 | 허용되지 않은 노드·관계 유형 또는 endpoint | 승격 금지 |
 | 차단 | 관계·사건 기간이 역전되거나 필수 시간이 없음 | 승격 금지 |
@@ -810,7 +730,7 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 | 차단 | 관계에 관측 가능한 지지 Claim이 없거나 반박 Claim만 있음 | 승격 금지 |
 | 차단 | 노드의 근거 있는 대표 이름·Claim이 없거나 사건의 시간·참여 관계가 없음 | 승격 금지 |
 | 차단 | 모호한 동일 대상인데 확인된 식별자로 가장함 | 승격 금지 |
-| 차단 | 같은 출처 버전의 동일 거절 fingerprint 반복 | 승격 금지, 재호출 억제 |
+| 차단 | 같은 문서 버전의 동일 거절 fingerprint 반복 | 승격 금지, 재호출 억제 |
 | 차단 | 파생 결과가 누락된 변경 묶음을 ready로 전환 | 공개 금지 |
 | 차단 | 선행 dependency가 ready가 아니거나 더 오래된 publication sequence로 포인터 교체 시도 | 공개 금지 |
 | 경고 | 비교 가능한 지지·반박 Claim이 함께 존재 | 충돌 후보 생성과 호박색 점선 표시 |
@@ -823,15 +743,14 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 
 ### 11.1 ingest
 
-1. 고정 `corpus_snapshot` 범위로 GDELT를 조회하고 발견 응답과 해시를 저장한다.
-2. 발견 URL에서 기사 HTML을 HTTPS로 일시 수신한다.
-3. 요청·최종 URL, 통신 방식, 응답 상태와 시각을 `source_retrieval`에 기록하고 본문을 정규화한 뒤 HTML은 버린다.
-4. 본문과 버전 메타데이터의 fingerprint가 같으면 기존 `source_version`을 재사용하고, 본문이나 메타데이터가 다르면 새 불변 버전을 만든다.
-5. 본문 해시와 확인된 원문 계보로 독립 근거 묶음을 배정한다.
-6. cache key를 확인하고 성공한 동일 모델 작업이 없을 때만 Agent 추출을 실행한다.
-7. 계약 JSON과 후보 항목을 저장하고 후보별 lint, 온톨로지, 동일 대상, 중복 검사를 수행한다.
+1. 제품 밖에서 준비한 HBF 1년 범위의 정규화 문서와 메타데이터를 입력받는다.
+2. 필수 메타데이터와 본문 해시를 검사하고 같은 `source_key`의 현재 버전과 비교한다.
+3. 본문과 버전 메타데이터가 같으면 현재 행의 마지막 확인 시점과 상태만 갱신한다. 달라졌다면 다음 `version_no`로 새 `source_document` 행을 추가한다.
+4. 본문 해시와 확인된 원문 계보로 독립 근거 묶음을 배정한다.
+5. cache key를 확인하고 성공한 동일 모델 작업이 없을 때만 Agent 추출을 실행한다.
+6. 계약 JSON과 후보 항목을 저장하고 후보별 lint, 온톨로지, 동일 대상, 중복 검사를 수행한다.
 
-Agent 호출이 모두 실패하면 `source_retrieval`, 성공한 정규화 원문 버전, 모델 작업과 실패 이력만 남는다. 기준 지식그래프는 바뀌지 않는다.
+Agent 호출이 모두 실패하면 준비된 `source_document`, 모델 작업과 실패 이력만 남는다. 기준 지식그래프는 바뀌지 않는다.
 
 ### 11.2 승격
 
@@ -923,7 +842,7 @@ Agent는 이 문장을 최소한 다음 원자적 Claim 후보로 나눈다.
 
 네 Claim은 같은 `observation`을 공유할 수 있다. 1~3번은 허용된 사건 중심 관계와 연결하고, 4번은 HBF의 `상용화 목표 시점` 속성에 값 `2027`, 값 유형 `연도`, 표현 성격 `계획·목표`로 연결한다. 원문이 확정된 상용화를 말하지 않았으므로 사실 주장으로 바꿀 수 없다.
 
-여러 기사가 같은 보도자료를 재게시했다면 각 출처 버전과 관측은 보존하지만 하나의 `evidence_group`으로 묶는다. 따라서 기사 수가 여러 개여도 관계선 굵기는 독립 근거 하나만큼 증가한다.
+여러 기사가 같은 보도자료를 재게시했다면 각 문서 버전과 관측은 보존하지만 하나의 `evidence_group`으로 묶는다. 따라서 기사 수가 여러 개여도 관계선 굵기는 독립 근거 하나만큼 증가한다.
 
 SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 직접 이웃과 중요한 2단계 이웃을 계산한다. HBF 발표 사건을 클릭하면 같은 기준 그래프에서 사건 노드를 새 중심으로 다시 조회하고 브라우저가 좌표를 재배치한다.
 
@@ -931,9 +850,9 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 
 | 번호 | 시나리오 | 통과 조건 |
 |---|---|---|
-| 1 | 같은 URL을 다시 가져옴 | 본문과 버전 메타데이터가 같으면 `source_retrieval`만 추가되고, 본문 또는 메타데이터가 달라지면 새 `source_version`이 생기며 기존 관측은 이전 버전과 위치를 유지함 |
+| 1 | 같은 준비 문서를 다시 적재함 | 본문과 버전 메타데이터가 같으면 마지막 확인 정보만 갱신되고, 값이 달라지면 다음 `version_no`의 `source_document`가 생기며 기존 관측은 이전 버전과 위치를 유지함 |
 | 2 | 인용 문자 범위가 틀리거나 허용되지 않은 관계가 제안됨 | 차단 lint가 생기고 후보가 승격되지 않음 |
-| 3 | 동일 보도자료의 복제 기사 여러 건이 수집됨 | 출처와 관측은 모두 남지만 독립 근거 수는 한 번만 증가함 |
+| 3 | 동일 보도자료의 복제 문서 여러 건이 입력됨 | 문서와 관측은 모두 남지만 독립 근거 수는 한 번만 증가함 |
 | 4 | Agent 추출이 모든 재시도에서 실패함 | 정규화 원문과 실패 이력만 남고 기준 그래프는 바뀌지 않음 |
 | 5 | 승격 뒤 임베딩이나 맥락 설명 생성이 실패함 | 기준 지식은 유지되지만 변경 묶음은 공개되지 않고 이전 결과가 계속 제공됨 |
 | 6 | 파생 작업 재시도가 성공함 | 다음 탐색부터 새 관계와 설명·질문이 함께 나타남 |
@@ -959,7 +878,7 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 - 내부 식별자의 실제 자료형과 생성 방식
 - 시간 정밀도와 불완전 날짜의 실제 표현
 - 상태, modality와 값 유형의 CHECK 또는 참조 테이블 선택
-- 출처 version fingerprint와 수집 이력의 고유성·멱등성 구현
+- `source_key + version_no` 고유성과 같은 문서 재적재의 멱등성 구현
 - 상위 `knowledge_item`과 하위 엔터티의 배타적 일대일 제약 구현
 - `promotion_member`와 `lint_run`의 배타적 typed foreign key 제약 구현
 - 관계 identity, 대칭 endpoint와 열린 기간의 고유성 구현
@@ -972,14 +891,14 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 - 직렬 공개 lease, DB sequence와 node publication pointer 원자 교체 구현
 - 공개 가능한 데이터만 사용하는 부분 그래프와 상세 패널 조회
 - 노드·관계선 상한과 결정적 정렬을 적용하는 부분 그래프 조회
-- seed snapshot 적재의 멱등성과 manifest 검증
+- 고정 입력 문서 묶음 적재의 멱등성 검증
 
 물리 설계는 새 dependency나 별도 검색 DB를 먼저 추가하지 않고 PostgreSQL 기본 기능과 pgvector가 POC 품질을 충족하는지부터 검증한다.
 
 ## 17. 제외 범위
 
 - 원본 HTML 저장
-- GDELT 레코드를 Claim 근거로 직접 사용
+- GDELT 질의·응답, 기사 발견 결과와 자료 수집 과정 저장
 - Agent의 내부 식별자 발급, 자동 최종 병합, 온톨로지 변경과 상태 확정
 - 노드 클릭마다 LLM 호출
 - 전체 그래프 또는 전역 지도 버전과 지도 구성원 저장
