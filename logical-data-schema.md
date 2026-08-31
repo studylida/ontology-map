@@ -1,6 +1,6 @@
-# People Intelligence 논리 데이터 스키마
+# ontology-map 논리 데이터 스키마
 
-> 상태: 논리 설계안
+> 상태: Logical Schema v1 — Frozen · 동결일: 2026-09-01
 >
 > 기준: 요구사항 워크숍에서 확정한 HBF 공개 자료 POC
 >
@@ -10,7 +10,7 @@
 
 이 문서는 확정된 제품 요구사항을 구현 가능한 논리 데이터 모델로 옮긴다. 엔터티 이름과 관계, 데이터의 책임, 키와 카디널리티, 상태 전이, 무결성 규칙, 트랜잭션 경계를 정의한다.
 
-요구사항에서 확정된 제품 의미는 이 문서에서도 `확정`으로 취급한다. 이 문서가 처음 제안하는 엔터티명과 필드명은 논리 모델 승인 전까지 `제안 중`이다.
+이 문서의 제품 의미, 엔터티명, 필드명과 논리 제약은 Logical Schema v1으로 동결한다. 이후 변경은 승인된 요구사항과 별도 논리 모델 변경 절차가 있을 때만 반영한다.
 
 이번 문서에서는 PostgreSQL의 실제 자료형, DDL, migration, API 계약, 벡터 차원, 인덱스 표현식, 그래프 라이브러리와 화면 좌표를 정하지 않는다. 이 항목들은 논리 모델 승인 뒤 물리 스키마와 API 설계에서 결정한다.
 
@@ -19,7 +19,7 @@
 이 데이터 모델은 그래프 테이블 몇 개가 아니라 근거 있는 지식이 만들어지고 공개되는 컴파일 파이프라인을 표현한다.
 
 ```text
-준비된 정규화 문서 묶음 입력
+자료 준비·오케스트레이션 레이어가 구성한 정규화 문서 입력
 → 문서 내용과 메타데이터 검사
 → 불변 문서 버전 저장
 → 버전이 고정된 출력 계약으로 Agent 호출
@@ -127,7 +127,7 @@ erDiagram
 
 ```mermaid
 erDiagram
-    SOURCE_DOCUMENT |o--o{ MODEL_TASK : inputs
+    SOURCE_DOCUMENT |o--o{ MODEL_TASK : single_document_input
     OUTPUT_SCHEMA_DEFINITION |o--o{ MODEL_TASK : contracts
     MODEL_TASK ||--o{ AGENT_ATTEMPT : retries
     SOURCE_DOCUMENT ||--o{ BLOCKED_FINGERPRINT : scopes
@@ -303,8 +303,8 @@ erDiagram
 |---|---|
 | `model_task_id` | 작업 식별자 |
 | `task_kind` | `KNOWLEDGE_EXTRACTION`, `ENTITY_RESOLUTION_PROPOSAL`, `EVIDENCE_LINEAGE_PROPOSAL`, `CONFLICT_SUMMARY`, `NODE_CONTEXT`, `FOLLOWUP_QUESTIONS`, `EMBEDDING` 중 하나 |
-| `source_document_id` | 문서 기반 작업의 정확한 불변 입력 문서 버전이며 그 밖의 작업에서는 비울 수 있음 |
-| `input_hash` | 실제 입력 전체의 결정적 해시 |
+| `source_document_id` | 단일 문서 기반 작업의 정확한 불변 입력 문서 버전이며 다중 문서 작업과 그 밖의 작업에서는 비울 수 있음 |
+| `input_hash` | 자료 준비·오케스트레이션 레이어가 구성하여 실제로 전달한 입력 전체의 결정적 해시 |
 | `output_schema_definition_id` | 정확한 출력 계약이며 `EMBEDDING` 작업에서만 비움 |
 | `model_version`, `prompt_version` | 실행 계보 |
 | `cache_key` | 작업 종류, 입력 해시, 출력 계약 식별자, 모델·프롬프트 버전으로 계산한 결정적 고유 키 |
@@ -319,7 +319,7 @@ erDiagram
 |---|---|---|---|
 | `KNOWLEDGE_EXTRACTION` | 정규화된 문서 본문 | 작업 종류가 일치하는 출력 계약을 검사한 뒤 후보별 승격 전 차단 규칙과 승격 트랜잭션 무결성을 검사함 | 통과한 결과를 `promotion_batch`를 거쳐 기준 지식그래프와 Evidence Trace에 반영함. 기준 지식은 `model_task_id`를 직접 참조하지 않음 |
 | `ENTITY_RESOLUTION_PROPOSAL` | 기존 노드와 새 대상 정보 | 작업 종류가 일치하는 출력 계약과 동일 대상 식별 규칙을 검사하며 Agent가 자동 병합하지 못하게 함 | 유효한 후보는 메모리에서 병합 검토로 넘기고 저장하지 않음. 사람이 확정한 병합만 `node_merge`에 기록하며 `model_task_id`를 직접 연결하지 않음 |
-| `EVIDENCE_LINEAGE_PROPOSAL` | 여러 문서의 본문·작성자·출처 | 작업 종류가 일치하는 출력 계약과 본문 해시·확인된 원문 계보 규칙을 검사함 | 확정된 계보를 `evidence_group`과 `evidence_group_assignment`에 반영하며 `model_task_id`를 직접 연결하지 않음 |
+| `EVIDENCE_LINEAGE_PROPOSAL` | 자료 준비·오케스트레이션 레이어가 선택·정리한 여러 문서의 본문·작성자·출처 | 작업 종류가 일치하는 출력 계약과 본문 해시·확인된 원문 계보 규칙을 검사함 | 확정된 계보를 `evidence_group`과 `evidence_group_assignment`에 반영하며 `model_task_id`를 직접 연결하지 않음 |
 | `CONFLICT_SUMMARY` | 충돌하는 Claim과 근거 | 작업 종류가 일치하는 출력 계약과 입력 Claim의 충돌 묶음·근거 연결을 검사함 | `conflict_summary`가 생성한 `model_task_id`를 직접 참조함 |
 | `NODE_CONTEXT` | 정확한 노드 검색 문서 | 작업 종류가 일치하는 출력 계약과 검색 문서·노드 일치를 검사함 | `node_context`가 생성한 `model_task_id`와 입력 `node_search_document_id`를 직접 참조함 |
 | `FOLLOWUP_QUESTIONS` | 노드 맥락과 이동 가능한 주변 노드 | 작업 종류가 일치하는 출력 계약, 질문 slot 1·2의 유일성과 이동 가능한 대상 노드를 검사함 | 두 `followup_question`이 입력 `node_context`와 생성한 `model_task_id`를 직접 참조함 |
@@ -327,7 +327,7 @@ erDiagram
 
 계약과 작업별 검사를 통과한 관련 결과가 없으면 결과 행을 만들지 않고 정상 `SUCCESS`로 끝낸다. 결과가 있으면 표의 위치에 영속 반영하고 필요한 연결을 만든 뒤에만 `SUCCESS`로 바꾼다.
 
-`EMBEDDING` cache key는 출력 계약 위치에 고정된 빈 표지를 넣으며 벡터 타입과 설정된 차원으로 결과를 검사한다. 같은 cache key에는 영속 작업 행 하나만 두고 `SUCCESS`, `VALIDATION_BLOCKED`, `FINAL_FAILED`를 종료 상태로 취급한다. 캐시 적중은 새 시도 행이나 호출 횟수를 만들지 않는다.
+`EMBEDDING` cache key는 출력 계약 위치에 고정된 빈 표지를 넣으며 벡터 타입과 설정된 차원으로 결과를 검사한다. 같은 cache key에는 영속 작업 행 하나만 두고 `SUCCESS`, `VALIDATION_BLOCKED`, `FINAL_FAILED`를 종료 상태로 취급한다. 캐시 적중은 새 시도 행이나 호출 횟수를 만들지 않는다. 다중 문서 모델 입력의 선택·정리 책임과 정확한 목록 계보는 제품 DB 밖에 두며, 제품 DB에는 결정적 `input_hash`만 남기고 `model_task_input_document` 같은 관계를 추가하지 않는다.
 
 `SUCCESS`는 하나 이상의 결과가 영속 저장소에 반영됐거나 유효한 응답에 관련 후보가 없다는 뜻이다. 일부 후보만 승격되고 나머지가 차단된 작업도 `SUCCESS`다. 관련 후보가 있었지만 모두 차단됐을 때만 `VALIDATION_BLOCKED`를 사용한다. 모델 호출이나 출력 계약 자체의 기술 실패는 재시도 가능성에 따라 `RETRY_WAIT` 또는 `FINAL_FAILED`로 간다.
 
@@ -453,7 +453,7 @@ POC의 허용 값 유형은 `STRING`, 단위가 있는 `NUMBER`, `DATE`, `PERIOD
 
 #### `external_identifier`
 
-외부 식별 체계, 값, 적용 기간, 각 기간 경계의 정밀도와 근거를 저장한다. 같은 외부 체계 안의 같은 값이 서로 다른 활성 노드에 동시에 연결되지 않도록 한다.
+외부 식별 체계와 값을 노드에 연결한다. POC에서는 KRX 종목코드, Wikidata ID, ORCID, LEI처럼 신뢰된 자료 준비 레이어가 제공한 구조화 메타데이터만 저장하고 같은 체계의 같은 값을 서로 다른 노드에 연결하지 않는다. 일반 문서 본문에서 Agent가 발견한 후보는 검증 없이 승격하지 않으며, Claim·Observation 기반 Evidence Trace와 분리하여 별도의 observation 근거 연결을 요구하지 않는다.
 
 #### `node_merge`
 
@@ -508,7 +508,7 @@ POC의 허용 값 유형은 `STRING`, 단위가 있는 `NUMBER`, `DATE`, `PERIOD
 
 #### `knowledge_state_event`
 
-사람이 기준 지식의 상태를 바꾼 이력만 append-only로 보존한다. `knowledge_state_event_id`, `knowledge_item_id`, `from_state`, `to_state`, 필수 `reason`, 필수 `changed_by_user_id`, `changed_at`을 기록하며 처리 주체 종류 열은 두지 않는다. 최초 승격으로 생기는 `근거 확인됨` 상태는 사람의 변경이 아니므로 이벤트를 만들지 않는다.
+사람이 기준 지식의 상태를 바꾼 이력만 append-only로 보존한다. `knowledge_state_event_id`, `knowledge_item_id`, `from_state`, `to_state`, 필수 `reason`, 논리적인 처리자 참조, `changed_at`을 기록하며 처리 주체 종류 열은 두지 않는다. 처리자 참조의 실제 이름·자료형·FK와 인증 계약은 관리자 기능을 구현할 때 결정한다. 최초 승격으로 생기는 `근거 확인됨` 상태는 사람의 변경이 아니므로 이벤트를 만들지 않는다.
 
 허용 전이는 `근거 확인됨 → 사람 확인됨·보류·거절`, `사람 확인됨 → 보류·거절`, `보류 → 근거 확인됨·사람 확인됨·거절`뿐이다. `거절`은 종료 상태다. 이벤트 추가와 `knowledge_item.current_state` 갱신은 같은 트랜잭션에서 수행하며 이전 상태는 잠근 현재 상태와 일치해야 한다. Agent와 일반 코드가 사람 상태 이벤트를 생성할 수 없다.
 
@@ -624,7 +624,7 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 | `current_state` | `Agent 제안`, `사람 확인`, `거절` 가운데 현재 상태 |
 | `created_at` | 충돌 묶음 생성 시점 |
 
-`conflict_member`는 `conflict_set_id`, `claim_id`, 같은 관점을 묶는 `position_key`를 저장하며 `(conflict_set_id, claim_id)` 조합은 한 번만 허용한다. `conflict_state_event`는 `conflict_state_event_id`, `conflict_set_id`, `from_state`, `to_state`, 필수 `reason`, 필수 `changed_by_user_id`, `changed_at`을 append-only 이력으로 저장한다. 일반 코드가 검증된 충돌 묶음을 최초 `Agent 제안` 상태로 만들 때는 사람 상태 이벤트를 만들지 않는다. 이후 `Agent 제안 → 사람 확인·거절` 전이만 사람이 기록하며 현재 상태 갱신과 이벤트 추가는 같은 트랜잭션에서 수행한다.
+`conflict_member`는 `conflict_set_id`, `claim_id`, 같은 관점을 묶는 `position_key`를 저장하며 `(conflict_set_id, claim_id)` 조합은 한 번만 허용한다. 충돌 대상, `modality`, 구성 Claim과 `position_key`는 생성 후 변경하지 않는다. `conflict_state_event`는 `conflict_state_event_id`, `conflict_set_id`, `from_state`, `to_state`, 필수 `reason`, 논리적인 처리자 참조, `changed_at`을 append-only 이력으로 저장한다. 처리자 참조의 물리 계약은 관리자 기능과 함께 결정한다. 일반 코드가 검증된 충돌 묶음을 최초 `Agent 제안` 상태로 만들 때는 사람 상태 이벤트를 만들지 않는다. 이후 `Agent 제안 → 사람 확인·거절` 전이만 사람이 기록하며 현재 상태 갱신과 이벤트 추가는 같은 트랜잭션에서 수행한다.
 
 | `conflict_summary` 필드 | 의미와 규칙 |
 |---|---|
@@ -637,7 +637,7 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 
 관계, 속성값, 사건 시간의 엇갈림은 원문 한 문장에 함께 나타나더라도 서로 다른 원자적 충돌 묶음으로 나눈다. `conflict_set`에 비교 시간과 정밀도를 복사하지 않는다. 관계 충돌의 비교 시간은 구성원 Claim의 `asserted_from/to`에서 읽고, 구조화된 날짜·기간 충돌은 구성원의 `claim_attribute_value` 값과 정밀도에서 읽는다. 사건 시간 충돌도 해당 사건을 대상으로 하는 구성원 Claim과 채택 시간을 함께 검사한다.
 
-`conflict_summary`에는 `input_hash`, 모델 버전, 프롬프트 버전과 출력 계약 버전을 반복 저장하지 않는다. 이 계보와 작업 상태·재시도 정보는 성공 상태의 충돌 요약 `model_task_id`를 따라가서 읽으며, 실제 생성 결과인 공통점과 관점 요약 본문만 요약 행에 둔다. 입력 Claim 집합이 바뀌면 새 입력 해시의 모델 작업과 새 요약 행을 만들고 기존 요약은 덮어쓰지 않는다.
+`conflict_summary`에는 `input_hash`, 모델 버전, 프롬프트 버전과 출력 계약 버전을 반복 저장하지 않는다. 이 계보와 작업 상태·재시도 정보는 성공 상태의 충돌 요약 `model_task_id`를 따라가서 읽으며, 실제 생성 결과인 공통점과 관점 요약 본문만 요약 행에 둔다. Claim의 추가·제거, `position_key`, 충돌 대상 또는 `modality`가 바뀌면 기존 묶음을 수정하지 않고 새 `conflict_set`, 전체 `conflict_member`, 새 `model_task`와 `conflict_summary`를 만든다. Claim 집합과 position이 같고 모델이나 프롬프트만 바뀌면 기존 `conflict_set`에 새 요약을 추가할 수 있으며 과거 묶음·구성원·요약은 모두 보존한다.
 
 일반 코드는 공개 전에 모든 구성원 Claim의 현재 상태가 `근거 확인됨` 또는 `사람 확인됨`인지, 같은 단일 의미 대상을 비교하는지, 시간과 표현 성격을 비교할 수 있는지, 출처와 원문 위치가 있는지 검사한다. 통과한 Agent 제안은 사람 확인 전에도 `Agent가 발견한 엇갈림`으로 표시한다. 사람 확인 뒤에는 문구만 바뀌고 호박색 점선은 유지한다. 충돌 제안을 거절하면 점선과 충돌 표현만 해제하며 원래 Claim의 상태를 바꾸거나 삭제하지 않는다.
 
@@ -800,9 +800,9 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 | claim → 의미 연결 | 1:1..N, `claim_relation`, `claim_attribute_value`, `event_temporal_basis` 가운데 하나가 기본이고 분리 불가능할 때만 여러 연결을 허용함 |
 | claim → claim_observation ← observation | N:M, Claim마다 최소 한 관측 필요 |
 | source_document → observation | 1:N, 관측 범위는 해당 문서 버전 본문에서만 검증함 |
-| conflict_set → conflict_member ← claim | 1:N:1, 한 충돌 묶음은 같은 단일 의미 대상의 Claim을 둘 이상 포함하고 `position_key`로 관점을 묶음 |
+| conflict_set → conflict_member ← claim | 1:N:1, 한 충돌 묶음은 같은 단일 의미 대상의 Claim을 둘 이상 포함하고 `position_key`로 관점을 묶으며 대상·modality·구성 Claim·position은 생성 후 불변임 |
 | conflict_set → conflict_state_event | 1:N, 사람의 확인·거절 전이만 append-only로 보존함 |
-| conflict_set → conflict_summary | 1:N, 입력 Claim 집합이 바뀌면 기존 행을 덮어쓰지 않고 새 요약을 추가함 |
+| conflict_set → conflict_summary | 1:N, 같은 Claim 집합과 position에서 모델·프롬프트가 바뀌면 새 요약을 추가할 수 있고 구성이나 대상이 바뀌면 새 conflict set을 만듦 |
 | model_task → conflict_summary | 1:N, 각 요약은 자신을 생성한 정확한 모델 작업 하나를 참조함 |
 | promotion_batch → knowledge_item | 1:N, 각 기준 지식은 `promotion_batch_id`로 자신을 만든 승격 묶음을 직접 가리킴 |
 | knowledge_item → knowledge_state_event | 1:N, 사람의 상태 변경만 append-only로 보존함 |
@@ -891,7 +891,7 @@ Agent 제안 → 사람 확인
            └→ 거절
 ```
 
-일반 코드의 대상·근거·비교 가능성 검사를 통과한 `Agent 제안`은 사람 확인을 기다리지 않고 충돌 표현에 사용할 수 있다. 사람 확인은 선택 사항이며, 거절은 충돌 표현만 숨긴다. 어느 전이도 구성원 Claim의 지식 상태를 바꾸지 않는다. 입력 Claim 집합이 바뀌면 기존 충돌 요약을 수정하지 않고 새 모델 작업과 요약을 추가한다.
+일반 코드의 대상·근거·비교 가능성 검사를 통과한 `Agent 제안`은 사람 확인을 기다리지 않고 충돌 표현에 사용할 수 있다. 사람 확인은 선택 사항이며, 거절은 충돌 표현만 숨긴다. 어느 전이도 구성원 Claim의 지식 상태를 바꾸지 않는다. Claim 구성·position·대상·modality가 바뀌면 새 `conflict_set`과 전체 구성원을 만들고, 같은 구성에서 모델이나 프롬프트만 바뀌면 기존 묶음에 새 요약을 추가한다.
 
 ## 9. 무결성 규칙
 
@@ -914,17 +914,17 @@ Agent 제안 → 사람 확인
 - `근거 확인됨` 관계는 관측이 연결된 지지 Claim을 최소 하나 가져야 하며 반박 Claim만으로 승격할 수 없다.
 - `근거 확인됨` 노드는 관측이 연결된 대표 alias 또는 자신을 대상으로 하는 근거 있는 Claim을 최소 하나 가져야 한다.
 - 사건 노드는 사건 시간 범위와 이를 뒷받침하는 Claim, 참여자 또는 대상 관계를 최소 하나씩 가져야 한다.
-- 한 노드에는 대표 alias가 최대 하나만 존재해야 하고 공개 가능한 노드는 대표 alias를 정확히 하나 가져야 한다. 외부 식별자 활성 연결은 허용된 범위에서 유일해야 한다.
+- 한 노드에는 대표 alias가 최대 하나만 존재해야 하고 공개 가능한 노드는 대표 alias를 정확히 하나 가져야 한다. 외부 식별자의 같은 체계와 값 조합은 하나의 노드에만 연결해야 한다.
 - 활성 node merge는 원본 노드마다 최대 하나이고 자기 참조와 순환을 허용하지 않으며, 취소된 행은 삭제하거나 재사용하지 않는다.
 - knowledge item의 공통 유형과 실제 하위 엔터티가 정확히 하나로 일치해야 한다.
 - 모든 `knowledge_item`은 자신을 만든 `promotion_batch`를 `promotion_batch_id`로 직접 참조해야 한다.
 - 모델 작업과 출력 계약의 작업 종류는 같아야 하며 `EMBEDDING`만 출력 계약을 참조하지 않아야 한다.
 - 모델 작업의 종료 상태에서는 `finished_at`이 필수이고, 같은 cache key와 같은 작업 안의 시도 번호는 각각 고유해야 한다.
 - blocked fingerprint는 정확한 문서·계약·`BLOCKING` 승격 전 정책 규칙을 참조해야 하며 네 범위 필드와 fingerprint 조합은 고유해야 한다.
-- knowledge state event의 변경 사용자는 필수이고 이전 상태와 잠근 현재 상태가 일치해야 하며 허용 전이만 기록할 수 있다.
-- conflict state event의 변경 사용자는 필수이고 `Agent 제안 → 사람 확인·거절` 전이만 기록할 수 있으며 최초 Agent 제안 생성은 사람 이벤트로 가장하지 않는다.
+- 관리자 기능을 구현해 knowledge state event를 기록할 때 처리자와 이유는 필수이고 이전 상태와 잠근 현재 상태가 일치해야 하며 허용 전이만 기록할 수 있다.
+- 관리자 기능을 구현해 conflict state event를 기록할 때 처리자와 이유는 필수이고 `Agent 제안 → 사람 확인·거절` 전이만 기록할 수 있으며 최초 Agent 제안 생성은 사람 이벤트로 가장하지 않는다.
 - lint finding은 정확한 기준 knowledge item과 정책 규칙을 참조하며 열린 finding key는 한 문제 인스턴스만 가져야 한다.
-- conflict set은 `relation_id`, `target_node_id + attribute_revision_id`, `event_node_id` 가운데 정확히 한 대상 형태만 가져야 한다.
+- conflict set은 `relation_id`, `target_node_id + attribute_revision_id`, `event_node_id` 가운데 정확히 한 대상 형태만 가져야 하며 대상·modality·구성 Claim·position은 생성 후 바꿀 수 없다.
 - conflict summary는 정확한 `model_task_id`를 가져야 하며 입력 해시와 모델·프롬프트·출력 계약 버전을 중복 저장하지 않는다.
 - 승격 실패 묶음은 `FAILED + NOT_STARTED`여야 하고 `committed_at`, `ready_at`과 공개 결과 선택을 가질 수 없다.
 - `READY` 공개 묶음은 `promotion_status = COMMITTED`이며 `committed_at`, `ready_at`과 영향받은 모든 노드의 필수 결과 참조를 가져야 한다.
@@ -943,7 +943,7 @@ Agent 제안 → 사람 확인
 - 인용 범위와 인용문의 실제 일치 검사
 - 정확히 같은 본문 해시의 독립 근거 묶음 자동 배정
 - 문서 `source_key`, 다음 `version_no`와 관계 identity key의 결정적 계산
-- 명확한 외부 식별자와 승인된 별칭을 이용한 동일 대상 판정
+- 신뢰된 자료 준비 레이어의 외부 식별자와 승인된 별칭을 이용한 동일 대상 판정
 - 관계 identity와 `SYMMETRIC` endpoint 정규화
 - alias 검색 결과에서 활성 node merge 연쇄를 따라 최종 기준 노드를 찾고 그 노드의 대표 alias를 선택
 - 월·연도 정밀도의 사건 경계를 실제 범위로 해석하는 표시와 시간 필터 계산
@@ -954,7 +954,7 @@ Agent 제안 → 사람 확인
 - 노드 사이 사실을 속성값이나 노드 정체성을 포함한 동적 속성 코드로 우회하지 못하게 하는 출력·온톨로지 검사
 - `DATE`와 `PERIOD`의 경계·정밀도 일치, revision과 값 종류 일치 검사
 - 충돌 구성원이 같은 단일 의미 대상을 가리키는지와 Claim·구조화 값에서 읽은 시간의 비교 가능성 검사
-- 충돌 요약 입력 Claim 집합이 바뀌었을 때 새 입력 해시의 모델 작업과 요약 생성
+- 충돌의 Claim 구성·position·대상·modality가 바뀌었을 때 새 conflict set·전체 member·model task·summary 생성
 - 선택 기간의 활동량, 관계선 굵기와 2단계 이웃 중요도 계산
 - `identity_text`, `knowledge_text`와 임베딩 입력의 결정적 선택·정렬·조합
 - 공개 준비 상태 전환 전 결과 완결성, 모델 작업 성공, 미해결 차단 lint와 Evidence Trace 검사
@@ -1034,7 +1034,7 @@ Agent 호출이 모두 실패하면 준비된 `source_document`, 모델 작업�
 
 승격 계보는 `promotion_batch → knowledge_item`과 `Claim → observation → source_document` 경로로 재현한다. 추출 모델 작업이나 일시적인 후보를 기준 지식에 직접 연결하지 않는다.
 
-승격 뒤 충돌 분석은 Claim을 관계, 구조화 속성값, 사건 시간 대상별로 따로 모아 비교한다. 비교 가능한 Claim만 같은 `conflict_set`에 넣고 시간은 구성원 Claim과 구조화 값에서 읽는다. 요약을 생성하면 정확한 `model_task_id`와 결과 본문을 저장한다. 입력 Claim 집합이 바뀌면 새 작업과 새 요약을 추가하며 기존 요약은 보존한다.
+승격 뒤 충돌 분석은 Claim을 관계, 구조화 속성값, 사건 시간 대상별로 따로 모아 비교한다. 비교 가능한 Claim만 같은 `conflict_set`에 넣고 시간은 구성원 Claim과 구조화 값에서 읽는다. 요약을 생성하면 정확한 `model_task_id`와 결과 본문을 저장한다. Claim 구성·position·대상·modality가 바뀌면 새 `conflict_set`, 전체 member, 새 작업과 요약을 만들며 기존 묶음과 요약은 보존한다.
 
 ### 11.3 파생 결과와 공개
 
@@ -1169,14 +1169,14 @@ SK하이닉스 검색 문서는 대표 alias와 검색 가능한 모든 alias를
 | 28 | 일부 계약 유효 후보만 차단됨 | 통과한 결과는 원자 승격되고 모델 작업은 `SUCCESS`로 끝나며 차단 후보의 fingerprint만 별도로 집계됨 |
 | 29 | 관련 후보가 모두 승격 전 차단 규칙에 실패함 | 모델 작업이 `VALIDATION_BLOCKED`로 끝나며 작업 스케줄러가 기술 재시도를 예약하지 않음 |
 | 30 | 새 lint 정책이 기존 그래프 결과를 바꿀 수 있음 | 새 정책의 전체 그래프 run이 한 번 생성되고 같은 열린 문제는 갱신되며 성공한 적용 범위에서 사라진 문제만 해결됨 |
-| 31 | 사람이 근거 확인된 지식을 보류함 | 필수 사용자와 이유가 있는 이벤트와 현재 상태가 한 트랜잭션에서 함께 기록되고 Agent나 일반 코드는 같은 이벤트를 만들 수 없음 |
+| 31 | 후속 관리자 기능에서 사람이 근거 확인된 지식을 보류함 | 처리자와 이유가 있는 이벤트와 현재 상태가 한 트랜잭션에서 함께 기록되고 Agent나 일반 코드는 같은 이벤트를 만들 수 없음. 관리자 기능이 없는 초기 POC 공개는 근거 확인됨 상태만으로 가능함 |
 | 32 | 관계 Claim, 구조화 속성값 Claim, 사건 시간만 주장하는 Claim을 각각 승격함 | 각 Claim이 세 허용 의미 연결 가운데 해당하는 한 경로와 정확한 관측을 가지고 승격됨 |
 | 33 | Claim이 어떤 의미 연결도 가지지 않음 | 관측이 있더라도 승격이 차단됨 |
 | 34 | 한 문장에 독립적으로 판단 가능한 사실이 여럿 있거나 분리하면 의미를 잃는 명제가 있음 | 전자는 별도 Claim으로 나뉘고 후자는 여러 의미 연결을 유지하면서 비차단 경고가 생기며 사람 확인 없이 승격할 수 있음 |
 | 35 | 연도 정밀도 목표일, 종료 미상 기간, 닫힌 기간과 잘못된 경계·revision 조합을 저장함 | `DATE`와 두 `PERIOD`는 정밀도를 보존하고, 종료가 시작보다 이르거나 종류·NULL·정밀도·revision 조합이 어긋난 값은 차단됨 |
 | 36 | “기술 T가 표준 S를 공식 지원한다”를 Boolean 속성으로 제안하고 명시적 `false`와 값 부재를 조회함 | 노드 사이 제안은 Relation으로만 허용되고 Boolean 방식은 차단되며, `false`는 근거 있는 부정으로 미상과 구분됨 |
 | 37 | 관계, 속성값, 사건 시간 충돌과 두 범주를 함께 채운 충돌 묶음을 제안함 | 각 단일 대상 충돌만 별도 묶음으로 저장되고 대상 없음·복수 대상 묶음은 차단되며 비교 시간은 구성원 Claim과 구조화 값에서 계산됨 |
-| 38 | 충돌 요약의 입력 Claim 집합이 바뀜 | 새 입력 해시의 `model_task`와 `conflict_summary`가 생기고 기존 요약이 보존되며, 모델·프롬프트·출력 계약·상태·재시도 계보는 `model_task_id`로 조회됨 |
+| 38 | 기존 충돌 묶음에 Claim C를 추가하거나 position을 바꿈 | 기존 묶음을 수정하지 않고 A·B·C 전체를 가진 새 `conflict_set`과 member, 새 입력 해시의 `model_task`와 `conflict_summary`가 생기며 기존 묶음·구성원·요약은 보존됨 |
 | 39 | Agent가 제안한 충돌을 사람이 거절함 | 충돌 표현만 숨고 구성원 Claim의 상태와 Evidence Trace는 바뀌지 않음 |
 | 40 | 같은 노드·공개 지식·생성 규칙으로 검색 문서를 다시 만듦 | 같은 `input_hash`와 `generator_version` 조합의 문서를 중복 생성하지 않고 두 검색 필드와 임베딩 입력 순서가 같음 |
 | 41 | 임베딩이나 맥락 설명이 다른 노드의 검색 문서를 참조함 | `(node_search_document_id, node_id)` 복합 FK가 저장을 거부함 |
@@ -1205,11 +1205,11 @@ SK하이닉스 검색 문서는 대표 alias와 검색 가능한 모든 alias를
 - 차단 fingerprint의 문서·계약·정책 규칙 범위 고유성과 payload 비저장 경계 구현
 - 상위 `knowledge_item`과 하위 엔터티의 배타적 일대일 제약 구현
 - 승격 묶음과 기준 지식을 직접 연결하는 `knowledge_item.promotion_batch_id` 외래 키와 종속 레코드 계보 구현
-- 사람 전용 knowledge state 전이, 필수 사용자·이유와 현재 상태의 원자 갱신 구현
+- 사람 전용 상태 변경의 처리자 식별자 이름·자료형·FK와 인증 계약은 관리자 기능을 구현할 때 별도 설계함. 초기 POC migration과 공개 happy path의 선행 조건으로 두지 않음
 - lint policy 활성화와 전체 그래프 run, 결정적 finding key, 반복·해결·재발 처리 구현
 - Claim의 세 의미 연결 가운데 최소 하나와 정확한 관측, 관계·노드·사건의 최소 근거와 공개 선택된 맥락 설명의 후속 질문 슬롯 1·2를 보장하는 지연 제약 또는 트랜잭션 검증
 - `conflict_set`의 관계, 속성값, 사건 시간 대상 형태 중 정확히 하나만 허용하는 배타적 CHECK와 대상별 외래 키 구현
-- `conflict_summary.model_task_id` 외래 키와 구성원 Claim 집합 변경 시 새 작업·요약을 추가하는 멱등성 구현. 입력 해시와 모델·프롬프트·출력 계약 계보는 요약 테이블에 중복하지 않음
+- `conflict_summary.model_task_id` 외래 키, conflict set 대상·modality·member·position 불변성과 구성이 바뀔 때 새 set·member·작업·요약을 생성하는 멱등성 구현. 별도 `conflict_summary_input`은 만들지 않음
 - 정규화 본문 문자 길이와 인용문 일치를 검증하는 함수 경계
 - `promotion_status`·`publication_status` 조합, 필수 시점과 분리된 실패 이유의 CHECK 또는 트랜잭션 검증
 - `(promotion_batch_id, node_id)` 기본 키와 `READY` 전 세 결과 참조의 완결성 검증
@@ -1226,7 +1226,7 @@ SK하이닉스 검색 문서는 대표 alias와 검색 가능한 모든 alias를
 - 노드별 가장 최근 `READY`인 `publication_affected_node` 결과 선택과 준비·실패 중 이전 결과 유지
 - 공개 가능한 데이터만 사용하는 부분 그래프와 상세 패널 조회
 - 노드·관계선 상한과 결정적 정렬을 적용하는 부분 그래프 조회
-- 고정 입력 문서 묶음 적재의 멱등성 검증
+- 고정 입력 문서 묶음 적재의 멱등성과 다중 문서 모델 입력 전체의 `input_hash` 검증. 제품 DB에 입력 문서 목록 관계는 만들지 않음
 
 관계가 전혀 없는 노드에서 필수 후속 질문 두 개의 공개 대상 노드를 고르는 규칙은 #36에서 결정한다. 이 결정 전에는 질문 대상 외래 키를 nullable로 바꾸거나 의미 없는 관계를 추가하지 않는다.
 
@@ -1251,3 +1251,5 @@ SK하이닉스 검색 문서는 대표 alias와 검색 가능한 모든 alias를
 - POC 자동 삭제와 보존 정리 작업
 - PostgreSQL DDL, migration, API와 화면 구현
 - POC 관계 유효 기간 컬럼과 `attribute_target_rule`; 관계 기간 필터나 실제 다중 대상 속성이 승인되면 각각 별도 이슈에서 논리 모델을 다시 설계함
+- 다중 모델 입력 문서 목록, 외부 식별자의 observation 근거 연결과 충돌 요약별 입력 Claim 연결 테이블
+- 현재 POC용 user·actor·principal과 인증·권한 테이블
