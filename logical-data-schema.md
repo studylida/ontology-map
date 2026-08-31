@@ -4,7 +4,7 @@
 >
 > 기준: 요구사항 워크숍에서 확정한 HBF 공개 자료 POC
 >
-> 범위: 미리 준비된 불변 정규화 문서부터 지식 후보, 기준 지식그래프, 파생 데이터, 동적 지도 공개까지
+> 범위: 미리 준비된 불변 정규화 문서부터 모델 실행, 메모리 검증, 기준 지식그래프, 파생 데이터, 동적 지도 공개까지
 
 ## 1. 문서의 목적과 결정 경계
 
@@ -22,8 +22,9 @@
 준비된 정규화 문서 묶음 입력
 → 문서 내용과 메타데이터 검사
 → 불변 문서 버전 저장
-→ Agent 구조화 출력과 지식 후보 저장
-→ lint·동일 대상·중복·온톨로지 검사
+→ 버전이 고정된 출력 계약으로 Agent 호출
+→ 응답과 후보를 저장하지 않고 메모리에서 계약·lint·동일 대상·중복·온톨로지 검사
+→ 반복 차단 대상은 payload 없이 fingerprint와 정형화된 규칙만 기록
 → 짧은 트랜잭션으로 기준 지식그래프 승격
 → 검색 문서·임베딩·한국어 맥락·후속 질문 생성
 → 영향받은 묶음의 공개 준비 완료
@@ -41,11 +42,11 @@
 - 사람이 거절한 지식은 공개 준비 상태와 관계없이 지도와 일반 검색에서 즉시 제외하지만 DB에서는 삭제하지 않는다.
 - 의미가 섞인 단일 `confidence` 값은 두지 않는다. 추출 성공 여부는 모델 작업 상태, 원문 충실성은 관측 일치·lint·지식 상태, 근거 강도는 독립 근거 묶음 수로 각각 표현한다.
 
-## 3. JSON의 역할
+## 3. Structured Output 계약과 JSON의 역할
 
-구조화 출력 JSON은 Agent와 애플리케이션 사이의 신뢰 경계다. 기준 지식그래프의 저장 형식이나 HTML 보관 형식이 아니다.
+구조화 출력 JSON은 Agent와 애플리케이션 사이의 일시적인 신뢰 경계다. 기준 지식그래프의 저장 형식이나 HTML 보관 형식이 아니며 DB 보존 대상도 아니다.
 
-Agent는 다음과 같은 버전 있는 계약으로만 결과를 반환한다.
+`output_schema_definition`은 다음과 같은 응답 구조를 JSON Schema로 버전 관리한다. Agent는 일반 코드가 선택한 정확한 계약으로만 결과를 반환한다.
 
 ```json
 {
@@ -62,11 +63,11 @@ Agent는 다음과 같은 버전 있는 계약으로만 결과를 반환한다.
 
 사건은 `events`의 정식 노드 후보로 내보내고 사건 맥락 관계는 그 사건을 시작 또는 도착 endpoint로 사용하는 `relations` 후보로 내보낸다. 관계 후보에는 숨은 사건 맥락이나 관계 유효 기간을 넣지 않으며, 원문이 주장한 시간은 Claim 후보와 정확한 관측 위치에 둔다.
 
-계약 검증을 통과한 JSON 전체는 `structured_output`에 보존한다. 모델 제공자의 원시 HTTP 응답은 저장하지 않는다. 모델명, 프롬프트 버전, 출력 스키마 버전, 입력 해시, 응답 식별자, 토큰 사용량과 오류는 실행 메타데이터에 따로 저장한다.
+애플리케이션은 응답 JSON을 메모리에서 계약 검증하고 후보별 승격 전 검사를 수행한다. 모델 제공자의 원시 HTTP 응답, Agent 응답 JSON, 탈락한 후보 payload는 저장하지 않는다. 계약을 통과하고 승격 전 검증에도 통과한 결과만 강한 관계형 제약을 가진 기준 그래프나 모델 기반 파생 결과에 기록한다.
 
-JSON 안의 각 후보는 `candidate_item` 행으로 꺼내 개별 상태를 관리한다. 구체적인 후보 값은 JSON에 남기고, 후보 종류·JSON Pointer·fingerprint·상태·검사 결과·승격 결과만 공통 열로 관리한다. 검증을 통과한 후보만 강한 관계형 제약을 가진 기준 그래프 엔터티로 변환한다.
+계약은 작업 종류와 버전별로 재사용하되 이미 `model_task`가 참조한 행은 수정하지 않는다. 형식을 바꾸려면 새 계약 버전을 추가한다. `EMBEDDING`은 JSON Structured Output이 아니므로 계약 참조 없이 벡터 타입과 설정된 차원으로 검사한다.
 
-이 구조는 후보 테이블을 기준 그래프와 똑같이 두 벌 만드는 일을 피하면서도 후보 하나만 보류하거나 거절하고 나머지를 승격할 수 있게 한다.
+후보 일부가 차단되어도 통과한 후보는 같은 짧은 트랜잭션에서 승격할 수 있다. 차단된 후보는 payload 대신 검증 관련 모든 필드를 정규화한 fingerprint와 정확한 문서·계약·정책 규칙 범위만 `blocked_fingerprint`에 남긴다.
 
 ## 4. 공통 표준
 
@@ -106,7 +107,7 @@ JSON 안의 각 후보는 `candidate_item` 행으로 꺼내 개별 상태를 관
 
 ### 4.5 POC 보존
 
-HBF POC 동안 문서 버전, 기준 지식, 후보, 상태·거절 이력, 계보, 실패 기록과 파생 결과를 자동 삭제하지 않는다. POC 이후 실제 저장량과 재생성 비용을 측정한 뒤 사용되지 않는 파생 결과에만 정리 정책을 검토한다. 기준 지식, Evidence Trace와 거절 이력은 자동 정리 대상에서 제외한다.
+HBF POC 동안 문서 버전, 기준 지식, 사람 검토 이력, 실행·lint·차단 기록, 계보와 파생 결과를 자동 삭제하지 않는다. Agent 응답 JSON과 후보 payload는 처음부터 저장하지 않는다. POC 이후 실제 저장량과 재생성 비용을 측정한 뒤 사용되지 않는 파생 결과에만 정리 정책을 검토한다. 기준 지식, Evidence Trace와 사람 검토 이력은 자동 정리 대상에서 제외한다.
 
 ## 5. 논리 ER 구조
 
@@ -120,17 +121,22 @@ erDiagram
     SOURCE_DOCUMENT ||--o{ EVIDENCE_GROUP_ASSIGNMENT : belongs_to
 ```
 
-### 5.2 Agent 실행과 지식 후보
+### 5.2 모델 실행, 승격 전 검증과 기준 그래프 lint
 
 ```mermaid
 erDiagram
-    SOURCE_DOCUMENT ||--o{ MODEL_TASK : inputs
+    SOURCE_DOCUMENT |o--o{ MODEL_TASK : inputs
+    OUTPUT_SCHEMA_DEFINITION |o--o{ MODEL_TASK : contracts
     MODEL_TASK ||--o{ AGENT_ATTEMPT : retries
-    AGENT_ATTEMPT ||--o| STRUCTURED_OUTPUT : produces
-    STRUCTURED_OUTPUT ||--o{ CANDIDATE_ITEM : contains
-    CANDIDATE_ITEM ||--o{ CANDIDATE_STATE_EVENT : changes
-    CANDIDATE_ITEM ||--o{ LINT_RUN : checked_by
+    SOURCE_DOCUMENT ||--o{ BLOCKED_FINGERPRINT : scopes
+    OUTPUT_SCHEMA_DEFINITION ||--o{ BLOCKED_FINGERPRINT : scopes
+    LINT_POLICY_VERSION ||--o{ LINT_POLICY_RULE : configures
+    LINT_RULE ||--o{ LINT_POLICY_RULE : selects
+    LINT_POLICY_RULE ||--o{ BLOCKED_FINGERPRINT : explains
+    LINT_POLICY_VERSION ||--o{ LINT_RUN : governs
     LINT_RUN ||--o{ LINT_FINDING : reports
+    LINT_POLICY_RULE ||--o{ LINT_FINDING : classifies
+    KNOWLEDGE_ITEM ||--o{ LINT_FINDING : affects
 ```
 
 ### 5.3 온톨로지와 노드 정체성
@@ -191,8 +197,7 @@ erDiagram
 
 ```mermaid
 erDiagram
-    PROMOTION_BATCH ||--o{ PROMOTION_MEMBER : promotes
-    CANDIDATE_ITEM ||--o{ PROMOTION_MEMBER : produces
+    PROMOTION_BATCH ||--o{ KNOWLEDGE_ITEM : creates
     PROMOTION_BATCH ||--|| PUBLICATION_STATE : gates
     PROMOTION_BATCH ||--o{ PUBLICATION_AFFECTED_NODE : affects
     NODE ||--o{ PUBLICATION_AFFECTED_NODE : waits_for
@@ -209,9 +214,10 @@ erDiagram
     NODE ||--o{ NODE_CONTEXT : derives
     NODE_CONTEXT ||--|{ FOLLOWUP_QUESTION : contains
     DERIVATION_RUN ||--o{ NODE_SEARCH_DOCUMENT : creates
-    DERIVATION_RUN ||--o{ NODE_EMBEDDING : creates
-    DERIVATION_RUN ||--o{ NODE_CONTEXT : creates
-    DERIVATION_RUN ||--o{ FOLLOWUP_QUESTION : creates
+    MODEL_TASK ||--o{ NODE_EMBEDDING : creates
+    MODEL_TASK ||--o{ NODE_CONTEXT : creates
+    MODEL_TASK ||--o{ FOLLOWUP_QUESTION : creates
+    MODEL_TASK ||--o{ CONFLICT_SUMMARY : creates
     NODE_SEARCH_DOCUMENT ||--o{ SEARCH_DOCUMENT_BASIS : explains
     KNOWLEDGE_ITEM ||--o{ SEARCH_DOCUMENT_BASIS : contributes
     NODE_CONTEXT ||--o{ NODE_CONTEXT_BASIS : explains
@@ -259,56 +265,75 @@ erDiagram
 - `evidence_group_assignment`에는 문서 버전과 근거 묶음, 할당 방식, 판단 이유, 처리 주체, 적용 시작·종료 시점을 남긴다. 재할당할 때 이전 행의 적용 기간을 닫고 새 행을 추가하여 과거 판정을 덮어쓰지 않는다.
 - 관계선 굵기와 노드 활동량은 해당 기간의 지지 Claim에서 도달 가능한 서로 다른 `evidence_group_id` 수를 기준으로 계산한다.
 
-### 6.2 Agent 실행과 후보
+### 6.2 모델 실행과 승격 전 검증
+
+#### `output_schema_definition`
+
+모델 작업이 반환해야 하는 JSON 구조를 작업 종류와 버전별로 보존하는 불변 계약이다. 응답 인스턴스나 제공자 payload를 보관하는 테이블이 아니다.
+
+| 필드 | 의미와 규칙 |
+|---|---|
+| `output_schema_definition_id` | 출력 계약 식별자 |
+| `task_kind` | 이 계약을 사용할 모델 작업 종류 |
+| `version_no` | 같은 작업 종류 안에서 증가하는 계약 버전 |
+| `schema_json` | JSON Schema 계약 정의 |
+| `created_at` | 계약을 등록한 시점 |
+| `is_active` | 새 작업에 선택할 수 있는 현재 계약인지 표시 |
+
+`task_kind + version_no`는 고유하다. `model_task`가 한 번이라도 참조한 계약의 작업 종류, 버전과 스키마 본문은 수정하지 않으며 변경이 필요하면 새 버전을 추가한다. 모델 작업과 계약의 `task_kind`는 같아야 한다.
 
 #### `model_task`
 
-하나의 모델 작업과 그 재시도·캐시 경계를 나타낸다.
+하나의 결정적 모델 작업, 실행 lease, 기술 재시도와 캐시 경계를 나타낸다.
 
 | 필드 | 의미와 규칙 |
 |---|---|
 | `model_task_id` | 작업 식별자 |
-| `task_kind` | 추출, 동일 대상 후보, 근거 계보 후보, 충돌 정리, 맥락 설명, 후속 질문, 임베딩 등 |
-| `source_document_id` | 원문 추출 작업일 때 입력 문서 버전 |
-| `input_hash` | 실제 입력 내용 해시 |
-| `output_schema_version` | 기대하는 구조화 출력 계약 버전 |
+| `task_kind` | `KNOWLEDGE_EXTRACTION`, `ENTITY_RESOLUTION_PROPOSAL`, `EVIDENCE_LINEAGE_PROPOSAL`, `CONFLICT_SUMMARY`, `NODE_CONTEXT`, `FOLLOWUP_QUESTIONS`, `EMBEDDING` 중 하나 |
+| `source_document_id` | 문서 기반 작업의 정확한 불변 입력 문서 버전이며 그 밖의 작업에서는 비울 수 있음 |
+| `input_hash` | 실제 입력 전체의 결정적 해시 |
+| `output_schema_definition_id` | 정확한 출력 계약이며 `EMBEDDING` 작업에서만 비움 |
 | `model_version`, `prompt_version` | 실행 계보 |
-| `cache_key` | `입력 해시 + 작업 종류 + 출력 스키마 버전 + 모델·프롬프트 버전`의 결정적 키 |
-| `idempotency_key` | 같은 논리 작업의 중복 실행과 중복 결과 반영을 막는 키 |
-| `status` | 대기, 실행, 성공, 재시도 대기, 최종 실패 |
-| `attempt_count`, `next_attempt_at` | 실행한 횟수와 다음 실행 가능 시점 |
-| `failure_class` | 일시 오류, 영구 오류, 계약 위반 등 재시도 판단용 분류 |
-| `lease_owner`, `lease_expires_at` | 동시에 둘 이상의 worker가 같은 작업을 실행하지 못하게 하는 짧은 lease |
+| `cache_key` | 작업 종류, 입력 해시, 출력 계약 식별자, 모델·프롬프트 버전으로 계산한 결정적 고유 키 |
+| `status` | `PENDING`, `RUNNING`, `SUCCESS`, `RETRY_WAIT`, `VALIDATION_BLOCKED`, `FINAL_FAILED` 중 하나 |
+| `attempt_count`, `next_attempt_at` | 실제 모델 호출 횟수와 다음 호출 가능 시점 |
+| `lease_owner`, `lease_expires_at` | 같은 작업의 동시 실행을 막는 짧은 lease |
+| `created_at`, `finished_at` | 작업 생성 시점과 종료 상태에 도달한 시점 |
 
-같은 cache key의 성공 결과는 재사용한다. 재시도 정책은 모델 작업마다 독립적으로 적용한다.
+`EMBEDDING` cache key는 출력 계약 위치에 고정된 빈 표지를 넣으며 벡터 타입과 설정된 차원으로 결과를 검사한다. 같은 cache key에는 영속 작업 행 하나만 두고 `SUCCESS`, `VALIDATION_BLOCKED`, `FINAL_FAILED`를 종료 상태로 취급한다. 캐시 적중은 새 시도 행이나 호출 횟수를 만들지 않는다.
+
+`SUCCESS`는 하나 이상의 결과가 영속 저장소에 반영됐거나 유효한 응답에 관련 후보가 없다는 뜻이다. 일부 후보만 승격되고 나머지가 차단된 작업도 `SUCCESS`다. 관련 후보가 있었지만 모두 차단됐을 때만 `VALIDATION_BLOCKED`를 사용한다. 모델 호출이나 출력 계약 자체의 기술 실패는 재시도 가능성에 따라 `RETRY_WAIT` 또는 `FINAL_FAILED`로 간다.
+
+worker는 모델 제공자 호출 전에 작업 lease와 실행 상태를 짧은 트랜잭션으로 먼저 커밋한다. 호출과 메모리 검사가 끝나면 새 짧은 트랜잭션에서 작업 행을 잠그고 이미 종료됐는지 다시 확인한 뒤 시도 기록, 승격 결과 또는 차단 fingerprint, 호출 횟수와 작업 상태를 원자적으로 반영한다.
 
 #### `agent_attempt`
 
-최초 호출과 개별 재시도 한 번을 나타낸다. 시도 순서, 실제 모델·프롬프트·출력 스키마 버전, 시작·종료 시점, 응답 식별자, 토큰 사용량, 오류 분류와 오류 요약을 저장한다. 최초 호출 뒤 즉시 자동 재시도 1회를 허용하고, 일시적 모델 장애가 계속되면 1시간·2시간·4시간 뒤 최대 세 번 더 시도한다. 영구적인 인증 오류나 잘못된 요청에는 시간 기반 재시도를 적용하지 않는다. 구조화 출력 계약 위반은 한 번의 수정 요청 뒤에도 실패하면 보류한다.
-
-#### `structured_output`
-
-출력 계약 검증을 통과한 제공자 독립 JSON을 보존한다. `agent_attempt`마다 최대 한 건이며 JSON 자체는 수정하지 않는다.
-
-#### `candidate_item`
-
-구조화 출력 JSON 안의 개별 후보를 관리한다.
+실제 모델 호출 한 번의 최소 이력이다.
 
 | 필드 | 의미와 규칙 |
 |---|---|
-| `candidate_item_id` | 후보 식별자 |
-| `structured_output_id` | 원본 계약 JSON |
-| `candidate_kind` | 노드, 사건, 관계, Claim, 관측, 동일 대상, 근거 계보 후보 |
-| `json_pointer` | JSON 안의 정확한 후보 위치 |
-| `fingerprint` | 후보 의미의 결정적 정규화 해시 |
-| `current_state` | 제안됨, 검사 중, 차단됨, 보류, 거절, 승격 |
-| `hold_or_reject_reason` | 보류·거절 이유 |
+| `agent_attempt_id` | 시도 식별자 |
+| `model_task_id`, `attempt_no` | 작업과 1부터 증가하는 호출 순서 |
+| `outcome` | 호출 또는 계약 검증 결과 |
+| `failure_reason` | 실패했을 때의 정형화된 이유 |
+| `attempted_at` | 호출 시점 |
 
-동일한 문서 버전에서 같은 fingerprint로 거절된 후보는 반복 생성과 모델 비용을 억제한다. 새로운 문서 버전이나 새로운 근거가 있으면 같은 의미에 대한 새 후보를 만들 수 있다.
+`model_task_id + attempt_no`는 고유하며 `attempt_count`와 실제 행 수는 일치해야 한다. 응답 식별자, 토큰·비용 집계, 모델 제공자 원문, 중복된 모델·프롬프트·계약 버전은 저장하지 않는다. 최초 호출 뒤 즉시 한 번 더 시도할 수 있고 계속되는 일시 장애에는 1시간, 2시간, 4시간 뒤 각각 한 번씩 시도하여 최대 다섯 번 호출한다. 시간 초과와 일시적인 모델 제공자 장애만 `RETRY_WAIT` 대상으로 삼고 인증 실패, 잘못된 요청과 소진된 재시도는 `FINAL_FAILED`로 닫는다.
 
-#### `candidate_state_event`
+#### 메모리 검증과 `blocked_fingerprint`
 
-후보의 이전 상태, 새 상태, 이유, 처리 주체, 처리 시점을 append-only로 기록한다. 현재 상태는 빠른 조회를 위해 후보 행에도 중복 저장한다.
+애플리케이션은 계약에 맞는 응답을 후보 단위로 분리하고 인용 범위, 온톨로지, 동일 대상, 중복과 승격 무결성을 메모리에서 검사한다. 응답 JSON, 후보 payload, 승격 전 finding 인스턴스와 후보 상태 이력은 저장하지 않는다.
+
+| 필드 | 의미와 규칙 |
+|---|---|
+| `blocked_fingerprint_id` | 반복 차단 기록 식별자 |
+| `fingerprint` | 검증에 영향을 주는 후보 필드를 정규화한 결정적 해시 |
+| `source_document_id` | 후보를 만든 정확한 불변 문서 버전 |
+| `output_schema_definition_id` | 후보가 통과한 정확한 출력 계약 |
+| `lint_policy_rule_id` | 실패한 정확한 `BLOCKING` 승격 전 규칙 |
+| `first_blocked_at`, `last_blocked_at`, `blocked_count` | 최초·최근 차단 시점과 반복 횟수 |
+
+`fingerprint + source_document_id + output_schema_definition_id + lint_policy_rule_id`는 고유하다. 계약을 통과한 후보가 `PRE_PROMOTION` 또는 `BOTH` 범위의 `BLOCKING` 규칙에 실패했을 때만 이 행을 생성하거나 반복 횟수를 갱신한다. 계약 위반, 모델 장애, `WARNING`과 자유 서술형 payload는 기록하지 않는다. 작업 스케줄러는 `model_task.status`, `attempt_count`, `next_attempt_at`만으로 기술 재시도를 결정하고, `blocked_fingerprint`는 계약 유효 응답 안의 같은 차단 후보를 다시 검증하거나 승격하지 않는 데만 사용한다.
 
 ### 6.3 온톨로지
 
@@ -445,17 +470,18 @@ erDiagram
 | `knowledge_item_id` | 불변 식별자 |
 | `item_kind` | 노드, 관계, Claim |
 | `current_state` | 근거 확인됨, 사람 확인됨, 보류, 거절 |
-| `origin_candidate_item_id` | 어떤 후보에서 승격됐는지 표시 |
 | `promotion_batch_id` | 어떤 짧은 트랜잭션에서 생성됐는지 표시 |
 | `created_at` | 기준 그래프 생성 시점 |
 
 각 `knowledge_item`은 정확히 하나의 노드·관계·Claim 하위 레코드를 가져야 한다. Agent는 기준 지식 상태를 직접 만들지 못한다.
 
-`근거 확인됨`은 사실로 확정됐다는 뜻이 아니다. 문서 버전과 원문 위치가 존재하고, 인용 범위가 Claim을 실제로 뒷받침하며, 노드·관계 유형과 시간·동일 대상 검사를 통과하고, 모든 차단 lint를 통과했으며, 동일한 거절 후보의 반복이 아님을 뜻한다.
+`근거 확인됨`은 사실로 확정됐다는 뜻이 아니다. 문서 버전과 원문 위치가 존재하고, 인용 범위가 Claim을 실제로 뒷받침하며, 노드·관계 유형과 시간·동일 대상 검사를 포함한 모든 승격 차단 규칙을 통과했다는 뜻이다.
 
 #### `knowledge_state_event`
 
-기준 지식의 상태 이력을 append-only로 보존한다. 이전 상태, 새 상태, 이유, 처리 주체, 처리 시점을 기록한다. 현재 상태는 빠른 조회를 위해 `knowledge_item`에도 저장한다.
+사람이 기준 지식의 상태를 바꾼 이력만 append-only로 보존한다. `knowledge_state_event_id`, `knowledge_item_id`, `previous_state`, `new_state`, 필수 `reason`, 필수 `changed_by_user_id`, `changed_at`을 기록하며 처리 주체 종류 열은 두지 않는다. 최초 승격으로 생기는 `근거 확인됨` 상태는 사람의 변경이 아니므로 이벤트를 만들지 않는다.
+
+허용 전이는 `근거 확인됨 → 사람 확인됨·보류·거절`, `사람 확인됨 → 보류·거절`, `보류 → 근거 확인됨·사람 확인됨·거절`뿐이다. `거절`은 종료 상태다. 이벤트 추가와 `knowledge_item.current_state` 갱신은 같은 트랜잭션에서 수행하며 이전 상태는 잠근 현재 상태와 일치해야 한다. Agent와 일반 코드가 사람 상태 이벤트를 생성할 수 없다.
 
 #### `relation`
 
@@ -534,11 +560,19 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 
 ### 6.6 lint와 충돌
 
+#### `lint_rule`, `lint_policy_version`과 `lint_policy_rule`
+
+`lint_rule`은 안정된 규칙 식별자, 코드, 표시 이름, 설명과 평가 범위 `PRE_PROMOTION`, `PERSISTED_GRAPH`, `BOTH`를 가진다. `lint_policy_version`은 적용 시점이 고정된 정책 버전이며 `lint_policy_rule`은 정책과 규칙을 연결하고 심각도 `BLOCKING` 또는 `WARNING`을 정한다. 규칙 구현과 정책별 심각도를 분리하여 같은 검사를 정책마다 다르게 적용할 수 있게 한다.
+
+승격 전 검사는 현재 정책의 `PRE_PROMOTION`과 `BOTH` 규칙을 메모리에서 실행한다. 이 단계는 후보 payload나 finding 인스턴스를 저장하지 않으며, 계약 유효 후보의 차단 결과만 `blocked_fingerprint`로 집계한다.
+
 #### `lint_run`과 `lint_finding`
 
-lint 실행은 후보, 승격 묶음 또는 기준 지식 중 정확히 하나를 대상으로 한다. `lint_run`의 `candidate_item_id`, `promotion_batch_id`, `knowledge_item_id` 가운데 하나만 채워야 한다. finding은 실행을 참조하고 규칙 코드, 심각도, 설명, 증거, 해결 상태와 발생 시점을 저장한다.
+`lint_run`은 이미 저장된 기준 그래프만 검사하며 정확한 정책 버전, 실행 상태, 시작·완료 시점과 검사 범위를 기록한다. 새 정책 버전을 활성화할 때 이전 정책과 결과가 달라질 수 있을 때만 전체 그래프 run 하나를 자동 생성한다. 실패하거나 불완전한 run은 finding을 해결하지 않는다.
 
-차단 finding이 하나라도 미해결이면 후보를 승격할 수 없다. 경고 finding은 승격을 막지 않지만 상세 검토와 그래프 건강도에 사용한다.
+`lint_finding`은 저장된 지식의 문제 인스턴스다. 결정적 `finding_key`, 영향받은 `knowledge_item_id`, 정확한 `lint_policy_rule_id`, 최초·최근 발견 run과 시점, 발견 횟수, 메시지와 정형 상세, 해결 run·시점을 가진다. 같은 열린 `finding_key`가 다시 발견되면 최근 run·시점과 횟수만 갱신한다. 성공한 run에서 적용 범위에 포함됐지만 다시 발견되지 않은 finding만 해결하며, 해결된 문제가 재발하면 새 finding으로 남긴다.
+
+현재 상태가 `근거 확인됨` 또는 `사람 확인됨`이고 공개 준비가 끝났으며 열린 `BLOCKING` `lint_finding`이 없는 지식만 일반 검색과 지도에 포함한다. 열린 차단 finding은 즉시 공개 대상에서 제외하지만 지식 상태를 사람의 `거절`로 바꾸지는 않는다. `WARNING`은 공개를 막지 않는다.
 
 #### `conflict_set`, `conflict_member`, `conflict_summary`
 
@@ -548,16 +582,16 @@ lint 실행은 후보, 승격 묶음 또는 기준 지식 중 정확히 하나�
 |---|---|
 | `conflict_set` | 비교 대상 관계 또는 속성, 비교 기간, 표현 성격, 현재 상태 `Agent 제안·사람 확인·거절` |
 | `conflict_member` | 묶음에 참여하는 Claim과 그 관점 역할 |
-| `conflict_summary` | 공통으로 확인되는 내용, 각 관점 정리, 입력 해시, 모델·프롬프트 버전 |
+| `conflict_summary` | 공통으로 확인되는 내용, 각 관점 정리, 입력 해시와 결과를 만든 정확한 `model_task_id` |
 | `conflict_state_event` | 이전 상태, 새 상태, 이유, 처리 주체와 처리 시점의 append-only 이력 |
 
 일반 코드는 공개 전에 양쪽 Claim의 현재 상태가 `근거 확인됨` 또는 `사람 확인됨`인지, 비교 대상과 시간 범위·표현 성격을 비교할 수 있는지, 출처와 원문 위치가 있는지 검사한다. 통과한 Agent 제안은 사람 확인 전에도 `Agent가 발견한 엇갈림`으로 표시한다. 사람 확인 뒤에는 문구만 바뀌고 호박색 점선은 유지한다. 충돌 제안을 거절하면 점선만 해제하며 원래 Claim을 거절하거나 삭제하지 않는다.
 
 ### 6.7 승격과 공개 준비
 
-#### `promotion_batch`과 `promotion_member`
+#### `promotion_batch`
 
-검증된 후보 묶음을 기준 지식그래프로 승격하는 짧은 트랜잭션 단위다.
+메모리 검증을 통과한 결과 묶음을 기준 지식그래프로 승격하는 짧은 트랜잭션 단위다.
 
 | 필드 | 의미와 규칙 |
 |---|---|
@@ -567,11 +601,11 @@ lint 실행은 후보, 승격 묶음 또는 기준 지식 중 정확히 하나�
 | `started_at`, `committed_at` | 트랜잭션 이력 |
 | `failure_reason` | 원자 승격 실패 이유 |
 
-`promotion_member`는 후보 하나가 생성하거나 기존 기록에 연결한 기준 레코드를 1:N으로 추적한다. 한 행은 `knowledge_item`, `observation`, `node_alias`, `node_merge`, `event_temporal_extent`, `evidence_group_assignment` 가운데 정확히 하나만 가리킨다. 사건 후보 하나가 사건 노드와 시간 범위, alias를 함께 만들거나 Claim 후보가 관측 연결을 만들 수 있으므로 후보에 단일 `promoted_item_id`를 두지 않는다. 여러 출처의 후보가 같은 기존 관계를 가리킬 때도 각 승격 계보를 별도 member로 남긴다. 문서 준비, Agent 호출과 lint는 이 트랜잭션 밖에서 끝낸다. 트랜잭션 안에서는 식별자 발급, 최종 중복·제약 검사, 기준 레코드와 상태 이력 생성, 후보의 승격 표시만 수행한다. 일부만 성공할 수 없으며 실패하면 전체 묶음을 롤백한다.
+새 `knowledge_item`은 `promotion_batch_id`를 직접 참조한다. 관측·alias·사건 시간 같은 종속 레코드는 소유하는 Claim이나 노드를 따라 묶음까지 도달하고, Claim은 관측을 통해 정확한 문서와 원문 위치까지 도달하므로 별도 member나 모델 추출 작업 링크를 만들지 않는다. 문서 준비, 모델 호출과 승격 전 검증은 이 트랜잭션 밖에서 끝낸다. 트랜잭션 안에서는 식별자 발급, 최종 중복·제약 검사와 기준 레코드 생성을 수행하며 일부만 성공할 수 없다. 실패하면 전체 묶음을 롤백하고 `failure_reason`을 남긴다.
 
 #### `derivation_run`
 
-기준 그래프 승격 뒤 검색 문서, 임베딩, 한국어 맥락 설명, 후속 질문을 만드는 작업 계보다. 대상 노드, 파생 종류, 입력 해시, 출력 스키마 버전, 모델·프롬프트 버전, 상태와 재시도 정보를 저장한다. 모델을 사용하는 실행은 하나의 `model_task`를 참조한다. 모든 파생 결과 행은 자신을 만든 `derivation_run_id`를 참조하고 같은 입력과 버전의 성공 결과는 재사용한다.
+기준 그래프 승격 뒤 검색 문서와 기타 결정적 파생 결과를 만드는 작업 계보다. 대상 노드, 파생 종류, 입력 해시와 상태를 저장한다. 모델 기반 결과의 실행·계약·재시도 계보는 결과 행이 참조하는 정확한 `model_task_id`가 담당하며 같은 cache key의 성공 결과를 재사용한다.
 
 모델 작업별 재시도 정책은 독립적이다. 한 작업의 실패가 다른 작업의 재시도 횟수를 소비하지 않는다.
 
@@ -608,9 +642,9 @@ HBF POC의 최초 1년 고정 입력 묶음은 하나의 승격·공개 단위�
 - 새 관계가 존재하면 현재 지도 규칙에 해당하는 관계선을 노드와 함께 조회할 수 있다.
 - 관계가 없는 노드라면 위 파생 결과와 상세 자료가 모두 준비됐고 가짜 관계를 만들지 않는다.
 - 이번 묶음이 참조하는 다른 승격 묶음도 이미 `ready` 상태다.
-- 공개 차단 lint가 없다.
+- 현재 공개 범위에 열린 `BLOCKING` `lint_finding`이 없다.
 
-기준 그래프 승격은 파생 결과 실패와 무관하게 유지한다. 실패한 것은 지식 승격이 아니라 그 승격 묶음의 공개 준비다. 독립 재시도가 모두 실패해도 후보가 이미 만든 노드·관계·Claim·관측의 승격을 취소하지 않는다.
+기준 그래프 승격은 파생 결과 실패와 무관하게 유지한다. 실패한 것은 지식 승격이 아니라 그 승격 묶음의 공개 준비다. 독립 재시도가 모두 실패해도 이미 승격한 노드·관계·Claim·관측을 취소하지 않는다.
 
 ### 6.8 검색과 한국어 파생 결과
 
@@ -624,15 +658,15 @@ HBF POC의 최초 1년 고정 입력 묶음은 하나의 승격·공개 단위�
 
 #### `node_embedding`
 
-검색 문서에서 만든 임베딩을 버전별로 저장한다. 대상 노드, 검색 문서, `derivation_run_id`, 입력 해시, 임베딩 모델과 차원, 벡터, 생성 시점을 가진다. 실제 PostgreSQL에서는 pgvector 사용을 우선 검증하지만 논리 모델은 벡터 저장 방식에 종속되지 않는다.
+검색 문서에서 만든 임베딩을 버전별로 저장한다. 대상 노드, 검색 문서, 정확한 `model_task_id`, 입력 해시, 임베딩 모델과 차원, 벡터, 생성 시점을 가진다. 실제 PostgreSQL에서는 pgvector 사용을 우선 검증하지만 논리 모델은 벡터 저장 방식에 종속되지 않는다.
 
 #### `node_context`
 
-노드별 한국어 맥락 설명을 버전별로 저장한다. `derivation_run_id`, 입력 지식 범위와 해시, 생성 모델·프롬프트·출력 스키마 버전, 본문과 생성 시점을 가진다. `node_context_basis`는 설명을 만드는 데 사용한 Claim·관계 등 `knowledge_item`과 기여 종류를 연결한다. 공개되는 설명에는 현재 공개 가능한 Claim 근거가 하나 이상 있어야 한다. Claim은 관측을 통해 문서 버전과 정확한 원문 위치로 이어지므로 상세 패널에서 설명의 Evidence Trace를 재현할 수 있다. 노드를 클릭할 때 LLM을 호출하지 않고 공개 준비된 현재 결과를 읽는다.
+노드별 한국어 맥락 설명을 버전별로 저장한다. 입력 지식 범위와 해시, 정확한 `model_task_id`, 본문과 생성 시점을 가진다. `node_context_basis`는 설명을 만드는 데 사용한 Claim·관계 등 `knowledge_item`과 기여 종류를 연결한다. 공개되는 설명에는 현재 공개 가능한 Claim 근거가 하나 이상 있어야 한다. Claim은 관측을 통해 문서 버전과 정확한 원문 위치로 이어지므로 상세 패널에서 설명의 Evidence Trace를 재현할 수 있다. 노드를 클릭할 때 LLM을 호출하지 않고 공개 준비된 현재 결과를 읽는다.
 
 #### `followup_question`
 
-선택된 `node_context`마다 한국어 후속 질문을 정확히 두 개 저장한다. 각 질문은 `derivation_run_id`를 참조한다. `slot`은 1과 2만 허용하며 같은 맥락 설명 안에서 고유하다. 질문은 탐색을 이어갈 제안이며 챗봇 대화를 시작하는 데이터가 아니다.
+선택된 `node_context`마다 한국어 후속 질문을 정확히 두 개 저장한다. 각 질문은 결과를 만든 정확한 `model_task_id`를 참조한다. `slot`은 1과 2만 허용하며 같은 맥락 설명 안에서 고유하다. 질문은 탐색을 이어갈 제안이며 챗봇 대화를 시작하는 데이터가 아니다.
 
 ### 6.9 지도 표시 규칙
 
@@ -646,9 +680,11 @@ HBF POC의 최초 1년 고정 입력 묶음은 하나의 승격·공개 단위�
 |---|---|
 | source document의 `source_key` → version | 1:N, 같은 자료의 본문이나 메타데이터 변경은 다음 `version_no` 행으로 추가함 |
 | source_document ↔ evidence_group | N:1, 하나의 문서 버전은 한 시점에 하나의 독립 근거 묶음에 속하며 재할당 이력은 보존함 |
-| model_task → agent_attempt | 1:N, 시도 순서가 작업 안에서 고유함 |
-| agent_attempt → structured_output | 1:0..1, 계약 검증 성공 시에만 존재함 |
-| structured_output → candidate_item | 1:N, JSON Pointer가 출력 안에서 고유함 |
+| output_schema_definition → model_task | 1:N, 작업은 정확한 불변 계약을 참조하며 `EMBEDDING`만 계약 없이 실행함 |
+| model_task → agent_attempt | 1:0..N, 실제 호출이 있을 때만 시도 행이 생기며 순서가 작업 안에서 고유함 |
+| source_document·output_schema_definition·lint_policy_rule → blocked_fingerprint | 각 N:1, 네 필드와 fingerprint 조합이 반복 차단 범위를 고정함 |
+| lint_policy_version → lint_policy_rule ← lint_rule | 1:N:1, 안정된 검사와 정책별 범위·심각도를 분리함 |
+| lint_run → lint_finding → knowledge_item | 1:N:1, 저장된 그래프의 문제 인스턴스만 보존함 |
 | ontology_version → ontology_member → node type 또는 revision | 1:N:1, 한 member가 안정된 노드 유형, 관계 revision, 속성 revision 가운데 정확히 하나를 선택함 |
 | relation_type → relation_type_revision | 1:N, 안정된 관계 코드는 유형에 두고 관계는 생성 당시의 정확한 revision을 참조함 |
 | relation_type_revision → relation_endpoint_rule → node_type | 1:N:2, 각 규칙은 안정된 시작·도착 노드 유형 한 쌍을 허용함 |
@@ -664,33 +700,33 @@ HBF POC의 최초 1년 고정 입력 묶음은 하나의 승격·공개 단위�
 | claim → claim_attribute_value | 1:N, 관계 연결이 없다면 최소 하나가 필요함 |
 | claim → claim_observation ← observation | N:M, Claim마다 최소 한 관측 필요 |
 | source_document → observation | 1:N, 관측 범위는 해당 문서 버전 본문에서만 검증함 |
-| promotion_batch → promotion_member ← candidate_item | 1:N, 후보 하나는 정확히 유형이 지정된 기준 레코드를 여러 개 만들 수 있음 |
+| promotion_batch → knowledge_item | 1:N, 새 기준 지식은 자신을 만든 승격 묶음을 직접 참조함 |
+| knowledge_item → knowledge_state_event | 1:N, 사람의 상태 변경만 append-only로 보존함 |
 | promotion_batch → publication_state | 1:1, 승격 커밋 뒤 공개 준비 상태 관리 |
 | publication_state → publication_dependency | 1:N, 참조하는 선행 묶음이 ready여야 공개 가능 |
 | publication_state → publication_state_event | 1:N, 현재 상태와 별도로 모든 변경 이력을 보존함 |
 | node → node_publication_state | 1:0..1, 현재 공개 파생 결과 포인터와 검색 노출 모드를 관리함 |
-| model_task → derivation_run | 1:0..1, 모델을 쓰는 파생 실행만 모델 작업을 참조함 |
-| derivation_run → 파생 결과 | 1:N, 모든 파생 결과가 생성 실행을 직접 참조함 |
+| model_task → 모델 기반 파생 결과 | 1:N, 결과가 자신을 만든 정확한 모델 작업을 직접 참조함 |
+| derivation_run → 비모델 파생 결과 | 1:N, 일반 코드로 만드는 파생 결과의 실행 계보를 보존함 |
 | node → 파생 결과 | 1:N, 결과를 덮어쓰지 않고 입력과 계보별 버전으로 추가함 |
 | node_context → node_context_basis ← knowledge_item | N:M, 설명에서 Evidence Trace로 이어지는 입력 근거를 보존함 |
 | node_context → followup_question | 1:정확히 2, 공개 선택된 맥락 설명에 적용 |
 
 ## 8. 상태 수명주기
 
-### 8.1 지식 후보
+### 8.1 모델 작업
 
 ```text
-제안됨 → 검사 중 → 승격
-              ├→ 차단됨
-              ├→ 보류
-              └→ 거절
+PENDING → RUNNING → SUCCESS
+                  ├→ VALIDATION_BLOCKED
+                  ├→ RETRY_WAIT → RUNNING
+                  └→ FINAL_FAILED
 ```
 
-- Agent는 `제안됨` 후보만 만들 수 있다.
-- 일반 코드는 검사 시작, 차단과 승격 가능 여부를 결정한다.
-- 차단 lint에 실패한 후보는 자동 거절하지 않고 `차단됨`으로 남기며 공개하지 않는다.
-- 사람은 모호한 동일 대상과 정책 판단을 보류하거나 거절할 수 있다.
-- 동일 payload를 고쳐 쓰지 않는다. 의미가 바뀌면 새 structured output과 후보를 만든다.
+- 작업 스케줄러는 `PENDING`과 호출 시각이 지난 `RETRY_WAIT`만 lease로 획득한다.
+- `SUCCESS`, `VALIDATION_BLOCKED`, `FINAL_FAILED`는 종료 상태이며 `finished_at`을 채운다.
+- `VALIDATION_BLOCKED`는 계약 유효 응답의 관련 후보가 모두 승격 전 차단 규칙에 실패한 경우에만 사용한다.
+- 부분 승격은 `SUCCESS`이며 기술 재시도와 차단 fingerprint 판단을 섞지 않는다.
 
 ### 8.2 기준 지식
 
@@ -703,8 +739,8 @@ HBF POC의 최초 1년 고정 입력 묶음은 하나의 승격·공개 단위�
 ```
 
 - `근거 확인됨`은 출처가 주장을 뒷받침한다는 검증 상태이지 세계의 사실 확정 상태가 아니다.
-- 사람만 `사람 확인됨`, `보류`, `거절`을 결정한다.
-- `거절`은 해당 기준 기록의 종료 상태다. 새 근거가 들어오면 기존 기록을 되살리지 않고 새 후보와 새 기록으로 검토한다.
+- 사람만 `knowledge_state_event`를 추가하여 `사람 확인됨`, `보류`, `거절`을 결정하거나 `보류`를 해제할 수 있다.
+- `거절`은 해당 기준 기록의 종료 상태다. 새 근거가 들어오면 기존 기록을 되살리지 않고 새 기준 기록으로 검토한다.
 - 보류와 거절은 지도와 일반 검색에서 제외한다.
 - 사람의 거절은 다음 공개 묶음을 기다리지 않고 즉시 필터링한다.
 - 노드가 거절되면 alias 검색도 포함해 완전히 숨긴다.
@@ -750,8 +786,12 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 - 한 노드에는 대표 alias가 최대 하나만 존재해야 하고 공개 가능한 노드는 대표 alias를 정확히 하나 가져야 한다. 외부 식별자 활성 연결은 허용된 범위에서 유일해야 한다.
 - 활성 node merge는 원본 노드마다 최대 하나이고 자기 참조와 순환을 허용하지 않으며, 취소된 행은 삭제하거나 재사용하지 않는다.
 - knowledge item의 공통 유형과 실제 하위 엔터티가 정확히 하나로 일치해야 한다.
-- promotion member는 허용된 기준 레코드 외래 키 가운데 정확히 하나만 가져야 한다.
-- lint run은 후보, 승격 묶음, 기준 지식 대상 가운데 정확히 하나만 가져야 한다.
+- 새 knowledge item은 자신을 만든 promotion batch를 정확히 하나 참조해야 한다.
+- 모델 작업과 출력 계약의 작업 종류는 같아야 하며 `EMBEDDING`만 출력 계약을 참조하지 않아야 한다.
+- 모델 작업의 종료 상태에서는 `finished_at`이 필수이고, 같은 cache key와 같은 작업 안의 시도 번호는 각각 고유해야 한다.
+- blocked fingerprint는 정확한 문서·계약·`BLOCKING` 승격 전 정책 규칙을 참조해야 하며 네 범위 필드와 fingerprint 조합은 고유해야 한다.
+- knowledge state event의 변경 사용자는 필수이고 이전 상태와 잠근 현재 상태가 일치해야 하며 허용 전이만 기록할 수 있다.
+- lint finding은 정확한 기준 knowledge item과 정책 규칙을 참조하며 열린 finding key는 한 문제 인스턴스만 가져야 한다.
 - 공개 선택된 node context에는 후속 질문 1번과 2번이 정확히 하나씩 있어야 한다.
 - 공개 선택된 node context에는 현재 공개 가능한 Claim을 가리키는 basis가 최소 하나 있어야 한다.
 - `ready` 공개 묶음은 영향받은 모든 노드의 필수 파생 결과를 참조해야 한다.
@@ -769,7 +809,9 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 - 관계 identity와 `SYMMETRIC` endpoint 정규화
 - alias 검색 결과에서 활성 node merge 연쇄를 따라 최종 기준 노드를 찾고 그 노드의 대표 alias를 선택
 - 월·연도 정밀도의 사건 경계를 실제 범위로 해석하는 표시와 시간 필터 계산
-- 후보 fingerprint와 반복 거절 억제
+- 출력 계약 검증, 승격 전 후보 fingerprint 계산과 차단 반복 억제
+- 모델 작업 cache key, lease, 종료 상태와 기술 재시도 시각 계산
+- 저장된 그래프 lint의 결정적 finding key 계산과 성공한 적용 범위의 finding 해결
 - 선택 기간의 활동량, 관계선 굵기와 2단계 이웃 중요도 계산
 - 공개 준비 상태 전환 전 완결성 검사
 - 공개 준비 작업의 단일 실행 lease, dependency와 publication sequence 검사
@@ -801,7 +843,7 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 | 차단 | 활성 node merge가 원본 하나에서 갈라지거나 자기 참조·순환을 만듦 | 병합 반영 금지 |
 | 차단 | 사건 근거를 숨은 맥락이나 비사건 직접 관계로 중복 표현함 | 승격 금지 |
 | 차단 | 모호한 동일 대상인데 확인된 식별자로 가장함 | 승격 금지 |
-| 차단 | 같은 문서 버전의 동일 거절 fingerprint 반복 | 승격 금지, 재호출 억제 |
+| 차단 | 같은 문서·계약·차단 규칙 범위의 동일 fingerprint 반복 | 해당 후보의 재검증·승격 억제, 모델 작업 재시도와 무관 |
 | 차단 | 파생 결과가 누락된 변경 묶음을 ready로 전환 | 공개 금지 |
 | 차단 | 선행 dependency가 ready가 아니거나 더 오래된 publication sequence로 포인터 교체 시도 | 공개 금지 |
 | 차단 | 검색 결과 부재, 언급 감소나 경과 시간만으로 관계 종료를 제안함 | 승격 금지 |
@@ -809,6 +851,8 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 | 경고 | 독립 출처 계보가 하나뿐임 | 상세 패널에 근거 다양성 정보 제공 |
 | 경고 | 고립 노드이지만 공개 필수 파생 결과는 준비됨 | 공개 허용, 가짜 관계 생성 금지 |
 | 경고 | 오래된 관계 또는 게시 시점 미상 | 기본 지도 제외 가능, 상세 패널 유지 |
+
+표의 지식 생성 검사는 `PRE_PROMOTION` 또는 `BOTH` 정책 규칙으로 응답 메모리에서 실행한다. 공개와 기존 그래프 건강도 검사는 `PERSISTED_GRAPH` 또는 `BOTH` 규칙으로 `lint_run`에 남긴다. 새 정책은 이전 정책과 실제 결과가 달라질 수 있을 때만 전체 그래프 자동 run 하나를 만들며, 실패한 run은 열린 finding을 해결하지 않는다.
 
 ## 11. ingest·승격·공개 흐름
 
@@ -818,19 +862,22 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 2. 필수 메타데이터와 본문 해시를 검사하고 같은 `source_key`의 현재 버전과 비교한다.
 3. 본문과 버전 메타데이터가 같으면 현재 행의 마지막 확인 시점과 상태만 갱신한다. 달라졌다면 다음 `version_no`로 새 `source_document` 행을 추가한다.
 4. 본문 해시와 확인된 원문 계보로 독립 근거 묶음을 배정한다.
-5. cache key를 확인하고 성공한 동일 모델 작업이 없을 때만 Agent 추출을 실행한다.
-6. 계약 JSON과 후보 항목을 저장하고 후보별 lint, 온톨로지, 동일 대상, 중복 검사를 수행한다. 이때 노드는 안정된 `node_type_id`, 관계는 정확한 revision과 endpoint 규칙, 속성값은 revision의 단일 대상 유형을 사용해야 한다. 사건 맥락은 명시적인 사건 endpoint로만 받고 관계 종료는 명시적 시간 근거가 있어도 POC 관계 컬럼으로 승격하지 않는다.
+5. 결정적 cache key를 확인하고 종료된 동일 모델 작업이 없을 때만 작업을 생성하거나 기술 재시도를 예약한다.
+6. 정확한 `output_schema_definition`으로 Agent를 호출하고 응답 JSON을 저장하지 않은 채 메모리에서 계약과 후보별 승격 전 검사를 수행한다.
+7. 노드는 안정된 `node_type_id`, 관계는 정확한 revision과 endpoint 규칙, 속성값은 revision의 단일 대상 유형으로 검사한다. 사건 맥락은 명시적인 사건 endpoint로만 받고 관계 종료는 POC 관계 컬럼으로 승격하지 않는다.
+8. 계약 유효 후보가 차단 규칙에 실패하면 payload 없이 `blocked_fingerprint`를 집계하고, 통과한 후보만 승격 입력으로 전달한다.
 
 Agent 호출이 모두 실패하면 준비된 `source_document`, 모델 작업과 실패 이력만 남는다. 기준 지식그래프는 바뀌지 않는다.
 
 ### 11.2 승격
 
-1. 함께 공개되어야 의미가 맞는 검증 완료 후보를 `promotion_batch`로 묶는다.
+1. 메모리 검증을 통과했고 함께 공개되어야 의미가 맞는 결과를 `promotion_batch`로 묶는다.
 2. 짧은 DB 트랜잭션을 시작한다.
 3. 최종 중복과 제약을 다시 검사하고 필요한 내부 식별자를 발급한다.
-4. 노드·관계·Claim과 비공통 기준 레코드인 관측·alias·병합·사건 시간·근거 묶음 할당을 만들고 각각의 승격 계보를 연결한다.
-5. 모든 레코드가 성공하면 후보를 승격으로 표시하고 커밋한다.
-6. 하나라도 실패하면 전체 묶음을 롤백하고 기존 기준 그래프를 유지한다.
+4. 노드·관계·Claim과 관측·alias·병합·사건 시간·근거 묶음 할당을 만들고 새 `knowledge_item`에 정확한 `promotion_batch_id`를 기록한다.
+5. 모든 레코드가 성공하면 커밋하고, 하나라도 실패하면 전체 묶음을 롤백한 뒤 묶음의 `failure_reason`을 기록한다.
+
+승격 계보는 `promotion_batch → knowledge_item`과 `Claim → observation → source_document` 경로로 재현한다. 추출 모델 작업이나 일시적인 후보를 기준 지식에 직접 연결하지 않는다.
 
 ### 11.3 파생 결과와 공개
 
@@ -858,6 +905,7 @@ display_rule_version
 
 ### 12.1 포함 규칙
 
+- 현재 상태가 `근거 확인됨` 또는 `사람 확인됨`이고 공개 준비가 끝났으며 열린 `BLOCKING` `lint_finding`이 없는 지식만 조회한다.
 - 검색하거나 클릭한 공개 가능한 중심 노드는 항상 표시한다.
 - 한 응답은 중심 노드 1개, 직접 이웃 최대 12개와 중요한 2단계 이웃 최대 18개로 제한하여 노드가 최대 31개가 되게 한다.
 - 직접 이웃과 2단계 이웃은 각각 `지지하는 독립 근거 묶음 수 내림차순 → 선택 기간의 관측 활동량 내림차순 → 불변 노드 식별자 오름차순`으로 정렬한 뒤 상한을 적용한다. 두 값을 하나의 의미가 불분명한 점수로 섞지 않는다.
@@ -927,9 +975,9 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 | 번호 | 시나리오 | 통과 조건 |
 |---|---|---|
 | 1 | 같은 준비 문서를 다시 적재함 | 본문과 버전 메타데이터가 같으면 마지막 확인 정보만 갱신되고, 값이 달라지면 다음 `version_no`의 `source_document`가 생기며 기존 관측은 이전 버전과 위치를 유지함 |
-| 2 | 인용 문자 범위가 틀리거나 허용되지 않은 관계가 제안됨 | 차단 lint가 생기고 후보가 승격되지 않음 |
+| 2 | 계약 유효 응답의 인용 문자 범위가 틀리거나 허용되지 않은 관계가 제안됨 | payload는 저장되지 않고 정확한 문서·계약·차단 규칙 범위의 fingerprint만 집계되며 해당 후보는 승격되지 않음 |
 | 3 | 동일 보도자료의 복제 문서 여러 건이 입력됨 | 문서와 관측은 모두 남지만 독립 근거 수는 한 번만 증가함 |
-| 4 | Agent 추출이 모든 재시도에서 실패함 | 정규화 원문과 실패 이력만 남고 기준 그래프는 바뀌지 않음 |
+| 4 | Agent 추출이 모든 기술 재시도에서 실패함 | 정규화 원문, `model_task`와 최소 시도 이력만 남고 차단 fingerprint나 기준 그래프는 바뀌지 않음 |
 | 5 | 승격 뒤 임베딩이나 맥락 설명 생성이 실패함 | 기준 지식은 유지되지만 변경 묶음은 공개되지 않고 이전 결과가 계속 제공됨 |
 | 6 | 파생 작업 재시도가 성공함 | 다음 탐색부터 새 관계와 설명·질문이 함께 나타남 |
 | 7 | 근거 있는 관계가 없는 노드의 파생 자료가 모두 준비됨 | 가짜 이웃 없이 검색과 중심 지도에 공개됨 |
@@ -938,7 +986,7 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 | 10 | 같은 중심 노드를 90일과 1년 범위로 조회함 | `published_at` 기준으로 이웃과 투명도가 달라지고 사건 발생 시점은 섞이지 않음 |
 | 11 | 공개된 지식을 사람이 거절함 | 지도와 일반 검색에서 즉시 사라지지만 DB와 거절 이유는 남음 |
 | 12 | 승격 트랜잭션 중 한 관계가 제약을 위반함 | 묶음 전체가 롤백되고 일부 노드나 Claim도 기준 그래프에 남지 않음 |
-| 13 | 사건 후보 하나가 노드·alias·시간·관측을 함께 만듦 | 여러 `promotion_member`가 각 기준 레코드를 가리키며 모두 같은 승격 묶음에서 추적됨 |
+| 13 | 한 응답의 사건 정보가 노드·alias·시간·관측을 함께 만듦 | 새 knowledge item이 승격 묶음을 직접 참조하고 종속 레코드와 Claim의 문서 계보를 따라 같은 원자 트랜잭션을 추적할 수 있음 |
 | 14 | 관계에 반박 Claim만 있거나 사건에 참여 관계가 없음 | 차단 lint가 생기고 해당 관계나 사건이 승격되지 않음 |
 | 15 | 사건 시작은 연도, 종료는 정확한 날짜까지만 알려짐 | 시작은 해당 연도의 첫날과 `YEAR`, 종료는 정확한 값과 정밀도로 저장되며 정규화한 시작일을 실제 1월 1일로 표시하지 않음 |
 | 16 | 먼저 시작한 공개 작업이 실패한 뒤 다른 독립 작업이 공개됨 | 성공 시점에 발급된 더 큰 `publication_seq`만 현재 포인터가 되며 늦은 재시도가 이를 덮어쓰지 않음 |
@@ -953,6 +1001,10 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 | 25 | 사건 경로와 비사건 직접 관계가 같은 근거에서 함께 제안됨 | 사건 endpoint 경로만 승격되고 직접 관계는 이를 별도로 지지하는 Claim과 관측이 있을 때만 승격됨 |
 | 26 | 사건 경계가 미상이거나 월까지만 알려짐 | 미상은 `NULL + UNKNOWN`, 월은 해당 월 첫날과 `MONTH`로 저장되며 표시와 필터는 정밀도에 맞게 해석함 |
 | 27 | 기사 검색 결과가 줄거나 오랫동안 새 언급이 없음 | 관계 종료로 해석하거나 relation identity를 바꾸지 않고, 사건 시간과 Claim 주장 시간은 별도로 유지함 |
+| 28 | 일부 계약 유효 후보만 차단됨 | 통과한 결과는 원자 승격되고 모델 작업은 `SUCCESS`로 끝나며 차단 후보의 fingerprint만 별도로 집계됨 |
+| 29 | 관련 후보가 모두 승격 전 차단 규칙에 실패함 | 모델 작업이 `VALIDATION_BLOCKED`로 끝나며 작업 스케줄러가 기술 재시도를 예약하지 않음 |
+| 30 | 새 lint 정책이 기존 그래프 결과를 바꿀 수 있음 | 새 정책의 전체 그래프 run이 한 번 생성되고 같은 열린 문제는 갱신되며 성공한 적용 범위에서 사라진 문제만 해결됨 |
+| 31 | 사람이 근거 확인된 지식을 보류함 | 필수 사용자와 이유가 있는 이벤트와 현재 상태가 한 트랜잭션에서 함께 기록되고 Agent나 일반 코드는 같은 이벤트를 만들 수 없음 |
 
 ## 16. 물리 스키마 단계로 넘길 항목
 
@@ -965,11 +1017,16 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 - 안정된 `node_type` 코드 다섯 개의 제약과 `ontology_member`가 노드 유형·관계 revision·속성 revision 가운데 하나만 선택하는 배타 제약 구현
 - `relation_type.relation_code`의 불변 고유성과 revision의 `DIRECTED | SYMMETRIC`, 역관계 허용 조건 구현
 - `relation_endpoint_rule`과 `attribute_revision.target_node_type_id`가 안정된 `node_type_id`를 참조하도록 구현
-- 상위 `knowledge_item`과 하위 엔터티의 배타적 일대일 제약 구현
-- `promotion_member`와 `lint_run`의 배타적 typed foreign key 제약 구현
 - 관계 identity와 대칭 endpoint의 고유성 구현
 - 공개 가능한 노드의 대표 alias 정확히 한 건, alias 검색 뒤 활성 병합 해석, 원본별 활성 병합 최대 한 건과 병합 순환 차단 구현
 - 사건 시간의 `NULL + UNKNOWN` 대응, 비미상 값의 정밀도, 월·연도 정규화와 정밀도 기반 범위 필터 구현
+- `task_kind + version_no` 출력 계약 고유성, 참조된 계약의 불변성, 작업 종류 일치와 embedding 예외 구현
+- 모델 작업 cache key·종료 상태·lease, 시도 번호·횟수 일치와 기술 재시도 시각 구현
+- 차단 fingerprint의 문서·계약·정책 규칙 범위 고유성과 payload 비저장 경계 구현
+- 상위 `knowledge_item`과 하위 엔터티의 배타적 일대일 제약 구현
+- 승격 묶음에서 knowledge item으로 이어지는 직접 외래 키와 종속 레코드 계보 구현
+- 사람 전용 knowledge state 전이, 필수 사용자·이유와 현재 상태의 원자 갱신 구현
+- lint policy 활성화와 전체 그래프 run, 결정적 finding key, 반복·해결·재발 처리 구현
 - Claim·관계·노드·사건의 최소 근거와 후속 질문 정확히 두 건을 보장하는 지연 제약 또는 트랜잭션 검증
 - 정규화 본문 문자 길이와 인용문 일치를 검증하는 함수 경계
 - 전문 검색의 `tsvector`, GIN, `ts_rank`, `ts_rank_cd` 구성
@@ -988,6 +1045,8 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 - 원본 HTML 저장
 - GDELT 질의·응답, 기사 발견 결과와 자료 수집 과정 저장
 - Agent의 내부 식별자 발급, 자동 최종 병합, 온톨로지 변경과 상태 확정
+- 모델 제공자의 원시 응답, Agent 응답 JSON, 후보 payload와 승격 전 finding 인스턴스 저장
+- 모델 호출 토큰·비용 원장과 제공자별 응답 메타데이터 저장
 - 노드 클릭마다 LLM 호출
 - 전체 그래프 또는 전역 지도 버전과 지도 구성원 저장
 - 중심 노드별 x·y·z 좌표 저장
