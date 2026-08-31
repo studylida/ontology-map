@@ -10480,3 +10480,2095 @@ Implement the plan.
 ## 사용자
 
 이제 지금까지 너랑 나눴던 메시지들 원문 그대로 복사해서 ontology-map 설계 대화 원문이라고 파일 저장해줄래? 이따가 이슈 올라온 거 구현하거나 수정할 때 필요할 거 같아. 이거 참고하면서 해야 우리가 의도했던 맥락이 반영될 거 같네.
+
+
+## 어시스턴트
+
+`$fluent-korean`을 사용해 기록 안내 문구를 자연스럽게 정리하겠습니다. 사용자와 어시스턴트의 설계 대화를 발화 순서와 원문 표현을 유지한 단일 문서로 저장하고, 기존 기록이 있다면 누락된 대화만 이어 붙인 뒤 중복 여부를 확인하겠습니다. 시스템·개발자 지침과 도구 실행 내역은 대화 원문 범위에서 제외하며, 데이터베이스나 제품 코드는 변경하지 않겠습니다.
+
+## 어시스턴트
+
+기존 파일은 이미 23만 자 분량의 대화 기록이며, 커밋 이후 이어진 대화가 미커밋 상태로 추가되어 있습니다. 이 변경은 현재 요청과 같은 목적의 작업이므로 보존한 채, 마지막으로 기록된 발화 이후의 누락 구간을 확인해 이어 붙이겠습니다.
+
+## 어시스턴트
+
+새 문서는 기존 미커밋 기록을 덮어쓰지 않고 [ontology-map-design-conversation-transcript.md](/mnt/c/users/bistelligence/orca/workspaces/people-ontology/docs-data-schema/ontology-map-design-conversation-transcript.md)로 분리하겠습니다. 저장된 세션 원본에서 사용자·어시스턴트 메시지만 기계적으로 추출하고, 중간에 주입된 환경 지침은 제외하며, 현재 요청 메시지까지 포함하겠습니다.
+
+## 어시스턴트
+
+추출 결과는 사용자·어시스턴트 발화 312개, 약 56만 자입니다. 마지막에는 이번 저장 요청이 있고, 그 뒤에 제가 보낸 작업 진행 메시지는 포함되지 않았습니다. 이제 주입된 `AGENTS.md`, `<skill>`, `<environment_context>`가 섞이지 않았는지 검사하고 문서만 별도 커밋하겠습니다.
+
+## 어시스턴트
+
+검사가 통과했습니다. 문서는 10,482줄이며 사용자·어시스턴트 발화 312개를 포함합니다. 원문에 있던 보이지 않는 행 끝 공백만 Markdown 검사에 맞게 제거했고, 문장·문단·코드·링크는 바꾸지 않았습니다. 기존 `people-intelligence-requirements-transcript.md` 변경은 스테이징하지 않았으며 새 문서만 커밋하겠습니다.
+
+## 어시스턴트
+
+[ontology-map 설계 대화 원문](/mnt/c/users/bistelligence/orca/workspaces/people-ontology/docs-data-schema/ontology-map-design-conversation-transcript.md)을 저장했습니다.
+
+- 사용자·어시스턴트 발화 312개, 10,482줄
+- 현재 저장 요청까지 포함
+- 시스템 지침, 환경 정보, 도구 출력은 제외
+- 커밋: `28e3d471f99c4fcc3151079fbd678a9d075abea8`
+
+기존 `people-intelligence-requirements-transcript.md`의 미커밋 변경은 건드리지 않았습니다. 원격 저장소에는 푸시하지 않았습니다.
+
+## 사용자
+
+이제 남은 데이터베이스 공부 이어서 하자. 얼마나 남았어?
+
+## 어시스턴트
+
+`$fluent-korean`을 적용해 남은 범위를 현재 논리 스키마 문서와 이미 공부한 순서에 맞춰 계산하겠습니다. 먼저 전체 목차와 마지막으로 다룬 `lint·conflict` 이후의 테이블을 확인한 뒤, 남은 학습 단위를 과도하게 잘게 나누지 않고 알려드리겠습니다.
+
+## 어시스턴트
+
+논리 데이터베이스 공부는 약 70% 진행됐습니다. 핵심적으로 네 차례가 남았습니다.
+
+1. 승격과 공개 준비
+   `promotion_batch`, `promotion_member`, `derivation_run`, `publication_state`, `publication_affected_node`
+
+2. 검색과 파생 결과
+   `node_search_document`, `search_document_basis`, `node_embedding`, `node_context`, `followup_question`
+
+3. 상태 수명주기와 무결성
+   허용 상태 전이, 처리 주체, DB·일반 코드·Agent의 검증 책임
+
+4. 전체 연결 검토
+   ingest부터 지도 조회까지 실제 HBF 데이터가 통과하는지 확인하고, PostgreSQL 물리 스키마로 넘길 항목 정리
+
+다만 현재 문서에는 이미 이슈로 수정하기로 한 옛 구조가 남아 있습니다. 예를 들어 `promotion_member`는 영속 후보를 전제로 하는데, 후보 저장을 제거하기로 했으므로 그대로 배우면 안 됩니다. 남은 공부에서는 현재 문서를 소개하되 확정된 이슈와 충돌하는 부분을 바로 표시하겠습니다.
+
+다음은 `승격과 공개 준비`부터 시작하는 것이 자연스럽습니다. 이 부분을 이해하면 “기준 그래프에는 들어갔지만 왜 아직 지도에는 안 보이는가”를 데이터베이스가 어떻게 관리하는지 알 수 있습니다. 이번 확인은 읽기 전용이므로 파일 변경과 커밋은 없습니다.
+
+## 사용자
+
+응 부탁해.
+
+## 어시스턴트
+
+이번에는 `승격과 공개 준비`를 공부하겠습니다. 먼저 현재 문서의 모든 필드와 관련 이슈를 대조하겠습니다. 특히 영속 후보를 제거하기로 한 결정이 `promotion_member`에 미치는 영향을 분리해서 설명하고, 현재 구조에서 유지할 부분과 수정해야 할 부분을 함께 표시하겠습니다.
+
+## 어시스턴트
+
+이번 범위의 핵심은 “DB에 지식을 저장하는 것”과 “사용자 지도에 공개하는 것”을 분리하는 구조입니다.
+
+```text
+검증된 Agent 결과
+→ 짧은 트랜잭션으로 기준 지식그래프에 저장
+→ 영향받은 노드의 검색·임베딩·설명·질문 준비
+→ 준비가 모두 끝난 변경만 지도와 검색에 공개
+```
+
+## 1. `promotion_batch`
+
+`promotion_batch`는 검증을 마친 지식을 기준 지식그래프에 원자적으로 저장하는 트랜잭션 단위입니다.
+
+예를 들어 하나의 HBF 기사에서 다음 지식이 함께 만들어진다고 가정하겠습니다.
+
+```text
+노드: HBF 발표 사건
+관계: SK하이닉스 → 참여함 → HBF 발표 사건
+관계: HBF 발표 사건 → 발표함 → HBF
+Claim: SK하이닉스가 해당 발표에 참여했다.
+Claim: 해당 사건에서 HBF가 발표되었다.
+관측: 두 Claim을 뒷받침하는 원문 위치
+```
+
+이 중 관계 하나만 저장되고 사건 노드나 Claim 저장이 실패하면 불완전한 그래프가 생깁니다. 따라서 하나의 `promotion_batch`에 묶어서 전부 성공하거나 전부 실패하도록 합니다.
+
+현재 문서에 명시된 컬럼은 다음과 같습니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `promotion_batch_id` | 승격 작업의 불변 식별자입니다. |
+| `ontology_version_id` | 어떤 노드·관계·속성 규칙으로 검사했는지 나타냅니다. |
+| `status` | 준비, 커밋, 롤백 상태입니다. |
+| `started_at` | 승격 작업을 시작한 시점입니다. |
+| `committed_at` | 기준 그래프 저장을 완료한 시점입니다. |
+| `failure_reason` | 승격에 실패한 이유입니다. |
+
+여기에는 한 가지 문제가 있습니다. `promotion_batch` 행 자체를 승격 트랜잭션 안에서 만들었다면 롤백할 때 그 행도 사라집니다. 그러면 `status = ROLLED_BACK`과 `failure_reason`을 저장할 수 없습니다.
+
+따라서 `promotion_batch`는 트랜잭션을 시작하기 전에 만들고, 실제 지식 저장 트랜잭션이 실패하면 트랜잭션 밖에서 실패 상태를 기록해야 합니다.
+
+```text
+promotion_batch 생성
+→ 승격 트랜잭션 시작
+→ 성공: COMMITTED 기록
+→ 실패: 트랜잭션 롤백 후 FAILED 기록
+```
+
+`ROLLED_BACK`보다 `FAILED`가 의미도 분명합니다. 롤백은 실패를 처리한 방법이고, 사용자나 운영자가 알고 싶은 상태는 승격 성공 여부이기 때문입니다.
+
+## 2. `promotion_member`
+
+현재 문서에서 `promotion_member`는 다음 연결을 담당합니다.
+
+```text
+promotion_batch
+→ candidate_item
+→ 생성된 knowledge_item
+```
+
+따라서 현재 구조에서 필요한 컬럼은 다음 세 가지입니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `promotion_batch_id` | 어떤 승격 묶음에 속하는지 나타냅니다. |
+| `candidate_item_id` | 어떤 영속 후보에서 시작했는지 나타냅니다. |
+| `knowledge_item_id` | 승격하여 생성된 기준 지식입니다. |
+
+하지만 이 테이블은 이미 확정한 이슈 #7과 충돌합니다. 우리는 다음과 같이 결정했습니다.
+
+- `candidate_item`을 저장하지 않습니다.
+- 검증 전 후보는 애플리케이션 메모리에서 처리합니다.
+- 통과한 지식만 DB에 저장합니다.
+- `knowledge_item.origin_candidate_item_id`도 제거합니다.
+
+따라서 `promotion_member.candidate_item_id`는 더 이상 존재할 수 없습니다.
+
+그렇다고 후보 컬럼만 제거하고 다음 테이블을 유지할 필요도 크지 않습니다.
+
+```text
+promotion_member
+- promotion_batch_id
+- knowledge_item_id
+```
+
+이미 `knowledge_item`에 `promotion_batch_id`가 있기 때문입니다.
+
+```text
+knowledge_item
+- knowledge_item_id
+- promotion_batch_id
+```
+
+`promotion_member`를 유지하면 같은 관계를 양쪽에 중복 저장하고 두 값의 일치 여부까지 검사해야 합니다. 추천안은 `promotion_member`를 제거하고 `knowledge_item.promotion_batch_id`만 유지하는 것입니다.
+
+그러면 한 승격 묶음에서 만들어진 지식은 다음 쿼리로 찾을 수 있습니다.
+
+```sql
+SELECT *
+FROM knowledge_item
+WHERE promotion_batch_id = ?;
+```
+
+## 3. `derivation_run`
+
+`derivation_run`은 기준 그래프가 승격된 뒤 파생 자료를 만드는 작업을 기록하려고 만든 테이블입니다.
+
+파생 자료에는 다음이 포함됩니다.
+
+- 노드 검색 문서
+- 임베딩
+- 한국어 맥락 설명
+- 후속 질문 두 개
+
+현재 문서는 다음 정보를 저장한다고 설명하지만 정확한 컬럼 표는 아직 없습니다.
+
+| 논리 컬럼 | 역할 |
+|---|---|
+| `derivation_run_id` | 파생 작업 식별자입니다. |
+| `target_node_id` | 어떤 노드의 파생 자료를 만드는지 나타냅니다. |
+| `derivation_kind` | 검색 문서, 임베딩, 맥락 설명, 후속 질문 중 작업 종류입니다. |
+| `input_hash` | 파생 작업에 사용한 입력 지식의 해시입니다. |
+| `output_schema_version` | 기대하는 출력 구조의 버전입니다. |
+| `model_version` | 사용한 모델 버전입니다. |
+| `prompt_version` | 사용한 프롬프트 버전입니다. |
+| `status` | 대기, 실행, 성공, 재시도 대기, 최종 실패 상태입니다. |
+| 재시도 정보 | 실행 횟수와 다음 재시도 시점입니다. |
+| 결과 식별자 | 생성된 검색 문서·임베딩·맥락 설명 등의 식별자입니다. |
+| `model_task_id` | 모델을 사용한 경우 해당 작업을 참조합니다. |
+
+이 구조는 `model_task`와 상당히 겹칩니다. `model_task`가 이미 다음 내용을 가지고 있기 때문입니다.
+
+- 작업 종류
+- 대상과 입력 해시
+- 모델·프롬프트·출력 계약 버전
+- 상태
+- 실행 횟수와 재시도 시점
+- 캐시 키
+
+따라서 `derivation_run`을 유지하면 동일한 작업 상태가 두 테이블에 생깁니다.
+
+추천안은 `derivation_run`을 제거하는 것입니다.
+
+- 임베딩·맥락 설명·후속 질문처럼 모델을 호출하는 작업은 `model_task`로 관리합니다.
+- 생성된 `node_embedding`, `node_context`, `followup_question`이 성공한 `model_task_id`를 참조합니다.
+- 일반 코드로 만드는 검색 문서는 `node_search_document`에 입력 해시와 생성 규칙 버전을 직접 기록합니다.
+- 공개 준비 여부는 뒤에서 설명할 공개 상태가 판단합니다.
+
+별도의 범용 파생 작업 큐가 실제로 필요해질 때만 `derivation_run`과 같은 일반 작업 테이블을 추가해도 늦지 않습니다.
+
+## 4. `publication_state`
+
+`publication_state`는 기준 그래프에 저장된 변경을 지도와 일반 검색에 공개해도 되는지 판단합니다.
+
+현재 상태는 세 가지입니다.
+
+| 상태 | 의미 |
+|---|---|
+| `PREPARING` | 지식 승격은 성공했지만 파생 자료가 아직 준비되지 않았습니다. |
+| `READY` | 검색·임베딩·설명·질문·관계선이 모두 준비됐습니다. |
+| `FAILED` | 파생 작업 재시도가 실패했습니다. 기준 지식은 유지하지만 공개하지 않습니다. |
+
+여기서 중요한 점은 `FAILED`가 지식 추출이나 승격 실패를 의미하지 않는다는 것입니다.
+
+```text
+promotion: COMMITTED
+publication: FAILED
+```
+
+이 조합은 가능합니다. 기준 그래프에는 검증된 지식이 있지만 사용자에게 보여줄 완성된 결과가 아직 없다는 뜻입니다.
+
+현재 문서에서는 `promotion_batch`와 `publication_state`가 정확히 1:1입니다. 따라서 별도 테이블보다 `promotion_batch`에 두 상태를 나누어 저장하는 편이 단순합니다.
+
+```text
+promotion_batch
+- promotion_status
+- publication_status
+```
+
+두 상태를 하나의 `status`로 합치면 안 됩니다. 다음 상태를 구분할 수 없기 때문입니다.
+
+```text
+승격 실패
+승격 성공 + 공개 준비 중
+승격 성공 + 공개 실패
+승격 성공 + 공개 완료
+```
+
+추천 구조는 다음과 같습니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `promotion_batch_id` | 승격과 공개 준비 묶음 식별자입니다. |
+| `ontology_version_id` | 승격에 적용한 온톨로지 버전입니다. |
+| `promotion_status` | `PENDING`, `COMMITTED`, `FAILED`입니다. |
+| `publication_status` | `NOT_STARTED`, `PREPARING`, `READY`, `FAILED`입니다. |
+| `started_at` | 승격을 시작한 시점입니다. |
+| `committed_at` | 승격을 완료한 시점입니다. |
+| `ready_at` | 공개 준비를 완료한 시점입니다. |
+| `promotion_failure_reason` | 기준 그래프 승격 실패 이유입니다. |
+| `publication_failure_reason` | 공개 준비 실패 이유입니다. |
+
+파생 작업의 자세한 실패 내용은 `model_task`와 `agent_attempt`에서 확인할 수 있으므로 `publication_failure_reason`에는 전체 공개가 막힌 대표 이유만 저장하면 됩니다.
+
+## 5. `publication_affected_node`
+
+이 테이블은 지도에 표시할 노드 목록을 저장하는 테이블이 아닙니다. 하나의 승격으로 인해 파생 자료를 다시 준비해야 하는 노드를 관리합니다.
+
+예를 들어 다음 관계가 새로 들어왔다고 하겠습니다.
+
+```text
+SK하이닉스 → 참여함 → HBF 발표 사건
+HBF 발표 사건 → 발표함 → HBF
+```
+
+영향받는 노드는 다음과 같습니다.
+
+```text
+SK하이닉스
+HBF 발표 사건
+HBF
+```
+
+이 노드들은 검색 문서, 임베딩, 맥락 설명과 후속 질문을 새 지식에 맞게 갱신해야 합니다.
+
+추천 컬럼은 다음과 같습니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `promotion_batch_id` | 어떤 변경 때문에 갱신하는지 나타냅니다. |
+| `node_id` | 영향을 받은 노드입니다. |
+| `node_search_document_id` | 공개할 검색 문서 버전입니다. |
+| `node_embedding_id` | 공개할 임베딩 버전입니다. |
+| `node_context_id` | 공개할 맥락 설명 버전입니다. |
+
+기본 키는 다음 조합이면 충분합니다.
+
+```text
+PRIMARY KEY (promotion_batch_id, node_id)
+```
+
+후속 질문은 `node_context_id`를 통해 찾을 수 있으므로 이 테이블에 질문 식별자 두 개를 직접 저장할 필요가 없습니다.
+
+```text
+publication_affected_node
+→ node_context
+→ followup_question 1
+→ followup_question 2
+```
+
+이 테이블은 유지할 가치가 있습니다. 다음 두 역할이 있기 때문입니다.
+
+1. 어떤 노드의 준비가 아직 끝나지 않았는지 확인합니다.
+2. 한 공개 묶음에서 검색 문서·임베딩·설명의 일관된 버전을 함께 선택합니다.
+
+새 공개 준비가 실패하면 이전 `READY` 묶음에서 선택한 파생 결과가 계속 사용됩니다. 새 묶음이 `READY`가 될 때만 다음 탐색부터 새 결과를 선택합니다.
+
+## 6. 전체 참조 관계
+
+현재 결정을 단순하게 반영하면 다음 구조가 됩니다.
+
+```text
+promotion_batch
+├─ knowledge_item
+│  ├─ node
+│  ├─ relation
+│  └─ claim
+│
+├─ publication_affected_node
+│  ├─ node_search_document
+│  ├─ node_embedding
+│  └─ node_context
+│     └─ followup_question × 2
+│
+└─ promotion_status + publication_status
+
+model_task
+├─ node_embedding
+├─ node_context
+└─ followup_question
+```
+
+지도 조회는 다음 조건을 만족하는 지식만 사용합니다.
+
+```text
+knowledge_item.current_state
+    IN (EVIDENCE_VERIFIED, HUMAN_VERIFIED)
+
+AND promotion_batch.publication_status = READY
+
+AND 공개를 막는 미해결 lint finding이 없음
+```
+
+사람이 거절한 지식은 `READY` 상태였더라도 즉시 제외합니다.
+
+## 이번 범위에서 발견된 수정 지점
+
+현재 논리 문서는 확정된 결정과 비교하면 네 군데를 고쳐야 합니다.
+
+1. `promotion_member`가 제거하기로 한 `candidate_item`을 참조합니다.
+2. `knowledge_item.origin_candidate_item_id`도 제거해야 합니다.
+3. `derivation_run`은 `model_task`와 작업·상태·재시도 정보를 중복합니다.
+4. 1:1인 `publication_state`는 `promotion_batch`의 공개 상태 컬럼으로 합칠 수 있습니다.
+
+`publication_affected_node`는 지도 구성원 저장이 아니라 공개 준비 범위이므로 유지하는 편이 좋습니다. 이 구조를 채택하면 별도의 지도 버전 테이블 없이도 새 지식과 파생 결과를 한꺼번에 공개할 수 있습니다.
+
+## 사용자
+
+영속후보가 뭐야? 갑자기 처음 보는 말 쓰니까 헷갈려. 이전에 우리가 지칭햇던 무언가를 의미하는 거야?
+
+ontology_version_id    어떤 노드·관계·속성 규칙으로 검사했는지 나타냅니다. 이건 아까 lint에서 했던 걸 참조하는 거야? 아니면 다른 거야?
+응 이름 ROLLED_BACK에서 FAILED로 바꾸자.
+
+promotion_member를 제거하자.
+
+derivation_run도 제거하자.
+
+제거한다고 했으니까 이 둘에 대해서는 설명한 거 넘기고 공부안할게
+
+
+
+현재 문서에서는 promotion_batch와 publication_state가 정확히 1:1입니다. 따라서 별도 테이블보다 promotion_batch에 두 상태를 나누어 저장하는 편이 단순합니다.
+
+  promotion_batch
+  - promotion_status
+  - publication_status
+
+  두 상태를 하나의 status로 합치면 안 됩니다. 다음 상태를 구분할 수 없기 때문입니다.
+
+이렇게 말했는데 어차피 겹치니까 합친 다음에 status로 구분(표시) 하겠다는 거구나
+
+
+후속 질문은 node_context_id를 통해 찾을 수 있으므로 이 테이블에 질문 식별자 두 개를 직접 저장할 필요가 없다는 게 무슨 말이야?
+
+
+1,2,3. 제거하기로 한 건 제거하자.
+4. 응 그렇게 하자.
+
+## 어시스턴트
+
+“영속 후보”는 새로운 개념이 아닙니다. 이전에 `candidate_item`으로 DB에 저장하려 했던 “검증 전 후보”를 뜻했습니다. 제가 익숙하지 않은 표현으로 바꿔 말해 혼란을 만들었습니다.
+
+정확한 구분은 다음과 같습니다.
+
+```text
+검증 전 후보
+- Agent가 제안한 노드·관계·Claim
+- 애플리케이션 메모리에서만 처리
+- DB에 저장하지 않음
+
+기준 지식
+- 검증을 통과한 node·relation·claim·observation
+- DB에 저장
+```
+
+앞으로는 “영속 후보”라는 표현을 사용하지 않고 `DB에 저장된 검증 전 후보`라고 풀어 쓰겠습니다. 현재 결정에서는 그런 후보 자체를 저장하지 않습니다.
+
+## `ontology_version_id`와 lint의 차이
+
+`ontology_version_id`는 lint 정책을 참조하는 값이 아닙니다. 둘은 서로 다른 규칙 묶음입니다.
+
+### 온톨로지 버전
+
+무엇을 만들 수 있는지를 정의합니다.
+
+```text
+허용 노드 유형
+- 사람
+- 회사
+- 기술
+- 주제
+- 사건
+
+허용 관계
+- 사람·회사 → 참여함 → 사건
+- 사건 → 발표함 → 기술
+
+허용 속성
+- 기술 → 상용화 목표 시점 → DATE
+```
+
+예를 들어 다음 관계가 허용되는지는 온톨로지 버전으로 검사합니다.
+
+```text
+SK하이닉스 ──참여함──> HBF 발표 사건
+```
+
+`promotion_batch.ontology_version_id`는 이 지식 묶음을 어떤 온톨로지 규칙으로 검사하고 저장했는지 보존합니다.
+
+### lint 정책 버전
+
+지식에 문제가 없는지 검사하는 규칙과 심각도를 정의합니다.
+
+```text
+원문 위치가 본문과 일치하는가?
+Claim에 관측이 연결되었는가?
+관계 endpoint가 온톨로지에 맞는가?
+문제가 차단인지 경고인지?
+```
+
+두 규칙은 연결될 수 있지만 같은 것은 아닙니다.
+
+```text
+온톨로지
+→ 참여함은 회사 → 사건 관계라고 정의
+
+lint
+→ 실제 관계가 그 온톨로지 규칙을 지켰는지 검사
+```
+
+따라서 승격 당시 규칙을 재현하려면 `promotion_batch`에 다음 두 값을 함께 기록하는 방안을 검토해야 합니다.
+
+```text
+ontology_version_id
+lint_policy_version_id
+```
+
+현재 문서에는 `ontology_version_id`만 있으므로, `lint_policy_version_id`는 수정 이슈에 포함할 필요가 있습니다.
+
+## 확정한 제거 사항
+
+다음 결정으로 확정하겠습니다.
+
+- `promotion_member`를 제거합니다.
+- `knowledge_item.origin_candidate_item_id`를 제거합니다.
+- `derivation_run`을 제거합니다.
+- `publication_state` 테이블을 제거하고 상태 컬럼을 `promotion_batch`에 합칩니다.
+- `ROLLED_BACK` 상태 이름은 `FAILED`로 변경합니다.
+
+`promotion_member`와 `derivation_run`은 앞으로 학습 대상에서도 제외하겠습니다.
+
+## `promotion_batch`에 상태를 합친다는 의미
+
+이해하신 방향이 맞습니다. 두 테이블이 1:1이므로 하나의 테이블로 합치되, 상태는 두 컬럼으로 구분합니다.
+
+```text
+promotion_batch
+- promotion_status
+- publication_status
+```
+
+`promotion_status`는 기준 지식그래프 저장 결과입니다.
+
+```text
+PENDING
+COMMITTED
+FAILED
+```
+
+`publication_status`는 지도와 검색에 공개할 준비 상태입니다.
+
+```text
+NOT_STARTED
+PREPARING
+READY
+FAILED
+```
+
+예를 들어 다음 조합이 가능합니다.
+
+| `promotion_status` | `publication_status` | 의미 |
+|---|---|---|
+| `FAILED` | `NOT_STARTED` | 기준 그래프 저장부터 실패했습니다. |
+| `COMMITTED` | `PREPARING` | 지식은 저장됐고 파생 자료를 준비하고 있습니다. |
+| `COMMITTED` | `FAILED` | 지식은 저장됐지만 공개 자료 준비에 실패했습니다. |
+| `COMMITTED` | `READY` | 지도와 검색에 공개할 수 있습니다. |
+
+즉, 테이블은 합치지만 두 상태의 의미는 합치지 않습니다.
+
+## 후속 질문을 `node_context_id`로 찾는 방법
+
+`node_context`는 노드의 맥락 설명 한 버전을 나타냅니다.
+
+```text
+node_context
+- node_context_id: C-7
+- node_id: SK하이닉스
+- 본문: SK하이닉스는 최근 HBF...
+```
+
+후속 질문은 자신이 어느 맥락 설명에 속하는지 `node_context_id`로 가리킵니다.
+
+```text
+followup_question
+
+node_context_id | slot | 질문
+C-7             | 1    | HBF 발표에 함께 참여한 회사는?
+C-7             | 2    | 상용화 목표는 어떻게 설명됐는가?
+```
+
+`publication_affected_node`에는 공개할 맥락 설명만 선택합니다.
+
+```text
+publication_affected_node
+- node_id: SK하이닉스
+- node_context_id: C-7
+```
+
+그러면 `C-7`을 참조하는 후속 질문을 조회해 두 질문을 함께 가져올 수 있습니다.
+
+```sql
+SELECT *
+FROM followup_question
+WHERE node_context_id = 'C-7'
+ORDER BY slot;
+```
+
+따라서 다음 컬럼을 중복해서 저장할 필요가 없습니다.
+
+```text
+question_1_id
+question_2_id
+```
+
+공개 대상으로 선택된 `node_context`에는 `slot = 1`, `slot = 2`가 정확히 하나씩 있어야 합니다. 이 제약으로 항상 후속 질문 두 개를 보장할 수 있습니다.
+
+## 사용자
+
+이슈 올려.
+
+## 어시스턴트
+
+이슈를 실제로 올리기 전에 현재 Plan Mode에서는 변경 없이 등록 계획만 확정할 수 있습니다. `$fluent-korean`을 적용하고, 기존 이슈와 중복되지 않도록 `promotion_member`·`derivation_run` 제거와 공개 상태 단순화를 각각 어느 이슈에 넣어야 하는지 먼저 확인하겠습니다.
+
+## 어시스턴트
+
+중복을 확인한 결과, `promotion_member` 제거는 이미 후보 계보 제거를 다루는 #7에 보완하는 것이 맞습니다. `derivation_run` 제거와 공개 상태 통합은 서로 다른 관심사이므로 새 이슈 두 개로 분리해야 합니다. 다만 승격 당시 lint 정책 버전을 `promotion_batch`에 기록할지는 아직 사용자가 확정하지 않았으므로, 이것만 결정하면 등록 계획이 완성됩니다.
+
+## 어시스턴트
+
+<proposed_plan>
+# 승격·파생·공개 구조 이슈 등록 계획
+
+## 요약
+
+기존 #7을 보완하고 독립적인 새 이슈 두 개를 등록한다. 모든 이슈는 영어 본문과 `documentation` 라벨을 사용한다.
+
+## 이슈 변경
+
+1. **#7 후보 계보 제거 보완**
+   - `promotion_member`를 제거한다.
+   - `knowledge_item.origin_candidate_item_id`와 모든 후보 FK를 제거한다.
+   - `knowledge_item.promotion_batch_id`로 승격 묶음과 기준 지식을 직접 연결한다.
+   - 후보 없이도 `model_task`, `promotion_batch`, `observation`, Evidence Trace로 계보를 추적할 수 있어야 한다.
+
+2. **새 이슈: `Remove redundant derivation run persistence`**
+   - `derivation_run`을 제거한다.
+   - 모델 기반 파생 결과는 정확한 `model_task_id`를 직접 참조한다.
+   - 일반 코드로 만드는 `node_search_document`는 입력 해시와 생성 규칙 버전을 직접 보관한다.
+   - 파생 작업 상태·재시도·캐시는 `model_task`에서만 관리한다.
+   - #4와 #5를 관련 이슈로 연결한다.
+
+3. **새 이슈: `Simplify promotion and publication lifecycle`**
+   - `publication_state`를 제거하고 `promotion_batch`에 통합한다.
+   - `promotion_status`: `PENDING`, `COMMITTED`, `FAILED`
+   - `publication_status`: `NOT_STARTED`, `PREPARING`, `READY`, `FAILED`
+   - `ROLLED_BACK` 명칭을 `FAILED`로 바꾼다.
+   - `promotion_batch`를 승격 트랜잭션 전에 만들고, 실패 시 롤백 밖에서 실패 상태와 이유를 기록한다.
+   - `ontology_version_id`와 `lint_policy_version_id`를 모두 저장한다.
+   - 승격 실패와 공개 준비 실패의 이유·시점을 분리한다.
+   - `publication_affected_node`는 유지하고 `(promotion_batch_id, node_id)`를 식별 기준으로 사용한다.
+   - 선택된 검색 문서, 임베딩, 맥락 설명만 참조하며 후속 질문은 `node_context_id`와 `slot`으로 조회한다.
+   - #6, #7과 새 `derivation_run` 제거 이슈를 의존 관계로 연결한다.
+
+## 검증
+
+- 세 이슈가 서로 중복되지 않고 독립적으로 구현 가능한지 확인한다.
+- #7과 새 이슈 두 개의 본문, `documentation` 라벨, 열린 상태와 URL을 다시 조회한다.
+- 저장소 파일과 기존 미커밋 대화 기록은 변경하지 않는다.
+- 외부 GitHub 이슈 작업만 수행하므로 로컬 커밋은 만들지 않는다.
+</proposed_plan>
+
+## 사용자
+
+모델 기반 파생 결과는 정확한 model_task_id를 직접 참조할 수 있는 이유가 뭐야?
+
+## 어시스턴트
+
+직접 참조할 수 있는 이유는 `model_task`가 단순 실행 로그가 아니라 “하나의 논리적인 모델 작업”을 나타내기 때문입니다.
+
+예를 들어 SK하이닉스의 맥락 설명을 만드는 작업은 다음 정보를 이미 `model_task`에 가집니다.
+
+```text
+model_task MT-42
+
+작업 종류: NODE_CONTEXT
+대상 노드: SK하이닉스
+입력 해시: H-100
+출력 계약: context-v2
+모델 버전: M-3
+프롬프트 버전: P-7
+상태: SUCCESS
+```
+
+이 작업으로 생성된 결과가 `node_context`에 저장됩니다.
+
+```text
+node_context NC-7
+
+node_id: SK하이닉스
+model_task_id: MT-42
+context_text: ...
+```
+
+`NC-7 → MT-42`를 따라가면 다음 정보를 모두 확인할 수 있습니다.
+
+- 어떤 작업으로 만들었는지
+- 어떤 입력 지식을 사용했는지
+- 어떤 모델·프롬프트·출력 계약을 사용했는지
+- 몇 번 시도했는지
+- 최종 작업 상태가 무엇인지
+
+기존 `derivation_run`을 유지하면 같은 연결을 한 단계 더 거치게 됩니다.
+
+```text
+node_context
+→ derivation_run
+→ model_task
+```
+
+`derivation_run`이 별도의 정보를 결정하지 않고 `model_task`의 작업 종류·입력 해시·상태·재시도를 반복해서 저장한다면 중간 테이블로서 얻는 이점이 없습니다. 따라서 다음처럼 직접 연결할 수 있습니다.
+
+```text
+node_embedding ──────> model_task
+node_context ────────> model_task
+followup_question ───> model_task
+```
+
+재시도도 문제가 되지 않습니다. 최초 호출과 재시도는 모두 같은 논리 작업 아래에 있기 때문입니다.
+
+```text
+model_task MT-42
+├─ agent_attempt 1: 실패
+├─ agent_attempt 2: 실패
+└─ agent_attempt 3: 성공
+
+node_context NC-7
+└─ model_task_id: MT-42
+```
+
+후속 질문 두 개를 한 모델 작업이 함께 생성했다면 두 행이 같은 `model_task_id`를 참조할 수 있습니다.
+
+```text
+followup_question
+
+slot 1 → model_task MT-50
+slot 2 → model_task MT-50
+```
+
+이 구조를 안전하게 사용하려면 다음 규칙이 필요합니다.
+
+- 파생 결과 하나는 자신을 생성한 `model_task` 하나만 참조합니다.
+- 재시도는 새로운 `model_task`가 아니라 같은 작업의 `agent_attempt`로 기록합니다.
+- 결과가 DB에 정상적으로 연결된 뒤에만 `model_task`를 `SUCCESS`로 변경합니다.
+- 입력이나 모델·프롬프트·출력 계약이 달라지면 새 `model_task`와 새 결과를 만듭니다.
+- 성공한 캐시 결과를 재사용하면 새 결과를 복제하지 않고 기존 결과를 선택합니다.
+
+일반 코드로 만드는 `node_search_document`는 모델을 호출하지 않으므로 `model_task_id`를 참조하지 않습니다. 대신 입력 해시와 생성 규칙 버전만 저장합니다.
+
+결국 직접 참조가 가능한 이유는 `derivation_run`이 담당하려던 생성 계보와 실행 상태를 `model_task`가 이미 가지고 있고, 실제 결과 테이블이 해당 작업을 외래 키로 가리킬 수 있기 때문입니다.
+
+<proposed_plan>
+# 승격·파생·공개 구조 이슈 등록 계획
+
+## 요약
+
+기존 #7을 보완하고 독립적인 새 이슈 두 개를 등록한다. 모든 이슈는 영어 본문과 `documentation` 라벨을 사용한다.
+
+## 이슈 변경
+
+1. **#7 후보 계보 제거 보완**
+   - `promotion_member`를 제거한다.
+   - `knowledge_item.origin_candidate_item_id`와 모든 후보 FK를 제거한다.
+   - `knowledge_item.promotion_batch_id`로 승격 묶음과 기준 지식을 직접 연결한다.
+   - 후보 없이도 `model_task`, `promotion_batch`, `observation`, Evidence Trace로 계보를 추적할 수 있어야 한다.
+
+2. **새 이슈: `Remove redundant derivation run persistence`**
+   - `derivation_run`을 제거한다.
+   - 모델 기반 파생 결과는 정확한 `model_task_id`를 직접 참조한다.
+   - 일반 코드로 만드는 `node_search_document`는 입력 해시와 생성 규칙 버전을 직접 보관한다.
+   - 파생 작업 상태·재시도·캐시는 `model_task`에서만 관리한다.
+   - #4와 #5를 관련 이슈로 연결한다.
+
+3. **새 이슈: `Simplify promotion and publication lifecycle`**
+   - `publication_state`를 제거하고 `promotion_batch`에 통합한다.
+   - `promotion_status`: `PENDING`, `COMMITTED`, `FAILED`
+   - `publication_status`: `NOT_STARTED`, `PREPARING`, `READY`, `FAILED`
+   - `ROLLED_BACK` 명칭을 `FAILED`로 바꾼다.
+   - `promotion_batch`를 승격 트랜잭션 전에 만들고, 실패 시 롤백 밖에서 실패 상태와 이유를 기록한다.
+   - `ontology_version_id`와 `lint_policy_version_id`를 모두 저장한다.
+   - 승격 실패와 공개 준비 실패의 이유·시점을 분리한다.
+   - `publication_affected_node`는 유지하고 `(promotion_batch_id, node_id)`를 식별 기준으로 사용한다.
+   - 선택된 검색 문서, 임베딩, 맥락 설명만 참조하며 후속 질문은 `node_context_id`와 `slot`으로 조회한다.
+   - #6, #7과 새 `derivation_run` 제거 이슈를 의존 관계로 연결한다.
+
+## 검증
+
+- 세 이슈가 서로 중복되지 않고 독립적으로 구현 가능한지 확인한다.
+- #7과 새 이슈 두 개의 본문, `documentation` 라벨, 열린 상태와 URL을 다시 조회한다.
+- 저장소 파일과 기존 미커밋 대화 기록은 변경하지 않는다.
+- 외부 GitHub 이슈 작업만 수행하므로 로컬 커밋은 만들지 않는다.
+</proposed_plan>
+
+## 사용자
+
+Implement the plan.
+
+## 어시스턴트
+
+완료 결과는 #7이 후보 계보 제거 결정까지 보완되고, `derivation_run` 제거와 승격·공개 상태 단순화가 각각 독립 이슈로 등록된 상태입니다. 최소 확인 범위는 세 이슈의 본문·의존 관계·`documentation` 라벨·열린 상태이며, 저장소 파일과 기존 미커밋 대화 기록은 변경하지 않겠습니다.
+
+## 어시스턴트
+
+중복 이슈는 없고 GitHub 인증도 정상입니다. 먼저 #7에 `promotion_member` 제거와 직접 승격 계보를 추가한 뒤, `derivation_run` 제거 이슈를 생성하겠습니다. 그 이슈 번호를 승격·공개 상태 이슈의 실제 의존 관계에 사용하겠습니다.
+
+## 어시스턴트
+
+#7이 보완되었고 `derivation_run` 제거 이슈는 #22로 생성되었습니다. 이제 #22를 실제 의존 관계로 연결해 승격·공개 상태 단순화 이슈를 등록하겠습니다.
+
+## 어시스턴트
+
+세 이슈 변경이 완료되었습니다. 마지막으로 #7, #22, #23의 본문 핵심 결정과 의존 관계, 라벨, 열린 상태를 확인하고 로컬 작업 트리가 바뀌지 않았는지 검사하겠습니다.
+
+## 어시스턴트
+
+이슈 등록을 완료했습니다.
+
+- [#7 후보 및 `promotion_member` 제거](https://github.com/studylida/ontology-map/issues/7)
+- [#22 `derivation_run` 제거](https://github.com/studylida/ontology-map/issues/22)
+- [#23 승격·공개 상태 통합](https://github.com/studylida/ontology-map/issues/23)
+
+모두 `OPEN`·`documentation` 상태입니다. 저장소 파일은 변경하지 않았으며 기존 대화 기록의 미커밋 변경도 그대로 보존했습니다. 따라서 로컬 커밋은 없습니다.
+
+## 사용자
+
+이제 다음 데이터베이스 공부 진행해보자.
+
+## 어시스턴트
+
+다음은 검색과 화면용 파생 결과 계층입니다. `node_search_document`, `search_document_basis`, `node_embedding`, `node_context`, `followup_question`의 역할과 모든 논리 컬럼을 살펴보겠습니다. 방금 확정한 #22·#23과 이름·별칭 단순화 이슈 #13을 함께 대조해 낡은 참조가 있으면 바로 표시하겠습니다.
+
+## 어시스턴트
+
+다음은 검색과 화면용 파생 결과입니다. 이 계층의 데이터는 사실의 근거가 아니라, 이미 검증된 지식을 검색하고 읽기 쉽게 가공한 결과입니다.
+
+```text
+기준 지식그래프
+→ 노드 검색 문서
+├→ 임베딩
+└→ 한국어 맥락 설명
+   └→ 후속 질문 2개
+```
+
+## 1. `node_search_document`
+
+`node_search_document`는 기사 원문이 아닙니다. 특정 노드를 검색할 수 있도록 여러 정보를 합쳐 만든 내부 검색용 문서입니다.
+
+SK하이닉스 노드라면 대략 다음 내용을 가집니다.
+
+```text
+대표 이름: SK하이닉스
+별칭: SK hynix, 에스케이하이닉스
+유형: 회사
+주요 지식: HBF 발표 사건에 참여함
+연결된 대상: HBF, HBF 발표 사건, SanDisk
+```
+
+키워드 검색과 벡터 검색은 모두 이 문서를 사용하고, 최종 결과로 SK하이닉스 노드를 반환합니다. `node_search_document` 자체는 사용자에게 검색 결과로 노출하지 않습니다.
+
+추천 컬럼은 다음과 같습니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `node_search_document_id` | 검색 문서 버전의 불변 식별자입니다. |
+| `node_id` | 검색 대상 노드입니다. |
+| `identity_text` | 대표 이름과 모든 별칭처럼 높은 가중치를 줄 텍스트입니다. |
+| `knowledge_text` | 노드 유형, 주요 Claim, 관계, 사건과 주변 노드 이름입니다. |
+| `input_hash` | 문서를 만드는 데 사용한 입력 지식의 해시입니다. |
+| `generator_version` | 검색 문서를 조합한 일반 코드 규칙 버전입니다. |
+| `created_at` | 생성 시점입니다. |
+
+`identity_text`와 `knowledge_text`를 나누는 이유는 검색 가중치가 다르기 때문입니다.
+
+```text
+SK hynix라는 별칭과 정확히 일치
+→ 높은 검색 점수
+
+어떤 Claim의 본문에서 SK하이닉스와 관련된 단어가 발견됨
+→ 상대적으로 낮은 검색 점수
+```
+
+하나의 `document_text`로 합쳐도 검색은 가능하지만, 이름과 일반 설명의 가중치를 나누기가 어려워집니다.
+
+추천 고유 조건은 다음과 같습니다.
+
+```text
+UNIQUE (
+  node_id,
+  input_hash,
+  generator_version
+)
+```
+
+같은 입력과 같은 조합 규칙으로 동일한 검색 문서를 반복해서 만들지 않기 위한 조건입니다.
+
+## 2. `search_document_basis`
+
+`search_document_basis`는 검색 문서에 어떤 기준 지식이 포함되었는지 연결합니다.
+
+예를 들어 검색 문서 `SD-10`에 다음 내용이 들어갔다고 하겠습니다.
+
+```text
+SK하이닉스는 HBF 발표 사건에 참여했다.
+```
+
+이 문장이 어떤 관계와 Claim에서 왔는지 다음처럼 기록합니다.
+
+| `node_search_document_id` | `knowledge_item_id` | `contribution_kind` |
+|---|---|---|
+| `SD-10` | 참여 관계 `R-1` | `RELATION` |
+| `SD-10` | 참여 Claim `C-1` | `CLAIM` |
+
+추천 컬럼은 세 개입니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `node_search_document_id` | 근거를 사용하는 검색 문서입니다. |
+| `knowledge_item_id` | 검색 문서 작성에 사용한 노드·관계·Claim입니다. |
+| `contribution_kind` | 이름, 관계, Claim, 사건, 주변 노드 중 어떻게 기여했는지 나타냅니다. |
+
+이 연결은 두 가지 용도로 사용합니다.
+
+- 검색 결과가 왜 나타났는지 설명합니다.
+- 지식이 거절되거나 차단됐을 때 어떤 검색 문서를 다시 만들어야 하는지 찾습니다.
+
+별도의 행 식별자는 필요하지 않습니다.
+
+```text
+PRIMARY KEY (
+  node_search_document_id,
+  knowledge_item_id,
+  contribution_kind
+)
+```
+
+다만 `node_alias`는 `knowledge_item`이 아니므로 별칭 검색 이유는 이 테이블을 통하지 않고 별칭 검색 결과에서 직접 설명하는 편이 단순합니다.
+
+```text
+검색 이유: 별칭 “SK hynix”와 일치
+```
+
+## 3. 현재 검색 문서 설명의 순환 문제
+
+현재 문서에는 `node_search_document`가 한국어 맥락 설명까지 포함한다고 되어 있습니다. 그런데 맥락 설명도 검색 문서를 입력으로 생성하면 다음 순환이 생깁니다.
+
+```text
+검색 문서
+→ 맥락 설명 생성
+→ 맥락 설명을 포함한 검색 문서 생성
+→ 검색 문서가 바뀌었으므로 맥락 설명 다시 생성
+```
+
+추천안은 검색 문서에서 `node_context`를 제외하는 것입니다.
+
+```text
+node_search_document
+- 대표 이름과 별칭
+- 노드 유형
+- 공개 가능한 Claim과 관계
+- 사건과 주변 노드 이름
+
+node_context
+- 위 검색 문서를 입력으로 생성한 한국어 설명
+```
+
+이렇게 하면 생성 순서가 단방향이 됩니다.
+
+## 4. `node_embedding`
+
+`node_embedding`은 검색 문서를 벡터로 변환한 결과입니다.
+
+```text
+node_search_document SD-10
+→ 임베딩 모델 호출
+→ node_embedding E-10
+```
+
+추천 컬럼은 다음과 같습니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `node_embedding_id` | 임베딩 결과의 불변 식별자입니다. |
+| `node_search_document_id` | 어떤 검색 문서를 벡터로 만들었는지 나타냅니다. |
+| `model_task_id` | 실제 임베딩 생성 작업입니다. |
+| `embedding_vector` | 검색에 사용하는 벡터입니다. |
+| `created_at` | 생성 시점입니다. |
+
+기존 설명에 있던 다음 컬럼은 중복될 가능성이 큽니다.
+
+```text
+node_id
+input_hash
+embedding_model
+dimension
+```
+
+다음 참조를 통해 대부분 알 수 있기 때문입니다.
+
+```text
+node_embedding
+→ node_search_document
+   → node_id
+   → input_hash
+
+node_embedding
+→ model_task
+   → model_version
+```
+
+`dimension`은 PostgreSQL 물리 스키마에서 고정된 pgvector 차원으로 검사하는 편이 단순합니다. POC에서 여러 차원의 임베딩 모델을 동시에 사용하지 않는다면 각 행에 반복 저장할 필요가 없습니다.
+
+## 5. `node_context`
+
+`node_context`는 사용자가 노드를 클릭했을 때 읽을 한국어 맥락 설명입니다.
+
+```text
+SK하이닉스는 최근 HBF 발표 사건에 참여했으며...
+```
+
+추천 컬럼은 다음과 같습니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `node_context_id` | 맥락 설명 버전의 불변 식별자입니다. |
+| `node_search_document_id` | 설명 생성에 사용한 정확한 검색 문서입니다. |
+| `model_task_id` | 설명을 생성한 모델 작업입니다. |
+| `language` | POC에서는 `ko`입니다. |
+| `context_text` | 사용자에게 표시할 설명입니다. |
+| `created_at` | 생성 시점입니다. |
+
+기존 문서에는 입력 해시, 모델 버전, 프롬프트 버전과 출력 스키마 버전도 `node_context`에 저장한다고 되어 있습니다. #22 결정에 따라 이 정보는 `model_task`에서 읽으므로 반복 저장하지 않습니다.
+
+```text
+node_context
+→ model_task
+   ├─ input_hash
+   ├─ model_version
+   ├─ prompt_version
+   └─ output_schema_definition_id
+```
+
+`node_id`도 `node_search_document`를 통해 알 수 있으므로 논리적으로는 생략할 수 있습니다.
+
+```text
+node_context
+→ node_search_document
+→ node
+```
+
+## 6. `followup_question`
+
+`followup_question`은 해당 맥락을 읽은 사용자가 다음에 무엇을 살펴볼지 제안하는 문장입니다. 챗봇 대화 이력은 아닙니다.
+
+추천 컬럼은 다음과 같습니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `followup_question_id` | 질문의 불변 식별자입니다. |
+| `node_context_id` | 어떤 맥락 설명에 딸린 질문인지 나타냅니다. |
+| `model_task_id` | 두 질문을 생성한 모델 작업입니다. |
+| `slot` | 첫 번째 질문은 1, 두 번째 질문은 2입니다. |
+| `question_text` | 화면에 표시할 질문입니다. |
+| `created_at` | 생성 시점입니다. |
+
+두 질문을 한 모델 호출에서 함께 만들었다면 동일한 `model_task_id`를 참조합니다.
+
+```text
+node_context C-10
+├─ slot 1 / model_task MT-20
+└─ slot 2 / model_task MT-20
+```
+
+필요한 제약은 다음과 같습니다.
+
+```text
+CHECK (slot IN (1, 2))
+
+UNIQUE (
+  node_context_id,
+  slot
+)
+```
+
+공개 준비가 `READY`가 되려면 선택된 `node_context`에 1번과 2번 질문이 모두 있어야 합니다.
+
+## 7. 공개 준비와의 연결
+
+최종 연결은 다음과 같습니다.
+
+```text
+publication_affected_node
+├─ node_search_document_id
+│  └─ node_embedding
+└─ node_context_id
+   ├─ followup_question slot 1
+   └─ followup_question slot 2
+```
+
+정확한 준비 순서는 다음과 같습니다.
+
+```text
+1. 일반 코드가 node_search_document 생성
+2. node_embedding과 node_context 생성
+3. node_context를 기준으로 followup_question 두 개 생성
+4. publication_affected_node가 완성된 결과들을 선택
+5. 모든 영향 노드가 준비되면 publication_status = READY
+```
+
+## 이번 범위에서 확인할 논점
+
+현재 구조에는 세 가지 결정이 남아 있습니다.
+
+1. 검색 문서에서 `node_context`를 제외해 생성 순환을 없애는 것을 추천합니다.
+2. 검색 문서는 `identity_text`와 `knowledge_text`를 분리해 검색 가중치를 다르게 주는 것을 추천합니다.
+3. 후속 질문은 현재 `question_text`만 저장합니다. 질문을 클릭했을 때 실제 검색을 실행하려면 나중에 `search_query`나 `target_node_id`가 추가로 필요한지 결정해야 합니다.
+
+이번 확인은 읽기 전용으로 진행했으며 파일과 이슈는 변경하지 않았습니다.
+
+## 사용자
+
+## 1. node_search_document
+
+  node_search_document는 기사 원문이 아닙니다. 특정 노드를 검색할 수 있도록 여러 정보를 합쳐 만든 내부 검색용 문서입니다.
+
+  SK하이닉스 노드라면 대략 다음 내용을 가집니다.
+
+  대표 이름: SK하이닉스
+  별칭: SK hynix, 에스케이하이닉스
+  유형: 회사
+  주요 지식: HBF 발표 사건에 참여함
+  연결된 대상: HBF, HBF 발표 사건, SanDisk
+
+  키워드 검색과 벡터 검색은 모두 이 문서를 사용하고, 최종 결과로 SK하이닉스 노드를 반환합니다. node_search_document 자체는 사용자에게 검색 결과로 노출하지 않습니다.
+
+  추천 컬럼은 다음과 같습니다.
+
+   컬럼                       역할
+  ━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   node_search_document_id    검색 문서 버전의 불변 식별자입니다.
+  ─────────────────────────  ───────────────────────────────────────────────────────────
+   node_id                    검색 대상 노드입니다.
+  ─────────────────────────  ───────────────────────────────────────────────────────────
+   identity_text              대표 이름과 모든 별칭처럼 높은 가중치를 줄 텍스트입니다.
+  ─────────────────────────  ───────────────────────────────────────────────────────────
+   knowledge_text             노드 유형, 주요 Claim, 관계, 사건과 주변 노드 이름입니다.
+  ─────────────────────────  ───────────────────────────────────────────────────────────
+   input_hash                 문서를 만드는 데 사용한 입력 지식의 해시입니다.
+  ─────────────────────────  ───────────────────────────────────────────────────────────
+   generator_version          검색 문서를 조합한 일반 코드 규칙 버전입니다.
+  ─────────────────────────  ───────────────────────────────────────────────────────────
+   created_at                 생성 시점입니다.
+
+  identity_text와 knowledge_text를 나누는 이유는 검색 가중치가 다르기 때문입니다.
+
+여기서 knowledge_text가 벡터 관련된 컬럼인 거야? 그래서 가중치가 다르다는 표현을 쓴 건가?
+
+search_document_basis는 검색 문서에 어떤 기준지식이 포함되었는지 연결한다고 했는데, 그러면 이건 node_search_document의 하위 컬럼이야 아니면 다른 테이블을 만들어서 배치해둔 거야? 다른 테이블을 만들어서 id를 넣었구나. knowledge_item_id를 넣은 이유가 있어? 혹시 search_document_basis가 있으면 좋은 점이 있어? 어차피 id를 찾아가면 거기서 knowledge_text나 identity_text같은 걸 볼 수 있는데 굳이 이렇게 하는 이유가 있어? contribution_kind는 어떻게 산출되는 거야? 이건 node_search_document에서 참고해서 만드는 거야 아니면 에이전트가 만드는 값을 가져오는 거야? 이야기하다 보니까 그렇게까지 필요해보이지는 않아서 왜 필요한지 설명해주면 좋겠어.
+
+
+
+node_context는 뭐야? 아까 네가 추천한 컬럼에는 저게 없지 않았어? 이 문서에 대한 3줄요약 이런 건가? node_id는 있으면 검색 빨라지니까 넣는 게 좋겠어.
+
+
+
+
+  ## 4. node_embedding
+
+  node_embedding은 검색 문서를 벡터로 변환한 결과입니다.
+
+  node_search_document SD-10
+  → 임베딩 모델 호출
+  → node_embedding E-10
+
+  추천 컬럼은 다음과 같습니다.
+
+   컬럼                       역할
+  ━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   node_embedding_id          임베딩 결과의 불변 식별자입니다.
+  ─────────────────────────  ────────────────────────────────────────────────
+   node_search_document_id    어떤 검색 문서를 벡터로 만들었는지 나타냅니다.
+  ─────────────────────────  ────────────────────────────────────────────────
+   model_task_id              실제 임베딩 생성 작업입니다.
+  ─────────────────────────  ────────────────────────────────────────────────
+   embedding_vector           검색에 사용하는 벡터입니다.
+  ─────────────────────────  ────────────────────────────────────────────────
+   created_at                 생성 시점입니다.
+
+  기존 설명에 있던 다음 컬럼은 중복될 가능성이 큽니다.
+
+  node_id
+  input_hash
+  embedding_model
+  dimension
+
+  다음 참조를 통해 대부분 알 수 있기 때문입니다.
+
+  node_embedding
+  → node_search_document
+     → node_id
+     → input_hash
+
+  node_embedding
+  → model_task
+     → model_version
+
+  dimension은 PostgreSQL 물리 스키마에서 고정된 pgvector 차원으로 검사하는 편이 단순합니다. POC에서 여러 차원의 임베딩 모델을 동시에 사용하지 않는다면 각 행에 반복 저장할
+  필요가 없습니다.
+
+그럼 node_embedding 같은 경우에는 어떻게 수정하면 좋을까?
+
+
+
+  ## 이번 범위에서 확인할 논점
+
+  현재 구조에는 세 가지 결정이 남아 있습니다.
+
+  1. 검색 문서에서 node_context를 제외해 생성 순환을 없애는 것을 추천합니다. node_context를 제외하면 어떤 형태로 제외하는 거야? 아예 삭제하는 거야 아니면 그냥 빼기만?
+  2. 검색 문서는 identity_text와 knowledge_text를 분리해 검색 가중치를 다르게 주는 것을 추천합니다. 응 그렇게 하자.
+  3. 후속 질문은 현재 question_text만 저장합니다. 질문을 클릭했을 때 실제 검색을 실행하려면 나중에 search_query나 target_node_id가 추가로 필요한지 결정해야 합니다. 이거 정하긴 해야겠다. 이야기해보자.  랭체인을 쓰면 에이전트에게 툴을 쥐어주면 될텐데, 그 툴을 어떻게 할지나 이런 건 지금 범위에서 다룰 게 아닌 거 같아. 하지만 그렇지 않을 수도 있으니 향후에 어떻게 활용하게 될지 미리 구상정도만 해보자
+
+## 어시스턴트
+
+`$fluent-korean`을 적용해 검색용 텍스트, 검색 근거 연결, 맥락 설명과 후속 질문의 역할을 서로 섞이지 않게 정리하겠습니다. 먼저 결론을 미리 말하면 `knowledge_text`는 벡터 컬럼이 아니며, `node_context`도 삭제 대상이 아닙니다. 이번에는 각 데이터가 왜 필요한지부터 확인하고, 불필요한 중간 구조는 줄이는 방향으로 후속 질문의 활용 범위까지 구체화하겠습니다.
+
+## 어시스턴트
+
+## 1. `knowledge_text`는 벡터 컬럼이 아닙니다
+
+`identity_text`와 `knowledge_text`는 모두 일반 텍스트입니다.
+
+```text
+identity_text
+SK하이닉스 SK hynix 에스케이하이닉스
+
+knowledge_text
+회사 HBF 발표 사건 참여 SanDisk
+```
+
+가중치 차이는 우선 PostgreSQL 키워드 검색에 적용합니다.
+
+```text
+identity_text  → tsvector 가중치 A
+knowledge_text → tsvector 가중치 B
+```
+
+따라서 사용자가 `SK hynix`를 정확히 검색하면 별칭 일치 결과가 높은 순위에 나타납니다. Claim에 해당 단어가 한 번 등장한 노드는 상대적으로 낮은 점수를 받습니다.
+
+벡터 검색에서는 두 텍스트를 일반 코드가 정해진 순서로 합쳐 임베딩 모델에 전달합니다.
+
+```text
+임베딩 입력
+= identity_text + knowledge_text
+```
+
+벡터 자체에는 PostgreSQL의 A·B 가중치가 적용되지 않습니다. 임베딩 모델은 합쳐진 문장의 의미를 벡터로 변환합니다. 두 필드를 나누는 주된 이유는 키워드 검색 가중치와 데이터 역할을 명확하게 구분하기 위해서입니다.
+
+`identity_text`와 `knowledge_text` 분리는 확정하겠습니다.
+
+## 2. `search_document_basis`는 별도 테이블입니다
+
+`node_search_document`의 컬럼이 아니라 다대다 연결 테이블입니다.
+
+```text
+node_search_document
+→ search_document_basis
+→ knowledge_item
+```
+
+`knowledge_item_id`를 사용한 이유는 노드·관계·Claim을 하나의 공통 식별자로 연결할 수 있기 때문입니다.
+
+```text
+knowledge_item
+├─ node
+├─ relation
+└─ claim
+```
+
+각 유형마다 다음처럼 세 개의 nullable FK를 만들지 않기 위한 구조였습니다.
+
+```text
+node_id
+relation_id
+claim_id
+```
+
+`contribution_kind`는 Agent가 만드는 값이 아닙니다. 일반 코드가 검색 문서를 조합하면서 결정합니다.
+
+```text
+대표 이름을 추가함 → IDENTITY
+Claim 문장을 추가함 → CLAIM
+관계 정보를 추가함 → RELATION
+주변 노드 이름을 추가함 → NEIGHBOR
+```
+
+하지만 말씀하신 대로 POC에는 필요성보다 복잡성이 클 수 있습니다.
+
+### 유지했을 때 얻는 것
+
+- 검색 문서에 포함된 Claim과 관계를 정확히 추적할 수 있습니다.
+- 특정 지식이 거절됐을 때 다시 만들어야 할 검색 문서를 찾을 수 있습니다.
+- 검색 결과가 나온 이유를 설명할 후보 범위를 좁힐 수 있습니다.
+
+### 한계
+
+`search_document_basis`가 있다고 해서 어떤 문장이 실제 검색 점수를 높였는지 바로 알 수 있는 것은 아닙니다.
+
+```text
+검색 문서에 포함된 Claim 목록
+≠ 실제 검색 결과에 영향을 준 Claim
+```
+
+벡터 검색에서는 특히 어느 Claim이 유사도 점수에 기여했는지 이 테이블만으로 알 수 없습니다. 결국 별도의 유사도 계산이나 설명 로직이 필요합니다.
+
+### 추천안
+
+POC에서는 `search_document_basis`를 제거하는 것이 좋겠습니다.
+
+- 별칭 일치는 `node_alias`에서 직접 설명합니다.
+- 검색 문서는 `node_id`, 입력 해시와 생성 규칙 버전으로 재생성할 수 있습니다.
+- Claim·관계 때문에 노드가 검색됐다는 설명은 현재 공개 그래프에서 별도로 조회합니다.
+- 변경된 노드는 `publication_affected_node`로 이미 관리합니다.
+
+검색 결과 설명을 실제로 개발하면서 Claim 단위 계보가 반드시 필요하다고 확인될 때 추가해도 늦지 않습니다.
+
+## 3. `node_context`는 별도 테이블입니다
+
+`node_context`는 검색 문서의 컬럼이 아닙니다. 사용자가 노드를 클릭했을 때 상세 패널에 표시하는 사전 생성된 맥락 설명입니다.
+
+단순한 3줄 요약에 가깝지만, 형식을 정확히 고정할 필요는 없습니다. POC에서는 하나의 짧은 설명 문단이면 충분합니다.
+
+```text
+SK하이닉스는 최근 HBF 발표 사건에 참여했으며, SanDisk와 함께 HBF의 2027년 상용화 목표를 발표했다. 이 내용은 현재 제품 출시가 완료됐다는 의미가 아니라 공개된 목표를 설명한다.
+```
+
+기존 성공 기준의 `맥락 설명 1개`가 바로 이 데이터입니다.
+
+사용자 의견대로 `node_id`를 직접 저장하겠습니다.
+
+```text
+node_context
+- node_context_id
+- node_id
+- node_search_document_id
+- model_task_id
+- language
+- context_text
+- created_at
+```
+
+`node_id`가 논리적으로 중복되기는 하지만 다음 조회가 단순해집니다.
+
+```sql
+SELECT *
+FROM node_context
+WHERE node_id = ?;
+```
+
+대신 `node_context.node_id`와 참조한 검색 문서의 `node_id`가 반드시 같아야 합니다.
+
+## 4. `node_embedding` 수정안
+
+벡터 검색은 `node_embedding`에서 가장 가까운 벡터를 먼저 찾은 뒤 노드를 반환합니다. 이 경우 `node_id`가 있으면 검색 결과를 곧바로 노드로 변환할 수 있으므로 유지하는 편이 실용적입니다.
+
+최종 추천 컬럼은 다음과 같습니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `node_embedding_id` | 임베딩 결과의 불변 식별자입니다. |
+| `node_id` | 벡터 검색 결과로 반환할 노드입니다. |
+| `node_search_document_id` | 벡터로 변환한 정확한 검색 문서입니다. |
+| `model_task_id` | 임베딩 모델 실행과 재시도 계보입니다. |
+| `embedding_vector` | pgvector로 검색할 벡터입니다. |
+| `created_at` | 생성 시점입니다. |
+
+다음 컬럼은 제거하는 것을 추천합니다.
+
+| 제거 컬럼 | 이유 |
+|---|---|
+| `input_hash` | `node_search_document.input_hash`에서 확인할 수 있습니다. |
+| `embedding_model` | `model_task.model_version`에서 확인할 수 있습니다. |
+| `dimension` | POC에서는 PostgreSQL pgvector 컬럼 차원으로 고정합니다. |
+
+다음 일치 조건도 필요합니다.
+
+```text
+node_embedding.node_id
+= node_search_document.node_id
+```
+
+같은 검색 문서라도 임베딩 모델 버전이 바뀌면 새 `model_task`와 새 `node_embedding`을 만듭니다. 공개할 정확한 임베딩 버전은 `publication_affected_node.node_embedding_id`가 선택합니다.
+
+## 5. 검색 문서에서 `node_context`를 제외한다는 의미
+
+`node_context` 테이블을 삭제한다는 뜻이 아닙니다. 검색 문서를 만들 때 그 내용을 `knowledge_text`에 다시 넣지 않는다는 뜻입니다.
+
+```text
+node_search_document
+- identity_text
+- knowledge_text
+- node_context 내용은 포함하지 않음
+```
+
+`node_context`는 그대로 유지합니다.
+
+```text
+node_search_document
+→ node_context 생성
+→ 상세 패널에서 표시
+```
+
+이렇게 하면 생성 순환이 사라집니다.
+
+```text
+검색 문서가 맥락 설명을 포함함
+→ 맥락 설명을 바꾸면 검색 문서도 바뀜
+→ 검색 문서가 바뀌면 맥락 설명도 다시 생성해야 함
+```
+
+수정 후에는 단방향입니다.
+
+```text
+기준 지식
+→ 검색 문서
+→ 맥락 설명
+```
+
+따라서 `node_context`는 유지하되 `node_search_document`의 입력에서는 제외하는 것으로 추천합니다.
+
+## 6. 후속 질문의 POC 활용 방식
+
+LangChain 도구와 Agent의 구체적인 실행 방식은 API와 Agent 권한을 설계할 때 다루는 것이 맞습니다. 다만 지금 DB에는 후속 질문을 클릭했을 때 무엇을 할 수 있는지 담아야 합니다.
+
+제품이 챗봇이 아니라 지도라는 점을 기준으로 보면 다음 방식이 가장 잘 맞습니다.
+
+```text
+후속 질문
+→ 이미 존재하는 관련 노드 하나를 가리킴
+→ 클릭하면 해당 노드로 지도 중심 이동
+→ 해당 노드의 상세 패널 표시
+```
+
+예시는 다음과 같습니다.
+
+```text
+질문: HBF 발표에는 어떤 회사들이 참여했는가?
+target_node_id: HBF 발표 사건
+
+질문: HBF의 상용화 목표는 무엇인가?
+target_node_id: HBF
+```
+
+추천 컬럼은 다음과 같습니다.
+
+```text
+followup_question
+- followup_question_id
+- node_context_id
+- model_task_id
+- slot
+- question_text
+- target_node_id
+- created_at
+```
+
+`target_node_id`는 POC에서 필수로 두는 것이 좋겠습니다. 그러면 모든 후속 질문이 실제 지도 탐색으로 이어집니다.
+
+Agent는 후속 질문 생성 시 공개 가능한 주변 노드를 조회하는 도구를 사용할 수 있습니다. 다만 Agent가 임의의 내부 식별자를 만들게 하지는 않습니다.
+
+```text
+일반 코드
+→ 공개 가능한 관련 노드와 내부 식별자를 Agent 도구 결과로 제공
+
+Agent
+→ 제공된 노드 중 질문 대상 후보를 선택
+
+일반 코드
+→ target_node_id가 실제 공개 노드인지 최종 검사
+```
+
+사용자가 질문을 클릭할 때는 Agent나 LLM을 다시 호출하지 않습니다.
+
+```text
+클릭
+→ target_node_id로 지도 재조회
+→ 지도 중심 이동
+```
+
+향후 자유로운 질문 검색이 필요해지면 다음 구조를 추가할 수 있습니다.
+
+```text
+action_kind: RECENTER_NODE | RUN_SEARCH
+search_query
+```
+
+하지만 POC에서는 `RECENTER_NODE` 하나만 지원하면 충분합니다. LangChain 도구 설계와 `RUN_SEARCH`는 Agent/API 단계까지 보류하는 것이 좋겠습니다.
+
+## 이번 답변의 결정 상태
+
+확정:
+
+- `identity_text`와 `knowledge_text`를 분리합니다.
+- `node_context.node_id`를 유지합니다.
+
+추천 중:
+
+- `search_document_basis`를 POC에서 제거합니다.
+- `node_embedding`에서 `node_id`는 유지하고 `input_hash`, `embedding_model`, `dimension`은 제거합니다.
+- `node_context`는 유지하되 검색 문서 내용에서는 제외합니다.
+- 후속 질문마다 공개 가능한 `target_node_id`를 필수로 두고, 클릭하면 모델 호출 없이 해당 노드로 이동합니다.
+
+## 사용자
+
+contribution_kind는 제거하자. 일반코드가 조합하는 거라면 이미 knowledge_text, identity_text에 들어가있을 확률이 높아.
+search_document_basis를 제거하는 방향으로 가자. 제거 계획을 세우기 전에 이걸 지웠을 때 장단점을 알려줘. 지금은 이게 무엇이고 어떤 역할을 하는지 감이 안오네
+
+
+다음 일치 조건도 필요합니다.
+
+```text
+node_embedding.node_id
+= node_search_document.node_id
+```
+이건 데이터베이스 만들 때 FK 참조조건으로 넣자. FK 조건은 어떻게 설정하는 게 좋을까? 우리 데이터베이스 전체적인 이야기야. 나는 참조하던 테이블이나 행이 지워져도 의미가 남아있다면 남기고, 없으면 연쇄적으로 지우는 쪽을 생각하고 있어. 혹시 다른 염두에 둘 것들이 있을까?
+
+| `dimension` | POC에서는 PostgreSQL pgvector 컬럼 차원으로 고정합니다. |라고 했는데 이게 무슨 소리야?
+
+검색 문서를 만들 때 그 내용을 knowledge_text에 다시 넣지 않는다고 했는데 이러면 관련해서 구조가 어떻게 돼? 지금 머리가 꼬여서 잘모르겠어. 이렇게 했을 때 node_search_document까지 포함해서 관계를 알려줘.
+
+
+
+node_embedding에서 node_id는 유지하고 input_hash, embedding_model, dimension은 제거하자.
+
+후속 질문마다 공개 가능한 target_node_id를 필수로 두고, 클릭하면 모델 호출 없이 해당 노드로 이동한다는 게 무슨 소리야? 네가 모든 후속질문이 지도 탐색으로 이어진다고 했는데, 질문에 해당하는(답변이 될 수 있는) 노드를 하이퍼링크 달듯이 한다는 건가? 그런 거면 오케이야. 질문 만들 때 탐색하고 타겟 노드를 찾는 과정도 동반되어야하겠네.
+
+
+
+  제거 컬럼          이유
+  ━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   input_hash         node_search_document.input_hash에서 확인할 수 있습니다.
+  ─────────────────  ─────────────────────────────────────────────────────────
+   embedding_model    model_task.model_version에서 확인할 수 있습니다.
+  ─────────────────  ─────────────────────────────────────────────────────────
+   dimension          POC에서는 PostgreSQL pgvector 컬럼 차원으로 고정합니다.
+
+이거 각각의 역할을 알려줄래? 그래야 내가 저걸 삭제할지말지 결정할 수 있어.
+
+## 어시스턴트
+
+`$fluent-korean`을 적용해 검색 문서 계층을 처음부터 다시 연결해서 설명하겠습니다. 외래 키 삭제 정책과 pgvector 차원은 구현 시 오류로 이어질 수 있으므로 PostgreSQL 공식 문서와 pgvector 공식 저장소를 읽기 전용으로 확인한 뒤 답하겠습니다. 지금은 파일이나 이슈를 변경하지 않습니다.
+
+## 어시스턴트
+
+## 1. `search_document_basis`가 무엇인지 다시 정리
+
+`search_document_basis`는 검색 문서의 내용이 아니라, 검색 문서를 만들 때 사용한 기준 지식의 목록입니다.
+
+```text
+검색 문서 SD-10
+├─ Claim C-1을 사용함
+├─ Relation R-1을 사용함
+└─ 사건 Node E-1을 사용함
+```
+
+검색 문서가 완성된 요리라면 `search_document_basis`는 사용한 재료 목록에 가깝습니다. 텍스트 자체는 `node_search_document.identity_text`와 `knowledge_text`에 있습니다.
+
+### 제거할 때의 장점
+
+- `search_document_basis` 테이블과 `contribution_kind`가 사라집니다.
+- 검색 문서를 만들 때 지식마다 연결 행을 추가하지 않아도 됩니다.
+- 검색 문서와 근거 연결을 항상 동기화해야 하는 부담이 사라집니다.
+- 검색·공개 준비 쿼리가 단순해집니다.
+- 변경된 노드는 이미 `publication_affected_node`로 알 수 있으므로 검색 문서 재생성 대상을 별도로 찾지 않아도 됩니다.
+
+### 제거할 때의 단점
+
+- 과거 검색 문서에 정확히 어떤 Claim과 관계가 들어갔는지 ID 단위로 복원할 수 없습니다.
+- `지식 K-10을 사용한 검색 문서는 무엇인가?`라는 역방향 조회가 어려워집니다.
+- 검색 문서가 오래됐는지는 `input_hash` 비교나 재생성으로 판단해야 합니다.
+- 과거 검색 문서의 정확한 재료 목록은 남지 않고, 완성된 `identity_text`와 `knowledge_text`만 남습니다.
+
+### 검색 이유 설명에는 어떤 영향이 있는가
+
+`search_document_basis`가 있어도 특정 Claim이 실제 검색 점수를 얼마나 높였는지는 알 수 없습니다. 특히 하나의 벡터로 합친 검색에서는 어느 Claim이 유사도 점수에 기여했는지 분해할 수 없습니다.
+
+따라서 제거 후 검색 이유는 다음처럼 계산하는 편이 낫습니다.
+
+```text
+별칭 검색
+→ 실제로 일치한 node_alias 표시
+
+지식 내용 검색
+→ 검색된 노드의 현재 공개 Claim·관계 중
+   검색어와 관련된 상위 근거를 별도로 조회
+```
+
+벡터 검색에서는 이를 “정확한 점수 원인”이라고 표현하지 않고 다음처럼 안내해야 합니다.
+
+```text
+이 노드와 관련된 근거 확인 지식
+```
+
+정확한 벡터 기여도를 설명하려면 나중에 Claim별 임베딩이나 문단별 임베딩 같은 별도 설계가 필요합니다. `search_document_basis`만 유지한다고 해결되지는 않습니다.
+
+따라서 POC에서는 다음을 제거하는 방향이 합리적입니다.
+
+- `search_document_basis`
+- `contribution_kind`
+
+## 2. 검색·설명·임베딩의 전체 관계
+
+`node_context`를 검색 문서에서 제외한 뒤의 구조는 다음과 같습니다.
+
+```text
+node
+├─ node_alias
+│  └─ 대표 이름·별칭
+│
+├─ relation·claim·event
+│  └─ 공개 가능한 기준 지식
+│
+└─ node_search_document
+   ├─ identity_text  ← node_alias에서 조합
+   ├─ knowledge_text ← relation·claim·event에서 조합
+   │
+   ├─ node_embedding
+   │  └─ identity_text + knowledge_text를 벡터로 변환
+   │
+   └─ node_context
+      └─ 검색 문서를 입력으로 한국어 맥락 설명 생성
+         └─ followup_question × 2
+            └─ target_node_id
+```
+
+`node_context`를 제외한다는 것은 테이블을 삭제하는 것이 아닙니다.
+
+```text
+node_search_document.knowledge_text 안에
+node_context.context_text를 다시 복사하지 않음
+```
+
+각 데이터의 역할은 다음과 같습니다.
+
+| 데이터 | 역할 | 사용자 노출 |
+|---|---|---|
+| `identity_text` | 이름과 별칭 키워드 검색 | 직접 노출하지 않음 |
+| `knowledge_text` | Claim·관계·사건 키워드 및 벡터 검색 | 직접 노출하지 않음 |
+| `embedding_vector` | 벡터 유사도 계산 | 노출하지 않음 |
+| `context_text` | 상세 패널의 사전 생성 설명 | 노출함 |
+| `question_text` | 다음 탐색을 유도하는 질문 | 노출함 |
+
+생성 순서는 단방향입니다.
+
+```text
+기준 지식
+→ node_search_document
+→ node_embedding
+→ node_context
+→ followup_question
+```
+
+실제로는 `node_embedding`과 `node_context`를 검색 문서 생성 후 병렬로 만들 수 있습니다.
+
+## 3. `node_embedding.node_id` 일치 FK
+
+`node_embedding.node_id`를 유지하려면 검색 문서의 노드와 반드시 같아야 합니다.
+
+```text
+node_embedding.node_id
+= node_search_document.node_id
+```
+
+단순 FK 두 개만 두면 잘못된 조합이 들어갈 수 있습니다.
+
+```text
+node_id: SK하이닉스
+node_search_document_id: SanDisk 검색 문서
+```
+
+이를 막으려면 복합 외래 키를 사용할 수 있습니다.
+
+```sql
+CREATE TABLE node_search_document (
+    node_search_document_id uuid PRIMARY KEY,
+    node_id uuid NOT NULL REFERENCES node(node_id),
+    UNIQUE (node_search_document_id, node_id)
+);
+
+CREATE TABLE node_embedding (
+    node_embedding_id uuid PRIMARY KEY,
+    node_id uuid NOT NULL,
+    node_search_document_id uuid NOT NULL,
+    model_task_id uuid NOT NULL REFERENCES model_task(model_task_id),
+    embedding_vector vector(1536) NOT NULL,
+    created_at timestamptz NOT NULL,
+
+    FOREIGN KEY (node_search_document_id, node_id)
+        REFERENCES node_search_document (
+            node_search_document_id,
+            node_id
+        )
+);
+```
+
+PostgreSQL에서 복합 FK가 참조하는 컬럼 조합은 기본 키, `UNIQUE` 제약 또는 적합한 고유 인덱스여야 합니다. 또한 PostgreSQL은 참조받는 컬럼에는 인덱스가 있다고 보장하지만, FK를 가진 자식 컬럼에는 인덱스를 자동으로 만들지 않으므로 조회와 삭제 검사에 필요한 자식 인덱스를 별도로 설계해야 합니다. [PostgreSQL 공식 문서](https://www.postgresql.org/docs/current/ddl-constraints.html)
+
+POC 논리 결정은 다음과 같이 두면 됩니다.
+
+```text
+node_embedding
+- node_id 유지
+- 복합 FK로 검색 문서의 node_id와 일치 보장
+```
+
+## 4. 전체 FK 삭제 정책
+
+말씀하신 원칙은 적절합니다.
+
+> 부모가 없어도 자식 데이터의 의미가 남으면 보존하고, 부모 없이는 의미가 없으면 함께 삭제한다.
+
+다만 이 제품은 Evidence Trace와 판단 이력을 보존해야 하므로 물리 삭제보다 상태 변경을 우선해야 합니다.
+
+### `RESTRICT` 또는 `NO ACTION`
+
+독립적인 의미나 감사 가치가 있는 데이터에 사용합니다.
+
+```text
+node
+source_document
+observation
+knowledge_item
+claim
+relation
+model_task
+promotion_batch
+```
+
+예를 들어 출처가 삭제되면서 관측과 Claim까지 조용히 사라지면 근거 계보가 깨집니다. 이런 데이터는 삭제를 차단하고 `거절`, `보류`, `비공개` 상태로 전환하는 편이 맞습니다.
+
+`RESTRICT`는 참조가 있으면 삭제를 즉시 막고, 기본값인 `NO ACTION`은 트랜잭션 끝까지 제약 검사를 미룰 수 있다는 차이가 있습니다. [PostgreSQL 공식 문서](https://www.postgresql.org/docs/current/ddl-constraints.html)
+
+### `CASCADE`
+
+부모 없이는 아무 의미가 없는 구성요소에 사용합니다.
+
+```text
+node_context
+└─ followup_question
+
+lint_policy
+└─ lint_policy_rule
+```
+
+맥락 설명이 실제로 삭제된다면 그 설명에만 속한 후속 질문도 독립적인 의미가 없으므로 함께 삭제할 수 있습니다.
+
+다만 POC에서는 파생 결과도 버전별로 보존하기로 했으므로 실제 삭제는 거의 발생하지 않습니다. `CASCADE`는 보존 정책을 대신하는 기능이 아닙니다.
+
+### `SET NULL`
+
+관계가 사라져도 행 자체는 의미가 있고, 해당 참조가 선택 사항일 때만 사용합니다.
+
+예를 들어 처리 담당자 계정이 삭제되더라도 판단 이력은 남겨야 한다면 다음과 같이 사용할 수 있습니다.
+
+```text
+knowledge_state_event.actor_id → SET NULL
+actor_display_name_snapshot    → 기존 표시 이름 보존
+```
+
+하지만 출처·Claim·모델 계보처럼 필수 참조에 `SET NULL`을 사용하면 “무엇에서 만들어졌는지 모르는 데이터”가 남으므로 사용하지 않는 편이 좋습니다.
+
+### 추가로 적용할 원칙
+
+- 내부 식별자는 변경하지 않으므로 `ON UPDATE RESTRICT`를 기본으로 둡니다.
+- 핵심 지식과 근거에는 `ON DELETE RESTRICT`를 기본으로 둡니다.
+- 순수 구성요소와 연결 행에만 제한적으로 `CASCADE`를 사용합니다.
+- FK 자식 컬럼에는 실제 조회 방향에 맞는 인덱스를 별도로 만듭니다.
+- 여러 nullable 컬럼이 함께 하나의 참조를 구성한다면 `MATCH FULL`을 검토합니다. `MATCH FULL`은 일부만 NULL인 잘못된 복합 참조를 막습니다.
+- 노드 병합·거절·출처 교체는 삭제로 처리하지 않고 상태와 이력으로 남깁니다.
+
+## 5. `dimension`의 의미
+
+임베딩 벡터는 일정한 개수의 숫자로 이루어집니다.
+
+```text
+3차원 예시
+[0.12, -0.44, 0.81]
+
+1536차원 예시
+숫자 1536개
+```
+
+여기서 숫자의 개수가 `dimension`입니다. 실제 차원 수는 선택한 임베딩 모델에 따라 결정됩니다.
+
+pgvector에서는 다음처럼 컬럼 타입에 차원을 지정할 수 있습니다.
+
+```sql
+embedding_vector vector(1536)
+```
+
+이렇게 하면 숫자가 정확히 1536개인 벡터만 해당 컬럼에 저장할 수 있습니다. 다른 길이의 벡터는 삽입할 수 없습니다.
+
+따라서 다음 컬럼을 별도로 반복 저장할 필요가 없습니다.
+
+```text
+dimension: 1536
+```
+
+pgvector는 차원을 지정하지 않은 `vector` 타입으로 서로 다른 차원의 벡터를 한 컬럼에 저장할 수도 있지만, 벡터 인덱스는 같은 차원끼리 구성해야 하므로 모델별 부분 인덱스 같은 추가 설계가 필요합니다. POC에서 임베딩 모델 하나를 사용하면 `vector(n)`으로 고정하는 편이 단순합니다. [pgvector 공식 README](https://github.com/pgvector/pgvector#storing)
+
+## 6. 제거 후보 컬럼의 역할
+
+### `input_hash`
+
+임베딩에 사용한 정확한 입력 내용의 해시입니다.
+
+용도:
+
+- 입력이 같은지 비교
+- 동일 작업의 중복 실행 방지
+- 검색 문서가 바뀌었는지 판단
+- 재현성과 캐시 키 구성
+
+이 개념은 반드시 필요하지만 `node_embedding`에 반복 저장할 필요는 없습니다.
+
+```text
+node_embedding
+→ node_search_document.input_hash
+→ model_task.input_hash
+```
+
+두 값은 역할이 조금 다릅니다.
+
+- 검색 문서의 `input_hash`: 검색 문서를 만드는 데 사용한 기준 지식의 해시
+- 모델 작업의 `input_hash`: 임베딩 모델에 실제 전달한 텍스트의 해시
+
+따라서 `node_embedding.input_hash`만 제거하는 것이며 해시 자체를 없애는 것은 아닙니다.
+
+### `embedding_model`
+
+어떤 임베딩 모델로 벡터를 만들었는지 나타냅니다.
+
+서로 다른 모델이 만든 벡터는 같은 벡터 공간이라고 볼 수 없으므로 섞어서 거리 계산하면 안 됩니다.
+
+이 정보도 반드시 필요하지만 다음 경로로 확인할 수 있습니다.
+
+```text
+node_embedding
+→ model_task
+→ model_version
+```
+
+`node_embedding.embedding_model`을 제거하면 벡터 검색 시 `model_task.model_version`과 현재 쿼리 임베딩 모델이 같은지 확인해야 합니다.
+
+### `dimension`
+
+벡터의 숫자 개수입니다. 저장값의 형식을 검사하고, 호환되는 인덱스와 모델을 구분할 때 사용합니다.
+
+POC에서는 다음처럼 DB 컬럼 타입으로 강제할 수 있으므로 행마다 저장하지 않습니다.
+
+```text
+embedding_vector vector(선택한 모델의 차원)
+```
+
+### 추천 결론
+
+세 개 모두 역할은 필요하지만 다른 위치에서 보장됩니다.
+
+| 컬럼 | `node_embedding`에서 제거 | 실제 보존 위치 |
+|---|---:|---|
+| `input_hash` | 예 | `node_search_document`, `model_task` |
+| `embedding_model` | 예 | `model_task.model_version` |
+| `dimension` | 예 | `embedding_vector vector(n)` 타입 |
+
+따라서 앞서 제안한 세 컬럼 제거를 유지해도 정보는 사라지지 않습니다.
+
+## 7. 후속 질문의 `target_node_id`
+
+네, 하이퍼링크와 유사합니다. 다만 질문의 답 자체가 하나의 노드라는 뜻은 아닙니다. 질문을 탐색하기에 가장 적합한 중심 노드를 연결합니다.
+
+```text
+질문:
+HBF 발표에는 어떤 회사들이 참여했는가?
+
+target_node_id:
+HBF 발표 사건
+```
+
+사용자가 질문을 클릭하면 다음과 같이 동작합니다.
+
+```text
+후속 질문 클릭
+→ target_node_id를 새 중심 노드로 요청
+→ 지도가 해당 노드로 이동
+→ 직접 이웃과 중요한 2단계 이웃 재계산
+→ 상세 패널에서 참여 회사와 근거 표시
+```
+
+클릭 시점에는 Agent를 호출하지 않습니다.
+
+질문을 미리 만들 때는 대상 노드를 찾는 과정이 필요합니다. POC에서는 LangChain 도구를 추가하기보다 일반 코드가 공개 가능한 주변 노드를 먼저 조회해 모델 입력으로 제공하는 편이 단순합니다.
+
+```text
+일반 코드
+→ 공개 가능한 직접·2단계 이웃 후보 제공
+
+Agent
+→ 후보 중 질문과 target node를 함께 제안
+
+일반 코드
+→ 실제 노드인지, 공개 가능한지, 질문과 관련 있는지 검사
+
+DB
+→ question_text + target_node_id 저장
+```
+
+Agent가 임의의 내부 식별자를 만들게 하지는 않습니다. 코드가 제공한 후보 안에서만 선택하게 하고 최종 FK와 공개 상태를 일반 코드가 검사합니다.
+
+이번 단계에서는 다음 구조면 충분합니다.
+
+```text
+followup_question
+- question_text
+- target_node_id NOT NULL
+```
+
+LangChain 검색 도구와 자유 질의 실행은 실제 Agent/API 역할을 설계할 때 다루고, POC 클릭 동작은 노드 중심 이동으로 제한하는 것이 좋습니다.
+
+## 사용자
+
+저 제거할 컬럼 3가지를 자주 쓴다면 냅두고, 아니라면 제거하자.
+
+search_document_basis는 남겨놓고 나중에 출처나 관련된 문서를 얻기 원할 수도 있으니까 그때 사용자에게 보여주는 걸로 하자.
+
+## 어시스턴트
+
+`$fluent-korean`을 적용해 “자주 조회하는 값”과 “다른 참조에서 이미 얻을 수 있는 값”을 구분하겠습니다. 이 기준으로 세 컬럼의 유지 여부를 확정하고, `search_document_basis`는 `contribution_kind` 없이 남기는 구조로 정리하겠습니다.
+
+## 어시스턴트
+
+세 컬럼은 “자주 사용되는가”보다 “자주 사용하는 위치에 이미 있는가”를 기준으로 판단하면 모두 `node_embedding`에서 제거해도 됩니다.
+
+| 컬럼 | 사용 빈도 | 판단 |
+|---|---|---|
+| `input_hash` | 임베딩 생성·중복 확인 때 사용 | `model_task`와 `node_search_document`에 있으므로 제거 |
+| `embedding_model` | 모델 호환성 확인 때 사용 | POC는 모델 하나를 사용하고 `model_task.model_version`에 있으므로 제거 |
+| `dimension` | 저장·인덱스 생성 때 확인 | `vector(n)` 타입이 강제하므로 제거 |
+
+최종 `node_embedding`은 다음과 같습니다.
+
+```text
+node_embedding
+- node_embedding_id
+- node_id
+- node_search_document_id
+- model_task_id
+- embedding_vector
+- created_at
+```
+
+여러 임베딩 모델을 동시에 운영하게 되어 모델별 필터링이 실제 검색 병목이 될 때만 `embedding_model_id`를 직접 추가하면 됩니다. `input_hash`와 `dimension`은 그때도 중복 저장할 이유가 크지 않습니다.
+
+## `search_document_basis` 유지
+
+`search_document_basis`는 유지하되 `contribution_kind`는 제거하겠습니다.
+
+```text
+search_document_basis
+- node_search_document_id
+- knowledge_item_id
+
+PRIMARY KEY (
+  node_search_document_id,
+  knowledge_item_id
+)
+```
+
+`knowledge_item.item_kind`를 조회하면 노드·관계·Claim 중 무엇인지 알 수 있으므로 `contribution_kind`를 다시 저장하지 않아도 됩니다.
+
+미래에는 다음 경로로 검색 문서와 관련된 근거를 사용자에게 보여줄 수 있습니다.
+
+```text
+node_search_document
+→ search_document_basis
+→ knowledge_item
+→ Claim
+→ claim_observation
+→ observation
+→ source_document
+```
+
+예를 들어 사용자가 SK하이닉스 검색 결과의 `관련 근거`를 열면 다음처럼 표시할 수 있습니다.
+
+```text
+관련 지식
+- SK하이닉스가 HBF 발표 사건에 참여했다.
+
+근거
+- 출처 제목
+- 게시 시점
+- 원문 인용문
+- 원문 링크
+```
+
+`search_document_basis` 자체를 사용자에게 보여주는 것은 아닙니다. 이 테이블은 어떤 기준 지식과 출처를 가져올지 찾는 내부 연결입니다.
+
+유지에 따른 비용은 검색 문서를 만들 때 사용한 `knowledge_item`마다 연결 행을 추가해야 한다는 점입니다. 하지만 `contribution_kind`를 제거하면 구조가 단순하고, 나중에 관련 Claim과 출처를 보여줄 가능성이 있으므로 보존 가치가 있습니다.
+
+확정된 결정은 다음과 같습니다.
+
+- `search_document_basis`를 유지합니다.
+- `contribution_kind`를 제거합니다.
+- `node_embedding`에서 `input_hash`, `embedding_model`, `dimension`을 제거합니다.
+- `node_embedding.node_id`는 유지하고 검색 문서의 노드와 복합 FK로 일치시킵니다.
+- 후속 질문의 `target_node_id`를 통해 질문을 관련 노드의 하이퍼링크처럼 사용합니다.
+
+## 사용자
+
+이슈 올리자.
+
+## 어시스턴트
+
+이슈를 중복 없이 나누기 위해 현재 검색·파생 결과 관련 이슈와 문서 정의를 다시 대조하겠습니다. 이번 결정은 검색 문서 계보, 임베딩 저장 구조, 맥락 설명과 후속 탐색의 세 관심사로 분리할 수 있는지 확인하되, Plan Mode이므로 지금은 GitHub를 변경하지 않고 등록 계획만 확정하겠습니다.
+
+## 어시스턴트
+
+<proposed_plan>
+# 검색·임베딩·후속 탐색 스키마 이슈 등록 계획
+
+## 요약
+
+서로 독립적으로 구현할 수 있는 `documentation` 이슈 세 개를 영어로 등록한다. 기존 #13·#22·#23과 의존 관계를 연결하고 저장소 파일은 변경하지 않는다.
+
+## 이슈 구성
+
+1. **`Define node search documents and knowledge lineage`**
+   - `node_search_document`에 `node_id`, `identity_text`, `knowledge_text`, `input_hash`, `generator_version`, `created_at`을 둔다.
+   - 이름·별칭은 `identity_text`, 공개 가능한 Claim·관계·사건·주변 노드는 `knowledge_text`에 조합한다.
+   - 키워드 검색은 두 텍스트에 다른 가중치를 적용하고, 벡터 입력은 두 텍스트를 결정적인 순서로 합친다.
+   - `node_context` 내용은 검색 문서에 다시 포함하지 않는다.
+   - `search_document_basis`는 별도 연결 테이블로 유지한다.
+   - 컬럼은 `node_search_document_id`, `knowledge_item_id`만 두고 복합 기본 키로 중복을 막는다.
+   - `contribution_kind`는 제거한다.
+   - 관련 Claim과 출처는 `knowledge_item`에서 Evidence Trace까지 따라가 조회한다.
+   - #13의 `node_alias` 구조에 의존한다.
+
+2. **`Simplify node embedding storage`**
+   - `node_embedding`에는 ID, `node_id`, 검색 문서 ID, `model_task_id`, 벡터와 생성 시점만 둔다.
+   - 중복되는 `input_hash`, `embedding_model`, `dimension` 컬럼을 제거한다.
+   - 입력 해시는 검색 문서와 모델 작업, 모델 버전은 모델 작업, 차원은 물리 스키마의 `vector(n)` 타입에서 확인한다.
+   - `(node_search_document_id, node_id)` 복합 FK로 임베딩과 검색 문서가 같은 노드를 가리키도록 한다.
+   - 검색 문서에 대응하는 복합 `UNIQUE` 제약과 FK 자식 인덱스 필요성을 물리 스키마 인계 항목에 기록한다.
+   - 공개할 임베딩 버전은 `publication_affected_node`가 선택한다.
+   - #22와 새 검색 문서 이슈에 의존한다.
+   - 전체 `ON DELETE` 정책과 실제 벡터 차원 선택은 별도 물리 스키마 단계로 남긴다.
+
+3. **`Define node context and navigable follow-up questions`**
+   - `node_context`에 ID, `node_id`, 검색 문서 ID, `model_task_id`, 언어, 설명 본문과 생성 시점을 둔다.
+   - `node_id`와 검색 문서의 노드가 일치하도록 복합 FK 대상으로 넘긴다.
+   - 검색 문서에서 맥락 설명을 생성하는 단방향 구조를 사용한다.
+   - `followup_question`에 ID, 맥락 설명 ID, `model_task_id`, `slot`, 질문 문장, 필수 `target_node_id`, 생성 시점을 둔다.
+   - 맥락 설명마다 슬롯 1과 2가 정확히 하나씩 있어야 한다.
+   - 일반 코드가 공개 가능한 관련 노드 후보를 제공하고 Agent는 그중 질문 대상만 제안한다.
+   - 일반 코드가 대상 노드의 존재·공개 상태·관련성을 검증한 뒤 저장한다.
+   - 질문을 클릭하면 모델 호출 없이 `target_node_id`로 지도의 중심을 이동한다.
+   - LangChain 도구, 자유 검색 질문과 `RUN_SEARCH` 동작은 Agent/API 설계 단계로 제외한다.
+   - #22와 새 검색 문서 이슈에 의존하고 #23의 공개 준비 조건과 연결한다.
+
+## 검증
+
+- 기존 이슈와 제목·범위가 중복되지 않는지 다시 확인한다.
+- 세 이슈가 `OPEN` 상태이고 `documentation` 라벨, 결정, 완료 조건, 제외 범위와 의존 관계를 갖는지 조회한다.
+- 저장소 파일과 기존 미커밋 대화 기록은 변경하지 않는다.
+- GitHub 이슈만 변경하므로 로컬 커밋은 만들지 않는다.
+</proposed_plan>
+
+## 사용자
+
+Implement the plan.
+
+## 어시스턴트
+
+완료 결과는 검색 문서 계보, 임베딩 저장 구조, 맥락 설명·후속 탐색을 각각 독립 이슈로 등록하고 실제 이슈 번호로 의존 관계를 연결한 상태입니다. 최소 확인 범위는 세 이슈의 본문·라벨·열린 상태이며, 저장소 파일과 기존 미커밋 대화 기록은 변경하지 않겠습니다. `$fluent-korean`으로 최종 안내 문구를 점검하겠습니다.
+
+## 어시스턴트
+
+중복 이슈는 없습니다. 먼저 검색 문서와 `search_document_basis` 구조를 등록하고, 생성된 번호를 임베딩 및 맥락 설명 이슈의 의존 관계에 사용하겠습니다.
+
+## 어시스턴트
+
+검색 문서 이슈 #24와 임베딩 이슈 #25가 생성되었습니다. 마지막 이슈는 같은 검색 문서·노드 복합 FK를 재사용하므로 #25도 의존 관계에 포함하고, 후속 질문을 검증된 노드 이동으로 제한해 등록하겠습니다.
+
+## 어시스턴트
+
+세 이슈가 #24–#26으로 생성되었습니다. 본문에 확정된 컬럼 제거·복합 FK·`search_document_basis` 유지·`target_node_id` 이동이 모두 들어갔는지 확인하고, 작업 트리 상태도 마지막으로 검사하겠습니다.
+
+## 어시스턴트
+
+이슈 등록을 완료했습니다.
+
+- [#24 검색 문서와 근거 연결](https://github.com/studylida/ontology-map/issues/24)
+- [#25 임베딩 저장 구조 단순화](https://github.com/studylida/ontology-map/issues/25)
+- [#26 맥락 설명과 이동 가능한 후속 질문](https://github.com/studylida/ontology-map/issues/26)
+
+모두 `OPEN`·`documentation` 상태이며 의존 관계도 연결했습니다. 저장소 파일은 변경하지 않아 로컬 커밋은 없습니다. 기존 대화 기록의 미커밋 변경도 그대로 보존했습니다.
+
+## 사용자
+
+이제 다시 너랑 나랑 대화나눴던 원문 업데이트 되지 않은 부분 저장해줘.
+
+## 사용자
+
+이제 다시 너랑 나랑 대화나눴던 원문 그대로 복사해서 파일에 업데이트해줘
