@@ -213,13 +213,11 @@ erDiagram
 ```mermaid
 erDiagram
     PROMOTION_BATCH ||--o{ KNOWLEDGE_ITEM : creates
-    PROMOTION_BATCH ||--|| PUBLICATION_STATE : gates
     PROMOTION_BATCH ||--o{ PUBLICATION_AFFECTED_NODE : affects
     NODE ||--o{ PUBLICATION_AFFECTED_NODE : waits_for
-    PUBLICATION_STATE ||--o{ PUBLICATION_STATE_EVENT : changes
-    PUBLICATION_STATE ||--o{ PUBLICATION_DEPENDENCY : declares
-    PUBLICATION_STATE ||--o{ PUBLICATION_DEPENDENCY : prerequisite_for
-    NODE ||--o| NODE_PUBLICATION_STATE : exposes
+    PUBLICATION_AFFECTED_NODE }o--|| NODE_SEARCH_DOCUMENT : selects
+    PUBLICATION_AFFECTED_NODE }o--|| NODE_EMBEDDING : selects
+    PUBLICATION_AFFECTED_NODE }o--|| NODE_CONTEXT : selects
 ```
 
 ```mermaid
@@ -228,18 +226,15 @@ erDiagram
     NODE ||--o{ NODE_EMBEDDING : derives
     NODE ||--o{ NODE_CONTEXT : derives
     NODE_CONTEXT ||--|{ FOLLOWUP_QUESTION : contains
-    DERIVATION_RUN ||--o{ NODE_SEARCH_DOCUMENT : creates
     MODEL_TASK ||--o{ NODE_EMBEDDING : creates
     MODEL_TASK ||--o{ NODE_CONTEXT : creates
     MODEL_TASK ||--o{ FOLLOWUP_QUESTION : creates
     MODEL_TASK ||--o{ CONFLICT_SUMMARY : creates
     NODE_SEARCH_DOCUMENT ||--o{ SEARCH_DOCUMENT_BASIS : explains
     KNOWLEDGE_ITEM ||--o{ SEARCH_DOCUMENT_BASIS : contributes
-    NODE_CONTEXT ||--o{ NODE_CONTEXT_BASIS : explains
-    KNOWLEDGE_ITEM ||--o{ NODE_CONTEXT_BASIS : contributes
-    NODE_PUBLICATION_STATE }o--|| NODE_SEARCH_DOCUMENT : selects
-    NODE_PUBLICATION_STATE }o--|| NODE_EMBEDDING : selects
-    NODE_PUBLICATION_STATE }o--|| NODE_CONTEXT : selects
+    NODE_SEARCH_DOCUMENT ||--o{ NODE_EMBEDDING : input_to
+    NODE_SEARCH_DOCUMENT ||--o{ NODE_CONTEXT : input_to
+    NODE ||--o{ FOLLOWUP_QUESTION : navigates_to
 ```
 
 ## 6. 데이터 사전
@@ -323,7 +318,7 @@ erDiagram
 | `ENTITY_RESOLUTION_PROPOSAL` | 기존 노드와 새 대상 정보 | 작업 종류가 일치하는 출력 계약과 동일 대상 식별 규칙을 검사하며 Agent가 자동 병합하지 못하게 함 | 유효한 후보는 메모리에서 병합 검토로 넘기고 저장하지 않음. 사람이 확정한 병합만 `node_merge`에 기록하며 `model_task_id`를 직접 연결하지 않음 |
 | `EVIDENCE_LINEAGE_PROPOSAL` | 여러 문서의 본문·작성자·출처 | 작업 종류가 일치하는 출력 계약과 본문 해시·확인된 원문 계보 규칙을 검사함 | 확정된 계보를 `evidence_group`과 `evidence_group_assignment`에 반영하며 `model_task_id`를 직접 연결하지 않음 |
 | `CONFLICT_SUMMARY` | 충돌하는 Claim과 근거 | 작업 종류가 일치하는 출력 계약과 입력 Claim의 충돌 묶음·근거 연결을 검사함 | `conflict_summary`가 생성한 `model_task_id`를 직접 참조함 |
-| `NODE_CONTEXT` | 노드와 공개 가능한 주변 지식 | 작업 종류가 일치하는 출력 계약과 현재 공개 가능한 Claim을 가리키는 basis를 검사함 | `node_context`가 생성한 `model_task_id`를 직접 참조하고 `node_context_basis`로 입력 지식을 연결함 |
+| `NODE_CONTEXT` | 정확한 노드 검색 문서 | 작업 종류가 일치하는 출력 계약과 검색 문서·노드 일치를 검사함 | `node_context`가 생성한 `model_task_id`와 입력 `node_search_document_id`를 직접 참조함 |
 | `FOLLOWUP_QUESTIONS` | 노드 맥락과 이동 가능한 주변 노드 | 작업 종류가 일치하는 출력 계약, 질문 slot 1·2의 유일성과 이동 가능한 대상 노드를 검사함 | 두 `followup_question`이 입력 `node_context`와 생성한 `model_task_id`를 직접 참조함 |
 | `EMBEDDING` | `node_search_document` 텍스트 | JSON 계약 대신 벡터 타입과 설정된 차원을 검사함 | `node_embedding`이 입력 `node_search_document`와 생성한 `model_task_id`를 직접 참조함 |
 
@@ -647,82 +642,126 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 
 #### `promotion_batch`
 
-메모리 검증을 통과한 결과 묶음을 기준 지식그래프로 승격하는 짧은 트랜잭션 단위다.
+메모리 검증을 통과한 결과 묶음을 기준 지식그래프로 승격하고 그 결과의 공개 준비 상태를 관리한다. 승격 결과와 공개 결과는 같은 행에 두되 서로 다른 수명주기이므로 상태 컬럼을 합치지 않는다.
 
 | 필드 | 의미와 규칙 |
 |---|---|
 | `promotion_batch_id` | 승격 묶음 식별자 |
 | `ontology_version_id` | 승격 검사에 사용한 온톨로지 버전 |
-| `status` | 준비, 커밋, 롤백 |
-| `started_at`, `committed_at` | 트랜잭션 이력 |
-| `failure_reason` | 원자 승격 실패 이유 |
+| `lint_policy_version_id` | 승격 전 검증에 사용한 lint 정책 버전 |
+| `promotion_status` | `PENDING`, `COMMITTED`, `FAILED` 가운데 하나인 기준 그래프 저장 상태 |
+| `publication_status` | `NOT_STARTED`, `PREPARING`, `READY`, `FAILED` 가운데 하나인 검색·지도 공개 준비 상태 |
+| `started_at` | 승격 묶음을 만들고 승격을 시작한 시점 |
+| `committed_at` | 기준 지식그래프 승격을 커밋한 시점이며 승격 실패 시 비어 있음 |
+| `ready_at` | 필수 공개 결과 검증을 마치고 `READY`가 된 시점이며 그 전에는 비어 있음 |
+| `promotion_failure_reason` | 승격이 실패한 이유이며 승격 성공 시 비어 있음 |
+| `publication_failure_reason` | 공개 준비가 실패한 이유이며 준비 전이나 준비 성공 시 비어 있음 |
 
-새 `knowledge_item`은 `promotion_batch_id`를 직접 참조한다. 관측·alias·사건 시간 같은 종속 레코드는 소유하는 Claim이나 노드를 따라 묶음까지 도달하고, Claim은 관측을 통해 정확한 문서와 원문 위치까지 도달하므로 별도 member나 모델 추출 작업 링크를 만들지 않는다. 문서 준비, 모델 호출과 승격 전 검증은 이 트랜잭션 밖에서 끝낸다. 트랜잭션 안에서는 식별자 발급, 최종 중복·제약 검사와 기준 레코드 생성을 수행하며 일부만 성공할 수 없다. 실패하면 전체 묶음을 롤백하고 `failure_reason`을 남긴다.
+승격 묶음 행은 짧은 그래프 트랜잭션을 시작하기 전에 `PENDING + NOT_STARTED`로 만든다. 승격이 성공하면 모든 기준 지식을 원자적으로 커밋하고 `promotion_status = COMMITTED`와 `committed_at`을 기록한다. 승격이 실패하면 지식 쓰기를 모두 롤백한 뒤 롤백된 트랜잭션 밖에서 `promotion_status = FAILED`, `promotion_failure_reason`을 기록하고 공개 준비를 시작하지 않는다. `FAILED + NOT_STARTED`, `COMMITTED + PREPARING`, `COMMITTED + FAILED`, `COMMITTED + READY`를 구분하며 `promotion_status = FAILED`인 묶음의 `publication_status`는 `NOT_STARTED`여야 한다.
 
-#### `derivation_run`
+새 `knowledge_item`은 `promotion_batch_id`를 직접 참조한다. 관측·alias·사건 시간 같은 종속 레코드는 소유하는 Claim이나 노드를 따라 묶음까지 도달한다. 문서 준비, 모델 호출과 승격 전 검증은 승격 트랜잭션 밖에서 끝낸다.
 
-기준 그래프 승격 뒤 검색 문서와 기타 결정적 파생 결과를 만드는 작업 계보다. 대상 노드, 파생 종류, 입력 해시와 상태를 저장한다. 모델 기반 결과의 실행·계약·재시도 계보는 결과 행이 참조하는 정확한 `model_task_id`가 담당하며 같은 cache key의 성공 결과를 재사용한다.
+#### `publication_affected_node`
 
-모델 작업별 재시도 정책은 독립적이다. 한 작업의 실패가 다른 작업의 재시도 횟수를 소비하지 않는다.
+한 승격 묶음 때문에 공개 결과를 다시 준비해야 하는 노드와 그 묶음이 선택한 정확한 결과 버전을 저장한다.
 
-#### `publication_state`, `publication_dependency`와 `publication_state_event`
-
-`publication_state`는 하나의 승격 묶음이 일반 검색과 지도에 포함될 준비가 되었는지 관리한다.
-
-| 상태 | 의미 |
+| 필드 | 의미와 규칙 |
 |---|---|
-| `preparing` | 기준 그래프 승격은 성공했지만 영향받은 노드의 파생 결과가 아직 완성되지 않음 |
-| `ready` | 필요한 파생 결과와 상세 자료가 모두 준비되어 다음 탐색부터 공개 가능 |
-| `failed` | 파생 준비가 끝내 실패해 기존 공개 결과를 유지하며 별도 재시도 필요 |
+| `promotion_batch_id`, `node_id` | 복합 기본 키이며 한 묶음에서 한 노드는 한 번만 준비함 |
+| `node_search_document_id` | 선택한 결정적 검색 문서 버전이며 준비 중에는 비어 있을 수 있음 |
+| `node_embedding_id` | 선택한 임베딩 버전이며 준비 중에는 비어 있을 수 있음 |
+| `node_context_id` | 선택한 한국어 맥락 설명 버전이며 준비 중에는 비어 있을 수 있음 |
 
-`publication_state`에는 승격 묶음 식별자, 현재 상태, 성공할 때만 채우는 `publication_seq`, lease 처리 주체와 만료 시점, 시작·완료 시점과 실패 이유를 저장한다.
+후속 질문 식별자는 중복 저장하지 않고 선택된 `node_context_id`로 슬롯 1과 2를 조회한다. `publication_status = READY`로 바꾸기 전에는 모든 영향 노드의 세 결과 참조가 채워져 있고 각 결과의 `node_id`가 영향 노드와 같아야 한다.
 
-HBF POC의 최초 1년 고정 입력 묶음은 하나의 승격·공개 단위로 처리한다. 이후 증분 변경도 한 번에 하나의 공개 준비 작업만 실행한다. 준비가 끝내 실패하면 해당 작업을 `failed`로 닫고 다음 독립 작업을 처리할 수 있다. `publication_dependency`는 현재 묶음이 의미상 참조하는 선행 승격 묶음을 기록하며, 선행 묶음이 아직 `ready`가 아니면 현재 묶음을 공개할 수 없다. 실패한 묶음을 나중에 다시 준비할 때도 이 직렬 실행 규칙을 따른다.
+이 엔터티는 공개 완결성을 검사하는 영향 범위일 뿐 지도 구성원, 좌표, 레이아웃이나 전체 공개 그래프 버전을 저장하지 않는다.
 
-`publication_seq`는 공개를 원자적으로 완료할 때 DB sequence에서 발급하는 단조 증가 번호이며 공개 순서의 유일한 기준이다. 생성·완료 시각은 감사용이고 최신 판정에 쓰지 않는다. `publication_state_event`는 이전 상태, 새 상태, 이유, 처리 주체와 처리 시점을 append-only로 저장한다.
+다음 조건을 모두 만족해야 `publication_status = READY`로 바꿀 수 있다.
 
-`publication_affected_node`는 이번 변경 때문에 갱신해야 하는 노드와 준비된 검색 문서·임베딩·맥락 설명 식별자를 기록한다. 후속 질문은 선택된 맥락 설명에 정확히 두 건이 있어야 한다. 이 목록은 공개 준비 검사용 영향 범위이며 지도 구성원 목록이나 현재 공개 포인터가 아니다.
-
-#### `node_publication_state`
-
-노드마다 현재 공개 중인 검색 문서, 임베딩, 맥락 설명, 이를 선택한 `publication_seq`와 `search_exposure_mode`를 한 행에 저장한다. 새 공개가 완료되면 영향받은 노드의 포인터를 같은 짧은 트랜잭션에서 교체한다. 들어오는 `publication_seq`가 현재 값보다 클 때만 교체하여 오래된 작업이 최신 결과를 덮어쓰지 못하게 한다.
-
-`search_exposure_mode`는 `full`, `name_alias_only`, `hidden` 중 하나다. 노드 자체가 거절되면 즉시 `hidden`으로 바꾸고 지도와 모든 검색에서 제외한다. 공개 중인 Claim이나 관계가 거절되면 영향받은 노드는 즉시 `name_alias_only`로 바꾼다. 이 상태에서는 `node_alias.alias_text` 정확 검색만 허용하며 기존 검색 문서, 임베딩과 맥락 설명은 사용하지 않는다. 지도와 상세 패널은 현재 상태의 관계·Claim·출처만으로 구성한다. 거절된 지식을 제외한 파생 결과가 준비되고 포인터가 원자적으로 교체되면 `full`로 되돌린다.
-
-다음 조건을 모두 만족해야 `ready`로 바꿀 수 있다.
-
-- 승격 트랜잭션이 커밋됐다.
+- `promotion_status = COMMITTED`다.
 - 공개할 각 노드에 대표 alias가 정확히 하나 있다.
-- 영향받은 모든 노드에 검색 문서, 임베딩, 한국어 맥락 설명과 후속 질문 두 개가 준비됐다.
-- 상세 패널에서 공개할 `근거 확인됨` 또는 `사람 확인됨` 관계·Claim·출처와 Evidence Trace를 모두 조회할 수 있다.
-- 새 관계가 존재하면 현재 지도 규칙에 해당하는 관계선을 노드와 함께 조회할 수 있다.
-- 관계가 없는 노드라면 위 파생 결과와 상세 자료가 모두 준비됐고 가짜 관계를 만들지 않는다.
-- 이번 묶음이 참조하는 다른 승격 묶음도 이미 `ready` 상태다.
-- 현재 공개 범위에 열린 `BLOCKING` `lint_finding`이 없다.
+- 공개할 기준 지식의 현재 상태가 `근거 확인됨` 또는 `사람 확인됨`이다.
+- 영향받은 모든 노드에 검색 문서, 호환되는 임베딩, 한국어 맥락 설명과 슬롯 1·2 후속 질문이 준비됐다.
+- 선택된 임베딩과 맥락 설명이 각각 성공한 해당 종류의 `model_task`를 참조한다.
+- 두 후속 질문이 성공한 후속 질문 작업을 참조하고 필수 `target_node_id`가 현재 공개 가능한 관련 노드다.
+- 상세 패널에 필요한 관계·Claim·출처와 Evidence Trace를 조회할 수 있고 표시할 관계가 있다면 양 끝 노드도 함께 반환할 수 있다.
+- 관계가 없는 노드는 필수 결과와 상세 자료만 완전하면 공개하며 가짜 관계를 만들지 않는다.
+- 공개를 막는 미해결 lint finding이 없다.
 
-기준 그래프 승격은 파생 결과 실패와 무관하게 유지한다. 실패한 것은 지식 승격이 아니라 그 승격 묶음의 공개 준비다. 독립 재시도가 모두 실패해도 이미 승격한 노드·관계·Claim·관측을 취소하지 않는다.
+공개 준비가 실패하면 `promotion_status = COMMITTED`를 유지하고 `publication_status = FAILED`와 `publication_failure_reason`만 기록한다. 실패한 모델 작업을 재시도할 때 공개 상태는 `FAILED`에서 `PREPARING`으로 돌아갈 수 있으며 세부 시도 이력은 `model_task`와 `agent_attempt`에만 남긴다. 새 묶음이 `PREPARING` 또는 `FAILED`인 동안 검색과 지도는 그 묶음의 지식이나 결과를 선택하지 않고 노드별로 가장 최근에 `READY`가 된 묶음의 선택 결과를 계속 사용한다. 사람이 거절한 지식은 과거 `READY` 묶음에 속해 있어도 즉시 필터링한다.
 
 ### 6.8 검색과 한국어 파생 결과
 
-#### `node_search_document`
+#### `node_search_document`와 `search_document_basis`
 
-공개 가능한 노드 한 개를 키워드 검색과 벡터 검색의 공통 대상으로 만드는 버전 있는 문서다.
+`node_search_document`는 공개 가능한 노드 한 개를 키워드 검색과 벡터 검색의 공통 대상으로 만드는 불변 버전이다. 모델 호출 없이 이전 `READY` 기준 지식과 이번 `COMMITTED` 묶음에서 공개 자격을 갖춘 지식을 입력으로 일반 코드가 결정적으로 생성한다.
 
-검색 문서에는 대표 alias와 나머지 alias, 노드 유형, 공개 가능한 주요 Claim, 연결된 사건과 주변 노드의 대표 alias, 한국어 맥락 설명을 포함한다. 원문 기사 전체는 넣지 않는다. 각 문서는 자신을 만든 `derivation_run_id`를 참조한다. alias는 높은 검색 가중치를, Claim과 맥락 설명은 낮은 가중치를 갖도록 물리 검색 단계에서 정한다.
+| 필드 | 의미와 규칙 |
+|---|---|
+| `node_search_document_id` | 검색 문서 버전의 불변 식별자 |
+| `node_id` | 검색 결과가 반환할 노드 |
+| `identity_text` | 현재 대표 alias와 검색 가능한 모든 alias를 결정적 순서로 조합한 텍스트 |
+| `knowledge_text` | 공개 가능한 노드 유형, Claim, 관계, 사건과 주변 노드 이름을 결정적 순서로 조합한 텍스트 |
+| `input_hash` | 검색 문서 생성에 사용한 공개 그래프 입력의 해시 |
+| `generator_version` | 텍스트 선택·정렬·조합 규칙 버전 |
+| `created_at` | 이 불변 버전을 생성한 시점 |
 
-`search_document_basis`는 검색 문서 작성에 기여한 Claim·관계 등 `knowledge_item`과 기여 종류를 연결한다. 검색 결과는 사람·회사·기술·주제·사건 노드만 반환하지만, 이 연결을 통해 Claim과 출처를 검색 이유로 설명할 수 있다.
+`(node_id, input_hash, generator_version)` 조합은 고유하다. 키워드 검색은 `identity_text`에 `knowledge_text`보다 높은 가중치를 적용할 수 있어야 한다. 임베딩 입력은 두 필드를 생성 규칙에 고정된 순서로 연결한다. `node_context.context_text`는 `identity_text`나 `knowledge_text`에 복사하지 않으므로 생성 방향은 `기준 지식 → 검색 문서 → 맥락 설명`으로만 흐른다.
+
+`search_document_basis`는 `node_search_document_id`와 `knowledge_item_id`만 저장하고 두 필드를 복합 기본 키로 사용한다. `knowledge_item.item_kind`에서 노드·관계·Claim 종류를 알 수 있으므로 기여 종류를 중복 저장하지 않는다. alias 일치 설명은 `node_alias`에서 직접 얻고, 관련 근거가 필요하면 선택한 basis 지식에서 Claim·관측·출처 문서까지 따라간다. 이 계보는 관련 지식과 Evidence Trace를 찾는 내부 경로이며 특정 문장이 벡터 점수에 정확히 얼마나 기여했는지 증명하지 않는다.
+
+노드나 관계 basis에서 근거를 요청하면 그 지식을 대상으로 하거나 지지하는 Claim을 거쳐 `claim_observation`, `observation`, `source_document`까지 이동한다. basis 자체를 사용자 콘텐츠로 노출하지 않는다.
 
 #### `node_embedding`
 
-검색 문서에서 만든 임베딩을 버전별로 저장한다. 대상 노드, 검색 문서, 정확한 `model_task_id`, 입력 해시, 임베딩 모델과 차원, 벡터, 생성 시점을 가진다. 실제 PostgreSQL에서는 pgvector 사용을 우선 검증하지만 논리 모델은 벡터 저장 방식에 종속되지 않는다.
+검색 문서의 두 텍스트를 고정 순서로 연결한 입력에서 만든 불변 임베딩 버전이다.
+
+| 필드 | 의미와 규칙 |
+|---|---|
+| `node_embedding_id` | 임베딩 버전의 불변 식별자 |
+| `node_id` | 벡터 검색 결과를 바로 노드로 변환하기 위한 식별자 |
+| `node_search_document_id` | 벡터로 변환한 정확한 검색 문서 버전 |
+| `model_task_id` | 임베딩 입력 해시, 모델 버전, 작업 상태와 재시도 이력을 소유한 작업 |
+| `embedding_vector` | 호환되는 임베딩 공간의 벡터 |
+| `created_at` | 이 불변 버전을 생성한 시점 |
+
+행마다 입력 해시, 모델명이나 벡터 차원을 다시 저장하지 않는다. 검색 문서 생성 입력은 `node_search_document.input_hash`, 실제 모델 입력과 모델 버전은 `model_task`, POC 차원은 물리 스키마의 `vector(n)`에서 확인한다. `node_search_document`에는 `(node_search_document_id, node_id)` 고유 참조 키를 두고 `node_embedding`의 같은 두 필드가 이를 복합 외래 키로 참조하게 한다. 결과가 내구성 있게 연결된 뒤에만 해당 임베딩 작업을 성공으로 확정하며, 새 입력이나 모델 버전은 기존 벡터를 덮어쓰지 않고 새 작업과 새 행을 만든다. 벡터 검색은 공개가 선택한 임베딩 중 현재 질의 벡터와 호환되는 활성 모델의 결과만 비교한다.
 
 #### `node_context`
 
-노드별 한국어 맥락 설명을 버전별로 저장한다. 입력 지식 범위와 해시, 정확한 `model_task_id`, 본문과 생성 시점을 가진다. `node_context_basis`는 설명을 만드는 데 사용한 Claim·관계 등 `knowledge_item`과 기여 종류를 연결한다. 공개되는 설명에는 현재 공개 가능한 Claim 근거가 하나 이상 있어야 한다. Claim은 관측을 통해 문서 버전과 정확한 원문 위치로 이어지므로 상세 패널에서 설명의 Evidence Trace를 재현할 수 있다. 노드를 클릭할 때 LLM을 호출하지 않고 공개 준비된 현재 결과를 읽는다.
+검색 문서에서 미리 생성한 사용자용 한국어 맥락 설명의 불변 버전이다.
+
+| 필드 | 의미와 규칙 |
+|---|---|
+| `node_context_id` | 맥락 설명 버전의 불변 식별자 |
+| `node_id` | 설명 대상 노드 |
+| `node_search_document_id` | 설명 입력이 된 정확한 검색 문서 버전 |
+| `model_task_id` | 맥락 설명 입력 해시, 모델·프롬프트·출력 계약, 상태와 재시도 이력을 소유한 작업 |
+| `language` | 공개 설명 언어이며 HBF POC에서는 한국어 |
+| `context_text` | 상세 패널에 표시할 설명 본문 |
+| `created_at` | 이 불변 버전을 생성한 시점 |
+
+`node_context`도 `(node_search_document_id, node_id)` 복합 외래 키로 검색 문서와 대상 노드의 일치를 보장한다. 결과가 내구성 있게 연결된 뒤에만 해당 맥락 설명 작업을 성공으로 확정한다. 맥락 설명은 검색 입력으로 되돌아가지 않으며 노드를 클릭할 때 새로 생성하지 않고 공개가 선택한 결과를 읽는다. 설명과 관련된 Evidence Trace는 입력 검색 문서의 basis 지식에서 Claim·관측·출처로 따라간다.
 
 #### `followup_question`
 
-선택된 `node_context`마다 한국어 후속 질문을 정확히 두 개 저장한다. 각 질문은 결과를 만든 정확한 `model_task_id`를 참조한다. `slot`은 1과 2만 허용하며 같은 맥락 설명 안에서 고유하다. 질문은 탐색을 이어갈 제안이며 챗봇 대화를 시작하는 데이터가 아니다.
+선택된 맥락 설명에서 다음 지도 탐색으로 이어지는 한국어 질문을 정확히 두 개 저장한다.
+
+| 필드 | 의미와 규칙 |
+|---|---|
+| `followup_question_id` | 질문 버전의 불변 식별자 |
+| `node_context_id` | 질문이 속한 맥락 설명 버전 |
+| `model_task_id` | 질문 입력 해시, 모델·프롬프트·출력 계약, 상태와 시도 이력을 소유한 작업 |
+| `slot` | 표시 순서이며 1 또는 2만 허용함 |
+| `question_text` | 사용자에게 표시할 한국어 질문 |
+| `target_node_id` | 질문을 더 탐색하기 위해 새 중심으로 사용할 필수 공개 노드 |
+| `created_at` | 이 불변 질문을 생성한 시점 |
+
+`node_context_id + slot` 조합은 고유하며 공개가 선택한 맥락 설명에는 슬롯 1과 2가 각각 정확히 하나 있어야 한다. 하나의 성공한 후속 질문 작업이 두 행을 함께 만들 수 있으므로 두 행은 같은 `model_task_id`를 참조할 수 있다. 일반 코드는 출발 노드의 공개 가능한 직접 이웃과 중요한 2단계 이웃만 후보로 모델에 제공하고, 모델은 그 후보에서 대상을 선택한다. 저장 전에는 대상 노드의 존재, 공개 자격과 원본 맥락과의 관련성을 검증한다. 질문을 클릭하면 기존 중심 노드 지도 요청에 `target_node_id`를 넣어 부분 그래프를 다시 계산하고 대상 상세 패널을 열며 모델을 다시 호출하지 않는다.
+
+`target_node_id`는 질문을 탐색하기 적합한 그래프 위치이며 질문의 완전한 답이라는 뜻은 아니다. 사람·회사·기술·주제·사건의 공개 가능한 다섯 노드 유형을 모두 대상으로 허용한다.
+
+모델 기반 결과의 `model_task_id`를 따라가면 작업 종류, 입력 해시, 모델·프롬프트·출력 계약, 현재 상태, 재시도 일정과 모든 `agent_attempt`를 확인할 수 있다. 실패한 시도 뒤의 재시도도 같은 논리 작업에 남으며, 결과 행을 내구성 있게 연결한 뒤에만 작업을 성공으로 확정한다. 같은 성공 `cache_key`를 재사용할 때는 결과 행을 복제하지 않고 기존 불변 결과를 `publication_affected_node`에서 선택한다.
 
 ### 6.9 지도 표시 규칙
 
@@ -763,15 +802,15 @@ HBF POC의 최초 1년 고정 입력 묶음은 하나의 승격·공개 단위�
 | model_task → conflict_summary | 1:N, 각 요약은 자신을 생성한 정확한 모델 작업 하나를 참조함 |
 | promotion_batch → knowledge_item | 1:N, 새 기준 지식은 자신을 만든 승격 묶음을 직접 참조함 |
 | knowledge_item → knowledge_state_event | 1:N, 사람의 상태 변경만 append-only로 보존함 |
-| promotion_batch → publication_state | 1:1, 승격 커밋 뒤 공개 준비 상태 관리 |
-| publication_state → publication_dependency | 1:N, 참조하는 선행 묶음이 ready여야 공개 가능 |
-| publication_state → publication_state_event | 1:N, 현재 상태와 별도로 모든 변경 이력을 보존함 |
-| node → node_publication_state | 1:0..1, 현재 공개 파생 결과 포인터와 검색 노출 모드를 관리함 |
-| model_task → 모델 기반 파생 결과 | 1:N, 결과가 자신을 만든 정확한 모델 작업을 직접 참조함 |
-| derivation_run → 비모델 파생 결과 | 1:N, 일반 코드로 만드는 파생 결과의 실행 계보를 보존함 |
-| node → 파생 결과 | 1:N, 결과를 덮어쓰지 않고 입력과 계보별 버전으로 추가함 |
-| node_context → node_context_basis ← knowledge_item | N:M, 설명에서 Evidence Trace로 이어지는 입력 근거를 보존함 |
-| node_context → followup_question | 1:정확히 2, 공개 선택된 맥락 설명에 적용 |
+| promotion_batch → publication_affected_node ← node | 1:N:1, `(promotion_batch_id, node_id)`가 한 공개 준비 범위의 노드를 식별함 |
+| publication_affected_node → 검색 문서·임베딩·맥락 설명 | 각 0..1, 준비 중에는 비어 있을 수 있지만 `READY` 전에는 모두 채워져야 함 |
+| node → node_search_document | 1:N, `(node_id, input_hash, generator_version)`가 고유한 불변 버전임 |
+| node_search_document → search_document_basis ← knowledge_item | N:M, `(node_search_document_id, knowledge_item_id)`가 한 basis 행을 식별함 |
+| node_search_document → node_embedding | 1:N, `(node_search_document_id, node_id)` 복합 FK로 같은 노드임을 보장함 |
+| node_search_document → node_context | 1:N, `(node_search_document_id, node_id)` 복합 FK로 같은 노드임을 보장함 |
+| model_task → node_embedding/node_context/followup_question | 각각 1:N, 모델 기반 결과가 작업·입력·모델·프롬프트·출력 계약·시도 이력을 직접 참조함 |
+| node_context → followup_question | 1:정확히 2, `(node_context_id, slot)`은 고유하고 슬롯은 1과 2만 허용함 |
+| node → followup_question | 1:N, `target_node_id`는 질문 클릭 뒤 새 지도 중심으로 사용할 공개 가능 노드임 |
 
 ## 8. 상태 수명주기
 
@@ -808,15 +847,19 @@ PENDING → RUNNING → SUCCESS
 - 노드가 거절되면 alias 검색도 포함해 완전히 숨긴다.
 - Claim이나 관계가 거절되면 영향받은 노드는 새 파생 결과가 공개될 때까지 alias 정확 검색만 허용한다.
 
-### 8.3 공개 준비
+### 8.3 승격과 공개 준비
 
 ```text
-preparing → ready
-         └→ failed
-failed → 별도 derivation 재시도 → ready 또는 failed
+promotion_status:
+PENDING → COMMITTED
+        └→ FAILED
+
+publication_status:
+NOT_STARTED → PREPARING → READY
+                         └→ FAILED → PREPARING
 ```
 
-공개 준비 실패가 기준 지식 승격을 되돌리지는 않는다. POC에서는 공개 준비를 하나씩 처리하고, 성공한 공개 전환 때만 다음 `publication_seq`를 발급한다. 현재 열린 지도는 자동으로 바꾸지 않고 다음 검색·노드 클릭·시간 범위 변경에서 새롭게 `ready`가 된 묶음을 반영한다. 거절 필터는 이 전환과 무관하게 즉시 적용한다.
+승격 실패는 모든 기준 지식 쓰기를 롤백하고 `FAILED + NOT_STARTED`로 끝난다. 승격이 커밋된 뒤 공개 준비가 실패하면 `COMMITTED + FAILED`로 남기며 기준 지식을 되돌리지 않는다. 재시도는 공개 상태만 `PREPARING`으로 되돌리고 승격 트랜잭션을 다시 만들지 않는다. 새 묶음이 `READY`가 되기 전에는 노드별 이전 `READY` 결과를 계속 사용하며, 현재 열린 지도는 자동으로 바꾸지 않고 다음 검색·노드 클릭·시간 범위 변경부터 새 결과를 반영한다. 거절 필터는 공개 상태와 무관하게 즉시 적용한다.
 
 ### 8.4 노드 병합 리디렉션
 
@@ -867,10 +910,12 @@ Agent 제안 → 사람 확인
 - lint finding은 정확한 기준 knowledge item과 정책 규칙을 참조하며 열린 finding key는 한 문제 인스턴스만 가져야 한다.
 - conflict set은 `relation_id`, `target_node_id + attribute_revision_id`, `event_node_id` 가운데 정확히 한 대상 형태만 가져야 한다.
 - conflict summary는 정확한 `model_task_id`를 가져야 하며 입력 해시와 모델·프롬프트·출력 계약 버전을 중복 저장하지 않는다.
-- 공개 선택된 node context에는 후속 질문 1번과 2번이 정확히 하나씩 있어야 한다.
-- 공개 선택된 node context에는 현재 공개 가능한 Claim을 가리키는 basis가 최소 하나 있어야 한다.
-- `ready` 공개 묶음은 영향받은 모든 노드의 필수 파생 결과를 참조해야 한다.
-- 노드의 현재 공개 포인터는 더 큰 `publication_seq`로만 교체할 수 있다.
+- 승격 실패 묶음은 `FAILED + NOT_STARTED`여야 하고 `committed_at`, `ready_at`과 공개 결과 선택을 가질 수 없다.
+- `READY` 공개 묶음은 `promotion_status = COMMITTED`이며 `committed_at`, `ready_at`과 영향받은 모든 노드의 필수 결과 참조를 가져야 한다.
+- 같은 노드, 검색 문서 입력 해시와 생성 규칙 버전 조합은 하나의 검색 문서 버전만 가질 수 있다.
+- search document basis의 검색 문서와 지식 항목 조합은 중복될 수 없다.
+- 임베딩과 맥락 설명의 `node_id`는 복합 외래 키로 참조한 검색 문서의 노드와 일치해야 한다.
+- 공개 선택된 node context에는 슬롯 1과 2의 후속 질문이 정확히 하나씩 있어야 하며 각 질문의 `target_node_id`는 필수다.
 
 서로 다른 엔터티 집합을 세어야 하는 조건처럼 단일 행 CHECK로 표현할 수 없는 규칙은 짧은 승격 트랜잭션 안의 검증 코드와 지연 가능한 DB 제약으로 함께 막는다. 구체적인 PostgreSQL 구현은 물리 스키마 단계에서 정한다.
 
@@ -893,9 +938,11 @@ Agent 제안 → 사람 확인
 - 충돌 구성원이 같은 단일 의미 대상을 가리키는지와 Claim·구조화 값에서 읽은 시간의 비교 가능성 검사
 - 충돌 요약 입력 Claim 집합이 바뀌었을 때 새 입력 해시의 모델 작업과 요약 생성
 - 선택 기간의 활동량, 관계선 굵기와 2단계 이웃 중요도 계산
-- 공개 준비 상태 전환 전 완결성 검사
-- 공개 준비 작업의 단일 실행 lease, dependency와 publication sequence 검사
-- 거절 후 노드별 검색 노출 모드 변경과 파생 결과 포인터 교체
+- `identity_text`, `knowledge_text`와 임베딩 입력의 결정적 선택·정렬·조합
+- 공개 준비 상태 전환 전 결과 완결성, 모델 작업 성공, 미해결 차단 lint와 Evidence Trace 검사
+- 공개 가능한 직접 이웃과 중요한 2단계 이웃 후보 제공, 후속 질문 대상의 존재·공개 자격·관련성 검사
+- 노드별 가장 최근 `READY` 결과 선택과 현재 지식 상태에 따른 사람 거절 즉시 필터링
+- 질의 벡터와 공개 임베딩의 활성 모델 호환성 검사
 
 ### 9.3 Agent가 제안만 할 수 있는 규칙
 
@@ -905,7 +952,7 @@ Agent 제안 → 사람 확인
 - 준비된 문서에서 Claim 주장 시간의 명시적 근거와 정확한 원문 위치 제안
 - 재게시·번역 등 모호한 독립 근거 계보 후보
 - 충돌 후보와 공통점·관점 정리
-- 한국어 맥락 설명과 후속 질문
+- 한국어 맥락 설명과 제공된 공개 노드 후보 안에서의 후속 질문·대상 제안
 
 ## 10. lint 설계
 
@@ -928,8 +975,10 @@ Agent 제안 → 사람 확인
 | 차단 | 사건 근거를 숨은 맥락이나 비사건 직접 관계로 중복 표현함 | 승격 금지 |
 | 차단 | 모호한 동일 대상인데 확인된 식별자로 가장함 | 승격 금지 |
 | 차단 | 같은 문서·계약·차단 규칙 범위의 동일 fingerprint 반복 | 해당 후보의 재검증·승격 억제, 모델 작업 재시도와 무관 |
-| 차단 | 파생 결과가 누락된 변경 묶음을 ready로 전환 | 공개 금지 |
-| 차단 | 선행 dependency가 ready가 아니거나 더 오래된 publication sequence로 포인터 교체 시도 | 공개 금지 |
+| 차단 | 파생 결과가 누락된 변경 묶음을 `READY`로 전환 | 공개 금지 |
+| 차단 | 임베딩·맥락 설명의 노드와 검색 문서의 노드가 다르거나 모델 작업이 성공 상태가 아님 | 공개 금지 |
+| 차단 | 선택된 맥락 설명에 슬롯 1·2 질문이 정확히 없거나 대상 노드가 비공개·무관함 | 공개 금지 |
+| 차단 | 승격과 공개 상태 조합, 필수 시점이나 실패 이유가 서로 모순됨 | 상태 전환 금지 |
 | 차단 | 검색 결과 부재, 언급 감소나 경과 시간만으로 관계 종료를 제안함 | 승격 금지 |
 | 차단 | 충돌 묶음이 의미 대상을 비우거나 관계·속성값·사건 시간 대상을 둘 이상 채움 | 충돌 제안 저장 금지 |
 | 차단 | 충돌 구성원의 의미 대상이나 시간이 비교 불가능하거나 요약의 `model_task_id` 계보가 없음 | 충돌 제안·요약 저장 금지 |
@@ -958,11 +1007,12 @@ Agent 호출이 모두 실패하면 준비된 `source_document`, 모델 작업�
 
 ### 11.2 승격
 
-1. 메모리 검증을 통과했고 함께 공개되어야 의미가 맞는 결과를 `promotion_batch`로 묶는다.
-2. 짧은 DB 트랜잭션을 시작한다.
+1. 메모리 검증을 통과했고 함께 공개되어야 의미가 맞는 결과를 `promotion_batch`로 묶고 `PENDING + NOT_STARTED`, 사용한 온톨로지·lint 정책 버전과 시작 시점을 기록한다.
+2. 승격 묶음 행을 만든 뒤 짧은 DB 트랜잭션을 시작한다.
 3. 최종 중복과 제약을 다시 검사하고 필요한 내부 식별자를 발급한다.
 4. 노드·관계·Claim과 관측·alias·병합·사건 시간·근거 묶음 할당을 만들고 Claim의 세 의미 연결 가운데 하나 이상과 관측을 완성한 뒤 새 `knowledge_item`에 정확한 `promotion_batch_id`를 기록한다.
-5. 모든 레코드가 성공하면 커밋하고, 하나라도 실패하면 전체 묶음을 롤백한 뒤 묶음의 `failure_reason`을 기록한다.
+5. 모든 레코드가 성공하면 기준 지식과 `COMMITTED`, 커밋 시점을 함께 원자적으로 저장한다.
+6. 하나라도 실패하면 전체 지식 쓰기를 롤백하고 기존 기준 그래프를 유지한 뒤, 롤백 밖에서 묶음을 `FAILED + NOT_STARTED`로 기록하고 승격 실패 이유를 남긴다.
 
 승격 계보는 `promotion_batch → knowledge_item`과 `Claim → observation → source_document` 경로로 재현한다. 추출 모델 작업이나 일시적인 후보를 기준 지식에 직접 연결하지 않는다.
 
@@ -971,13 +1021,13 @@ Agent 호출이 모두 실패하면 준비된 `source_document`, 모델 작업�
 ### 11.3 파생 결과와 공개
 
 1. 승격으로 영향받은 노드 집합을 계산한다.
-2. 직렬 공개 lease를 얻은 뒤 현재 공개된 지식과 이번 승격 묶음만 입력으로 검색 문서, 임베딩, 한국어 맥락 설명과 후속 질문을 생성한다. 다른 미공개 실패 묶음은 입력에서 제외한다.
-3. 관계가 있으면 공개 지도 규칙에서 노드와 관계가 함께 조회되는지 확인한다.
-4. 관계가 없으면 필수 파생 결과와 상세 자료가 모두 준비됐는지 확인한다.
-5. 모든 영향 노드가 준비되면 새 `publication_seq`를 발급하고 노드별 공개 포인터를 교체한 뒤 `publication_state`를 `ready`로 한 트랜잭션에서 변경한다.
-6. 실패하면 `failed`로 남기고 기존 공개 결과를 계속 제공한다.
-7. 재시도는 모델 작업별 정책을 따르며, 모두 소진하면 해당 공개 작업을 닫고 다음 독립 묶음을 처리한다. 실패한 묶음에 의존하는 묶음은 준비하지 않는다.
-8. 나중에 재시도에 성공하면 그 시점의 새 `publication_seq`로 공개하고 사용자의 다음 탐색부터 새 지식과 새 파생 결과를 함께 사용한다.
+2. 커밋된 묶음의 `publication_status`를 `PREPARING`으로 바꾸고 각 영향 노드에 대해 이전 `READY` 기준 지식과 이번 `COMMITTED` 묶음에서 공개 자격을 갖춘 지식만 사용하여 결정적 검색 문서를 만든다. 다른 `PREPARING` 또는 `FAILED` 묶음의 지식은 입력에서 제외한다.
+3. 검색 문서의 두 텍스트를 고정 순서로 조합하여 임베딩 작업을 실행하고, 같은 검색 문서에서 한국어 맥락 설명 작업을 실행한다. 맥락 설명은 검색 문서로 되돌려 넣지 않는다.
+4. 일반 코드가 공개 가능한 직접 이웃과 중요한 2단계 이웃 후보를 제공하고 후속 질문 작업이 슬롯 1·2 질문과 각 대상 노드를 함께 생성하게 한다. 결과가 내구성 있게 연결된 뒤에만 각 모델 작업을 성공으로 확정한다.
+5. 각 `publication_affected_node`에 선택한 검색 문서·임베딩·맥락 설명을 기록하고, 복합 FK 일치, 호환 모델, 질문 두 개와 공개 대상 노드, 상세 자료·Evidence Trace·관계 endpoint와 미해결 차단 lint를 검사한다.
+6. 모든 영향 노드가 준비되면 `publication_status = READY`와 `ready_at`을 한 트랜잭션에서 기록한다. 관계가 없는 노드도 필수 결과와 상세 자료가 완전하면 공개한다.
+7. 준비가 실패하면 기준 지식과 `promotion_status = COMMITTED`를 유지한 채 `publication_status = FAILED`와 공개 실패 이유를 기록하고, 검색과 지도는 노드별 이전 `READY` 결과를 계속 제공한다.
+8. 실패한 모델 작업을 재시도할 때 공개 상태만 `PREPARING`으로 되돌린다. 나중에 준비가 완료되면 사용자의 다음 탐색부터 새 지식과 새 결과를 함께 사용하며, 사람 거절은 이 상태와 무관하게 즉시 필터링한다.
 
 ## 12. 동적 지도 조회 계약
 
@@ -986,11 +1036,10 @@ Agent 호출이 모두 실패하면 준비된 `source_document`, 모델 작업�
 ```text
 center_node_id
 time_window: recent_90_days | full_1_year
-publication_seq_cutoff
 display_rule_version
 ```
 
-조회 결과는 공개 가능한 중심 노드, 직접 이웃, 중요도가 높은 2단계 이웃, 공개 가능한 관계, 각 노드·관계의 시각 지표와 상세 패널 참조를 반환한다. 전체 데이터베이스나 저장된 지도 버전을 반환하지 않는다.
+조회는 `publication_status = READY`인 묶음만 사용하고 노드마다 가장 최근에 준비된 선택 결과를 적용한다. 결과는 공개 가능한 중심 노드, 직접 이웃, 중요도가 높은 2단계 이웃, 공개 가능한 관계, 각 노드·관계의 시각 지표와 상세 패널 참조를 반환한다. 전체 데이터베이스나 저장된 지도 버전을 반환하지 않는다.
 
 ### 12.1 포함 규칙
 
@@ -1027,17 +1076,19 @@ display_rule_version
 
 ## 13. 하이브리드 검색 계약
 
-- 키워드 검색은 모든 `node_alias.alias_text`의 정확 일치와 `node_search_document` 전문 검색으로 구성하고, 벡터 검색은 현재 공개된 `node_embedding`을 대상으로 한다. 최종 결과는 다섯 노드 유형으로 제한한다.
+- 키워드 검색은 모든 `node_alias.alias_text`의 정확 일치와 `node_search_document` 전문 검색으로 구성하고, 벡터 검색은 `READY` 묶음이 선택한 `node_embedding`을 대상으로 한다. 최종 결과는 다섯 노드 유형으로 제한한다.
+- 전문 검색은 `identity_text`에 `knowledge_text`보다 높은 가중치를 적용하고, 임베딩은 두 필드를 생성 규칙에 고정된 순서로 연결한 입력에서 만든다.
 - alias 정확 일치 결과를 첫 번째 bucket에 두고 하이브리드 점수와 무관하게 먼저 보여준다. 일치한 노드에서 활성 node merge를 따라 최종 기준 노드를 찾은 뒤 그 노드의 단일 대표 alias를 표시한다.
 - 키워드와 벡터 branch는 각각 최대 50개 후보를 반환한다. 두 순위는 RRF로 결합하며 POC 상수는 `k = 60`, 점수식은 `Σ 1 / (60 + branch_rank)`이다. 동점이면 불변 노드 식별자 오름차순으로 정렬한다.
 - Claim과 출처는 순위 계산과 검색 이유 설명에 사용하지만 메인 검색 결과로 직접 반환하지 않는다.
+- alias 일치는 `node_alias`에서 직접 설명하고 검색 문서의 basis는 관련 Claim과 Evidence Trace를 찾는 데만 사용한다. 벡터 유사도에 대한 정확한 문장별 기여라고 설명하지 않는다.
 - 구조화된 날짜 검색과 표시에서는 `DATE`와 `PERIOD`를 구분하고 저장된 연도·월·날짜 정밀도를 보존한다. `DATE`를 종료 미상 기간처럼 확장하거나 `PERIOD`의 미상 종료를 단일 날짜처럼 축소하지 않는다.
 - 키워드 또는 벡터 한쪽이 실패해도 다른 쪽이 성공하면 결과를 보여주고 실패한 검색 방식은 결과 영역에서 안내한다.
 - 두 방식이 모두 실패하거나 3D 지도를 표시할 수 없으면 목록형 대체 화면을 제공하지 않는다.
-- 노드가 거절되면 모든 branch에서 제외한다. Claim이나 관계 거절로 `name_alias_only`가 된 노드는 alias 정확 검색에만 포함하고 지식 전문 검색과 벡터 branch에서는 제외한다.
+- 노드가 거절되면 모든 branch에서 제외한다. Claim이나 관계가 거절되면 그 지식을 즉시 제외하고 새 결과가 `READY`가 되기 전까지 이전 검색 문서와 임베딩을 사용하지 않으며 alias 정확 검색만 허용한다.
 - 벡터 유사도는 검색 순위에만 사용한다. 동일 대상 병합, 관계 생성, 근거 확인이나 지식 상태 변경의 근거로 사용하지 않는다.
 - PostgreSQL 전문 검색의 `ts_rank`·`ts_rank_cd`는 BM25와 같은 알고리즘으로 표현하지 않는다. 한국어 POC corpus에서 alias와 본문 검색 품질을 측정한 뒤 사전과 tokenizer 구성을 물리 설계에서 정한다.
-- pgvector를 POC 기본 후보로 삼되 vector 차원, 거리 함수와 인덱스는 물리 설계에서 검증한다. 별도 검색 DB는 먼저 추가하지 않는다.
+- pgvector를 POC 기본 후보로 삼되 한 POC 모델의 차원은 물리 스키마의 `vector(n)` 타입으로 강제하고 거리 함수와 인덱스는 물리 설계에서 검증한다. 질의 벡터와 다른 모델의 공개 임베딩은 같은 검색에서 비교하지 않으며 별도 검색 DB는 먼저 추가하지 않는다.
 
 ## 14. HBF 예시 데이터 흐름
 
@@ -1064,6 +1115,8 @@ Agent는 이 문장을 최소한 다음 원자적 Claim 후보로 나눈다.
 
 SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 직접 이웃과 중요한 2단계 이웃을 계산한다. HBF 발표 사건을 클릭하면 같은 기준 그래프에서 사건 노드를 새 중심으로 다시 조회하고 브라우저가 좌표를 재배치한다.
 
+SK하이닉스 검색 문서는 대표 alias와 검색 가능한 모든 alias를 `identity_text`에, HBF 발표 사건·관련 Claim·관계·주변 노드 이름을 `knowledge_text`에 결정적 순서로 넣는다. 같은 검색 문서에서 임베딩과 한국어 맥락 설명을 만들고, 맥락 설명에는 예를 들어 `HBF 발표에는 어떤 회사가 참여했는가?`라는 슬롯 1 질문과 HBF 발표 사건의 `target_node_id`를 연결한다. 사용자가 질문을 클릭하면 HBF 발표 사건을 중심으로 지도를 다시 조회하고 상세 패널을 열며 모델은 호출하지 않는다.
+
 ## 15. 논리 모델 검증 시나리오
 
 | 번호 | 시나리오 | 통과 조건 |
@@ -1072,8 +1125,8 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 | 2 | 계약 유효 응답의 인용 문자 범위가 틀리거나 허용되지 않은 관계가 제안됨 | payload는 저장되지 않고 정확한 문서·계약·차단 규칙 범위의 fingerprint만 집계되며 해당 후보는 승격되지 않음 |
 | 3 | 동일 보도자료의 복제 문서 여러 건이 입력됨 | 문서와 관측은 모두 남지만 독립 근거 수는 한 번만 증가함 |
 | 4 | Agent 추출이 모든 기술 재시도에서 실패함 | 정규화 원문, `model_task`와 최소 시도 이력만 남고 차단 fingerprint나 기준 그래프는 바뀌지 않음 |
-| 5 | 승격 뒤 임베딩이나 맥락 설명 생성이 실패함 | 기준 지식은 유지되지만 변경 묶음은 공개되지 않고 이전 결과가 계속 제공됨 |
-| 6 | 파생 작업 재시도가 성공함 | 다음 탐색부터 새 관계와 설명·질문이 함께 나타남 |
+| 5 | 승격 뒤 임베딩이나 맥락 설명 생성이 실패함 | `promotion_status = COMMITTED`, `publication_status = FAILED`로 남고 기준 지식은 유지되며 이전 `READY` 결과가 계속 제공됨 |
+| 6 | 실패한 모델 작업 재시도가 성공함 | 새 승격 없이 공개 상태만 `PREPARING`을 거쳐 `READY`가 되고 다음 탐색부터 새 관계와 결과가 함께 나타남 |
 | 7 | 근거 있는 관계가 없는 노드의 파생 자료가 모두 준비됨 | 가짜 이웃 없이 검색과 중심 지도에 공개됨 |
 | 8 | 비교 가능한 지지·반박 Claim을 Agent가 발견함 | 호박색 점선과 `Agent가 발견한 엇갈림`이 표시되고, 충돌 거절 시 Claim은 남고 점선만 해제됨 |
 | 9 | alias가 병합된 원본 노드를 가리키거나 활성 병합을 취소함 | 검색은 활성 병합일 때만 최종 기준 노드로 이동해 그 대표 alias를 표시하고, 취소 뒤에는 즉시 원본 노드를 반환하며 alias·Claim·관계·근거와 병합 이력이 모두 남음 |
@@ -1083,7 +1136,7 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 | 13 | 한 응답의 사건 정보가 노드·alias·시간·관측을 함께 만듦 | 새 knowledge item이 승격 묶음을 직접 참조하고 종속 레코드와 Claim의 문서 계보를 따라 같은 원자 트랜잭션을 추적할 수 있음 |
 | 14 | 관계에 반박 Claim만 있거나 사건에 참여 관계가 없음 | 차단 lint가 생기고 해당 관계나 사건이 승격되지 않음 |
 | 15 | 사건 시작은 연도, 종료는 정확한 날짜까지만 알려짐 | 시작은 해당 연도의 첫날과 `YEAR`, 종료는 정확한 값과 정밀도로 저장되며 정규화한 시작일을 실제 1월 1일로 표시하지 않음 |
-| 16 | 먼저 시작한 공개 작업이 실패한 뒤 다른 독립 작업이 공개됨 | 성공 시점에 발급된 더 큰 `publication_seq`만 현재 포인터가 되며 늦은 재시도가 이를 덮어쓰지 않음 |
+| 16 | 승격 트랜잭션이 실패함 | 모든 지식 쓰기가 롤백되고 트랜잭션 밖에서 `FAILED + NOT_STARTED`와 승격 실패 이유만 남음 |
 | 17 | 공개 중인 Claim이나 관계를 사람이 거절함 | 거절 지식은 즉시 숨고 영향 노드는 새 파생 결과가 준비될 때까지 alias 검색만 가능함 |
 | 18 | 이웃 후보와 관계선이 상한을 넘음 | 노드 31개와 관계선 60개를 넘지 않으며 같은 입력은 같은 식별자 순서로 선택됨 |
 | 19 | alias가 정확히 일치하고 두 검색 branch 순위가 다름 | 정확 일치가 먼저 나오고 나머지는 branch별 50개와 `k = 60` RRF로 결정됨 |
@@ -1107,6 +1160,11 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 | 37 | 관계, 속성값, 사건 시간 충돌과 두 범주를 함께 채운 충돌 묶음을 제안함 | 각 단일 대상 충돌만 별도 묶음으로 저장되고 대상 없음·복수 대상 묶음은 차단되며 비교 시간은 구성원 Claim과 구조화 값에서 계산됨 |
 | 38 | 충돌 요약의 입력 Claim 집합이 바뀜 | 새 입력 해시의 `model_task`와 `conflict_summary`가 생기고 기존 요약이 보존되며, 모델·프롬프트·출력 계약·상태·재시도 계보는 `model_task_id`로 조회됨 |
 | 39 | Agent가 제안한 충돌을 사람이 거절함 | 충돌 표현만 숨고 구성원 Claim의 상태와 Evidence Trace는 바뀌지 않음 |
+| 40 | 같은 노드·공개 지식·생성 규칙으로 검색 문서를 다시 만듦 | 같은 `input_hash`와 `generator_version` 조합의 문서를 중복 생성하지 않고 두 검색 필드와 임베딩 입력 순서가 같음 |
+| 41 | 임베딩이나 맥락 설명이 다른 노드의 검색 문서를 참조함 | `(node_search_document_id, node_id)` 복합 FK가 저장을 거부함 |
+| 42 | 맥락 설명을 새로 생성함 | `context_text`가 `identity_text`나 `knowledge_text`에 복사되지 않아 검색 문서 입력 해시가 순환 변경되지 않음 |
+| 43 | 후속 질문 작업이 질문 하나 또는 세 개를 만들거나 비공개 노드를 대상으로 선택함 | 공개 완결성 검사가 실패하고 슬롯 1·2와 유효한 공개 대상 노드가 준비될 때까지 묶음이 `READY`가 되지 않음 |
+| 44 | 공개 후속 질문을 클릭함 | `target_node_id`로 기존 중심 노드 조회와 상세 패널 열기를 수행하고 클릭 시점 모델 호출은 없음 |
 
 ## 16. 물리 스키마 단계로 넘길 항목
 
@@ -1131,15 +1189,22 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 - 승격 묶음에서 knowledge item으로 이어지는 직접 외래 키와 종속 레코드 계보 구현
 - 사람 전용 knowledge state 전이, 필수 사용자·이유와 현재 상태의 원자 갱신 구현
 - lint policy 활성화와 전체 그래프 run, 결정적 finding key, 반복·해결·재발 처리 구현
-- Claim의 세 의미 연결 가운데 최소 하나와 정확한 관측, 관계·노드·사건의 최소 근거와 후속 질문 정확히 두 건을 보장하는 지연 제약 또는 트랜잭션 검증
+- Claim의 세 의미 연결 가운데 최소 하나와 정확한 관측, 관계·노드·사건의 최소 근거와 공개 선택된 맥락 설명의 후속 질문 슬롯 1·2를 보장하는 지연 제약 또는 트랜잭션 검증
 - `conflict_set`의 관계, 속성값, 사건 시간 대상 형태 중 정확히 하나만 허용하는 배타적 CHECK와 대상별 외래 키 구현
 - `conflict_summary.model_task_id` 외래 키와 구성원 Claim 집합 변경 시 새 작업·요약을 추가하는 멱등성 구현. 입력 해시와 모델·프롬프트·출력 계약 계보는 요약 테이블에 중복하지 않음
 - 정규화 본문 문자 길이와 인용문 일치를 검증하는 함수 경계
+- `promotion_status`·`publication_status` 조합, 필수 시점과 분리된 실패 이유의 CHECK 또는 트랜잭션 검증
+- `(promotion_batch_id, node_id)` 기본 키와 `READY` 전 세 결과 참조의 완결성 검증
+- `(node_id, input_hash, generator_version)` 검색 문서 고유성과 `(node_search_document_id, knowledge_item_id)` basis 기본 키
+- 검색 문서의 `(node_search_document_id, node_id)` 고유 참조 키와 임베딩·맥락 설명에서 이 키를 참조하는 복합 외래 키
+- PostgreSQL이 자식 쪽 외래 키 인덱스를 자동 생성하지 않으므로 임베딩·맥락 설명의 복합 참조 컬럼에 필요한 인덱스
+- `followup_question.slot`의 1·2 CHECK, `(node_context_id, slot)` 고유성과 공개 대상 노드 검증 경계
 - 전문 검색의 `tsvector`, GIN, `ts_rank`, `ts_rank_cd` 구성
-- 한국어 corpus의 전문 검색 품질과 alias 정확 검색 검증
-- pgvector 차원, 거리 함수와 인덱스 선택
+- `identity_text`와 `knowledge_text`의 서로 다른 가중치, 한국어 corpus의 전문 검색 품질과 alias 정확 검색 검증
+- 한 POC 모델의 pgvector `vector(n)` 차원, 거리 함수와 인덱스 선택
+- 활성 임베딩 모델과 질의 벡터의 호환성 필터
 - branch별 상위 50개와 `k = 60` RRF 쿼리, 한 branch 실패 시 fallback 구현
-- 직렬 공개 lease, DB sequence와 node publication pointer 원자 교체 구현
+- 노드별 가장 최근 `READY`인 `publication_affected_node` 결과 선택과 준비·실패 중 이전 결과 유지
 - 공개 가능한 데이터만 사용하는 부분 그래프와 상세 패널 조회
 - 노드·관계선 상한과 결정적 정렬을 적용하는 부분 그래프 조회
 - 고정 입력 문서 묶음 적재의 멱등성 검증
