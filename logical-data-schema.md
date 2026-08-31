@@ -215,9 +215,9 @@ erDiagram
     PROMOTION_BATCH ||--o{ KNOWLEDGE_ITEM : creates
     PROMOTION_BATCH ||--o{ PUBLICATION_AFFECTED_NODE : affects
     NODE ||--o{ PUBLICATION_AFFECTED_NODE : waits_for
-    PUBLICATION_AFFECTED_NODE }o--|| NODE_SEARCH_DOCUMENT : selects
-    PUBLICATION_AFFECTED_NODE }o--|| NODE_EMBEDDING : selects
-    PUBLICATION_AFFECTED_NODE }o--|| NODE_CONTEXT : selects
+    PUBLICATION_AFFECTED_NODE }o--o| NODE_SEARCH_DOCUMENT : selects
+    PUBLICATION_AFFECTED_NODE }o--o| NODE_EMBEDDING : selects
+    PUBLICATION_AFFECTED_NODE }o--o| NODE_CONTEXT : selects
 ```
 
 ```mermaid
@@ -800,7 +800,7 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 | conflict_set → conflict_member ← claim | 1:N:1, 한 충돌 묶음은 같은 단일 의미 대상의 Claim을 둘 이상 포함하고 `position_key`로 관점을 묶음 |
 | conflict_set → conflict_summary | 1:N, 입력 Claim 집합이 바뀌면 기존 행을 덮어쓰지 않고 새 요약을 추가함 |
 | model_task → conflict_summary | 1:N, 각 요약은 자신을 생성한 정확한 모델 작업 하나를 참조함 |
-| promotion_batch → knowledge_item | 1:N, 새 기준 지식은 자신을 만든 승격 묶음을 직접 참조함 |
+| promotion_batch → knowledge_item | 1:N, 각 기준 지식은 `promotion_batch_id`로 자신을 만든 승격 묶음을 직접 가리킴 |
 | knowledge_item → knowledge_state_event | 1:N, 사람의 상태 변경만 append-only로 보존함 |
 | promotion_batch → publication_affected_node ← node | 1:N:1, `(promotion_batch_id, node_id)`가 한 공개 준비 범위의 노드를 식별함 |
 | publication_affected_node → 검색 문서·임베딩·맥락 설명 | 각 0..1, 준비 중에는 비어 있을 수 있지만 `READY` 전에는 모두 채워져야 함 |
@@ -902,7 +902,7 @@ Agent 제안 → 사람 확인
 - 한 노드에는 대표 alias가 최대 하나만 존재해야 하고 공개 가능한 노드는 대표 alias를 정확히 하나 가져야 한다. 외부 식별자 활성 연결은 허용된 범위에서 유일해야 한다.
 - 활성 node merge는 원본 노드마다 최대 하나이고 자기 참조와 순환을 허용하지 않으며, 취소된 행은 삭제하거나 재사용하지 않는다.
 - knowledge item의 공통 유형과 실제 하위 엔터티가 정확히 하나로 일치해야 한다.
-- 새 knowledge item은 자신을 만든 promotion batch를 정확히 하나 참조해야 한다.
+- 모든 `knowledge_item`은 자신을 만든 `promotion_batch`를 `promotion_batch_id`로 직접 참조해야 한다.
 - 모델 작업과 출력 계약의 작업 종류는 같아야 하며 `EMBEDDING`만 출력 계약을 참조하지 않아야 한다.
 - 모델 작업의 종료 상태에서는 `finished_at`이 필수이고, 같은 cache key와 같은 작업 안의 시도 번호는 각각 고유해야 한다.
 - blocked fingerprint는 정확한 문서·계약·`BLOCKING` 승격 전 정책 규칙을 참조해야 하며 네 범위 필드와 fingerprint 조합은 고유해야 한다.
@@ -1133,7 +1133,7 @@ SK하이닉스 검색 문서는 대표 alias와 검색 가능한 모든 alias를
 | 10 | 같은 중심 노드를 90일과 1년 범위로 조회함 | `published_at` 기준으로 이웃과 투명도가 달라지고 사건 발생 시점은 섞이지 않음 |
 | 11 | 공개된 지식을 사람이 거절함 | 지도와 일반 검색에서 즉시 사라지지만 DB와 거절 이유는 남음 |
 | 12 | 승격 트랜잭션 중 한 관계가 제약을 위반함 | 묶음 전체가 롤백되고 일부 노드나 Claim도 기준 그래프에 남지 않음 |
-| 13 | 한 응답의 사건 정보가 노드·alias·시간·관측을 함께 만듦 | 새 knowledge item이 승격 묶음을 직접 참조하고 종속 레코드와 Claim의 문서 계보를 따라 같은 원자 트랜잭션을 추적할 수 있음 |
+| 13 | 한 응답의 사건 정보가 노드·alias·시간·관측을 함께 만듦 | 생성된 노드 기준 지식은 `knowledge_item.promotion_batch_id`로 같은 승격 묶음을 직접 가리키며, alias·시간·관측은 노드·Claim과 Evidence Trace 관계를 따라 추적됨 |
 | 14 | 관계에 반박 Claim만 있거나 사건에 참여 관계가 없음 | 차단 lint가 생기고 해당 관계나 사건이 승격되지 않음 |
 | 15 | 사건 시작은 연도, 종료는 정확한 날짜까지만 알려짐 | 시작은 해당 연도의 첫날과 `YEAR`, 종료는 정확한 값과 정밀도로 저장되며 정규화한 시작일을 실제 1월 1일로 표시하지 않음 |
 | 16 | 승격 트랜잭션이 실패함 | 모든 지식 쓰기가 롤백되고 트랜잭션 밖에서 `FAILED + NOT_STARTED`와 승격 실패 이유만 남음 |
@@ -1186,7 +1186,7 @@ SK하이닉스 검색 문서는 대표 alias와 검색 가능한 모든 alias를
 - 모델 작업 cache key·종료 상태·lease, 시도 번호·횟수 일치와 기술 재시도 시각 구현
 - 차단 fingerprint의 문서·계약·정책 규칙 범위 고유성과 payload 비저장 경계 구현
 - 상위 `knowledge_item`과 하위 엔터티의 배타적 일대일 제약 구현
-- 승격 묶음에서 knowledge item으로 이어지는 직접 외래 키와 종속 레코드 계보 구현
+- 승격 묶음과 기준 지식을 직접 연결하는 `knowledge_item.promotion_batch_id` 외래 키와 종속 레코드 계보 구현
 - 사람 전용 knowledge state 전이, 필수 사용자·이유와 현재 상태의 원자 갱신 구현
 - lint policy 활성화와 전체 그래프 run, 결정적 finding key, 반복·해결·재발 처리 구현
 - Claim의 세 의미 연결 가운데 최소 하나와 정확한 관측, 관계·노드·사건의 최소 근거와 공개 선택된 맥락 설명의 후속 질문 슬롯 1·2를 보장하는 지연 제약 또는 트랜잭션 검증
