@@ -202,6 +202,7 @@ erDiagram
     ATTRIBUTE_REVISION ||--o{ CONFLICT_SET : attribute_target
     CONFLICT_SET ||--|{ CONFLICT_MEMBER : contains
     CLAIM ||--o{ CONFLICT_MEMBER : participates
+    CONFLICT_SET ||--o{ CONFLICT_STATE_EVENT : changes
     CONFLICT_SET ||--o{ CONFLICT_SUMMARY : summarized_as
     MODEL_TASK ||--o{ CONFLICT_SUMMARY : generates
 ```
@@ -212,6 +213,8 @@ erDiagram
 
 ```mermaid
 erDiagram
+    ONTOLOGY_VERSION ||--o{ PROMOTION_BATCH : governs
+    LINT_POLICY_VERSION ||--o{ PROMOTION_BATCH : validates
     PROMOTION_BATCH ||--o{ KNOWLEDGE_ITEM : creates
     PROMOTION_BATCH ||--o{ PUBLICATION_AFFECTED_NODE : affects
     NODE ||--o{ PUBLICATION_AFFECTED_NODE : waits_for
@@ -474,7 +477,7 @@ POC의 허용 값 유형은 `STRING`, 단위가 있는 `NUMBER`, `DATE`, `PERIOD
 
 #### `event_temporal_extent`
 
-사건 노드에만 최대 한 건을 두고 `start_at`, `end_at`, `start_precision`, `end_precision`을 저장한다. 별도의 시작·종료 미상 Boolean은 두지 않는다. 알 수 없는 경계는 값 `NULL`과 정밀도 `UNKNOWN`으로 저장하고, 값이 있으면 정밀도는 `UNKNOWN`일 수 없다. 월만 알면 해당 월의 첫날과 `MONTH`, 연도만 알면 해당 연도의 첫날과 `YEAR`를 저장하지만, 화면과 시간 필터는 정규화한 1일을 정확한 주장 날짜로 해석하지 않고 정밀도에 맞는 범위로 처리한다.
+사건 노드에만 최대 한 건을 두고 사건의 `event_node_id`를 공유 기본 키이자 `node.node_id` 외래 키로 사용한다. `start_at`, `end_at`, `start_precision`, `end_precision`을 저장하며 별도의 시작·종료 미상 Boolean은 두지 않는다. 알 수 없는 경계는 값 `NULL`과 정밀도 `UNKNOWN`으로 저장하고, 값이 있으면 정밀도는 `UNKNOWN`일 수 없다. 월만 알면 해당 월의 첫날과 `MONTH`, 연도만 알면 해당 연도의 첫날과 `YEAR`를 저장하지만, 화면과 시간 필터는 정규화한 1일을 정확한 주장 날짜로 해석하지 않고 정밀도에 맞는 범위로 처리한다.
 
 | 알려진 경계 | 저장 값 | 정밀도 | 표시와 필터 의미 |
 |---|---|---|---|
@@ -483,7 +486,7 @@ POC의 허용 값 유형은 `STRING`, 단위가 있는 `NUMBER`, `DATE`, `PERIOD
 | 2025년 | `2025-01-01` | `YEAR` | 2025년 전체 |
 | 미상 | `NULL` | `UNKNOWN` | 알려진 경계 없음 |
 
-`event_temporal_basis`는 이 시간 범위와 이를 직접 뒷받침하는 기준 Claim을 다대다로 연결한다. 시작과 종료를 모두 알 때 종료가 시작보다 이를 수 없다. 서로 다른 시간이 주장되면 기존 Claim을 덮어쓰지 않고 충돌 묶음으로 관리하며, 사건 식별 범위로 채택할 값은 일반 코드의 명확한 규칙이나 사람의 판단이 있어야 바뀐다. 사건 참여자와 발표 기술은 고정 열이 아니라 허용 관계로 연결한다.
+`event_temporal_basis`는 `event_node_id`와 `claim_id`를 복합 기본 키로 사용하여 이 시간 범위와 이를 직접 뒷받침하는 기준 Claim을 다대다로 연결한다. 시작과 종료를 모두 알 때 종료가 시작보다 이를 수 없다. 서로 다른 시간이 주장되면 기존 Claim을 덮어쓰지 않고 충돌 묶음으로 관리하며, 사건 식별 범위로 채택할 값은 일반 코드의 명확한 규칙이나 사람의 판단이 있어야 바뀐다. 사건 참여자와 발표 기술은 고정 열이 아니라 허용 관계로 연결한다.
 
 ### 6.5 기준 지식그래프
 
@@ -621,7 +624,7 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 | `current_state` | `Agent 제안`, `사람 확인`, `거절` 가운데 현재 상태 |
 | `created_at` | 충돌 묶음 생성 시점 |
 
-`conflict_member`는 `conflict_set_id`, `claim_id`, 같은 관점을 묶는 `position_key`를 저장하며 `(conflict_set_id, claim_id)` 조합은 한 번만 허용한다. `conflict_state_event`는 이전 상태, 새 상태, 이유, 처리 주체와 처리 시점을 append-only 이력으로 저장한다.
+`conflict_member`는 `conflict_set_id`, `claim_id`, 같은 관점을 묶는 `position_key`를 저장하며 `(conflict_set_id, claim_id)` 조합은 한 번만 허용한다. `conflict_state_event`는 `conflict_state_event_id`, `conflict_set_id`, `from_state`, `to_state`, 필수 `reason`, 필수 `changed_by_user_id`, `changed_at`을 append-only 이력으로 저장한다. 일반 코드가 검증된 충돌 묶음을 최초 `Agent 제안` 상태로 만들 때는 사람 상태 이벤트를 만들지 않는다. 이후 `Agent 제안 → 사람 확인·거절` 전이만 사람이 기록하며 현재 상태 갱신과 이벤트 추가는 같은 트랜잭션에서 수행한다.
 
 | `conflict_summary` 필드 | 의미와 규칙 |
 |---|---|
@@ -672,7 +675,7 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 | `node_embedding_id` | 선택한 임베딩 버전이며 준비 중에는 비어 있을 수 있음 |
 | `node_context_id` | 선택한 한국어 맥락 설명 버전이며 준비 중에는 비어 있을 수 있음 |
 
-후속 질문 식별자는 중복 저장하지 않고 선택된 `node_context_id`로 슬롯 1과 2를 조회한다. `publication_status = READY`로 바꾸기 전에는 모든 영향 노드의 세 결과 참조가 채워져 있고 각 결과의 `node_id`가 영향 노드와 같아야 한다.
+후속 질문 식별자는 중복 저장하지 않고 선택된 `node_context_id`로 슬롯 1과 2를 조회한다. `publication_status = READY`로 바꾸기 전에는 모든 영향 노드의 세 결과 참조가 채워져 있고 같은 검색 문서 버전과 영향 노드를 가리켜야 한다. 이를 위해 검색 문서 선택은 `(node_search_document_id, node_id)`, 임베딩 선택은 `(node_embedding_id, node_search_document_id, node_id)`, 맥락 설명 선택은 `(node_context_id, node_search_document_id, node_id)` 복합 외래 키로 각 결과의 고유 참조 키를 가리킨다.
 
 이 엔터티는 공개 완결성을 검사하는 영향 범위일 뿐 지도 구성원, 좌표, 레이아웃이나 전체 공개 그래프 버전을 저장하지 않는다.
 
@@ -757,7 +760,7 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 | `target_node_id` | 질문을 더 탐색하기 위해 새 중심으로 사용할 필수 공개 노드 |
 | `created_at` | 이 불변 질문을 생성한 시점 |
 
-`node_context_id + slot` 조합은 고유하며 공개가 선택한 맥락 설명에는 슬롯 1과 2가 각각 정확히 하나 있어야 한다. 하나의 성공한 후속 질문 작업이 두 행을 함께 만들 수 있으므로 두 행은 같은 `model_task_id`를 참조할 수 있다. 일반 코드는 출발 노드의 공개 가능한 직접 이웃과 중요한 2단계 이웃만 후보로 모델에 제공하고, 모델은 그 후보에서 대상을 선택한다. 저장 전에는 대상 노드의 존재, 공개 자격과 원본 맥락과의 관련성을 검증한다. 질문을 클릭하면 기존 중심 노드 지도 요청에 `target_node_id`를 넣어 부분 그래프를 다시 계산하고 대상 상세 패널을 열며 모델을 다시 호출하지 않는다.
+`node_context_id + slot` 조합은 고유하며 공개가 선택한 맥락 설명에는 슬롯 1과 2가 각각 정확히 하나 있어야 한다. 하나의 성공한 후속 질문 작업이 두 행을 함께 만들 수 있으므로 두 행은 같은 `model_task_id`를 참조할 수 있다. 일반 코드는 관계가 있는 출발 노드에는 공개 가능한 직접 이웃과 중요한 2단계 이웃을 후보로 제공하고, 모델은 그 후보에서 대상을 선택한다. 관계가 전혀 없는 노드의 후보 선택 규칙은 #36에서 별도로 결정하며, 그 전에는 가짜 관계를 만들거나 필수 `target_node_id` 제약을 완화하지 않는다. 저장 전에는 대상 노드의 존재, 공개 자격과 원본 맥락과의 관련성을 검증한다. 질문을 클릭하면 기존 중심 노드 지도 요청에 `target_node_id`를 넣어 부분 그래프를 다시 계산하고 대상 상세 패널을 열며 모델을 다시 호출하지 않는다.
 
 `target_node_id`는 질문을 탐색하기 적합한 그래프 위치이며 질문의 완전한 답이라는 뜻은 아니다. 사람·회사·기술·주제·사건의 공개 가능한 다섯 노드 유형을 모두 대상으로 허용한다.
 
@@ -778,7 +781,7 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 | output_schema_definition → model_task | 1:N, 작업은 정확한 불변 계약을 참조하며 `EMBEDDING`만 계약 없이 실행함 |
 | model_task → agent_attempt | 1:0..N, 실제 호출이 있을 때만 시도 행이 생기며 순서가 작업 안에서 고유함 |
 | source_document·output_schema_definition·lint_policy_rule → blocked_fingerprint | 각 N:1, 네 필드와 fingerprint 조합이 반복 차단 범위를 고정함 |
-| lint_policy_version → lint_policy_rule ← lint_rule | 1:N:1, 안정된 검사와 정책별 범위·심각도를 분리함 |
+| lint_policy_version → lint_policy_rule ← lint_rule | 1:N:1, 안정된 검사 정의와 정책별 심각도를 분리함 |
 | lint_run → lint_finding → knowledge_item | 1:N:1, 저장된 그래프의 문제 인스턴스만 보존함 |
 | ontology_version → ontology_member → node type 또는 revision | 1:N:1, 한 member가 안정된 노드 유형, 관계 revision, 속성 revision 가운데 정확히 하나를 선택함 |
 | relation_type → relation_type_revision | 1:N, 안정된 관계 코드는 유형에 두고 관계는 생성 당시의 정확한 revision을 참조함 |
@@ -798,12 +801,13 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 | claim → claim_observation ← observation | N:M, Claim마다 최소 한 관측 필요 |
 | source_document → observation | 1:N, 관측 범위는 해당 문서 버전 본문에서만 검증함 |
 | conflict_set → conflict_member ← claim | 1:N:1, 한 충돌 묶음은 같은 단일 의미 대상의 Claim을 둘 이상 포함하고 `position_key`로 관점을 묶음 |
+| conflict_set → conflict_state_event | 1:N, 사람의 확인·거절 전이만 append-only로 보존함 |
 | conflict_set → conflict_summary | 1:N, 입력 Claim 집합이 바뀌면 기존 행을 덮어쓰지 않고 새 요약을 추가함 |
 | model_task → conflict_summary | 1:N, 각 요약은 자신을 생성한 정확한 모델 작업 하나를 참조함 |
 | promotion_batch → knowledge_item | 1:N, 각 기준 지식은 `promotion_batch_id`로 자신을 만든 승격 묶음을 직접 가리킴 |
 | knowledge_item → knowledge_state_event | 1:N, 사람의 상태 변경만 append-only로 보존함 |
 | promotion_batch → publication_affected_node ← node | 1:N:1, `(promotion_batch_id, node_id)`가 한 공개 준비 범위의 노드를 식별함 |
-| publication_affected_node → 검색 문서·임베딩·맥락 설명 | 각 0..1, 준비 중에는 비어 있을 수 있지만 `READY` 전에는 모두 채워져야 함 |
+| publication_affected_node → 검색 문서·임베딩·맥락 설명 | 각 0..1, 준비 중에는 비어 있을 수 있지만 `READY` 전에는 모두 채워지고 세 결과가 같은 검색 문서 버전과 영향 노드를 가리켜야 함 |
 | node → node_search_document | 1:N, `(node_id, input_hash, generator_version)`가 고유한 불변 버전임 |
 | node_search_document → search_document_basis ← knowledge_item | N:M, `(node_search_document_id, knowledge_item_id)`가 한 basis 행을 식별함 |
 | node_search_document → node_embedding | 1:N, `(node_search_document_id, node_id)` 복합 FK로 같은 노드임을 보장함 |
@@ -811,6 +815,17 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 | model_task → node_embedding/node_context/followup_question | 각각 1:N, 모델 기반 결과가 작업·입력·모델·프롬프트·출력 계약·시도 이력을 직접 참조함 |
 | node_context → followup_question | 1:정확히 2, `(node_context_id, slot)`은 고유하고 슬롯은 1과 2만 허용함 |
 | node → followup_question | 1:N, `target_node_id`는 질문 클릭 뒤 새 지도 중심으로 사용할 공개 가능 노드임 |
+
+### 7.1 Evidence Trace 참조 경로
+
+| 공개 의미 | 기준 지식에서 원문까지의 경로 |
+|---|---|
+| 관계 | `relation ← claim_relation ← claim → claim_observation → observation → source_document` |
+| 구조화된 노드 속성값 | `node ← claim_attribute_value ← claim → claim_observation → observation → source_document` |
+| 사건 시간 | `event_temporal_extent ← event_temporal_basis ← claim → claim_observation → observation → source_document` |
+| 노드 alias | `node ← node_alias ← node_alias_evidence → observation → source_document` |
+
+`search_document_basis`는 검색 문서가 사용한 기준 지식을 찾는 계보다. 근거를 표시할 때는 basis가 가리키는 노드·관계·Claim에서 위 경로를 끝까지 따라가며, basis 행 자체를 원문 근거로 취급하지 않는다.
 
 ## 8. 상태 수명주기
 
@@ -907,11 +922,14 @@ Agent 제안 → 사람 확인
 - 모델 작업의 종료 상태에서는 `finished_at`이 필수이고, 같은 cache key와 같은 작업 안의 시도 번호는 각각 고유해야 한다.
 - blocked fingerprint는 정확한 문서·계약·`BLOCKING` 승격 전 정책 규칙을 참조해야 하며 네 범위 필드와 fingerprint 조합은 고유해야 한다.
 - knowledge state event의 변경 사용자는 필수이고 이전 상태와 잠근 현재 상태가 일치해야 하며 허용 전이만 기록할 수 있다.
+- conflict state event의 변경 사용자는 필수이고 `Agent 제안 → 사람 확인·거절` 전이만 기록할 수 있으며 최초 Agent 제안 생성은 사람 이벤트로 가장하지 않는다.
 - lint finding은 정확한 기준 knowledge item과 정책 규칙을 참조하며 열린 finding key는 한 문제 인스턴스만 가져야 한다.
 - conflict set은 `relation_id`, `target_node_id + attribute_revision_id`, `event_node_id` 가운데 정확히 한 대상 형태만 가져야 한다.
 - conflict summary는 정확한 `model_task_id`를 가져야 하며 입력 해시와 모델·프롬프트·출력 계약 버전을 중복 저장하지 않는다.
 - 승격 실패 묶음은 `FAILED + NOT_STARTED`여야 하고 `committed_at`, `ready_at`과 공개 결과 선택을 가질 수 없다.
 - `READY` 공개 묶음은 `promotion_status = COMMITTED`이며 `committed_at`, `ready_at`과 영향받은 모든 노드의 필수 결과 참조를 가져야 한다.
+- 승격 묶음은 검사에 사용한 정확한 `ontology_version_id`와 `lint_policy_version_id`를 참조해야 한다.
+- 공개 영향 노드가 선택한 검색 문서·임베딩·맥락 설명은 복합 외래 키로 같은 검색 문서 버전과 영향 노드를 가리켜야 한다.
 - 같은 노드, 검색 문서 입력 해시와 생성 규칙 버전 조합은 하나의 검색 문서 버전만 가질 수 있다.
 - search document basis의 검색 문서와 지식 항목 조합은 중복될 수 없다.
 - 임베딩과 맥락 설명의 `node_id`는 복합 외래 키로 참조한 검색 문서의 노드와 일치해야 한다.
@@ -1023,7 +1041,7 @@ Agent 호출이 모두 실패하면 준비된 `source_document`, 모델 작업�
 1. 승격으로 영향받은 노드 집합을 계산한다.
 2. 커밋된 묶음의 `publication_status`를 `PREPARING`으로 바꾸고 각 영향 노드에 대해 이전 `READY` 기준 지식과 이번 `COMMITTED` 묶음에서 공개 자격을 갖춘 지식만 사용하여 결정적 검색 문서를 만든다. 다른 `PREPARING` 또는 `FAILED` 묶음의 지식은 입력에서 제외한다.
 3. 검색 문서의 두 텍스트를 고정 순서로 조합하여 임베딩 작업을 실행하고, 같은 검색 문서에서 한국어 맥락 설명 작업을 실행한다. 맥락 설명은 검색 문서로 되돌려 넣지 않는다.
-4. 일반 코드가 공개 가능한 직접 이웃과 중요한 2단계 이웃 후보를 제공하고 후속 질문 작업이 슬롯 1·2 질문과 각 대상 노드를 함께 생성하게 한다. 결과가 내구성 있게 연결된 뒤에만 각 모델 작업을 성공으로 확정한다.
+4. 일반 코드가 관계가 있는 노드의 공개 가능한 직접 이웃과 중요한 2단계 이웃 후보를 제공하고 후속 질문 작업이 슬롯 1·2 질문과 각 대상 노드를 함께 생성하게 한다. 관계가 전혀 없는 노드의 후보 선택은 #36의 후속 결정에 따르며 가짜 관계를 만들지 않는다. 결과가 내구성 있게 연결된 뒤에만 각 모델 작업을 성공으로 확정한다.
 5. 각 `publication_affected_node`에 선택한 검색 문서·임베딩·맥락 설명을 기록하고, 복합 FK 일치, 호환 모델, 질문 두 개와 공개 대상 노드, 상세 자료·Evidence Trace·관계 endpoint와 미해결 차단 lint를 검사한다.
 6. 모든 영향 노드가 준비되면 `publication_status = READY`와 `ready_at`을 한 트랜잭션에서 기록한다. 관계가 없는 노드도 필수 결과와 상세 자료가 완전하면 공개한다.
 7. 준비가 실패하면 기준 지식과 `promotion_status = COMMITTED`를 유지한 채 `publication_status = FAILED`와 공개 실패 이유를 기록하고, 검색과 지도는 노드별 이전 `READY` 결과를 계속 제공한다.
@@ -1195,6 +1213,7 @@ SK하이닉스 검색 문서는 대표 alias와 검색 가능한 모든 alias를
 - 정규화 본문 문자 길이와 인용문 일치를 검증하는 함수 경계
 - `promotion_status`·`publication_status` 조합, 필수 시점과 분리된 실패 이유의 CHECK 또는 트랜잭션 검증
 - `(promotion_batch_id, node_id)` 기본 키와 `READY` 전 세 결과 참조의 완결성 검증
+- 공개 영향 노드에서 선택한 검색 문서의 `(node_search_document_id, node_id)`, 임베딩의 `(node_embedding_id, node_search_document_id, node_id)`, 맥락 설명의 `(node_context_id, node_search_document_id, node_id)` 복합 외래 키
 - `(node_id, input_hash, generator_version)` 검색 문서 고유성과 `(node_search_document_id, knowledge_item_id)` basis 기본 키
 - 검색 문서의 `(node_search_document_id, node_id)` 고유 참조 키와 임베딩·맥락 설명에서 이 키를 참조하는 복합 외래 키
 - PostgreSQL이 자식 쪽 외래 키 인덱스를 자동 생성하지 않으므로 임베딩·맥락 설명의 복합 참조 컬럼에 필요한 인덱스
@@ -1208,6 +1227,8 @@ SK하이닉스 검색 문서는 대표 alias와 검색 가능한 모든 alias를
 - 공개 가능한 데이터만 사용하는 부분 그래프와 상세 패널 조회
 - 노드·관계선 상한과 결정적 정렬을 적용하는 부분 그래프 조회
 - 고정 입력 문서 묶음 적재의 멱등성 검증
+
+관계가 전혀 없는 노드에서 필수 후속 질문 두 개의 공개 대상 노드를 고르는 규칙은 #36에서 결정한다. 이 결정 전에는 질문 대상 외래 키를 nullable로 바꾸거나 의미 없는 관계를 추가하지 않는다.
 
 물리 설계는 새 dependency나 별도 검색 DB를 먼저 추가하지 않고 PostgreSQL 기본 기능과 pgvector가 POC 품질을 충족하는지부터 검증한다.
 
