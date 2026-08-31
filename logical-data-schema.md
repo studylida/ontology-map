@@ -300,6 +300,20 @@ erDiagram
 | `lease_owner`, `lease_expires_at` | 같은 작업의 동시 실행을 막는 짧은 lease |
 | `created_at`, `finished_at` | 작업 생성 시점과 종료 상태에 도달한 시점 |
 
+`task_kind`는 일반 코드가 입력 구성, 성공 출력 검사와 결과 반영 위치를 선택하는 허용 코드다. 작업별 경로는 다음과 같이 고정한다.
+
+| `task_kind` | 입력 | 성공 출력 검사 | 결과 위치와 `model_task` 연결 |
+|---|---|---|---|
+| `KNOWLEDGE_EXTRACTION` | 정규화된 문서 본문 | 작업 종류가 일치하는 출력 계약을 검사한 뒤 후보별 승격 전 차단 규칙과 승격 트랜잭션 무결성을 검사함 | 통과한 결과를 `promotion_batch`를 거쳐 기준 지식그래프와 Evidence Trace에 반영함. 기준 지식은 `model_task_id`를 직접 참조하지 않음 |
+| `ENTITY_RESOLUTION_PROPOSAL` | 기존 노드와 새 대상 정보 | 작업 종류가 일치하는 출력 계약과 동일 대상 식별 규칙을 검사하며 Agent가 자동 병합하지 못하게 함 | 유효한 후보는 메모리에서 병합 검토로 넘기고 저장하지 않음. 사람이 확정한 병합만 `node_merge`에 기록하며 `model_task_id`를 직접 연결하지 않음 |
+| `EVIDENCE_LINEAGE_PROPOSAL` | 여러 문서의 본문·작성자·출처 | 작업 종류가 일치하는 출력 계약과 본문 해시·확인된 원문 계보 규칙을 검사함 | 확정된 계보를 `evidence_group`과 `evidence_group_assignment`에 반영하며 `model_task_id`를 직접 연결하지 않음 |
+| `CONFLICT_SUMMARY` | 충돌하는 Claim과 근거 | 작업 종류가 일치하는 출력 계약과 입력 Claim의 충돌 묶음·근거 연결을 검사함 | `conflict_summary`가 생성한 `model_task_id`를 직접 참조함 |
+| `NODE_CONTEXT` | 노드와 공개 가능한 주변 지식 | 작업 종류가 일치하는 출력 계약과 현재 공개 가능한 Claim을 가리키는 basis를 검사함 | `node_context`가 생성한 `model_task_id`를 직접 참조하고 `node_context_basis`로 입력 지식을 연결함 |
+| `FOLLOWUP_QUESTIONS` | 노드 맥락과 이동 가능한 주변 노드 | 작업 종류가 일치하는 출력 계약, 질문 slot 1·2의 유일성과 이동 가능한 대상 노드를 검사함 | 두 `followup_question`이 입력 `node_context`와 생성한 `model_task_id`를 직접 참조함 |
+| `EMBEDDING` | `node_search_document` 텍스트 | JSON 계약 대신 벡터 타입과 설정된 차원을 검사함 | `node_embedding`이 입력 `node_search_document`와 생성한 `model_task_id`를 직접 참조함 |
+
+계약과 작업별 검사를 통과한 관련 결과가 없으면 결과 행을 만들지 않고 정상 `SUCCESS`로 끝낸다. 결과가 있으면 표의 위치에 영속 반영하고 필요한 연결을 만든 뒤에만 `SUCCESS`로 바꾼다.
+
 `EMBEDDING` cache key는 출력 계약 위치에 고정된 빈 표지를 넣으며 벡터 타입과 설정된 차원으로 결과를 검사한다. 같은 cache key에는 영속 작업 행 하나만 두고 `SUCCESS`, `VALIDATION_BLOCKED`, `FINAL_FAILED`를 종료 상태로 취급한다. 캐시 적중은 새 시도 행이나 호출 횟수를 만들지 않는다.
 
 `SUCCESS`는 하나 이상의 결과가 영속 저장소에 반영됐거나 유효한 응답에 관련 후보가 없다는 뜻이다. 일부 후보만 승격되고 나머지가 차단된 작업도 `SUCCESS`다. 관련 후보가 있었지만 모두 차단됐을 때만 `VALIDATION_BLOCKED`를 사용한다. 모델 호출이나 출력 계약 자체의 기술 실패는 재시도 가능성에 따라 `RETRY_WAIT` 또는 `FINAL_FAILED`로 간다.
@@ -479,7 +493,7 @@ worker는 모델 제공자 호출 전에 작업 lease와 실행 상태를 짧은
 
 #### `knowledge_state_event`
 
-사람이 기준 지식의 상태를 바꾼 이력만 append-only로 보존한다. `knowledge_state_event_id`, `knowledge_item_id`, `previous_state`, `new_state`, 필수 `reason`, 필수 `changed_by_user_id`, `changed_at`을 기록하며 처리 주체 종류 열은 두지 않는다. 최초 승격으로 생기는 `근거 확인됨` 상태는 사람의 변경이 아니므로 이벤트를 만들지 않는다.
+사람이 기준 지식의 상태를 바꾼 이력만 append-only로 보존한다. `knowledge_state_event_id`, `knowledge_item_id`, `from_state`, `to_state`, 필수 `reason`, 필수 `changed_by_user_id`, `changed_at`을 기록하며 처리 주체 종류 열은 두지 않는다. 최초 승격으로 생기는 `근거 확인됨` 상태는 사람의 변경이 아니므로 이벤트를 만들지 않는다.
 
 허용 전이는 `근거 확인됨 → 사람 확인됨·보류·거절`, `사람 확인됨 → 보류·거절`, `보류 → 근거 확인됨·사람 확인됨·거절`뿐이다. `거절`은 종료 상태다. 이벤트 추가와 `knowledge_item.current_state` 갱신은 같은 트랜잭션에서 수행하며 이전 상태는 잠근 현재 상태와 일치해야 한다. Agent와 일반 코드가 사람 상태 이벤트를 생성할 수 없다.
 
@@ -570,7 +584,7 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 
 `lint_run`은 이미 저장된 기준 그래프만 검사하며 정확한 정책 버전, 실행 상태, 시작·완료 시점과 검사 범위를 기록한다. 새 정책 버전을 활성화할 때 이전 정책과 결과가 달라질 수 있을 때만 전체 그래프 run 하나를 자동 생성한다. 실패하거나 불완전한 run은 finding을 해결하지 않는다.
 
-`lint_finding`은 저장된 지식의 문제 인스턴스다. 결정적 `finding_key`, 영향받은 `knowledge_item_id`, 정확한 `lint_policy_rule_id`, 최초·최근 발견 run과 시점, 발견 횟수, 메시지와 정형 상세, 해결 run·시점을 가진다. 같은 열린 `finding_key`가 다시 발견되면 최근 run·시점과 횟수만 갱신한다. 성공한 run에서 적용 범위에 포함됐지만 다시 발견되지 않은 finding만 해결하며, 해결된 문제가 재발하면 새 finding으로 남긴다.
+`lint_finding`은 저장된 지식의 문제 인스턴스다. 결정적 `finding_key`, 영향받은 `knowledge_item_id`, 정확한 `lint_policy_rule_id`, 최초·최근 발견 run과 시점, 발견 횟수, 메시지와 정형 상세, `resolved_by_run_id`, `resolved_at`, `resolution_reason`을 가진다. `resolution_reason`은 성공한 적용 가능 run이 해당 문제를 더 이상 발견하지 않아 해결로 판정한 이유를 남긴다. 같은 열린 `finding_key`가 다시 발견되면 최근 run·시점과 횟수만 갱신한다. 성공한 run에서 적용 범위에 포함됐지만 다시 발견되지 않은 finding만 해결하며, 해결된 문제가 재발하면 새 finding으로 남긴다.
 
 현재 상태가 `근거 확인됨` 또는 `사람 확인됨`이고 공개 준비가 끝났으며 열린 `BLOCKING` `lint_finding`이 없는 지식만 일반 검색과 지도에 포함한다. 열린 차단 finding은 즉시 공개 대상에서 제외하지만 지식 상태를 사람의 `거절`로 바꾸지는 않는다. `WARNING`은 공개를 막지 않는다.
 
