@@ -12572,3 +12572,1975 @@ Implement the plan.
 ## 사용자
 
 이제 다시 너랑 나랑 대화나눴던 원문 그대로 복사해서 파일에 업데이트해줘
+
+
+## 어시스턴트
+
+`$fluent-korean`을 적용해 저장 결과를 명확하게 안내하겠습니다. 기존 [ontology-map 설계 대화 원문](/mnt/c/users/bistelligence/orca/workspaces/people-ontology/docs-data-schema/ontology-map-design-conversation-transcript.md)의 마지막 발화 다음부터 현재 요청까지 사용자·어시스턴트 메시지를 순서대로 이어 붙이겠습니다. 시스템·개발자 지침과 도구 출력은 제외하고, 기존 미커밋 파일은 건드리지 않겠습니다.
+
+## 어시스턴트
+
+기존 파일의 마지막 저장 지점을 확인했습니다. 그 이후의 사용자·어시스턴트 메시지만 현재 요청까지 추가하고, 시스템 지시·도구 출력과 방금 보낸 작업 안내는 제외하겠습니다.
+
+## 어시스턴트
+
+검증 중 마지막 사용자 메시지의 제목만 추가되고 본문 한 줄이 빠진 것을 발견했습니다. 임시 추출 파일의 끝줄 처리 문제이며, 해당 원문 한 줄을 복원한 뒤 다시 검증하겠습니다.
+
+## 어시스턴트
+
+누락된 마지막 한 줄을 올바른 위치에 복원했습니다. 현재 추가분은 49개 메시지이며, 기존 파일 내용은 수정되지 않고 끝에만 이어졌습니다. 이제 추가분의 시작과 끝을 확인한 뒤 이 파일만 커밋하겠습니다.
+
+## 어시스턴트
+
+[ontology-map 설계 대화 원문](/mnt/c/users/bistelligence/orca/workspaces/people-ontology/docs-data-schema/ontology-map-design-conversation-transcript.md)을 업데이트했습니다.
+
+- 누락된 대화 49개 추가
+- 총 361개 메시지, 12,574줄
+- 현재 요청까지 포함
+- 커밋: `fc291403ea77526c42e3b3e6868442852a7d4c59`
+
+기존 `people-intelligence-requirements-transcript.md`의 미커밋 변경은 건드리지 않았으며, 원격 저장소에는 푸시하지 않았습니다.
+
+## 사용자
+
+이제 다음 데이터베이스 공부 시작하자. 이상하면 피드백줄게
+
+## 어시스턴트
+
+`$fluent-korean`을 사용해 컬럼의 역할과 참조 관계를 자연스럽게 설명하겠습니다. 먼저 현재 설계 문서와 대화 원문의 마지막 학습 지점을 확인한 뒤, 아직 다루지 않은 다음 데이터베이스 범위를 컬럼 누락 없이 이어가겠습니다.
+
+## 어시스턴트
+
+이번에는 남은 세 번째 범위인 `상태 수명주기와 무결성`을 시작하겠습니다. 먼저 `knowledge_item`과 `knowledge_state_event`를 살펴보고, 작업·승격·공개 상태는 다음 차례에 이어가겠습니다.
+
+## 1. 서로 다른 네 가지 상태
+
+현재 설계에는 목적이 다른 상태가 네 종류 있습니다.
+
+| 상태 위치 | 무엇을 나타내는가 |
+|---|---|
+| `knowledge_item.current_state` | 지식의 근거 확인·사람 검토 상태 |
+| `model_task.status` | 모델 작업의 실행·재시도 상태 |
+| `promotion_batch.promotion_status` | 기준 지식그래프 저장 성공 여부 |
+| `promotion_batch.publication_status` | 지도와 검색에 공개할 준비 여부 |
+
+예를 들어 다음 조합이 가능합니다.
+
+```text
+지식 상태: EVIDENCE_VERIFIED
+승격 상태: COMMITTED
+공개 상태: FAILED
+```
+
+이는 출처가 Claim을 뒷받침한다는 검증을 통과하여 DB에는 저장됐지만, 임베딩이나 맥락 설명 준비가 실패하여 아직 지도에는 공개되지 않았다는 뜻입니다. 이 상태들을 하나로 합치면 실패한 단계가 무엇인지 알 수 없으므로 분리해야 합니다.
+
+## 2. `knowledge_item`
+
+`knowledge_item`은 노드·관계·Claim이 공통으로 사용하는 상위 테이블입니다.
+
+```text
+knowledge_item
+├─ node
+├─ relation
+└─ claim
+```
+
+확정된 구조를 반영한 컬럼은 다음과 같습니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `knowledge_item_id` | 노드·관계·Claim의 공통 불변 식별자입니다. |
+| `item_kind` | `NODE`, `RELATION`, `CLAIM` 중 하나입니다. |
+| `current_state` | 현재 근거 확인 및 사람 검토 상태입니다. |
+| `promotion_batch_id` | 어떤 짧은 트랜잭션에서 기준 그래프에 저장됐는지 나타냅니다. |
+| `created_at` | 기준 지식으로 저장된 시점입니다. |
+
+기존의 `origin_candidate_item_id`는 제거합니다. 검증 전 후보를 DB에 저장하지 않기로 했기 때문입니다.
+
+`current_state`는 다음 네 가지입니다.
+
+| 상태 | 의미 | 공개 여부 |
+|---|---|---|
+| `EVIDENCE_VERIFIED` | 출처와 원문 위치가 Claim을 실제로 뒷받침한다는 검사를 통과했습니다. 사실 자체의 최종 확정은 아닙니다. | 공개 가능 |
+| `HUMAN_VERIFIED` | 사람이 추가로 확인했습니다. 필수 단계는 아닙니다. | 공개 가능 |
+| `ON_HOLD` | 동일 대상 판정이나 근거 해석에 추가 검토가 필요합니다. | 공개 제외 |
+| `REJECTED` | 사람이 이유를 남기고 거절했습니다. | 즉시 공개 제외 |
+
+`HUMAN_VERIFIED`라고 해서 관계선이 더 굵어지거나 사실성이 더 높게 계산되지는 않습니다. 관계선 굵기는 독립 근거 묶음 수로 계산하고, 사람 확인은 검토 상태로만 보여주는 것이 기존 결정과 맞습니다.
+
+## 3. `knowledge_state_event`
+
+`knowledge_state_event`는 현재 상태가 아니라 상태가 바뀐 이력을 저장합니다.
+
+추천 컬럼은 다음과 같습니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `knowledge_state_event_id` | 상태 변경 기록의 불변 식별자입니다. |
+| `knowledge_item_id` | 상태가 변경된 지식을 참조합니다. |
+| `from_state` | 변경 전 상태입니다. |
+| `to_state` | 변경 후 상태입니다. |
+| `reason` | 상태를 변경한 이유입니다. |
+| `changed_by_kind` | 처리 주체가 `SYSTEM`인지 `HUMAN`인지 구분합니다. |
+| `changed_by_id` | 사람이 처리했다면 해당 사용자 식별자를 저장합니다. |
+| `changed_at` | 상태를 변경한 시점입니다. |
+
+참조 관계는 단순합니다.
+
+```text
+knowledge_state_event.knowledge_item_id
+→ knowledge_item.knowledge_item_id
+```
+
+하나의 지식에는 상태 변경이 여러 번 발생할 수 있으므로 `knowledge_item : knowledge_state_event`는 `1:N`입니다.
+
+최초 생성은 상태 변경 이벤트로 기록하지 않기로 했습니다.
+
+```text
+최초 생성
+→ knowledge_item.current_state = EVIDENCE_VERIFIED
+→ knowledge_item.created_at과 promotion_batch_id로 확인
+
+이후 변경
+→ knowledge_state_event에 기록
+```
+
+## 4. 현재 합의에 맞는 상태 전이
+
+추천 전이 규칙은 기존 논의와 같습니다.
+
+```text
+EVIDENCE_VERIFIED
+├→ HUMAN_VERIFIED
+├→ ON_HOLD
+└→ REJECTED
+
+HUMAN_VERIFIED
+├→ ON_HOLD
+└→ REJECTED
+
+ON_HOLD
+├→ EVIDENCE_VERIFIED
+├→ HUMAN_VERIFIED
+└→ REJECTED
+
+REJECTED
+└→ 종료
+```
+
+`REJECTED`는 해당 기록의 종료 상태입니다. 상태를 바꿀 때는 현재 상태와 이력을 같은 트랜잭션에서 처리해야 합니다.
+
+```text
+1. knowledge_item 행 잠금
+2. 현재 상태와 from_state 일치 확인
+3. 허용된 전이인지 검사
+4. knowledge_state_event 추가
+5. knowledge_item.current_state 변경
+6. 함께 커밋
+```
+
+이렇게 해야 두 사용자가 동시에 상태를 바꾸더라도 현재 상태와 이력이 어긋나지 않습니다.
+
+## 5. 노드를 거절하면 연결 지식은 어떻게 되는가
+
+노드를 거절했다고 연결된 관계와 Claim을 자동으로 `REJECTED`로 바꾸는 것은 권하지 않습니다. 자동 연쇄 변경은 각각의 판단 이유를 잃게 만들기 때문입니다.
+
+대신 공개 조회에서 다음을 모두 검사합니다.
+
+```text
+관계 자체가 공개 가능한 상태
++
+시작 노드가 공개 가능한 상태
++
+도착 노드가 공개 가능한 상태
++
+관계를 지지하는 공개 가능한 Claim 존재
+```
+
+따라서 노드가 거절되면 연결 관계도 화면에서는 즉시 사라지지만, 관계와 Claim의 상태 및 Evidence Trace는 DB에 그대로 남습니다.
+
+## 이번 범위에서 발견한 논점
+
+`changed_by_kind`에는 `SYSTEM`과 `HUMAN`이 있지만, 현재 권한 규칙에서는 최초 `EVIDENCE_VERIFIED` 생성 이후의 상태 변경을 사람만 수행합니다. 그래서 POC만 본다면 `changed_by_kind`가 중복일 수 있습니다.
+
+다만 향후 일반 코드가 정책에 따라 자동 보류할 가능성을 남기려면 유지할 가치가 있습니다. 제 추천은 지금은 유지하되 다음 제약을 두는 것입니다.
+
+```text
+changed_by_kind = HUMAN
+→ changed_by_id 필수
+
+changed_by_kind = SYSTEM
+→ changed_by_id 없음
+```
+
+Agent는 처리 주체로 허용하지 않습니다. 이 구조와 상태 전이 규칙이 괜찮은지 피드백을 주시면, 다음에는 `model_task`, `promotion_status`, `publication_status`의 수명주기와 실패 복구 관계를 이어서 공부하겠습니다.
+
+## 사용자
+
+changed_by_kind에는 SYSTEM과 HUMAN이 있지만, 현재 권한 규칙에서는 최초 EVIDENCE_VERIFIED 생성 이후의 상태 변경을 사람만 수행합니다. 그래서 POC만 본다면 changed_by_kind가  중복일 수 있습니다. 이거 이어서 이야기해보자. 어떻게 다른지 말해주고, 그 뒤에 추천안도 말해줘
+
+## 어시스턴트
+
+`$fluent-korean`을 적용해 `SYSTEM`과 `HUMAN`이 실제로 어떤 상태 변경을 담당할 수 있는지 비교하고, 현재 POC 권한 규칙과 향후 확장 가능성을 분리해 추천안을 제시하겠습니다.
+
+## 어시스턴트
+
+`changed_by_kind`와 `changed_by_id`는 원래 서로 다른 질문에 답합니다.
+
+```text
+changed_by_kind
+→ 어떤 종류의 주체가 변경했는가?
+
+changed_by_id
+→ 그 종류 안에서 정확히 누가 변경했는가?
+```
+
+예를 들면 다음과 같습니다.
+
+```text
+changed_by_kind: HUMAN
+changed_by_id: user-17
+```
+
+`SYSTEM`은 LLM Agent를 뜻하지 않습니다. 미리 정한 규칙을 실행하는 일반 애플리케이션 코드를 뜻합니다.
+
+## `SYSTEM`과 `HUMAN`의 차이
+
+### `SYSTEM`
+
+일반 코드가 자동으로 처리한 변경입니다.
+
+가능한 예시는 다음과 같습니다.
+
+- 검사를 통과한 지식을 `EVIDENCE_VERIFIED`로 생성
+- 새로운 차단 lint를 발견하여 자동 보류
+- 정책에 따라 오래된 지식을 자동 비공개 처리
+
+하지만 현재 결정에서는 첫 번째 작업만 허용됩니다. 나머지는 아직 허용하지 않았습니다.
+
+그리고 `EVIDENCE_VERIFIED` 생성은 상태 변경 이벤트로 기록하지 않기로 했습니다.
+
+```text
+knowledge_item.current_state = EVIDENCE_VERIFIED
+knowledge_item.created_at
+knowledge_item.promotion_batch_id
+```
+
+이 값들로 최초 생성 경로를 확인할 수 있기 때문입니다. 따라서 현재 설계에서 `SYSTEM`이 남기는 `knowledge_state_event`는 실제로 없습니다.
+
+시스템이 수행한 다른 작업은 각자의 테이블에 기록됩니다.
+
+```text
+lint 검사       → lint_run, lint_finding
+그래프 승격     → promotion_batch.promotion_status
+공개 준비       → promotion_batch.publication_status
+모델 작업       → model_task
+```
+
+이 결과를 다시 `knowledge_state_event`에 중복 기록할 필요는 없습니다.
+
+### `HUMAN`
+
+사람이 지식의 검토 상태를 직접 바꾸는 경우입니다.
+
+```text
+EVIDENCE_VERIFIED → HUMAN_VERIFIED
+EVIDENCE_VERIFIED → ON_HOLD
+EVIDENCE_VERIFIED → REJECTED
+ON_HOLD → HUMAN_VERIFIED
+ON_HOLD → REJECTED
+```
+
+이때는 누가 어떤 이유로 판단했는지 반드시 남겨야 합니다.
+
+```text
+knowledge_item: K-10
+from_state: EVIDENCE_VERIFIED
+to_state: ON_HOLD
+reason: SK하이닉스와 다른 회사의 동명이인일 가능성이 있음
+changed_by_user_id: U-3
+changed_at: ...
+```
+
+Agent는 `SYSTEM`에도 `HUMAN`에도 포함되지 않습니다. Agent는 후보와 의견만 제안하며, 기준 지식 상태를 바꿀 권한이 없습니다.
+
+## 왜 현재는 `changed_by_kind`가 중복인가
+
+현재 허용된 흐름을 그대로 따르면 다음과 같습니다.
+
+```text
+최초 생성
+→ 일반 코드가 EVIDENCE_VERIFIED로 저장
+→ 상태 이벤트를 만들지 않음
+
+이후 상태 변경
+→ 사람만 수행
+→ knowledge_state_event 생성
+```
+
+결과적으로 모든 `knowledge_state_event`가 다음 값을 가지게 됩니다.
+
+```text
+changed_by_kind = HUMAN
+```
+
+모든 행에 항상 같은 값을 저장한다면 `changed_by_kind`로 구분할 대상이 없습니다. 이 상태에서는 컬럼과 관련 제약만 늘어납니다.
+
+## 추천안
+
+현재 POC에서는 `changed_by_kind`를 제거하는 것을 추천합니다. `changed_by_id`는 의미가 분명하도록 `changed_by_user_id`로 바꿉니다.
+
+```text
+knowledge_state_event
+- knowledge_state_event_id
+- knowledge_item_id
+- from_state
+- to_state
+- reason
+- changed_by_user_id
+- changed_at
+```
+
+적용 규칙은 다음과 같습니다.
+
+- 최초 `EVIDENCE_VERIFIED` 생성은 `knowledge_item`과 `promotion_batch`로 추적합니다.
+- 생성 이후의 검토 상태 변경은 사람만 수행합니다.
+- 자동 검사의 결과는 lint·승격·공개 테이블에 기록합니다.
+- Agent는 기준 지식 상태를 변경하지 못합니다.
+- `changed_by_user_id`는 모든 상태 변경 이벤트에 필수입니다.
+
+이 구조는 “검증 결과”와 “사람의 판단”을 분리한다는 장점이 있습니다. 시스템이 문제를 발견해도 사람인 것처럼 `ON_HOLD`나 `REJECTED`를 만들지 않습니다.
+
+단점은 나중에 자동 보류 기능을 실제로 도입할 때 컬럼을 추가해야 한다는 점입니다. 그때는 구체적인 자동 전이를 먼저 정하고 다음처럼 확장하면 됩니다.
+
+```text
+changed_by_kind: HUMAN | SYSTEM
+changed_by_user_id: HUMAN일 때 필수
+system_operation_id: SYSTEM일 때 필수
+```
+
+현재는 자동 상태 변경 사례가 없으므로 미리 이 구조를 유지할 필요가 없습니다. 따라서 `changed_by_kind` 제거와 `changed_by_user_id` 필수화가 가장 단순하고 현재 권한 규칙에도 정확히 맞습니다.
+
+## 사용자
+
+changed_by_kind를 제거하는 쪽으로 가자. 이전에 이야기할 때도 지금 시스템은 에이전트랑 코드 시스템에 의해 정렬된 문서덩어리들인데, 이걸 사람이 개입하는 건 좋지 않을 거 같다고 이야기했었거든.
+
+## 어시스턴트
+
+`$fluent-korean`을 적용해 이번 결정을 현재의 자동 처리 중심 권한 구조와 모순 없이 정리하겠습니다. 핵심은 사람 확인을 정상 처리 단계가 아니라 예외적인 검토 수단으로 제한하는 것입니다.
+
+## 어시스턴트
+
+확정하겠습니다.
+
+- `knowledge_state_event.changed_by_kind`를 제거합니다.
+- `changed_by_id`는 `changed_by_user_id`로 이름을 명확히 합니다.
+- 정상 처리 경로는 Agent와 일반 코드가 수행하며, 사람 확인은 공개 필수 단계로 두지 않습니다.
+- 대부분의 지식은 `EVIDENCE_VERIFIED`로 생성된 뒤 상태 변경 이벤트 없이 유지됩니다.
+- 사람은 잘못된 병합이나 근거 해석처럼 예외적인 상황에서만 `HUMAN_VERIFIED`, `ON_HOLD`, `REJECTED`를 선택합니다.
+
+최종 구조는 다음과 같습니다.
+
+```text
+knowledge_state_event
+- knowledge_state_event_id
+- knowledge_item_id
+- from_state
+- to_state
+- reason
+- changed_by_user_id
+- changed_at
+```
+
+따라서 이 테이블에 행이 없다는 것은 관리가 누락됐다는 뜻이 아닙니다. 자동 검증 후 상태가 바뀌지 않은 정상 지식이라면 상태 변경 기록이 없는 것이 자연스럽습니다.
+
+Agent·lint·승격·공개 과정은 각각 `model_task`, lint 관련 테이블, `promotion_batch`에서 추적합니다. 사람의 예외적인 판단만 `knowledge_state_event`에 남기면 자동 처리 과정과 사람의 판단 이력이 섞이지 않습니다. 아직 파일이나 이슈는 변경하지 않았습니다.
+
+## 사용자
+
+이슈 올리자
+
+## 사용자
+
+이슈 올리자
+
+## 어시스턴트
+
+Plan Mode이므로 지금은 GitHub 이슈를 실제로 생성하지 않고, 새 컨벤션과 기존 이슈에 맞는 등록 계획을 확정하겠습니다. `$fluent-korean`을 적용하고, 중복 이슈 여부와 `CONTRIBUTING.md`의 이슈 형식을 먼저 읽기 전용으로 확인하겠습니다.
+
+## 어시스턴트
+
+<proposed_plan>
+# 사람 검토 중심의 지식 상태 이력 이슈 등록
+
+## 요약
+
+새 GitHub Issue 한 건을 영어로 등록한다. `knowledge_state_event`를 예외적인 사람 검토 이력으로 한정하고, 자동 처리 과정은 기존 작업별 테이블에서 관리하도록 명확히 한다.
+
+## 이슈 내용
+
+- 제목: `Limit knowledge state events to human review actions`
+- 라벨: `documentation`
+- 의존 관계: `Depends on #7`
+- `changed_by_kind`를 제거하고 `changed_by_id`를 `changed_by_user_id NOT NULL`로 변경한다.
+- 최초 `EVIDENCE_VERIFIED` 생성은 상태 이벤트로 만들지 않고 `knowledge_item.created_at`과 `promotion_batch_id`로 추적한다.
+- Agent와 일반 코드는 생성 이후의 지식 검토 상태를 변경하지 않는다.
+- lint, 모델 작업, 승격과 공개 결과는 각각 기존 전용 테이블에 기록한다.
+- `knowledge_state_event`는 `HUMAN_VERIFIED`, `ON_HOLD`, `REJECTED` 등 사람의 예외적인 판단만 기록한다.
+- 현재 상태 변경과 이벤트 추가는 하나의 트랜잭션으로 처리한다.
+- `REJECTED`는 종료 상태로 유지하며 정상 공개에는 사람 확인을 요구하지 않는다.
+
+## 완료 조건
+
+- Issue가 `OPEN` 상태이고 `documentation` 라벨을 가진다.
+- 본문에 `Context`, `Decisions`, `Acceptance criteria`, `Out of scope`, `Dependencies`를 포함한다.
+- `changed_by_kind` 제거, `changed_by_user_id` 필수화와 허용 상태 전이를 모두 명시한다.
+- 자동 상태 변경, 인증 사용자 테이블과 PostgreSQL DDL 구현은 제외 범위로 기록한다.
+- 기존 이슈와 중복되지 않는지 확인하고 생성된 번호와 URL을 보고한다.
+- 저장소 파일은 변경하지 않는다.
+</proposed_plan>
+
+## 사용자
+
+Implement the plan.
+
+## 어시스턴트
+
+계획대로 영어 Issue 한 건을 등록하겠습니다. 결과는 `knowledge_state_event`를 사람의 예외적 검토 이력으로 제한하는 열린 `documentation` 이슈이며, 저장소 파일·브랜치·기존 미커밋 변경은 건드리지 않습니다. 등록 후 제목, 본문, 라벨과 의존 관계를 다시 확인하겠습니다.
+
+## 어시스턴트
+
+Issue #27이 생성되었습니다. 본문에 사람 확인 비필수, `changed_by_kind` 제거, 허용 상태 전이와 #7 의존 관계가 모두 들어갔는지 다시 조회하고, 로컬 작업 트리가 변하지 않았는지 확인하겠습니다.
+
+## 어시스턴트
+
+이슈를 등록했습니다.
+
+- [#27 Limit knowledge state events to human review actions](https://github.com/studylida/ontology-map/issues/27)
+- 상태: `OPEN`
+- 라벨: `documentation`
+- 의존 관계: `Depends on #7`
+
+`changed_by_kind` 제거, `changed_by_user_id` 필수화, 사람 확인 비필수 원칙과 허용 상태 전이를 모두 포함했습니다. 저장소 파일은 변경하지 않았으며 기존 미커밋 변경도 그대로 보존했습니다.
+
+## 사용자
+
+이제 다음 데이터베이스 공부 시작하자. 이상한 거 있으면 피드백할게. 컬럼들 빼놓지 않고 말해줘야 해.
+
+## 어시스턴트
+
+`$fluent-korean`을 적용해 다음 범위를 컬럼 단위로 빠짐없이 설명하겠습니다. 이번에는 `model_task`와 `agent_attempt`의 최신 이슈 정의를 확인한 뒤, 논리 작업과 개별 실행 시도가 왜 분리되는지와 상태 전이를 함께 살펴보겠습니다.
+
+## 어시스턴트
+
+이번에는 모델 실행 계층인 `output_schema_definition`, `model_task`, `agent_attempt`를 살펴보겠습니다.
+
+```text
+output_schema_definition
+          ↑
+          │ 출력 계약
+source → model_task
+          └→ agent_attempt 1
+          └→ agent_attempt 2
+          └→ agent_attempt 3
+```
+
+## 1. `output_schema_definition`
+
+Agent가 반환해야 하는 JSON 형식을 버전별로 관리하는 테이블입니다. 실제 Agent 응답은 저장하지 않습니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `output_schema_definition_id` | 출력 계약의 불변 식별자입니다. |
+| `task_kind` | 이 계약을 사용하는 작업 종류입니다. |
+| `version_no` | 같은 작업 종류 안에서의 계약 버전입니다. |
+| `schema_json` | Structured Output 검증에 사용할 JSON Schema입니다. |
+| `created_at` | 계약 버전을 생성한 시점입니다. |
+| `is_active` | 새로운 작업에서 이 버전을 선택할 수 있는지 나타냅니다. |
+
+예시는 다음과 같습니다.
+
+```text
+task_kind: KNOWLEDGE_EXTRACTION
+version_no: 2
+schema_json:
+{
+  "nodes": [...],
+  "relations": [...],
+  "claims": [...],
+  "observations": [...]
+}
+```
+
+이미 `model_task`가 참조한 계약은 수정하지 않습니다. 출력 구조를 바꾸려면 `version_no = 3`인 새 행을 추가합니다.
+
+필요한 제약은 다음과 같습니다.
+
+```text
+UNIQUE (task_kind, version_no)
+```
+
+`is_active = false`는 과거 작업의 계약을 삭제한다는 뜻이 아닙니다. 새 작업에서 더 이상 선택하지 않는다는 뜻입니다.
+
+## 2. `model_task`
+
+`model_task`는 모델 호출 한 번이 아니라 최초 호출과 모든 재시도를 묶은 논리 작업입니다.
+
+현재까지 확정된 컬럼은 다음과 같습니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `model_task_id` | 논리 작업의 불변 식별자입니다. |
+| `task_kind` | 지식 추출, 동일 대상 후보, 충돌 정리, 임베딩, 맥락 설명, 후속 질문 등의 작업 종류입니다. |
+| `source_document_id` | 원문 추출 작업이라면 입력으로 사용한 정확한 정규화 문서 버전입니다. 다른 작업에서는 `NULL`일 수 있습니다. |
+| `input_hash` | 모델에 실제로 전달한 입력 전체의 해시입니다. |
+| `output_schema_definition_id` | 기대하는 Structured Output 계약 버전입니다. |
+| `model_version` | 모든 시도에서 사용할 모델 버전입니다. |
+| `prompt_version` | 모든 시도에서 사용할 프롬프트 버전입니다. |
+| `cache_key` | 같은 입력과 실행 조건의 성공 결과가 있는지 찾는 결정적 키입니다. |
+| `idempotency_key` | 같은 결과를 두 번 반영하지 않도록 구분하는 키입니다. |
+| `status` | 현재 작업 실행 상태입니다. |
+| `attempt_count` | 실제 모델을 호출한 총횟수입니다. 캐시 적중은 포함하지 않습니다. |
+| `next_attempt_at` | 재시도할 수 있는 다음 시점입니다. |
+| `lease_owner` | 현재 작업을 점유한 worker입니다. |
+| `lease_expires_at` | worker 점유가 만료되는 시점입니다. |
+
+`source_document_id`가 모든 작업의 입력을 나타내지는 않습니다.
+
+```text
+KNOWLEDGE_EXTRACTION
+→ source_document_id 사용
+
+NODE_CONTEXT
+→ 대상 노드와 공개 지식을 입력으로 사용
+→ source_document_id는 NULL
+→ 실제 입력은 input_hash로 구분
+
+CONFLICT_SUMMARY
+→ 여러 Claim과 근거를 입력으로 사용
+→ source_document_id는 NULL
+```
+
+대상 노드는 결과 테이블에서 확인합니다.
+
+```text
+node_context
+- node_id
+- model_task_id
+```
+
+### `cache_key`
+
+확정한 계산 기준은 다음과 같습니다.
+
+```text
+input_hash
++ task_kind
++ output_schema_definition_id
++ model_version
++ prompt_version
+```
+
+이 값이 같고 이전 작업이 재사용 가능한 `SUCCESS` 상태라면 모델을 다시 호출하지 않습니다.
+
+### `idempotency_key`
+
+`cache_key`와 비슷해 보이지만 질문이 다릅니다.
+
+```text
+cache_key
+→ 같은 모델 계산을 다시 할 필요가 있는가?
+
+idempotency_key
+→ 이미 계산한 결과를 DB에 또 반영하려는 것은 아닌가?
+```
+
+예를 들어 같은 결과를 두 번 적용해 관계나 Claim이 중복 생성되는 것을 막는 용도입니다. 다만 관계 identity, 검색 문서의 입력 해시와 각 결과 테이블의 고유 제약으로 중복 반영을 이미 막을 수 있다면 이 컬럼은 중복일 가능성이 있습니다.
+
+### 작업 상태
+
+현재 상태는 다섯 가지입니다.
+
+| 상태 | 의미 |
+|---|---|
+| `PENDING` | 아직 실행하지 않았습니다. |
+| `RUNNING` | worker가 점유하여 실행 중입니다. |
+| `SUCCESS` | 검증된 결과가 DB에 정상적으로 연결됐습니다. |
+| `RETRY_WAIT` | 실패했지만 재시도 횟수가 남아 있습니다. |
+| `FINAL_FAILED` | 모든 재시도를 소진했습니다. |
+
+정상 전이는 다음과 같습니다.
+
+```text
+PENDING → RUNNING
+
+RUNNING → SUCCESS
+RUNNING → RETRY_WAIT
+RUNNING → FINAL_FAILED
+
+RETRY_WAIT → RUNNING
+```
+
+`SUCCESS`와 `FINAL_FAILED`는 종료 상태입니다.
+
+### 재시도 일정
+
+최대 실제 호출 수는 다섯 번입니다.
+
+| `attempt_count` | 다음 동작 |
+|---:|---|
+| 0 | 최초 호출 |
+| 1 | 즉시 재시도 |
+| 2 | 1시간 뒤 재시도 |
+| 3 | 2시간 뒤 재시도 |
+| 4 | 4시간 뒤 재시도 |
+| 5 | `FINAL_FAILED` |
+
+캐시 결과를 사용하면 `attempt_count`와 `agent_attempt`가 증가하지 않습니다.
+
+### `lease_owner`와 `lease_expires_at`
+
+여러 worker가 같은 작업을 동시에 호출하지 못하게 합니다.
+
+```text
+worker A가 작업 점유
+→ lease_owner = worker-A
+→ lease_expires_at = 만료 시점
+
+worker B
+→ 아직 lease가 유효하면 실행하지 않음
+```
+
+worker가 중단되면 lease 만료 후 다른 worker가 작업을 가져갈 수 있습니다.
+
+## 3. `agent_attempt`
+
+`agent_attempt`는 실제 모델 호출 한 번의 최소 실행 이력입니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `agent_attempt_id` | 개별 시도의 불변 식별자입니다. |
+| `model_task_id` | 어떤 논리 작업의 시도인지 참조합니다. |
+| `attempt_no` | 해당 작업 안에서 몇 번째 실제 호출인지 나타냅니다. |
+| `outcome` | 호출 결과인 `SUCCESS` 또는 `FAILED`입니다. |
+| `failure_reason` | 실패했다면 모델 호출 단계의 원인을 저장합니다. |
+| `attempted_at` | 실제 호출을 수행한 시점입니다. |
+
+카디널리티와 고유 조건은 다음과 같습니다.
+
+```text
+model_task 1 : N agent_attempt
+
+UNIQUE (
+  model_task_id,
+  attempt_no
+)
+```
+
+예시는 다음과 같습니다.
+
+```text
+model_task MT-10
+- attempt_count: 3
+- status: SUCCESS
+
+agent_attempt
+- MT-10 / attempt_no 1 / FAILED / TIMEOUT
+- MT-10 / attempt_no 2 / FAILED / OUTPUT_CONTRACT_VIOLATION
+- MT-10 / attempt_no 3 / SUCCESS
+```
+
+`attempt_count`와 `attempt_no`는 중복처럼 보이지만 역할이 다릅니다.
+
+- `attempt_count`는 scheduler가 현재 호출 횟수를 빠르게 확인하는 값입니다.
+- `attempt_no`는 각 과거 호출을 구분하는 순번입니다.
+
+시도 행 추가와 `attempt_count` 증가는 하나의 트랜잭션에서 처리합니다.
+
+`failure_reason`에는 다음처럼 모델 호출 단계에서 발생한 문제만 들어갑니다.
+
+```text
+TIMEOUT
+AUTHENTICATION_ERROR
+PROVIDER_ERROR
+OUTPUT_CONTRACT_VIOLATION
+```
+
+다음 문제는 lint 결과이므로 넣지 않습니다.
+
+```text
+원문 범위와 인용문 불일치
+허용되지 않은 관계 유형
+동일 대상 판정 불명확
+게시 시점 미상
+```
+
+시도별 모델·프롬프트 버전, 토큰 사용량, 비용, provider 응답 ID는 제거하기로 확정했습니다. 모든 재시도에서 같은 모델과 프롬프트를 사용하므로 버전 정보는 `model_task`에만 둡니다.
+
+## 4. 현재 구조에서 이상해 보이는 부분
+
+이번 범위에서는 세 가지가 아직 명확하지 않습니다.
+
+1. `cache_key`와 `idempotency_key`의 구분은 개념상 가능하지만, 결과 테이블의 고유 제약으로 중복 반영을 막는다면 `idempotency_key`가 실제로 필요한지 불분명합니다.
+2. 유효한 모델 응답이 lint에서 차단되어 아무 지식도 생성하지 못한 경우 `model_task`를 `SUCCESS`와 `FINAL_FAILED` 중 무엇으로 볼지 정의되지 않았습니다. 모델 호출은 성공했지만 재사용 가능한 결과는 없기 때문입니다.
+3. 후보와 실제 응답 JSON을 저장하지 않도록 바꾸면서, 지식 추출 `model_task`와 최종 `promotion_batch` 사이의 직접 연결도 사라졌습니다. 현재 구조만으로는 “이 모델 작업이 어떤 승격 묶음을 만들었는가”를 정확히 역추적하기 어렵습니다.
+
+추가로 `model_task`에는 아직 `created_at`과 최종 종료 시점을 저장하는 컬럼이 명시적으로 확정되지 않았습니다. 실행 상태를 운영할 테이블이라면 생성 시점과 종료 시점이 필요한지 다음 논의에서 함께 정하는 편이 좋습니다.
+
+## 사용자
+
+1. cache_key와 idempotency_key의 구분은 개념상 가능하지만, 결과 테이블의 고유 제약으로 중복 반영을 막는다면 idempotency_key가 실제로 필요한지 불분명합니다. 결과 테이블의 고유 제약으로 중복반영을 막지 말고, 백엔드 단에서 둘 중 하나만을 이용해서 막을 수 있나?
+  2. 유효한 모델 응답이 lint에서 차단되어 아무 지식도 생성하지 못한 경우 model_task를 SUCCESS와 FINAL_FAILED 중 무엇으로 볼지 정의되지 않았습니다. 모델 호출은 성공했지만 재사용 가능한 결과는 없기 때문입니다. 이게 무슨 소리야? lint에서 차단된다는 건 정책적으로 차단된다는 건데, 그럼 실패아니야?
+
+  3. 후보와 실제 응답 JSON을 저장하지 않도록 바꾸면서, 지식 추출 model_task와 최종 promotion_batch 사이의 직접 연결도 사라졌습니다. 현재 구조만으로는 “이 모델 작업이 어떤 승격 묶음을 만들었는가”를 정확히 역추적하기 어렵습니다. 후보와 실제 응답 JSON을 저장하지 않도록 바꾸었다는 게 무슨 말이야? 사실 어떤 모델이 만들었다고 표시한 건 나중에 모델이 업데이트 되거나 바뀌면 문체나 글의 구조 등이 바뀔 수 있으니 적어놓은 거지 모델과 응답을 추적하는 건 딱히 필요 없어.
+
+  추가로 model_task에는 아직 created_at과 최종 종료 시점을 저장하는 컬럼이 명시적으로 확정되지 않았습니다. 실행 상태를 운영할 테이블이라면 생성 시점과 종료 시점이 필요한지 다음 논의에서 함께 정하는 편이 좋습니다. 이건 뭐야? 어떻게 정하는 편이 좋아? 보통 어떻게 정하는지 관련해서 검색해서 찾아줘.
+
+## 사용자
+
+task_kind에 대해서 조금 더 자세한 설명 가능할까?
+
+
+1. cache_key와 idempotency_key의 구분은 개념상 가능하지만, 결과 테이블의 고유 제약으로 중복 반영을 막는다면 idempotency_key가 실제로 필요한지 불분명합니다. 결과 테이블의 고유 제약으로 중복반영을 막지 말고, 백엔드 단에서 둘 중 하나만을 이용해서 막을 수 있나?
+  2. 유효한 모델 응답이 lint에서 차단되어 아무 지식도 생성하지 못한 경우 model_task를 SUCCESS와 FINAL_FAILED 중 무엇으로 볼지 정의되지 않았습니다. 모델 호출은 성공했지만 재사용 가능한 결과는 없기 때문입니다. 이게 무슨 소리야? lint에서 차단된다는 건 정책적으로 차단된다는 건데, 그럼 실패아니야?
+
+  3. 후보와 실제 응답 JSON을 저장하지 않도록 바꾸면서, 지식 추출 model_task와 최종 promotion_batch 사이의 직접 연결도 사라졌습니다. 현재 구조만으로는 “이 모델 작업이 어떤 승격 묶음을 만들었는가”를 정확히 역추적하기 어렵습니다. 후보와 실제 응답 JSON을 저장하지 않도록 바꾸었다는 게 무슨 말이야? 사실 어떤 모델이 만들었다고 표시한 건 나중에 모델이 업데이트 되거나 바뀌면 문체나 글의 구조 등이 바뀔 수 있으니 적어놓은 거지 모델과 응답을 추적하는 건 딱히 필요 없어.
+
+  추가로 model_task에는 아직 created_at과 최종 종료 시점을 저장하는 컬럼이 명시적으로 확정되지 않았습니다. 실행 상태를 운영할 테이블이라면 생성 시점과 종료 시점이 필요한지 다음 논의에서 함께 정하는 편이 좋습니다. 이건 뭐야? 어떻게 정하는 편이 좋아? 보통 어떻게 정하는지 관련해서 검색해서 찾아줘.
+
+## 어시스턴트
+
+`$fluent-korean`을 적용해 `task_kind`, 캐시·중복 방지, lint 차단과 모델 실패를 분리해서 설명하겠습니다. 생성·시작·종료 시점은 실제 작업 시스템의 공식 문서를 조사해 일반적인 패턴과 우리 POC에 필요한 최소 컬럼을 비교하겠습니다.
+
+## 어시스턴트
+
+## 1. `task_kind`는 무엇인가
+
+`task_kind`는 `model_task`가 수행해야 하는 작업의 종류입니다. 단순한 설명용 문자열이 아니라 백엔드가 어떤 입력을 만들고, 어떤 출력 계약으로 검사하고, 결과를 어디에 저장할지 선택하는 기준입니다.
+
+예를 들어 같은 모델을 사용해도 작업은 서로 다릅니다.
+
+| `task_kind` | 입력 | 기대 결과 | 결과 저장 위치 |
+|---|---|---|---|
+| `KNOWLEDGE_EXTRACTION` | 정규화된 문서 본문 | 노드·관계·Claim·관측 후보 | 검증 후 기준 지식그래프 |
+| `ENTITY_RESOLUTION_PROPOSAL` | 기존 노드와 새 대상 정보 | 동일 대상 후보 | 메모리에서 검사 후 병합 검토 |
+| `EVIDENCE_LINEAGE_PROPOSAL` | 여러 문서의 본문·작성자·출처 | 같은 원문 계보 후보 | 검증 후 `evidence_group` |
+| `CONFLICT_SUMMARY` | 충돌하는 Claim과 근거 | 공통점과 관점 정리 | `conflict_summary` |
+| `NODE_CONTEXT` | 노드와 공개 가능한 주변 지식 | 상세 패널의 맥락 설명 | `node_context` |
+| `FOLLOWUP_QUESTIONS` | 노드 맥락과 이동 가능한 주변 노드 | 질문 2개와 대상 노드 | `followup_question` |
+| `EMBEDDING` | 검색 문서 텍스트 | 벡터 | `node_embedding` |
+
+백엔드의 처리 흐름은 다음처럼 달라집니다.
+
+```text
+task_kind 확인
+→ 작업별 입력 구성
+→ 작업에 맞는 출력 계약 선택
+→ 모델 실행
+→ 작업별 검사
+→ 작업별 결과 테이블에 반영
+```
+
+`task_kind`를 Agent가 자유롭게 생성하면 안 됩니다. 일반 코드가 허용된 값 중 하나를 선택해야 합니다.
+
+### `task_kind`와 출력 계약의 관계
+
+`output_schema_definition`에도 `task_kind`가 있습니다.
+
+```text
+model_task.task_kind = KNOWLEDGE_EXTRACTION
+
+output_schema_definition.task_kind
+= KNOWLEDGE_EXTRACTION
+```
+
+두 값은 반드시 일치해야 합니다. `KNOWLEDGE_EXTRACTION` 작업에 `FOLLOWUP_QUESTIONS`용 JSON Schema를 연결하면 안 되기 때문입니다.
+
+`EMBEDDING`은 JSON Structured Output이 아니라 벡터를 반환하므로 예외입니다. 이 작업에서는 `output_schema_definition_id`를 `NULL`로 허용하고 `node_embedding.embedding_vector`의 타입과 차원으로 검사하는 편이 자연스럽습니다.
+
+## 2. `cache_key` 하나로 중복 실행과 중복 반영을 막을 수 있는가
+
+가능합니다. 다만 백엔드 프로세스의 메모리만으로 막으면 안 됩니다. worker가 여러 개이거나 실행 중 재시작되면 각 프로세스가 서로의 상태를 알 수 없기 때문입니다.
+
+추천안은 `idempotency_key`를 제거하고 `model_task.cache_key` 하나를 모델 작업의 영속적인 중복 방지 키로 사용하는 것입니다.
+
+```text
+model_task.cache_key
+= input_hash
++ task_kind
++ output_schema_definition_id
++ model_version
++ prompt_version
+```
+
+처리 흐름은 다음과 같습니다.
+
+```text
+1. 백엔드가 cache_key 계산
+2. 같은 cache_key의 model_task 조회
+3. 없으면 PENDING 작업 생성
+4. 있으면 상태 확인
+5. RUNNING이면 다른 worker가 처리 중이므로 대기
+6. SUCCESS이면 기존 처리 결과를 사용하고 재실행하지 않음
+7. 재시도가 필요하면 같은 model_task를 다시 실행
+```
+
+동시 실행까지 막으려면 `model_task.cache_key`에는 고유 제약이 필요합니다. 결과 테이블마다 중복 방지 제약을 반복해서 두지는 않지만, 작업을 대표하는 `model_task` 한 곳에서는 같은 키의 행이 하나만 존재해야 합니다.
+
+AWS의 공식 idempotency 구현도 메모리만 사용하지 않고 영속 저장소에 키와 `INPROGRESS`, `COMPLETE` 상태를 기록하여 동시 실행을 조정합니다. 이는 지금의 `cache_key + model_task.status + lease` 구조와 유사합니다. [AWS Lambda Powertools Idempotency](https://docs.aws.amazon.com/powertools/typescript/latest/features/idempotency/)
+
+Stripe도 같은 idempotency key로 요청이 반복되면 이전 처리 결과를 재사용하는 방식을 사용합니다. [Stripe Idempotent requests](https://docs.stripe.com/api/idempotent_requests)
+
+### 짧은 결과 반영 트랜잭션
+
+모델 호출은 오래 걸리므로 DB 트랜잭션 안에서 실행하지 않습니다.
+
+```text
+짧은 트랜잭션 1
+→ model_task 점유
+→ RUNNING과 lease 저장
+→ 커밋
+
+트랜잭션 밖
+→ 모델 호출
+→ 출력 검사
+
+짧은 트랜잭션 2
+→ model_task 행 잠금
+→ 이미 SUCCESS인지 재확인
+→ 결과 저장
+→ model_task.status = SUCCESS
+→ 함께 커밋
+```
+
+두 번째 worker가 들어와도 `SUCCESS`를 확인하고 결과를 다시 반영하지 않습니다.
+
+다만 관계 identity나 기본 키 같은 데이터 자체의 무결성 제약은 유지해야 합니다. `cache_key`는 동일 작업의 반복 실행을 막을 뿐, 서로 다른 두 작업이 같은 관계를 제안하는 상황까지 막지는 못합니다. PostgreSQL의 고유 제약은 여러 행 사이의 중복을 DB가 보장하는 기능입니다. [PostgreSQL Unique Constraints](https://www.postgresql.org/docs/current/ddl-constraints.html)
+
+따라서 추천 결론은 다음과 같습니다.
+
+```text
+제거
+- model_task.idempotency_key
+
+유지
+- model_task.cache_key
+- cache_key의 고유 제약
+- status와 lease를 이용한 백엔드 실행 제어
+- 관계 identity 등 도메인 무결성 제약
+
+사용하지 않음
+- 결과 테이블마다 별도의 작업 idempotency key 저장
+```
+
+## 3. lint에서 차단되면 실패가 아닌가
+
+전체 작업 관점에서는 실패가 맞습니다. 다만 모델 호출 실패와 정책 검증 실패를 구분해야 재시도 여부를 올바르게 결정할 수 있습니다.
+
+### 모델 호출 자체가 실패한 경우
+
+```text
+timeout
+provider 오류
+인증 오류
+JSON Structured Output 계약 불일치
+```
+
+이 경우에는 모델을 다시 호출하면 성공할 가능성이 있습니다.
+
+```text
+agent_attempt.outcome = FAILED
+model_task.status = RETRY_WAIT
+```
+
+모든 재시도를 소진하면 다음 상태가 됩니다.
+
+```text
+model_task.status = FINAL_FAILED
+```
+
+### 모델 호출은 성공했지만 lint가 차단한 경우
+
+예를 들어 모델이 계약에 맞는 JSON을 반환했지만 다음 문제가 발견될 수 있습니다.
+
+```text
+Claim의 인용문이 원문 범위와 일치하지 않음
+허용되지 않은 관계 유형
+동일 대상이 명확하지 않음
+필수 사건 시간이 없음
+```
+
+이때 실제 호출은 성공했습니다.
+
+```text
+agent_attempt.outcome = SUCCESS
+```
+
+그러나 지식으로 사용할 수 있는 결과는 만들지 못했습니다. 말씀하신 것처럼 모델 작업 전체로 보면 실패입니다.
+
+다만 이를 `FINAL_FAILED`로 표시하면 “기술 오류 때문에 재시도를 모두 소진했다”는 의미와 섞입니다. 같은 입력과 같은 정책으로 다시 호출해도 똑같이 차단될 가능성이 높으므로 자동 재시도 대상도 아닙니다.
+
+따라서 다음 종료 상태를 추가하는 것을 추천합니다.
+
+```text
+VALIDATION_BLOCKED
+```
+
+최종 구분은 다음과 같습니다.
+
+| 상태 | 의미 | 자동 재시도 |
+|---|---|---:|
+| `SUCCESS` | 검증된 결과가 DB에 반영됨 | 아니요 |
+| `VALIDATION_BLOCKED` | 모델 호출은 성공했지만 정책 검사를 통과하지 못함 | 아니요 |
+| `FINAL_FAILED` | 기술 실패가 재시도를 모두 소진함 | 아니요 |
+| `RETRY_WAIT` | 기술 실패 후 재시도 예정 | 예 |
+
+차단된 결과의 fingerprint는 기존 `blocked_fingerprint`에 남기므로 같은 입력을 불필요하게 다시 처리하지 않습니다.
+
+## 4. 후보와 실제 응답 JSON을 저장하지 않는다는 의미
+
+이전 구조는 다음과 같았습니다.
+
+```text
+모델 응답 JSON
+→ structured_output 테이블에 저장
+→ candidate_item으로 후보별 분리
+→ 후보별 lint와 상태 관리
+→ promotion_batch로 승격
+```
+
+사용자와 논의하면서 다음처럼 단순화했습니다.
+
+```text
+모델 응답 JSON
+→ 애플리케이션 메모리에서만 유지
+→ Structured Output 검사
+→ lint와 동일 대상 검사
+→ 통과한 지식만 DB에 저장
+→ 원본 JSON과 탈락 후보는 버림
+```
+
+따라서 `structured_output`, `candidate_item`, `candidate_state_event`를 제거하기로 했습니다.
+
+말씀하신 목적대로라면 지식 추출 작업과 `promotion_batch` 사이의 직접 연결도 필수는 아닙니다. 어떤 모델이 어느 관계를 추출했는지 역추적할 필요가 없기 때문입니다.
+
+모델 정보를 유지할 대상은 모델 변화에 따라 사용자에게 보이는 결과가 달라지는 파생 자료로 제한할 수 있습니다.
+
+```text
+node_context.model_task_id
+followup_question.model_task_id
+conflict_summary.model_task_id
+node_embedding.model_task_id
+```
+
+반면 노드·관계·Claim은 모델 응답보다 원문 근거를 중심으로 추적합니다.
+
+```text
+Claim
+→ observation
+→ source_document
+```
+
+지식 추출 `model_task`는 비용·재시도·중복 실행 방지를 위해 남지만, 최종 `knowledge_item`이나 `promotion_batch`가 이를 직접 참조하지 않아도 됩니다.
+
+같은 `cache_key`의 추출 작업이 이미 `SUCCESS`라면 해당 문서는 이미 처리된 것으로 보고 다시 호출하지 않습니다. 기존 출력 JSON을 반환할 필요는 없습니다. 모델 응답을 받은 뒤 승격 전에 worker가 종료되면 응답을 복구할 수 없으므로 모델을 다시 호출해야 하며, 이는 원본 JSON을 저장하지 않는 대신 받아들이기로 한 비용입니다.
+
+## 5. `created_at`과 종료 시점
+
+작업 시스템은 보통 작업 생성 시점, 실제 시작 시점, 종료 시점을 구분합니다. AWS Batch도 `createdAt`, `startedAt`, `stoppedAt`을 따로 관리하며, `stoppedAt`은 성공이나 실패 같은 종료 상태에 도달한 시점을 뜻합니다. [AWS Batch JobSummary](https://docs.aws.amazon.com/batch/latest/APIReference/API_JobSummary.html)
+
+Kubernetes Job의 `completionTime`은 성공적으로 완료된 경우에만 설정됩니다. 따라서 성공과 실패를 모두 포함해야 하는 우리 작업에는 `completed_at`보다 `finished_at`이라는 이름이 덜 모호합니다. [Kubernetes JobStatus](https://kubernetes.io/docs/reference/kubernetes-api/batch/job-v1/)
+
+추천하는 최소 컬럼은 다음 두 개입니다.
+
+| 컬럼 | 역할 |
+|---|---|
+| `created_at` | `model_task` 행이 생성된 시점입니다. |
+| `finished_at` | `SUCCESS`, `VALIDATION_BLOCKED`, `FINAL_FAILED` 중 하나로 끝난 시점입니다. |
+
+`started_at`은 `model_task`에 추가하지 않는 것을 추천합니다. 재시도가 여러 번 있으므로 “작업이 시작된 시점”이 최초 시도인지 마지막 시도인지 모호하기 때문입니다.
+
+최초 실행 시점은 다음처럼 계산할 수 있습니다.
+
+```text
+MIN(agent_attempt.attempted_at)
+```
+
+마지막 실행 시점도 다음처럼 계산할 수 있습니다.
+
+```text
+MAX(agent_attempt.attempted_at)
+```
+
+`updated_at`도 현재는 필요하지 않습니다. 상태, `next_attempt_at`, lease와 개별 시도 이력으로 필요한 내용을 확인할 수 있습니다.
+
+## 추천안 정리
+
+1. `task_kind`는 백엔드가 입력 구성·출력 계약·검사·저장 위치를 선택하는 허용 코드로 사용합니다. `EMBEDDING`에서는 `output_schema_definition_id`를 비워둘 수 있게 합니다.
+2. `idempotency_key`를 제거하고 `cache_key` 하나로 논리 작업의 중복 실행과 결과 재반영을 막습니다. `model_task.cache_key`에는 고유 제약을 둡니다.
+3. lint 차단은 `VALIDATION_BLOCKED`라는 별도 종료 상태로 표현합니다.
+4. 지식 추출 결과는 모델 계보보다 Evidence Trace를 기준으로 관리하며 `promotion_batch`와 `model_task`를 직접 연결하지 않습니다.
+5. `model_task`에 `created_at`과 `finished_at`을 추가하고, `started_at`과 `updated_at`은 추가하지 않습니다.
+
+## 사용자
+
+응 이렇게 하자. 다만 이렇게 하면 blocked_fingerprint 에 실패원인을 내가 안적기로 했던 걸로 기억하거든? 검증실패랑 호출실패를 구분해서 해야 하니까 만약 지금 구조로는 blocked_fingerprint를 참고해서 재시도를 막아버리는 일이 발생할 경우 이를 어떻게 수정할지도 고민해보자.
+
+## 어시스턴트
+
+`$fluent-korean`을 적용해 `blocked_fingerprint`가 저장하는 정보와 모델 재시도 제어를 분리해서 살펴보겠습니다. 기존 #6·#7 정의를 확인한 뒤, 검증 차단이 기술적 호출 재시도까지 잘못 막지 않도록 조회 키와 상태 전이를 정리하겠습니다.
+
+## 어시스턴트
+
+기억하신 것이 맞습니다. `blocked_fingerprint`에는 자유로운 `failure_reason` 문장을 저장하지 않기로 했습니다. 대신 `lint_policy_rule_id`가 정형화된 실패 원인을 가리킵니다.
+
+```text
+blocked_fingerprint
+- blocked_fingerprint_id
+- fingerprint
+- source_document_id
+- output_schema_definition_id
+- lint_policy_rule_id
+- first_blocked_at
+- last_blocked_at
+- occurrence_count
+```
+
+다음 경로로 차단 이유를 확인할 수 있습니다.
+
+```text
+blocked_fingerprint
+→ lint_policy_rule
+   ├─ severity: BLOCKING
+   └─ lint_rule
+      ├─ rule_code: OBSERVATION_RANGE_MISMATCH
+      ├─ display_name: 원문 위치 불일치
+      └─ description: 저장된 범위와 인용문이 일치하지 않음
+```
+
+따라서 `failure_reason`을 다시 추가하지 않아도 됩니다. 같은 내용을 자유 문자열과 규칙 참조로 중복 저장하면 표현이 서로 달라질 수 있습니다.
+
+## 호출 실패와 검증 차단의 저장 위치
+
+두 실패는 완전히 다른 위치에 저장합니다.
+
+### 모델 호출 실패
+
+모델이 정상적인 Structured Output을 반환하지 못한 경우입니다.
+
+```text
+agent_attempt
+- outcome: FAILED
+- failure_reason: TIMEOUT
+
+model_task
+- status: RETRY_WAIT
+- next_attempt_at: ...
+```
+
+이 경우에는 `blocked_fingerprint`를 만들지 않습니다. 검증할 후보 결과 자체가 없기 때문입니다.
+
+다음 오류가 여기에 포함됩니다.
+
+```text
+TIMEOUT
+AUTHENTICATION_ERROR
+PROVIDER_ERROR
+OUTPUT_CONTRACT_VIOLATION
+```
+
+### 승격 전 검증 차단
+
+모델 호출과 JSON 계약 검사는 성공했지만, 내용이 정책을 통과하지 못한 경우입니다.
+
+```text
+agent_attempt
+- outcome: SUCCESS
+
+blocked_fingerprint
+- fingerprint: 후보 내용 해시
+- lint_policy_rule_id: 차단 규칙
+
+model_task
+- status: VALIDATION_BLOCKED
+```
+
+다음 문제가 여기에 포함됩니다.
+
+```text
+원문 위치 불일치
+허용되지 않은 관계 유형
+필수 시간 누락
+동일 대상 판정 불명확
+```
+
+## `blocked_fingerprint`가 모델 재시도를 막으면 안 됩니다
+
+기술적 재시도를 결정할 때는 `blocked_fingerprint`를 조회하지 않아야 합니다.
+
+```text
+모델 호출 scheduler
+→ model_task.status
+→ attempt_count
+→ next_attempt_at만 확인
+```
+
+재시도 조건은 다음과 같습니다.
+
+```text
+status = RETRY_WAIT
+AND next_attempt_at <= 현재 시각
+AND attempt_count < 5
+```
+
+`blocked_fingerprint`는 모델 호출이 성공한 뒤에만 사용합니다.
+
+```text
+모델 호출 성공
+→ Structured Output 검사 성공
+→ 후보 fingerprint 계산
+→ blocked_fingerprint 조회
+→ 같은 후보와 같은 검증 범위가 이미 차단됐으면
+   lint와 승격 처리를 반복하지 않음
+```
+
+즉, 두 경로가 서로 만나는 지점을 제한합니다.
+
+```text
+model_task와 agent_attempt
+→ 모델을 다시 호출할지 결정
+
+blocked_fingerprint
+→ 이미 반환된 후보를 다시 검증·승격할지 결정
+```
+
+## 같은 입력의 모델 호출 자체를 막는 것은 `cache_key`
+
+동일한 입력·모델·프롬프트·출력 계약으로 이미 `VALIDATION_BLOCKED`가 된 작업을 다시 호출하지 않는 책임은 `blocked_fingerprint`가 아니라 `model_task.cache_key`가 맡습니다.
+
+```text
+같은 cache_key의 model_task 조회
+
+SUCCESS
+→ 이미 처리됐으므로 호출하지 않음
+
+VALIDATION_BLOCKED
+→ 같은 조건으로 다시 호출하지 않음
+
+RUNNING
+→ 다른 worker가 처리 중이므로 호출하지 않음
+
+RETRY_WAIT
+→ 기술 실패이므로 정해진 시점에 재시도
+
+FINAL_FAILED
+→ 재시도를 모두 소진했으므로 호출하지 않음
+```
+
+모델이나 프롬프트를 바꾸면 `cache_key`가 달라지므로 다시 시도할 수 있습니다.
+
+```text
+같은 입력
++ 새로운 model_version
+→ 새로운 cache_key
+→ 모델 다시 호출 가능
+```
+
+새 모델이 이전과 똑같은 잘못된 후보를 반환하면 후보 fingerprint는 같으므로 `blocked_fingerprint`가 검증과 승격의 반복을 막습니다.
+
+## 일부 후보만 차단되는 경우
+
+한 번의 지식 추출 응답에는 후보가 여러 개 들어올 수 있습니다.
+
+```text
+노드 후보 A: 통과
+관계 후보 B: 통과
+Claim 후보 C: 원문 위치 불일치
+```
+
+이 경우 `model_task` 전체를 `VALIDATION_BLOCKED`로 만들면 안 됩니다. 통과한 결과가 있기 때문입니다.
+
+```text
+agent_attempt.outcome = SUCCESS
+model_task.status = SUCCESS
+
+Claim 후보 C
+→ blocked_fingerprint 기록
+```
+
+모든 후보가 차단되어 아무 지식도 반영하지 못했을 때만 다음 상태를 사용합니다.
+
+```text
+model_task.status = VALIDATION_BLOCKED
+```
+
+유효한 후보가 전혀 발견되지 않은 것과 후보가 정책에 차단된 것도 구분해야 합니다.
+
+```text
+문서에 관련 지식이 없음
+→ 정상 처리 결과
+→ SUCCESS
+
+관련 후보가 있었지만 모두 차단됨
+→ VALIDATION_BLOCKED
+```
+
+## 추천 수정안
+
+기존 이슈의 설명을 다음처럼 보완하는 것이 좋습니다.
+
+- `blocked_fingerprint`에는 자유 문자열 `failure_reason`을 추가하지 않습니다.
+- `lint_policy_rule_id`를 정형화된 차단 이유로 사용합니다.
+- 모델 호출 scheduler는 `blocked_fingerprint`를 조회하지 않습니다.
+- 기술적 재시도는 `model_task.status`, `attempt_count`, `next_attempt_at`으로만 결정합니다.
+- 동일한 전체 작업의 재실행은 `cache_key`와 `VALIDATION_BLOCKED` 상태가 막습니다.
+- `blocked_fingerprint`는 모델 호출 이후 동일 후보의 검증·승격 반복만 억제합니다.
+- 일부 후보만 차단됐다면 `model_task`는 `SUCCESS`가 될 수 있습니다.
+- 모든 후보가 차단됐을 때만 `VALIDATION_BLOCKED`로 종료합니다.
+- 관련 후보가 없는 정상 결과는 `SUCCESS`로 처리합니다.
+
+이렇게 하면 모델 제공자 장애에 대한 재시도와 정책적으로 잘못된 후보의 반복 억제가 서로 영향을 주지 않습니다.
+
+## 사용자
+
+그럼 이렇게 수정하는 걸로 하자. 이슈 올려
+
+## 어시스턴트
+
+Plan Mode이므로 지금은 GitHub를 변경하지 않고, 기존 이슈를 보완할지 새 이슈로 분리할지 결정하겠습니다. `$fluent-korean`을 적용하고 #4·#5·#7의 현재 범위를 다시 대조해 중복 없이 등록 계획을 만들겠습니다.
+
+## 어시스턴트
+
+<proposed_plan>
+# 모델 작업과 검증 차단 이슈 보완
+
+## 요약
+
+새 이슈를 만들지 않고 같은 범위를 이미 담당하는 #4, #5, #7을 보완한다. 세 이슈에 `documentation` 라벨을 적용하고, 호출 재시도와 후보 검증 차단이 서로 영향을 주지 않도록 책임을 분리한다.
+
+## 이슈 변경
+
+### #4 모델 작업과 실행 이력
+
+- 허용 `task_kind`와 작업별 입력·결과 위치를 명시한다.
+- `idempotency_key`를 제거하고 고유한 `cache_key`, 상태와 lease로 중복 실행·반영을 제어한다.
+- `VALIDATION_BLOCKED` 종료 상태를 추가한다.
+- 기술 실패 재시도는 `status`, `attempt_count`, `next_attempt_at`만 사용하며 `blocked_fingerprint`를 조회하지 않는다.
+- 일부 후보만 차단되고 나머지가 반영되면 `SUCCESS`, 모든 후보가 차단되면 `VALIDATION_BLOCKED`, 관련 후보가 없으면 정상 `SUCCESS`로 정의한다.
+- `created_at`, `finished_at`을 추가하고 `started_at`, `updated_at`은 두지 않는다.
+- 호출 결과와 작업 상태 갱신의 트랜잭션 경계를 명시한다.
+
+### #5 출력 계약과 결과 보존
+
+- `model_task.output_schema_definition_id`는 Structured Output 작업에 필수로 둔다.
+- `EMBEDDING`에서는 이를 `NULL`로 허용하고 벡터 타입으로 결과를 검사한다.
+- `model_task.task_kind`와 출력 계약의 `task_kind`가 일치하도록 검증한다.
+- 원본 응답 JSON과 후보는 계속 저장하지 않는다.
+- 지식 추출 결과는 모델 계보가 아니라 `promotion_batch`, `knowledge_item`, 관측과 Evidence Trace로 추적한다.
+- 모델에 따라 사용자 노출 결과가 달라지는 임베딩·맥락 설명·후속 질문·충돌 요약만 정확한 `model_task_id`를 참조한다.
+
+### #7 차단 fingerprint
+
+- 자유 문자열 `failure_reason`을 추가하지 않고 `lint_policy_rule_id`를 정형화된 차단 이유로 사용한다.
+- `blocked_fingerprint`는 모델 호출 성공과 출력 계약 통과 뒤 후보별로 생성한다.
+- 반복 억제 범위를 모델 호출이 아니라 동일 후보의 lint·승격 처리로 한정한다.
+- 모델 호출 scheduler가 이 테이블을 조회하지 않는다고 명시한다.
+- 기술적 호출 실패와 출력 계약 위반은 `agent_attempt`에만 기록한다.
+- 일부 후보만 차단된 경우에도 통과한 후보의 승격을 허용한다.
+- 직접적인 `model_task → promotion_batch` 계보 요구를 제거한다.
+- #4를 의존 관계에 추가한다.
+
+## 검증
+
+- 세 이슈가 `OPEN`·`documentation` 상태인지 확인한다.
+- #4에 캐시·상태·재시도·시간 컬럼, #5에 출력 계약 예외와 계보 범위, #7에 후보 수준 차단 규칙이 각각 들어갔는지 다시 조회한다.
+- 기술 실패가 `blocked_fingerprint`를 생성하지 않고 검증 차단이 기술 재시도를 소비하지 않는다는 완료 조건을 확인한다.
+- 저장소 파일, 브랜치와 기존 미커밋 변경은 수정하지 않는다.
+</proposed_plan>
+
+## 사용자
+
+Implement the plan.
+
+## 어시스턴트
+
+계획대로 #4·#5·#7을 보완하고 세 이슈에 `documentation` 라벨을 적용하겠습니다. 호출 재시도, Structured Output 계약과 후보 검증 차단의 책임을 각 이슈에 분리한 뒤 본문·의존 관계·열린 상태를 다시 확인하겠습니다. 저장소 파일과 기존 미커밋 변경은 건드리지 않습니다.
+
+## 어시스턴트
+
+세 이슈가 보완되었습니다. 이제 각 이슈에서 핵심 문구와 `documentation` 라벨이 유지되는지 확인하고, 로컬 작업 트리에 변화가 없는지 마지막으로 검사하겠습니다.
+
+## 어시스턴트
+
+기존 이슈 세 건을 중복 없이 보완했습니다.
+
+- [#4 모델 작업과 실행 이력](https://github.com/studylida/ontology-map/issues/4): `task_kind`, 단일 `cache_key`, `VALIDATION_BLOCKED`, 재시도 분리, `created_at`·`finished_at`을 반영했습니다.
+- [#5 Structured Output 계약](https://github.com/studylida/ontology-map/issues/5): `EMBEDDING` 예외, 응답 JSON 미보존, 모델 계보 보존 범위를 정리했습니다.
+- [#7 차단 fingerprint](https://github.com/studylida/ontology-map/issues/7): 자유 문자열 실패 원인 미저장, 기술 재시도와 후보 검증 억제 분리, 부분 성공 규칙을 반영했습니다.
+
+세 이슈 모두 `OPEN`·`documentation` 상태입니다. 저장소 파일은 변경하지 않았으며 기존 미커밋 변경도 보존했습니다.
+
+## 사용자
+
+이제 공부할 데이터베이스 남아있어?
+
+## 어시스턴트
+
+`$fluent-korean`을 적용해 지금까지 다룬 테이블과 남은 검토 단계를 구분하겠습니다. 새로운 테이블 학습이 남았는지와, 테이블을 모두 연결해 검증하는 작업이 남았는지를 따로 정리하겠습니다.
+
+## 어시스턴트
+
+새로운 테이블을 하나씩 소개하는 공부는 거의 끝났습니다. 논리 스키마의 주요 테이블은 모두 다뤘습니다.
+
+남은 작업은 두 차례 정도입니다.
+
+1. 전체 무결성 검토
+
+- 각 FK의 `RESTRICT`, `CASCADE`, `SET NULL` 정책
+- `NOT NULL`, `UNIQUE`, 복합 FK와 CHECK 조건
+- 상태 전이와 동시 실행 제어
+- 짧은 트랜잭션으로 함께 처리해야 하는 데이터
+- 공개 가능 조건과 차단 lint 적용 순서
+
+2. 전체 연결 검토
+
+```text
+source_document
+→ model_task
+→ Agent 출력의 메모리 검증
+→ blocked_fingerprint 또는 promotion_batch
+→ node·relation·claim·observation
+→ 검색 문서·임베딩·맥락 설명·후속 질문
+→ 지도와 상세 패널 공개
+```
+
+실제 HBF 예시를 이 흐름에 넣어 누락된 FK, 모순되는 상태와 중복 컬럼이 없는지 확인합니다. 이 검토가 끝나면 PostgreSQL 물리 스키마로 넘어갈 수 있습니다.
+
+다만 현재 [logical-data-schema.md](/mnt/c/users/bistelligence/orca/workspaces/people-ontology/docs-data-schema/logical-data-schema.md)는 공부하면서 만든 #4~#27 이슈가 아직 반영되지 않은 옛 구조입니다. 따라서 권장 순서는 다음과 같습니다.
+
+```text
+전체 무결성·연결 검토
+→ 남은 문제를 이슈로 기록
+→ 열린 스키마 이슈를 논리 문서에 반영
+→ 수정된 논리 스키마 최종 검증
+→ PostgreSQL 물리 스키마 설계
+```
+
+진행률로 보면 테이블별 공부는 약 95% 완료됐습니다. 다음에는 새로운 테이블을 소개하기보다 전체 무결성 검토를 시작하는 것이 자연스럽습니다.
+
+## 사용자
+
+응 그럼 이제 단계를 나눠보자.일단은 지금까지의 대화원문 C:\Users\BISTelligence\orca\workspaces\people-ontology\docs-data-schema\ontology-map-design-conversation-transcript.md에 업데이트하고 가장 먼저 이슈를 해결할 거야. 단위로 묶어서 이슈를 해결하고 PR을 올리면 좋겠고, 이 과정에서 각 단위를 해결하는 worker 세션을 만들어서 진행하고, 네가 감독하면 좋겠어. 구조는 네가 총감독자, 그리고 단위별로 sol low 중간감독자와 worker로 구성하도록 해서, 어느 단위에 대한 작업을 worker가 수행하고, 그걸 중간감독자가 받아서 패스시키면 너에게 보고하도록 해. 그리고 넌 중간감독자에게 통과인지 실패인지 부분 통과인지 수정요청인지 보내. 이때 orca cli를 이용해서 각각이 알아서 소통되도록 하면 좋겠어. 이때 중요한 건 우리가 나눴던 대화를 보면서 우리가 하려고 했던 의도와 다르게 가지 않도록 하는 거야. 그리고 나서 전체 무결성 검토랑 전체 연결 검토 진행하자. 이건 네가 한 번에 하면 좋겠어. 각 데이터베이스 무결성이나 전체 연결 검토할 때 우리가 대화 나눴던 거 참고해서, 우리가 하려고 했던 의도나 맥락과 다르게 진행되지 않도록 해줘. 그리고 테이블 구조를 설계하거나 변경할 때는 내가 지금까지 했던 것처럼 복잡해지지 않고 단순해지도록 부탁해. 무언가를 더 만드는 방향으로 가면 버그가 늘어날 뿐이야.
+
+## 어시스턴트
+
+`$orca-cli`로 Orca worktree와 worker 세션 배치 방식을 확인하고, `$orchestration`으로 총감독자–중간감독자–worker 간 보고·수정 흐름을 설계하겠습니다. `$fluent-korean`은 단계와 책임을 모호하지 않게 정리하는 데 사용합니다. Plan Mode이므로 지금은 대화 원문 갱신, 세션 생성, 이슈 수정이나 PR 생성은 실행하지 않고 현재 환경과 이슈 의존 관계만 읽기 전용으로 확인하겠습니다.
+
+## 어시스턴트
+
+현재 구조에서는 여러 작업이 같은 스키마 문서를 건드릴 가능성이 높아서, 무작정 병렬화하면 충돌이 늘어납니다. 먼저 Orca 작업 공간과 브랜치·PR 상태, 실행 가능한 감독자/worker 구성 방식을 읽기 전용으로 확인한 뒤 가장 단순한 단위와 순서를 제안하겠습니다.
+
+## 어시스턴트
+
+확인 결과 `logical-data-schema.md` 한 파일에 대부분의 이슈가 집중되어 있고, 현재 작업 브랜치는 `main`에 아직 들어가지 않은 스키마·대화 원문을 함께 보유합니다. 따라서 각 단위를 동시에 수정하는 방식보다, 의존 순서에 따라 worker와 중간감독자를 교대시키는 직렬 작업이 충돌과 중복을 가장 적게 만듭니다. 이제 이슈의 실제 의존성과 문서 구성을 맞춰 단위 경계를 확정하겠습니다.
+
+## 사용자
+
+오르카에서는 워크트리를 나눠서 작업하기 때문에 같은 파일이라도 괜찮지 않아?
+
+## 어시스턴트
+
+맞아요. 각 worker가 별도 Orca worktree와 브랜치를 사용하면 같은 파일을 동시에 수정해도 작업 내용이 서로 덮어써지지는 않습니다.
+
+다만 worktree가 해결하는 것은 “작업 중 충돌”이고, 최종 통합 시 다음 문제는 남습니다.
+
+- 같은 문단이나 ER 다이어그램을 수정하면 Git 병합 충돌이 발생할 수 있습니다.
+- 서로 다른 문단을 수정해도 한쪽이 삭제한 테이블을 다른 쪽이 참조하는 의미 충돌이 생길 수 있습니다.
+- 이슈 간 의존성이 있으면 이전 결정을 반영하지 않은 채 작업할 수 있습니다.
+
+따라서 다음처럼 운영하겠습니다.
+
+- 모든 단위는 별도 worktree와 이슈 브랜치에서 작업합니다.
+- 독립적인 단위는 같은 단계에서 병렬로 진행합니다.
+- #10 → #11·#12, #4·#5·#6 → #7 → #27처럼 의존성이 있는 이슈는 단계별로 진행합니다.
+- worker는 대화 원문과 담당 이슈를 기준으로 수정합니다.
+- `gpt-5.6-sol`, reasoning effort `low` 중간감독자는 해당 worktree의 변경을 읽기 전용으로 검토합니다.
+- 저는 중간감독자의 보고와 실제 diff를 함께 확인해 `통과`, `부분 통과`, `실패`, `수정 요청`을 결정합니다.
+- 통과한 브랜치만 통합 대상으로 삼고, 병합 충돌과 의미 충돌은 제가 전체 맥락을 기준으로 정리합니다.
+- 마지막에는 통합된 문서를 대상으로 전체 무결성과 테이블 간 연결을 한 번에 검토합니다.
+
+즉, 같은 파일이라는 이유로 직렬화할 필요는 없습니다. 의존성이 없는 작업은 worktree에서 병렬 처리하되, 최종 통합 검사를 엄격하게 두는 방식이 적합합니다.
+
+## 사용자
+
+최종 통합시에 문제 생기는 건 괜찮아. 우리가 이미 그거 고려하면서 했고, 이후에 무결성, 최종 통합본 검사진행할거야. 병렬처리해.
+
+## 어시스턴트
+
+병렬 처리로 확정하겠습니다. worktree 간 파일 충돌은 허용하고, 각 단위의 검토를 먼저 끝낸 뒤 제가 통합 브랜치에서 충돌 해결과 의미 무결성 검사를 수행하는 구조로 잡겠습니다. 이제 PR 기준 브랜치와 이슈 묶음만 결정하면 실행 계획을 닫을 수 있습니다.
+
+## 사용자
+
+아니 네가 충돌 안나는 단위로 묶으면 되잖아
+
+## 어시스턴트
+
+맞습니다. 제가 병합 충돌을 작업 단위 문제와 섞어 생각했습니다. 이슈를 같은 데이터 계층끼리 묶으면 네 개의 독립 worktree로 병렬 처리할 수 있고, 공통 ER·무결성 문단의 통합만 마지막에 제가 맡으면 됩니다. 원문 업데이트도 수작업 복원이 아니라 현재 세션 기록에서 누락 구간을 이어 붙이는 방식이 가능한지 함께 확인하겠습니다.
+
+## 어시스턴트
+
+충돌을 피하는 단위는 네 개로 잡겠습니다. `입력·모델 실행·검증`, `온톨로지·노드·관계·사건`, `Claim·속성값·충돌`, `공개·검색·파생 결과`입니다. 각 단위가 소유하는 테이블이 겹치지 않도록 하고, 공통 ER·전체 무결성·연결 흐름은 제가 통합 단계에서만 수정하겠습니다.
+
+## 어시스턴트
+
+GitHub Flow 작업 방식은 이미 이슈 #2와 PR #9에서 처리되어 `origin/main`에 병합된 상태입니다. 다만 현재 `docs-data-schema` 브랜치가 그 커밋보다 앞에서 갈라졌기 때문에 파일이 보이지 않을 뿐입니다. 해당 규칙이 단위 PR의 중간 브랜치 병합을 허용하는지 원문을 다시 읽고, 맞지 않으면 규칙을 우회하지 않는 PR 구조로 계획하겠습니다.
+
+## 사용자
+
+우리 로컬 파일 수정한 거 대화 원문밖에 없으니까 대화원문 업데이트하고 pull해와서 최신 레포에 맞게 업데이트 해.
+
+## 어시스턴트
+
+현재 수정된 파일은 `people-intelligence-requirements-transcript.md` 하나이고, 지금 업데이트하려는 파일은 별도의 `ontology-map-design-conversation-transcript.md`입니다. 최신 `main`을 안전하게 반영하려면 두 원문 변경을 먼저 보존한 커밋으로 만든 뒤 가져와야 하므로, 기존 변경 내용이 실제 대화 원문 추가인지 확인하겠습니다. Plan Mode에서는 파일을 바꾸거나 pull하지 않고 실행 절차만 확정하겠습니다.
+
+## 어시스턴트
+
+<proposed_plan>
+# 대화 원문 보존과 최신 `main` 반영
+
+## 요약
+
+현재 로컬 대화 원문 변경을 모두 보존한 뒤 `origin/main`을 `docs-data-schema` 브랜치에 병합한다. GitHub Flow 규칙은 이슈 #2와 PR #9에서 이미 완료되었으며, 최신 `main`의 `CONTRIBUTING.md`로 가져온다.
+
+## 변경 순서
+
+1. 현재 세션 JSONL에서 저장되지 않은 사용자·Assistant 발화만 추출해 `ontology-map-design-conversation-transcript.md`에 이어 붙인다.
+   - 마지막 저장 발화를 기준으로 중복을 막는다.
+   - 시스템·개발자 지침, reasoning, 도구 호출과 출력은 제외한다.
+   - 기존 `## 사용자`, `## 어시스턴트` 형식을 유지한다.
+2. 기존에 수정된 `people-intelligence-requirements-transcript.md`의 487줄 추가분을 그대로 보존한다.
+3. 두 원문을 목적별 커밋으로 분리한다.
+   - `docs: update requirements conversation transcript`
+   - `docs: update ontology map conversation transcript`
+4. `git pull --no-rebase origin main`으로 최신 `main`을 병합한다.
+   - 현재 사전 검사상 충돌 없이 `CONTRIBUTING.md`만 추가된다.
+   - 공유 브랜치 기록을 재작성하지 않으므로 rebase와 force push는 사용하지 않는다.
+5. 병합 후 상태와 각 커밋을 검증한다.
+
+## 검증
+
+- 두 원문에서 마지막 저장 발화가 한 번만 존재하는지 확인한다.
+- 추가 구간의 사용자·Assistant 발화 수와 순서를 세션 JSONL과 대조한다.
+- `git diff --check`를 실행한다.
+- `git status`, staged diff와 최종 로그를 확인한다.
+- `docs-data-schema`가 `origin/main`의 최신 커밋을 포함하는지 확인한다.
+- 원격 push와 PR 생성은 이번 단계에서 수행하지 않는다.
+
+## 다음 단계
+
+최신 GitHub Flow 규칙이 반영된 브랜치를 기준으로 충돌하지 않는 데이터 계층 단위를 확정하고, 별도 Orca worktree에서 병렬 worker·중간감독자 작업을 시작한다.
+</proposed_plan>
+
+## 사용자
+
+우리 후속 계획도 자세히 적어서 계획 세워. 이렇게만 세워서 네가 나중에 기억할 수 있어?
+
+## 어시스턴트
+
+<proposed_plan>
+# 논리 데이터 스키마 병렬 정비 및 최종 통합 계획
+
+## 1. 목표와 완료 상태
+
+확정된 대화 원문을 기준으로 현재 열린 논리 스키마 이슈를 데이터 계층별로 묶어 병렬 처리한다. 각 단위는 별도 Orca worktree와 브랜치에서 worker가 수정하고, `gpt-5.6-sol`·`low` 중간감독자가 검토한다. 저는 실제 diff와 감독 보고를 다시 확인하고 최종 판정을 내린다.
+
+완료 상태는 다음과 같다.
+
+- 최신 대화 원문이 중복 없이 저장되고 커밋되어 있다.
+- 현재 브랜치가 최신 `origin/main`의 GitHub Flow 규칙을 포함한다.
+- 준비 단계 이슈와 네 개의 스키마 단위가 각각 검증된 PR로 처리된다.
+- 모든 단위가 통합된 스키마에서 전체 무결성과 처음부터 끝까지의 연결 흐름을 제가 직접 검토한다.
+- 확정된 요구사항 없이 새 테이블이나 추상화를 추가하지 않는다.
+- 최종 통합 PR은 사용자가 Cursor에서 검토할 수 있는 상태로 열어 두며 자동 병합하지 않는다.
+
+## 2. 1단계: 대화 원문 보존과 최신 저장소 반영
+
+### 2.1 대화 원문 업데이트
+
+현재 Codex 세션 JSONL을 기준으로 아직 저장되지 않은 사용자·Assistant 발화를 `ontology-map-design-conversation-transcript.md`에 이어 붙인다.
+
+- 마지막 저장 발화를 기준점으로 삼아 이후 발화만 추가한다.
+- 사용자와 Assistant의 실제 메시지 내용과 줄바꿈을 보존한다.
+- 시스템·개발자 지침, reasoning, 도구 호출과 도구 출력은 제외한다.
+- `## 사용자`, `## 어시스턴트` 형식을 유지한다.
+- 실행 승인을 담은 마지막 사용자 발화까지 포함한 뒤 원문 범위를 고정한다.
+- 이미 수정된 `people-intelligence-requirements-transcript.md`의 487줄 추가분은 변경하지 않고 그대로 보존한다.
+
+두 파일은 목적이 다르므로 별도 커밋으로 남긴다.
+
+- `docs: update requirements conversation transcript`
+- `docs: update ontology map conversation transcript`
+
+커밋 전후에 발화 순서, 마지막 발화, 중복 여부와 `git diff --check`를 확인한다. 기존에 수정된 대화 원문 외의 파일은 이 커밋에 포함하지 않는다.
+
+### 2.2 최신 `main` 반영
+
+대화 원문을 모두 커밋한 후 `docs-data-schema`에서 다음 방식으로 최신 저장소를 반영한다.
+
+```text
+git pull --no-rebase origin main
+```
+
+현재 사전 검사에서는 `origin/main`의 `CONTRIBUTING.md`만 추가되며 충돌은 예상되지 않는다. 공유 중인 브랜치 기록을 다시 쓰지 않으므로 rebase와 force push는 사용하지 않는다.
+
+검증 항목은 다음과 같다.
+
+- `docs-data-schema`가 `origin/main`의 최신 커밋을 포함한다.
+- GitHub Flow 규칙이 현재 작업 파일에서 읽힌다.
+- 대화 원문 커밋이 그대로 보존된다.
+- 작업 트리가 깨끗하다.
+- 각 커밋 SHA와 병합 결과를 기록한다.
+
+## 3. 2단계: GitHub Flow 기반 준비 작업
+
+GitHub Flow 규칙 자체는 이슈 #2와 PR #9에서 이미 완료되었다. 이 작업에서는 해당 규칙을 다시 만들지 않는다.
+
+현재 `main`에는 논리 스키마와 대화 원문이 아직 없으므로 병렬 이슈를 시작하기 전에 두 준비 PR을 처리한다.
+
+### 3.1 대화 원문 PR
+
+대화 원문 보존을 하나의 문서화 관심사로 다루는 새 GitHub 이슈를 만든다.
+
+- 제목: `Update People Intelligence design conversation transcripts`
+- 라벨: `documentation`
+- 범위: 두 대화 원문 파일만 추가
+- 제외: 스키마 수정, 요구사항 재해석, 코드 변경
+
+최신 `main`에서 이슈 번호를 사용한 브랜치를 만들고, 앞서 검증한 두 원문 파일만 가져온다. PR 검증 후 Rebase merge하여 이후 모든 worker가 같은 원문을 자신의 worktree에서 읽을 수 있게 한다.
+
+### 3.2 이슈 #1과 기준 논리 스키마
+
+이슈 #1 `Simplify source schema for prepared fixed input`을 먼저 해결한다.
+
+- 최신 `main`에서 `docs/1-source-schema` worktree를 만든다.
+- 기존 `docs/1-source-schema-and-flow` 브랜치의 `logical-data-schema.md`를 참고하되, `CONTRIBUTING.md` 변경은 가져오지 않는다.
+- 제품 DB가 미리 정규화된 문서만 받는다는 결정과 `source_document` 중심 구조를 반영한다.
+- GDELT 발견, 크롤링, 원본 HTML, discovery 및 retrieval 테이블을 제품 스키마에서 제외한다.
+- 아직 열린 #4–#27의 변경을 미리 섞지 않는다.
+
+이 작업부터 worker·중간감독자 검토 구조를 적용한다. 통과하면 PR을 Rebase merge한다. 이 시점의 `main`을 네 병렬 단위의 공통 기준 커밋으로 사용한다.
+
+## 4. 3단계: 충돌을 줄인 네 개 병렬 작업 단위
+
+각 단위는 서로 다른 데이터 계층과 테이블 집합을 소유한다. 같은 `logical-data-schema.md`를 수정하지만 개념적 소유권을 분리한다. 네 worker는 동일한 기준 커밋에서 별도 Orca worktree를 만들어 동시에 시작한다.
+
+`CONTRIBUTING.md`의 하나의 이슈·브랜치·PR 원칙은 기본 규칙이다. 이번에는 여러 이슈가 같은 테이블과 수명주기를 동시에 바꾸며 중간 상태를 독립적으로 검증하기 어렵기 때문에, 사용자가 승인한 결합 단위별 PR을 예외로 사용한다. 각 PR 본문에는 결합 이유와 포함된 모든 이슈를 명시한다.
+
+### 단위 A: 모델 실행·검증·지식 상태
+
+포함 이슈:
+
+- #4 `Simplify model task and attempt persistence`
+- #5 `Version structured output contracts without storing response payloads`
+- #6 `Separate pre-promotion validation from persisted graph lint`
+- #7 `Replace persisted candidate lifecycle with blocked fingerprint suppression`
+- #27 `Limit knowledge state events to human review actions`
+
+브랜치:
+
+```text
+docs/4-execution-validation-lifecycle
+```
+
+소유 범위:
+
+- `model_task`
+- `agent_attempt`
+- `output_schema_definition`
+- `blocked_fingerprint`
+- lint 정책·규칙·실행·finding
+- 후보 비영속 처리
+- `knowledge_state_event`
+- 모델 재시도와 검증 차단 상태
+
+핵심 완료 조건:
+
+- 후보 테이블과 응답 JSON을 저장하지 않는다.
+- 모델 호출 실패와 검증 차단을 분리한다.
+- `cache_key`만 논리 작업 중복 실행 방지에 사용한다.
+- 기술 재시도는 `blocked_fingerprint`를 조회하지 않는다.
+- lint는 승격 전 검증과 승격 후 그래프 검사를 분리한다.
+- 지식 상태 변경 이력은 사람의 실제 사후 검토만 기록한다.
+- 동일 정보를 여러 실행·상태 테이블에 중복 저장하지 않는다.
+
+### 단위 B: 온톨로지·노드 정체성·관계·사건
+
+포함 이슈:
+
+- #10 `Remove node type revisions from the ontology model`
+- #11 `Clarify relation type identity and directionality`
+- #12 `Limit attribute revisions to one target node type`
+- #13 `Simplify node names into alias-based lookup`
+- #14 `Preserve reversible node merge history`
+- #15 `Remove redundant unknown flags from event temporal extent`
+- #16 `Model event context through explicit event endpoints`
+- #17 `Defer relation validity intervals beyond the POC`
+
+브랜치:
+
+```text
+docs/10-ontology-graph-identity
+```
+
+소유 범위:
+
+- `ontology_version`과 `ontology_member`
+- 노드·관계·속성 유형 정의
+- `node`, `node_alias`, `node_merge`
+- `relation`
+- `event_temporal_extent`
+- 관계 식별 규칙과 사건 endpoint
+
+핵심 완료 조건:
+
+- 다섯 노드 유형은 revision 없이 안정된 유형으로 관리한다.
+- 관계 코드는 안정된 유형에, 변경 가능한 규칙은 revision에 둔다.
+- 방향성은 `DIRECTED` 또는 `SYMMETRIC` 하나로 표현한다.
+- 노드마다 대표 alias가 정확히 하나 존재한다.
+- 병합은 삭제하지 않고 취소 이력과 이유를 남긴다.
+- 사건 맥락은 `event_context_node_id` 없이 사건 노드를 endpoint로 표현한다.
+- POC relation에서 불명확한 유효 기간 컬럼을 제거한다.
+- 새로운 범용 테이블을 추가하지 않는다.
+
+### 단위 C: Claim·속성값·시간·충돌
+
+포함 이슈:
+
+- #18 `Constrain claims to one primary semantic target`
+- #19 `Split date and period attribute value kinds`
+- #20 `Remove node-reference attribute values from the POC`
+- #21 `Simplify conflict targets and reuse model-task lineage`
+
+브랜치:
+
+```text
+docs/18-claim-value-conflicts
+```
+
+소유 범위:
+
+- `claim`
+- `claim_relation`
+- `claim_attribute_value`
+- `event_temporal_basis`
+- `conflict_set`
+- `conflict_member`
+- `conflict_summary`
+
+핵심 완료 조건:
+
+- Claim은 관계·구조화 속성값·사건 시간 중 하나를 기본 판단 대상으로 삼는다.
+- 분리 불가능한 Claim만 여러 의미 연결을 허용하고 경고한다.
+- 의미 연결이 전혀 없는 Claim은 승격하지 않는다.
+- `DATE`와 `PERIOD`를 기존 `value_kind`로 구분한다.
+- `node_value_id`와 `NODE_REFERENCE`를 제거한다.
+- 노드 사이 사실은 Relation으로 통일한다.
+- 충돌은 관계·속성값·사건 시간 중 정확히 하나를 대상으로 한다.
+- `conflict_summary`는 중복 모델 계보 대신 `model_task_id`만 참조한다.
+
+### 단위 D: 승격·공개·검색·파생 결과
+
+포함 이슈:
+
+- #22 `Remove redundant derivation run persistence`
+- #23 `Simplify promotion and publication lifecycle`
+- #24 `Define node search documents and knowledge lineage`
+- #25 `Simplify node embedding storage`
+- #26 `Define node context and navigable follow-up questions`
+
+브랜치:
+
+```text
+docs/22-publication-search-artifacts
+```
+
+소유 범위:
+
+- `promotion_batch`
+- `publication_affected_node`
+- `node_search_document`
+- `search_document_basis`
+- `node_embedding`
+- `node_context`
+- `followup_question`
+- 공개 준비 상태와 이전 완성본 유지
+
+핵심 완료 조건:
+
+- `derivation_run`과 별도 `publication_state`를 제거한다.
+- 승격 성공과 공개 준비 상태는 `promotion_batch`의 서로 다른 상태로 관리한다.
+- 검색 문서는 `identity_text`와 `knowledge_text`를 분리한다.
+- `search_document_basis`는 유지하고 `contribution_kind`는 제거한다.
+- 임베딩에서 중복 입력 해시·모델·차원 컬럼을 제거한다.
+- 임베딩과 검색 문서의 `node_id`는 복합 FK 대상으로 일치시킨다.
+- 맥락 설명을 검색 문서에 다시 포함하지 않는다.
+- 후속 질문은 공개 가능한 필수 `target_node_id`를 가지며 모델 호출 없이 지도 중심을 이동한다.
+- 공개 준비 실패 시 이전 완성본을 계속 제공한다.
+
+## 5. Orca 감독 구조
+
+### 5.1 Run과 작업 DAG
+
+제가 현재 터미널에서 하나의 Orca orchestration Run을 만든다. 목적은 논리 스키마 이슈 정비, 검토, 통합이다.
+
+각 단위에는 다음 작업을 만든다.
+
+```text
+단위 parent task
+├─ worker implementation task
+└─ middle-supervisor review task
+```
+
+중간감독자 작업은 worker 완료 이후 시작한다. 네 단위의 worker 작업은 동시에 시작하고, 각 worker가 끝나는 순서대로 감독자를 붙인다.
+
+### 5.2 worker
+
+worker는 단위별 새 Orca worktree에서 작업한다.
+
+worker brief에는 반드시 다음 내용을 포함한다.
+
+- 담당 이슈 번호와 완료 조건
+- 기준 커밋 SHA
+- 소유 브랜치와 worktree
+- 수정 가능한 파일
+- 읽어야 할 `ontology-map-design-conversation-transcript.md`
+- `logical-data-schema.md`의 현재 구조
+- `CONTRIBUTING.md`
+- 다른 단위의 소유 테이블
+- 새 테이블과 컬럼을 추가하기 전에 기존 구조 삭제·병합·재사용을 우선한다는 원칙
+- 필요한 검증 명령
+- push·PR·merge는 수행하지 말라는 제한
+
+worker는 자신의 worktree와 브랜치만 수정하고 작은 논리 커밋을 만든다. 완료하면 정확히 한 번 `worker_done`을 보내며 다음을 보고한다.
+
+- 커밋 SHA
+- 수정 파일
+- 해결한 이슈와 완료 조건
+- 실행한 검사와 결과
+- 남은 의문이나 충돌 가능성
+
+### 5.3 중간감독자
+
+각 중간감독자는 다음 설정으로 실행한다.
+
+```text
+model: gpt-5.6-sol
+reasoning effort: low
+role: read-only reviewer
+```
+
+중간감독자는 worker의 worktree와 커밋을 변경하지 않는다. 다음 항목을 검토한다.
+
+- 모든 포함 이슈의 완료 조건 충족
+- 대화 원문의 의도와 일치
+- 제거하기로 한 테이블·컬럼·용어의 잔존 여부
+- 다른 계층의 책임 침범 여부
+- FK·상태·계보 설명의 내부 모순
+- 불필요한 테이블·상태·중복 컬럼 추가 여부
+- `git diff --check`와 문서 검증 결과
+- PR 범위 밖 변경 여부
+
+감독자는 근거가 있는 검토 결과와 권고 판정을 `worker_done`으로 저에게 보낸다.
+
+### 5.4 최종 판정
+
+저는 감독 보고를 그대로 승인하지 않고 다음을 직접 확인한다.
+
+- 실제 커밋과 diff
+- 이슈 본문과 acceptance criteria
+- 대화 원문의 관련 구간
+- 제거·단순화 결정의 반영 여부
+- 검사 결과
+- 작업 트리와 브랜치 상태
+
+판정은 다음 네 가지로 제한한다.
+
+- `통과`: 모든 완료 조건을 충족하고 PR을 열 수 있다.
+- `부분 통과`: 유효한 변경은 있으나 단위가 아직 완료되지 않았다. PR은 Draft로만 둘 수 있다.
+- `수정 요청`: 방향은 맞지만 구체적인 누락이나 모순을 같은 worker가 수정해야 한다.
+- `실패`: 요구사항과 다른 구조이거나 변경을 안전하게 보존할 수 없어 해당 시도를 통합하지 않는다.
+
+판정은 Orca 메시지로 중간감독자에게 전달한다. 수정 요청이면 감독자가 같은 thread에서 worker에게 수정 범위를 전달하고, worker 수정 후 동일한 검토 절차를 한 번 더 수행한다. 근거 없는 반복 수정은 하지 않는다.
+
+통과 또는 최종 실패가 확정되면 worker와 감독자 세션을 release한다. 실패 상태를 조사해야 할 때만 worktree를 보존한다.
+
+## 6. 단위 PR과 통합 순서
+
+네 worker의 구현은 병렬로 진행하지만 PR 병합은 의존 순서에 따라 진행한다.
+
+1. 단위 B: 온톨로지·노드·관계·사건
+2. 단위 A: 모델 실행·검증·지식 상태
+3. 단위 C: Claim·속성값·충돌
+4. 단위 D: 공개·검색·파생 결과
+
+각 단위 PR에는 다음을 포함한다.
+
+- 포함된 모든 이슈의 `Closes #번호`
+- 여러 이슈를 한 PR로 묶은 이유
+- 변경한 데이터 계층과 제거한 구조
+- 사용자가 얻게 되는 설계 결과
+- 제외 범위
+- 실행한 검사와 결과
+- 다른 단위와의 연결 위험
+
+앞선 PR이 `main`에 Rebase merge된 뒤 다음 PR 브랜치가 뒤처졌다면 해당 브랜치의 소유 worker가 최신 `main`을 반영한다. 충돌이 있을 때만 소유 브랜치에서 rebase하고 `--force-with-lease`를 사용한다. 변경된 diff는 중간감독자와 제가 다시 확인한 뒤 병합한다.
+
+준비 PR과 네 단위 PR은 제가 `통과`로 판정한 경우에만 Rebase merge한다. 이 병합은 후속 단위의 선행 조건을 충족하기 위해 수행한다. 병합된 이슈만 닫고 해당 원격 작업 브랜치와 Orca worktree를 정리한다.
+
+## 7. 전체 무결성 검토
+
+네 단위가 모두 `main`에 들어간 후에는 worker를 사용하지 않고 제가 직접 전체 문서를 검토한다.
+
+새 통합 검토 이슈를 하나 만든다.
+
+- 제목: `Reconcile logical schema integrity and end-to-end connections`
+- 범위: 이미 승인된 결정 사이의 연결과 문서 내부 일관성
+- 제외: 새로운 제품 기능, 물리 PostgreSQL DDL, 기술 스택 선택
+
+최신 `main`에서 통합 검토 브랜치를 만든다. 검토 기준은 다음과 같다.
+
+### 7.1 구조 무결성
+
+- 모든 테이블과 컬럼이 한 곳에서만 권위 있게 정의되는지 확인한다.
+- ER 구조, 데이터 사전, 키·카디널리티가 같은 관계를 설명하는지 확인한다.
+- FK 대상과 복합 FK의 컬럼 순서가 일치하는지 확인한다.
+- 필수값, nullable, one-of, 고유성과 상태 조합이 모순되지 않는지 확인한다.
+- 제거된 테이블·컬럼·상태·용어의 참조가 남아 있지 않은지 전체 검색한다.
+- 안정된 식별자와 revision 식별자의 역할이 뒤바뀌지 않았는지 확인한다.
+
+### 7.2 권한과 상태 무결성
+
+- Agent가 후보 제안 이외의 최종 권한을 갖지 않는지 확인한다.
+- 일반 코드가 내부 식별자, 허용 관계, 날짜, 중복, 트랜잭션을 결정하는지 확인한다.
+- 사람 검토가 필요한 지점과 자동 처리가 가능한 지점을 구분한다.
+- 모델 작업 상태, 지식 상태, lint 상태, 승격 상태와 공개 상태를 서로 섞지 않았는지 확인한다.
+- 거절된 지식이 지도와 검색에서 즉시 사라지지만 DB 이력에는 남는지 확인한다.
+- 공개 차단 lint가 사람의 거절 상태로 잘못 변환되지 않는지 확인한다.
+
+### 7.3 Evidence Trace 무결성
+
+다음 경로가 끊기지 않는지 확인한다.
+
+```text
+source_document
+→ observation
+→ claim_observation
+→ claim
+→ claim_relation | claim_attribute_value | event_temporal_basis
+→ relation | node attribute | event time
+```
+
+추가로 다음을 확인한다.
+
+- 원문 문자 범위와 인용문 검증
+- 정확한 문서 버전 유지
+- 독립 근거 묶음과 관계선 굵기 계산 경로
+- 지지·반박 Claim과 호박색 점선 충돌 표현
+- 검색 문서 basis에서 Claim과 출처까지의 역추적
+- 모델 기반 파생 결과에서 정확한 `model_task`까지의 추적
+
+### 7.4 전체 연결 검토
+
+다음 HBF happy path를 처음부터 끝까지 따라간다.
+
+```text
+준비된 HBF 문서 버전 적재
+→ 모델 작업과 Structured Output 검증
+→ transient 후보 검사와 blocked fingerprint 처리
+→ 짧은 승격 트랜잭션
+→ 근거 확인된 노드·관계·Claim·관측
+→ 검색 문서·임베딩·맥락 설명·후속 질문 준비
+→ 공개 준비 완료
+→ SK하이닉스 검색
+→ 직접 이웃과 중요한 2단계 이웃 표시
+→ HBF 발표 사건 클릭과 지도 재배열
+→ 상세 패널 Evidence Trace 조회
+→ 후속 질문 클릭과 target node 이동
+→ 90일 보기에서 1년 전체 기록 보기 전환
+```
+
+실패 경로도 확인한다.
+
+- 모델 호출 실패와 재시도 소진
+- 출력 계약 위반
+- 모든 후보의 검증 차단
+- 일부 후보만 차단된 부분 성공
+- 승격 트랜잭션 실패
+- lint blocking finding 발생과 해결
+- 임베딩 또는 맥락 설명 준비 실패
+- 새 지도 버전 준비 실패 시 이전 완성본 유지
+- 사람 거절 시 이전 공개 버전에서도 즉시 필터링
+- 키워드 또는 벡터 검색 한쪽만 성공한 부분 검색 결과
+
+### 7.5 단순성 검토
+
+각 테이블과 컬럼에 대해 다음 질문을 적용한다.
+
+- 현재 승인된 POC 흐름에서 실제로 사용하는가?
+- 다른 테이블에서 이미 알 수 있는 값을 중복 저장하는가?
+- 삭제하거나 합쳐도 Evidence Trace나 무결성이 깨지지 않는가?
+- 미래 가능성만을 위해 존재하는가?
+- 일반 코드나 PostgreSQL 기본 제약으로 더 단순하게 처리할 수 있는가?
+
+구체적인 필요가 없는 새 테이블, 범용 워크플로 엔진, 중복 상태 이력, 중복 모델 계보, 후보 보관 계층과 지도 레이아웃 저장은 추가하지 않는다.
+
+## 8. 최종 통합 PR과 검증
+
+전체 검토에서 발견된 단순한 연결 오류와 문서 불일치는 통합 검토 이슈 범위에서 수정한다. 새로운 제품 결정을 요구하는 문제는 임의로 정하지 않고 별도 이슈로 남긴다.
+
+최종 검증은 다음을 포함한다.
+
+- `git diff --check`
+- 제거 대상 이름 전체 검색
+- 모든 ER 엔터티와 데이터 사전 항목의 상호 대조
+- FK·키·상태 목록의 수동 대조
+- HBF happy path와 실패 경로 점검
+- 열린 이슈 acceptance criteria의 최종 대조
+- staged diff, 최종 파일 목록과 커밋 검토
+- 한국어 문장의 의미와 용어 일관성 점검
+
+통합 검토 변경은 하나의 집중된 문서 커밋으로 만든다.
+
+```text
+docs: reconcile logical schema integrity
+```
+
+최종 PR은 `main`을 대상으로 열고 다음을 제공한다.
+
+- 전체 통합 검토 결과
+- 수정한 연결 오류와 단순화 내용
+- 검증한 사용자 흐름
+- 남아 있는 물리 스키마 결정
+- 아직 처리하지 않는 이슈 #8과 기술 스택 의존성
+
+최종 PR은 자동 병합하지 않는다. 사용자가 Cursor에서 통합본과 diff를 검토할 수 있도록 열린 상태로 전달한다.
+
+## 9. 명시적인 제외 범위
+
+이번 계획에서는 다음 작업을 수행하지 않는다.
+
+- 이슈 #8의 언어·프레임워크별 코드 컨벤션 확정
+- PostgreSQL 물리 DDL과 migration
+- LangChain 또는 Agent 코드
+- API와 화면 구현
+- 그래프 라이브러리 선택 변경
+- 새 dependency 설치
+- cyclomatic-complexity 적용
+- 데이터베이스 생성 또는 외부 모델 호출
+- 확정되지 않은 보존 기간과 `ON DELETE` 정책의 임의 결정
+- 최종 통합 PR의 자동 병합
+</proposed_plan>
+
+## 사용자
+
+Implement the plan.
