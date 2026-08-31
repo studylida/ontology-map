@@ -69,6 +69,8 @@
 
 후보 일부가 차단되어도 통과한 후보는 같은 짧은 트랜잭션에서 승격할 수 있다. 차단된 후보는 payload 대신 검증 관련 모든 필드를 정규화한 fingerprint와 정확한 문서·계약·정책 규칙 범위만 `blocked_fingerprint`에 남긴다.
 
+구조화 출력의 Claim 후보는 원자적 문장, 정확한 관측 참조와 함께 관계 후보, 구조화된 속성값 후보, 사건 시간 후보 가운데 최소 하나를 의미 대상으로 가리켜야 한다. 기본 출력은 Claim 하나에 주 의미 대상 하나이며, 독립적으로 판단할 수 있는 내용은 별도 Claim으로 나눈다. 분리하면 원문 명제의 의미가 달라지거나 사라지는 경우에만 여러 의미 대상 참조를 허용하고 비차단 lint 경고로 원자성을 다시 확인한다. 다른 노드를 값으로 넣는 속성 후보는 허용하지 않으며 노드 사이 사실은 관계 후보로 출력한다.
+
 ## 4. 공통 표준
 
 ### 4.1 식별자
@@ -192,6 +194,19 @@ erDiagram
     NODE ||--o{ CLAIM_ATTRIBUTE_VALUE : attribute_target
     ATTRIBUTE_REVISION ||--o{ CLAIM_ATTRIBUTE_VALUE : types
 ```
+
+```mermaid
+erDiagram
+    RELATION ||--o{ CONFLICT_SET : relation_target
+    NODE ||--o{ CONFLICT_SET : attribute_or_event_target
+    ATTRIBUTE_REVISION ||--o{ CONFLICT_SET : attribute_target
+    CONFLICT_SET ||--|{ CONFLICT_MEMBER : contains
+    CLAIM ||--o{ CONFLICT_MEMBER : participates
+    CONFLICT_SET ||--o{ CONFLICT_SUMMARY : summarized_as
+    MODEL_TASK ||--o{ CONFLICT_SUMMARY : generates
+```
+
+`conflict_set`은 관계의 `relation_id`, 속성값의 `target_node_id + attribute_revision_id`, 사건 시간의 `event_node_id` 가운데 정확히 한 대상 형태만 가진다. Mermaid 관계선은 nullable 참조를 모두 표시하지만 세 형태를 동시에 채우거나 모두 비우는 것은 허용하지 않는다.
 
 ### 5.5 승격, 파생 결과와 공개 준비
 
@@ -412,6 +427,8 @@ worker는 모델 제공자 호출 전에 작업 lease와 실행 상태를 짧은
 | `attribute` | 불변 `attribute_id`와 고유한 `attribute_code` |
 | `attribute_revision` | 불변 `attribute_revision_id`, 안정된 `attribute_id`, `display_name`, 정확히 하나의 `target_node_type_id`, `allowed_value_kind`, `unit_rule`, `lifecycle_state` |
 
+POC의 허용 값 유형은 `STRING`, 단위가 있는 `NUMBER`, `DATE`, `PERIOD`, `BOOLEAN`이다. 날짜와 기간을 합친 값 유형이나 노드 참조 값 유형은 사용하지 않는다. `BOOLEAN`은 다른 노드나 의미 객체 없이 대상 노드 하나만으로 뜻이 완성되는 사람이 승인한 단항 속성에만 허용한다. 속성 코드에 다른 노드의 정체성을 넣어 관계 endpoint 검사를 우회해서는 안 된다. Relation으로 표현할 수 없는 승인된 사용 사례가 실제로 생길 때만 별도 설계 이슈에서 노드 값 속성을 다시 검토한다.
+
 ### 6.4 노드 정체성
 
 #### `node`
@@ -529,11 +546,11 @@ POC 관계에는 유효 기간을 저장하지 않는다. 사건 발생 시간�
 | `asserted_from`, `asserted_to` | 원문이 주장하는 시간이나 기간 |
 | `asserted_from_precision`, `asserted_to_precision` | 각 주장 시간 경계의 정밀도 |
 
-출처 문장 하나가 여러 사실을 담으면 독립적으로 판단할 수 있는 Claim으로 분리한다. 여러 Claim이 같은 관측 범위를 공유할 수 있다. Claim은 승격이 끝날 때 최소 하나의 관계 또는 속성값과 연결되어야 한다.
+출처 문장 하나가 여러 사실을 담으면 독립적으로 판단할 수 있는 Claim으로 분리한다. 여러 Claim이 같은 관측 범위를 공유할 수 있다. Claim은 승격이 끝날 때 `claim_relation`, `claim_attribute_value`, `event_temporal_basis` 가운데 최소 하나와 연결되어야 한다. 기본 형태는 관계 하나, 구조화된 속성값 하나 또는 사건 시간 하나를 주 의미 대상으로 삼는 것이다. 분리하면 원문 명제의 의미가 달라지거나 사라질 때만 여러 의미 연결을 허용하며, 임의의 최대 연결 수나 여러 연결만을 이유로 한 사람의 필수 승인은 두지 않는다. 여러 의미 연결이 있는 Claim은 비차단 lint 경고를 남기고 원자성을 검토한다. 모든 Claim에는 의미 대상과 별개로 정확한 관측이 최소 하나 있어야 한다.
 
 #### `claim_relation`
 
-Claim과 관계의 다대다 연결이다. `stance`는 `지지` 또는 `반박`이며 같은 Claim과 관계 조합은 한 번만 저장한다. 지지 Claim과 반박 Claim이 함께 있어도 반박 수를 선 굵기에서 빼지 않는다.
+Claim과 관계의 다대다 연결이다. `stance`는 `지지` 또는 `반박`이며 같은 Claim과 관계 조합은 한 번만 저장한다. 노드와 노드 사이의 사실은 이 연결과 정확한 관측을 통해 Relation의 근거로 표현한다. 같은 사실을 구조화된 속성값으로도 저장하지 않는다. 지지 Claim과 반박 Claim이 함께 있어도 반박 수를 선 굵기에서 빼지 않는다.
 
 #### `claim_attribute_value`
 
@@ -544,14 +561,21 @@ Claim이 노드 속성에 관해 주장하는 구조화된 값을 저장한다.
 | `claim_attribute_value_id` | 속성 주장 식별자 |
 | `claim_id`, `target_node_id` | Claim과 대상 노드 |
 | `attribute_revision_id` | 생성 당시 온톨로지 속성 revision |
-| `value_kind` | 문자열, 숫자와 단위, 날짜·기간, 참·거짓, 다른 노드 참조 |
+| `value_kind` | `STRING`, `NUMBER`, `DATE`, `PERIOD`, `BOOLEAN` 가운데 하나 |
 | `string_value` | 문자열 값 |
 | `number_value`, `unit_code` | 숫자와 단위 값 |
-| `date_from`, `date_to`, `date_from_precision`, `date_to_precision` | 날짜 또는 기간 값과 각 경계의 정밀도 |
+| `date_from`, `date_to`, `date_from_precision`, `date_to_precision` | `DATE` 또는 `PERIOD` 값과 각 경계의 정밀도 |
 | `boolean_value` | 참·거짓 값 |
-| `node_value_id` | 다른 노드 참조 값 |
 
-DB 제약은 `value_kind`에 해당하는 값 열만 정확히 하나의 값 묶음으로 채우게 한다. 숫자의 값과 단위, 기간의 시작과 종료는 하나의 값 묶음으로 본다. Claim의 표현 성격은 `claim.modality`에 남기므로 `2027년 상용화 목표`를 확정된 상용화 시점으로 표시하지 않는다.
+`value_kind`는 행 안의 값 묶음을 검사하기 위한 의도적인 제약 중복이다. `(attribute_revision_id, value_kind)`는 `attribute_revision`의 `(attribute_revision_id, allowed_value_kind)`를 참조하고, 참조 대상 쌍은 고유해야 한다. 따라서 값 행의 종류는 정확한 속성 revision이 허용한 종류와 달라질 수 없다.
+
+DB 제약은 `value_kind`가 선택한 값 묶음만 채우고 다른 모든 값 묶음은 비우게 한다. `STRING`은 `string_value`, `NUMBER`는 `number_value + unit_code`, `BOOLEAN`은 `boolean_value`만 사용한다. `BOOLEAN = false`는 근거가 있는 명시적 부정이며 속성값 행이 없는 미상 상태와 다르다.
+
+`DATE`는 `date_from`과 `UNKNOWN`이 아닌 시작 정밀도가 필요하며 `date_to`는 `NULL`, 종료 정밀도는 `UNKNOWN`이어야 한다. `PERIOD`는 `date_from`과 `UNKNOWN`이 아닌 시작 정밀도가 필요하다. 종료를 모르는 `PERIOD`는 `date_to IS NULL`과 종료 정밀도 `UNKNOWN`을 함께 사용한다. 종료가 있으면 종료 정밀도도 `UNKNOWN`이 아니어야 하며 종료는 시작보다 이를 수 없다. 연도나 월만 아는 경계는 정규화한 날짜와 정밀도를 함께 보존한다. Claim의 표현 성격은 `claim.modality`에 남기므로 `2027년 상용화 목표`를 확정된 상용화 시점으로 표시하지 않는다.
+
+#### `event_temporal_basis`
+
+사건의 채택 시간을 직접 뒷받침하는 Claim을 사건 노드에 연결한다. `(event_node_id, claim_id)` 조합은 한 번만 저장하며, 연결된 Claim은 정확한 관측을 최소 하나 가져야 한다. 이 연결만 가진 사건 시간 Claim도 유효한 의미 대상이므로 Relation이나 일반 속성값을 추가하지 않는다. 채택 시간과 다른 Claim은 이 표에 반박 표시를 넣지 않고 사건 시간 대상의 별도 충돌 묶음으로 보존한다.
 
 속성값의 `target_node_id`가 가리키는 노드 유형은 해당 `attribute_revision.target_node_type_id`와 반드시 같아야 한다. `claim_attribute_value`는 값을 해석할 때 사용한 정확한 속성 revision을 계속 참조하며, POC에서는 한 revision을 여러 노드 유형에 적용하지 않는다.
 
@@ -592,14 +616,32 @@ Claim과 관측의 다대다 연결이다. Claim마다 하나 이상의 관측�
 
 충돌 묶음은 비교 가능한 Claim 사이에서 Agent가 발견한 엇갈림을 관리한다.
 
-| 엔터티 | 핵심 내용 |
+| `conflict_set` 필드 | 의미와 규칙 |
 |---|---|
-| `conflict_set` | 비교 대상 관계 또는 속성, 비교 기간, 표현 성격, 현재 상태 `Agent 제안·사람 확인·거절` |
-| `conflict_member` | 묶음에 참여하는 Claim과 그 관점 역할 |
-| `conflict_summary` | 공통으로 확인되는 내용, 각 관점 정리, 입력 해시와 결과를 만든 정확한 `model_task_id` |
-| `conflict_state_event` | 이전 상태, 새 상태, 이유, 처리 주체와 처리 시점의 append-only 이력 |
+| `conflict_set_id` | 충돌 묶음 식별자 |
+| `relation_id` | 관계 충돌일 때만 채우는 대상 관계 |
+| `target_node_id`, `attribute_revision_id` | 구조화된 속성값 충돌일 때만 함께 채우는 대상 노드와 속성 revision |
+| `event_node_id` | 사건 시간 충돌일 때만 채우는 사건 노드 |
+| `modality` | 비교하는 Claim의 표현 성격 |
+| `current_state` | `Agent 제안`, `사람 확인`, `거절` 가운데 현재 상태 |
+| `created_at` | 충돌 묶음 생성 시점 |
 
-일반 코드는 공개 전에 양쪽 Claim의 현재 상태가 `근거 확인됨` 또는 `사람 확인됨`인지, 비교 대상과 시간 범위·표현 성격을 비교할 수 있는지, 출처와 원문 위치가 있는지 검사한다. 통과한 Agent 제안은 사람 확인 전에도 `Agent가 발견한 엇갈림`으로 표시한다. 사람 확인 뒤에는 문구만 바뀌고 호박색 점선은 유지한다. 충돌 제안을 거절하면 점선만 해제하며 원래 Claim을 거절하거나 삭제하지 않는다.
+`conflict_member`는 `conflict_set_id`, `claim_id`, 같은 관점을 묶는 `position_key`를 저장하며 `(conflict_set_id, claim_id)` 조합은 한 번만 허용한다. `conflict_state_event`는 이전 상태, 새 상태, 이유, 처리 주체와 처리 시점을 append-only 이력으로 저장한다.
+
+| `conflict_summary` 필드 | 의미와 규칙 |
+|---|---|
+| `conflict_summary_id` | 생성된 요약 식별자 |
+| `conflict_set_id` | 요약 대상 충돌 묶음 |
+| `model_task_id` | 이 요약을 생성한 성공 상태의 충돌 요약 모델 작업 |
+| `common_ground_text` | 관점 사이에서 공통으로 확인되는 내용 |
+| `viewpoint_summary_text` | 관점별 차이를 정리한 내용 |
+| `created_at` | 요약 생성 시점 |
+
+관계, 속성값, 사건 시간의 엇갈림은 원문 한 문장에 함께 나타나더라도 서로 다른 원자적 충돌 묶음으로 나눈다. `conflict_set`에 비교 시간과 정밀도를 복사하지 않는다. 관계 충돌의 비교 시간은 구성원 Claim의 `asserted_from/to`에서 읽고, 구조화된 날짜·기간 충돌은 구성원의 `claim_attribute_value` 값과 정밀도에서 읽는다. 사건 시간 충돌도 해당 사건을 대상으로 하는 구성원 Claim과 채택 시간을 함께 검사한다.
+
+`conflict_summary`에는 `input_hash`, 모델 버전, 프롬프트 버전과 출력 계약 버전을 반복 저장하지 않는다. 이 계보와 작업 상태·재시도 정보는 성공 상태의 충돌 요약 `model_task_id`를 따라가서 읽으며, 실제 생성 결과인 공통점과 관점 요약 본문만 요약 행에 둔다. 입력 Claim 집합이 바뀌면 새 입력 해시의 모델 작업과 새 요약 행을 만들고 기존 요약은 덮어쓰지 않는다.
+
+일반 코드는 공개 전에 모든 구성원 Claim의 현재 상태가 `근거 확인됨` 또는 `사람 확인됨`인지, 같은 단일 의미 대상을 비교하는지, 시간과 표현 성격을 비교할 수 있는지, 출처와 원문 위치가 있는지 검사한다. 통과한 Agent 제안은 사람 확인 전에도 `Agent가 발견한 엇갈림`으로 표시한다. 사람 확인 뒤에는 문구만 바뀌고 호박색 점선은 유지한다. 충돌 제안을 거절하면 점선과 충돌 표현만 해제하며 원래 Claim의 상태를 바꾸거나 삭제하지 않는다.
 
 ### 6.7 승격과 공개 준비
 
@@ -711,9 +753,14 @@ HBF POC의 최초 1년 고정 입력 묶음은 하나의 승격·공개 단위�
 | knowledge_item → node/relation/claim | 1:정확히 하나, `item_kind`와 하위 유형이 일치해야 함 |
 | relation → claim_relation ← claim | N:M, Claim은 관계를 지지하거나 반박함 |
 | relation identity | 정규화한 시작·도착 endpoint와 정확한 `relation_type_revision_id` 조합이 고유함 |
-| claim → claim_attribute_value | 1:N, 관계 연결이 없다면 최소 하나가 필요함 |
+| attribute_revision → claim_attribute_value | 1:N, 값 행의 `(attribute_revision_id, value_kind)`가 revision의 `(attribute_revision_id, allowed_value_kind)`와 일치해야 함 |
+| claim → claim_attribute_value | 1:N, 구조화된 비노드 속성값을 주장하는 Claim의 의미 연결 |
+| claim → 의미 연결 | 1:1..N, `claim_relation`, `claim_attribute_value`, `event_temporal_basis` 가운데 하나가 기본이고 분리 불가능할 때만 여러 연결을 허용함 |
 | claim → claim_observation ← observation | N:M, Claim마다 최소 한 관측 필요 |
 | source_document → observation | 1:N, 관측 범위는 해당 문서 버전 본문에서만 검증함 |
+| conflict_set → conflict_member ← claim | 1:N:1, 한 충돌 묶음은 같은 단일 의미 대상의 Claim을 둘 이상 포함하고 `position_key`로 관점을 묶음 |
+| conflict_set → conflict_summary | 1:N, 입력 Claim 집합이 바뀌면 기존 행을 덮어쓰지 않고 새 요약을 추가함 |
+| model_task → conflict_summary | 1:N, 각 요약은 자신을 생성한 정확한 모델 작업 하나를 참조함 |
 | promotion_batch → knowledge_item | 1:N, 새 기준 지식은 자신을 만든 승격 묶음을 직접 참조함 |
 | knowledge_item → knowledge_state_event | 1:N, 사람의 상태 변경만 append-only로 보존함 |
 | promotion_batch → publication_state | 1:1, 승격 커밋 뒤 공개 준비 상태 관리 |
@@ -753,6 +800,7 @@ PENDING → RUNNING → SUCCESS
 ```
 
 - `근거 확인됨`은 출처가 주장을 뒷받침한다는 검증 상태이지 세계의 사실 확정 상태가 아니다.
+- Claim은 `근거 확인됨`으로 들어가기 전에 정확한 관측과 관계·구조화 속성값·사건 시간 가운데 최소 한 의미 연결을 가져야 한다. 의미 연결이 없으면 승격을 차단하며, 분리할 수 없는 여러 의미 연결은 경고를 남기되 사람 확인 없이도 승격할 수 있다.
 - 사람만 `knowledge_state_event`를 추가하여 `사람 확인됨`, `보류`, `거절`을 결정하거나 `보류`를 해제할 수 있다.
 - `거절`은 해당 기준 기록의 종료 상태다. 새 근거가 들어오면 기존 기록을 되살리지 않고 새 기준 기록으로 검토한다.
 - 보류와 거절은 지도와 일반 검색에서 제외한다.
@@ -778,6 +826,15 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 
 병합 취소는 읽기 리디렉션을 즉시 중단하지만 병합·취소 처리자, 시점과 이유를 같은 행에 남긴다. 취소된 원본 노드를 다시 병합할 때는 새 행을 추가하므로 과거 행을 활성 상태로 되돌리거나 삭제하지 않는다.
 
+### 8.5 충돌 제안
+
+```text
+Agent 제안 → 사람 확인
+           └→ 거절
+```
+
+일반 코드의 대상·근거·비교 가능성 검사를 통과한 `Agent 제안`은 사람 확인을 기다리지 않고 충돌 표현에 사용할 수 있다. 사람 확인은 선택 사항이며, 거절은 충돌 표현만 숨긴다. 어느 전이도 구성원 Claim의 지식 상태를 바꾸지 않는다. 입력 Claim 집합이 바뀌면 기존 충돌 요약을 수정하지 않고 새 모델 작업과 요약을 추가한다.
+
 ## 9. 무결성 규칙
 
 ### 9.1 DB에서 반드시 막을 규칙
@@ -790,10 +847,12 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 - 관계 revision의 `directionality`는 `DIRECTED` 또는 `SYMMETRIC`이어야 하고, 역관계 revision은 `DIRECTED`에만 허용한다.
 - `SYMMETRIC` 관계의 endpoint 순서는 결정적으로 정규화하고 반대 방향 중복을 허용하지 않는다.
 - event temporal extent의 각 경계는 값이 `NULL`이면 정밀도가 `UNKNOWN`이고 값이 있으면 정밀도가 `UNKNOWN`이 아니어야 한다. 시작과 종료를 모두 알 때 종료는 시작보다 이를 수 없다.
-- `claim_attribute_value`는 선언한 값 유형에 해당하는 값 묶음만 정확히 하나 가진다.
 - `claim_attribute_value.target_node_id`의 노드 유형은 정확한 `attribute_revision.target_node_type_id`와 일치해야 한다.
+- `attribute_revision`의 `(attribute_revision_id, allowed_value_kind)`는 고유하고 `claim_attribute_value`의 `(attribute_revision_id, value_kind)`는 이 쌍을 참조해야 한다.
+- `claim_attribute_value`는 `STRING`, `NUMBER`, `DATE`, `PERIOD`, `BOOLEAN` 가운데 선언한 값 유형에 해당하는 값 묶음만 정확히 하나 가지며 노드 참조 값은 가질 수 없다.
+- `DATE`는 시작값과 유효한 정밀도만 사용하고 종료값은 비우며, `PERIOD`는 시작값과 유효한 정밀도를 사용하고 종료값 유무와 종료 정밀도가 일치해야 한다. 닫힌 기간의 종료는 시작보다 이를 수 없다.
 - observation의 시작 위치는 0 이상이고 종료 위치보다 작으며 종료 위치는 본문 문자 길이를 넘을 수 없다.
-- Claim은 승격 묶음 커밋 시점에 최소 하나의 관계 또는 속성값과 최소 하나의 관측을 가져야 한다.
+- Claim은 승격 묶음 커밋 시점에 `claim_relation`, `claim_attribute_value`, `event_temporal_basis` 가운데 최소 하나와 정확한 관측을 최소 하나 가져야 한다.
 - `근거 확인됨` 관계는 관측이 연결된 지지 Claim을 최소 하나 가져야 하며 반박 Claim만으로 승격할 수 없다.
 - `근거 확인됨` 노드는 관측이 연결된 대표 alias 또는 자신을 대상으로 하는 근거 있는 Claim을 최소 하나 가져야 한다.
 - 사건 노드는 사건 시간 범위와 이를 뒷받침하는 Claim, 참여자 또는 대상 관계를 최소 하나씩 가져야 한다.
@@ -806,6 +865,8 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 - blocked fingerprint는 정확한 문서·계약·`BLOCKING` 승격 전 정책 규칙을 참조해야 하며 네 범위 필드와 fingerprint 조합은 고유해야 한다.
 - knowledge state event의 변경 사용자는 필수이고 이전 상태와 잠근 현재 상태가 일치해야 하며 허용 전이만 기록할 수 있다.
 - lint finding은 정확한 기준 knowledge item과 정책 규칙을 참조하며 열린 finding key는 한 문제 인스턴스만 가져야 한다.
+- conflict set은 `relation_id`, `target_node_id + attribute_revision_id`, `event_node_id` 가운데 정확히 한 대상 형태만 가져야 한다.
+- conflict summary는 정확한 `model_task_id`를 가져야 하며 입력 해시와 모델·프롬프트·출력 계약 버전을 중복 저장하지 않는다.
 - 공개 선택된 node context에는 후속 질문 1번과 2번이 정확히 하나씩 있어야 한다.
 - 공개 선택된 node context에는 현재 공개 가능한 Claim을 가리키는 basis가 최소 하나 있어야 한다.
 - `ready` 공개 묶음은 영향받은 모든 노드의 필수 파생 결과를 참조해야 한다.
@@ -826,6 +887,11 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 - 출력 계약 검증, 승격 전 후보 fingerprint 계산과 차단 반복 억제
 - 모델 작업 cache key, lease, 종료 상태와 기술 재시도 시각 계산
 - 저장된 그래프 lint의 결정적 finding key 계산과 성공한 적용 범위의 finding 해결
+- 독립적으로 판단할 수 있는 여러 사실의 Claim 분리와 Claim별 의미 연결 검사
+- 노드 사이 사실을 속성값이나 노드 정체성을 포함한 동적 속성 코드로 우회하지 못하게 하는 출력·온톨로지 검사
+- `DATE`와 `PERIOD`의 경계·정밀도 일치, revision과 값 종류 일치 검사
+- 충돌 구성원이 같은 단일 의미 대상을 가리키는지와 Claim·구조화 값에서 읽은 시간의 비교 가능성 검사
+- 충돌 요약 입력 Claim 집합이 바뀌었을 때 새 입력 해시의 모델 작업과 요약 생성
 - 선택 기간의 활동량, 관계선 굵기와 2단계 이웃 중요도 계산
 - 공개 준비 상태 전환 전 완결성 검사
 - 공개 준비 작업의 단일 실행 lease, dependency와 publication sequence 검사
@@ -834,8 +900,9 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 ### 9.3 Agent가 제안만 할 수 있는 규칙
 
 - 원문에서 노드·사건·관계·Claim·관측 후보 추출
+- 독립 판단 단위별 Claim과 관계·구조화 속성값·사건 시간 의미 연결 후보 제안
 - 모호한 동일 대상과 관계 병합 후보
-- 준비된 문서에서 관계 시간의 명시적 근거와 정확한 원문 위치 제안
+- 준비된 문서에서 Claim 주장 시간의 명시적 근거와 정확한 원문 위치 제안
 - 재게시·번역 등 모호한 독립 근거 계보 후보
 - 충돌 후보와 공통점·관점 정리
 - 한국어 맥락 설명과 후속 질문
@@ -850,7 +917,10 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 | 차단 | 관계 directionality·역관계 조합이 잘못되거나 대칭 endpoint가 정규화되지 않음 | 승격 금지 |
 | 차단 | 속성값 대상 노드 유형이 속성 revision의 단일 대상 유형과 다름 | 승격 금지 |
 | 차단 | 사건 시간 값과 정밀도 조합이 맞지 않거나 알려진 사건 기간이 역전됨 | 승격 금지 |
-| 차단 | Claim의 관계·속성 또는 관측 연결이 없음 | 승격 금지 |
+| 차단 | Claim의 관계·구조화 속성값·사건 시간 의미 연결 가운데 하나도 없거나 관측 연결이 없음 | 승격 금지 |
+| 차단 | 속성 revision과 `value_kind`가 다르거나 선택하지 않은 값 묶음이 채워짐 | 승격 금지 |
+| 차단 | `DATE`·`PERIOD`의 필수 경계와 정밀도가 맞지 않거나 닫힌 기간이 역전됨 | 승격 금지 |
+| 차단 | 노드 사이 사실을 속성값·Boolean·노드 정체성을 넣은 동적 속성 코드로 표현함 | 승격 금지, Relation 후보로 다시 분리 |
 | 차단 | 관계에 관측 가능한 지지 Claim이 없거나 반박 Claim만 있음 | 승격 금지 |
 | 차단 | 노드의 근거 있는 대표 alias·Claim이 없거나 사건의 시간·참여 관계가 없음 | 승격 금지 |
 | 차단 | 공개하려는 노드의 대표 alias가 없거나 둘 이상임 | 공개 금지 |
@@ -861,6 +931,9 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 | 차단 | 파생 결과가 누락된 변경 묶음을 ready로 전환 | 공개 금지 |
 | 차단 | 선행 dependency가 ready가 아니거나 더 오래된 publication sequence로 포인터 교체 시도 | 공개 금지 |
 | 차단 | 검색 결과 부재, 언급 감소나 경과 시간만으로 관계 종료를 제안함 | 승격 금지 |
+| 차단 | 충돌 묶음이 의미 대상을 비우거나 관계·속성값·사건 시간 대상을 둘 이상 채움 | 충돌 제안 저장 금지 |
+| 차단 | 충돌 구성원의 의미 대상이나 시간이 비교 불가능하거나 요약의 `model_task_id` 계보가 없음 | 충돌 제안·요약 저장 금지 |
+| 경고 | 분리하면 원문 의미가 달라지는 Claim이 여러 의미 연결을 가짐 | 승격 허용, 원자성 검토 |
 | 경고 | 비교 가능한 지지·반박 Claim이 함께 존재 | 충돌 후보 생성과 호박색 점선 표시 |
 | 경고 | 독립 출처 계보가 하나뿐임 | 상세 패널에 근거 다양성 정보 제공 |
 | 경고 | 고립 노드이지만 공개 필수 파생 결과는 준비됨 | 공개 허용, 가짜 관계 생성 금지 |
@@ -878,7 +951,7 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 4. 본문 해시와 확인된 원문 계보로 독립 근거 묶음을 배정한다.
 5. 결정적 cache key를 확인하고 종료된 동일 모델 작업이 없을 때만 작업을 생성하거나 기술 재시도를 예약한다.
 6. 정확한 `output_schema_definition`으로 Agent를 호출하고 응답 JSON을 저장하지 않은 채 메모리에서 계약과 후보별 승격 전 검사를 수행한다.
-7. 노드는 안정된 `node_type_id`, 관계는 정확한 revision과 endpoint 규칙, 속성값은 revision의 단일 대상 유형으로 검사한다. 사건 맥락은 명시적인 사건 endpoint로만 받고 관계 종료는 POC 관계 컬럼으로 승격하지 않는다.
+7. 노드는 안정된 `node_type_id`, 관계는 정확한 revision과 endpoint 규칙, 속성값은 revision의 단일 대상 유형과 `value_kind`별 값 묶음으로 검사한다. Claim마다 정확한 관측과 세 의미 연결 중 하나 이상이 있는지, 노드 사이 사실이 Relation으로 표현되었는지도 확인한다. 사건 맥락은 명시적인 사건 endpoint로만 받고 관계 종료는 POC 관계 컬럼으로 승격하지 않는다.
 8. 계약 유효 후보가 차단 규칙에 실패하면 payload 없이 `blocked_fingerprint`를 집계하고, 통과한 후보만 승격 입력으로 전달한다.
 
 Agent 호출이 모두 실패하면 준비된 `source_document`, 모델 작업과 실패 이력만 남는다. 기준 지식그래프는 바뀌지 않는다.
@@ -888,10 +961,12 @@ Agent 호출이 모두 실패하면 준비된 `source_document`, 모델 작업�
 1. 메모리 검증을 통과했고 함께 공개되어야 의미가 맞는 결과를 `promotion_batch`로 묶는다.
 2. 짧은 DB 트랜잭션을 시작한다.
 3. 최종 중복과 제약을 다시 검사하고 필요한 내부 식별자를 발급한다.
-4. 노드·관계·Claim과 관측·alias·병합·사건 시간·근거 묶음 할당을 만들고 새 `knowledge_item`에 정확한 `promotion_batch_id`를 기록한다.
+4. 노드·관계·Claim과 관측·alias·병합·사건 시간·근거 묶음 할당을 만들고 Claim의 세 의미 연결 가운데 하나 이상과 관측을 완성한 뒤 새 `knowledge_item`에 정확한 `promotion_batch_id`를 기록한다.
 5. 모든 레코드가 성공하면 커밋하고, 하나라도 실패하면 전체 묶음을 롤백한 뒤 묶음의 `failure_reason`을 기록한다.
 
 승격 계보는 `promotion_batch → knowledge_item`과 `Claim → observation → source_document` 경로로 재현한다. 추출 모델 작업이나 일시적인 후보를 기준 지식에 직접 연결하지 않는다.
+
+승격 뒤 충돌 분석은 Claim을 관계, 구조화 속성값, 사건 시간 대상별로 따로 모아 비교한다. 비교 가능한 Claim만 같은 `conflict_set`에 넣고 시간은 구성원 Claim과 구조화 값에서 읽는다. 요약을 생성하면 정확한 `model_task_id`와 결과 본문을 저장한다. 입력 Claim 집합이 바뀌면 새 작업과 새 요약을 추가하며 기존 요약은 보존한다.
 
 ### 11.3 파생 결과와 공개
 
@@ -944,7 +1019,9 @@ display_rule_version
 
 반박 근거는 관계선 굵기에서 빼지 않는다. 충돌 여부는 선의 형태와 상세 패널의 엇갈리는 관점으로 별도 표현한다. 시간 감쇠 상수는 데이터로 계산 가능해야 하지만 정확한 값은 시각 POC 검증에서 정한다. 이웃 중요도는 위의 결정적 정렬을 사용한다.
 
-노드 활동량에서 `노드와 연결된 Claim`은 `claim_relation`이 가리키는 관계의 시작·도착 노드이거나 `claim_attribute_value`의 대상·노드 참조값인 경우로 한정한다. 같은 Claim과 같은 독립 근거 묶음이 여러 경로로 같은 노드에 도달해도 한 번만 센다.
+관계선의 충돌 표현은 해당 관계만 대상으로 하는 충돌 묶음에서 계산한다. 속성값과 사건 시간 충돌은 대상 노드의 상세 패널에 표시하며 다른 의미 범주의 충돌을 같은 점선에 합치지 않는다. 충돌 제안이 거절되면 이 표현만 숨기고 구성원 Claim은 계속 조회할 수 있다.
+
+노드 활동량에서 `노드와 연결된 Claim`은 `claim_relation`이 가리키는 관계의 시작·도착 노드, `claim_attribute_value`의 대상 노드 또는 `event_temporal_basis`의 사건 노드에 도달하는 경우로 한정한다. 같은 Claim과 같은 독립 근거 묶음이 여러 경로로 같은 노드에 도달해도 한 번만 센다.
 
 지도 좌표, 현재 카메라 위치, 중심 노드별 구성원과 force layout 결과는 기준 데이터로 저장하지 않는다. 같은 데이터도 세션마다 약간 다르게 배치될 수 있다.
 
@@ -954,6 +1031,7 @@ display_rule_version
 - alias 정확 일치 결과를 첫 번째 bucket에 두고 하이브리드 점수와 무관하게 먼저 보여준다. 일치한 노드에서 활성 node merge를 따라 최종 기준 노드를 찾은 뒤 그 노드의 단일 대표 alias를 표시한다.
 - 키워드와 벡터 branch는 각각 최대 50개 후보를 반환한다. 두 순위는 RRF로 결합하며 POC 상수는 `k = 60`, 점수식은 `Σ 1 / (60 + branch_rank)`이다. 동점이면 불변 노드 식별자 오름차순으로 정렬한다.
 - Claim과 출처는 순위 계산과 검색 이유 설명에 사용하지만 메인 검색 결과로 직접 반환하지 않는다.
+- 구조화된 날짜 검색과 표시에서는 `DATE`와 `PERIOD`를 구분하고 저장된 연도·월·날짜 정밀도를 보존한다. `DATE`를 종료 미상 기간처럼 확장하거나 `PERIOD`의 미상 종료를 단일 날짜처럼 축소하지 않는다.
 - 키워드 또는 벡터 한쪽이 실패해도 다른 쪽이 성공하면 결과를 보여주고 실패한 검색 방식은 결과 영역에서 안내한다.
 - 두 방식이 모두 실패하거나 3D 지도를 표시할 수 없으면 목록형 대체 화면을 제공하지 않는다.
 - 노드가 거절되면 모든 branch에서 제외한다. Claim이나 관계 거절로 `name_alias_only`가 된 노드는 alias 정확 검색에만 포함하고 지식 전문 검색과 벡터 branch에서는 제외한다.
@@ -974,7 +1052,9 @@ Agent는 이 문장을 최소한 다음 원자적 Claim 후보로 나눈다.
 3. HBF가 해당 사건에서 발표되었다.
 4. 관계자들이 2027년 HBF 상용화를 목표로 밝혔다.
 
-네 Claim은 같은 `observation`을 공유할 수 있다. 1~3번은 허용된 사건 중심 관계와 연결하고, 4번은 HBF의 `상용화 목표 시점` 속성에 값 `2027`, 값 유형 `연도`, 표현 성격 `계획·목표`로 연결한다. 원문이 확정된 상용화를 말하지 않았으므로 사실 주장으로 바꿀 수 없다.
+네 Claim은 같은 `observation`을 공유할 수 있다. 1~3번은 각각 허용된 사건 중심 Relation을 주 의미 대상으로 연결하고, 4번은 HBF의 `상용화 목표 시점` 속성값을 주 의미 대상으로 연결한다. 4번은 `value_kind = DATE`, `date_from = 2027-01-01`, `date_from_precision = YEAR`, `date_to = NULL`, `date_to_precision = UNKNOWN`, `modality = PLAN_OR_TARGET`으로 저장한다. 원문이 확정된 상용화를 말하지 않았으므로 사실 주장이나 종료 미상 기간으로 바꿀 수 없다.
+
+별도 출처가 “시험 운영은 2025년부터 현재까지 이어진다”고 승인된 단항 기간 속성을 주장한다면 `value_kind = PERIOD`, 연도 정밀도의 시작값, `date_to = NULL`, 종료 정밀도 `UNKNOWN`으로 저장한다. “기술 T가 표준 S를 공식 지원한다”처럼 두 노드 사이 의미라면 Boolean 속성을 만들지 않고 T와 S 사이 Relation 및 이를 지지하는 Claim·관측으로 저장한다. “행사 E는 2026년 8월에 열렸다”처럼 사건 시간만 말하는 Claim은 `event_temporal_basis`를 주 의미 대상으로 연결하며 관계나 일반 속성값을 억지로 추가하지 않는다.
 
 사건 중심 관계는 `SK하이닉스 → HBF 발표 사건`, `SanDisk → HBF 발표 사건`, `HBF 발표 사건 → HBF`처럼 명시적인 endpoint로 저장한다. 이 경로만 보고 `SK하이닉스 → HBF` 직접 관계를 추가하지 않는다. 직접 관계는 별도의 원문이 이를 명시적으로 주장할 때만 그 Claim과 관측을 근거로 저장한다. `상용화 목표 시점` attribute revision의 단일 대상 유형은 `TECHNOLOGY`여야 하므로 같은 값을 회사 노드에 연결하면 차단한다.
 
@@ -1019,6 +1099,14 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 | 29 | 관련 후보가 모두 승격 전 차단 규칙에 실패함 | 모델 작업이 `VALIDATION_BLOCKED`로 끝나며 작업 스케줄러가 기술 재시도를 예약하지 않음 |
 | 30 | 새 lint 정책이 기존 그래프 결과를 바꿀 수 있음 | 새 정책의 전체 그래프 run이 한 번 생성되고 같은 열린 문제는 갱신되며 성공한 적용 범위에서 사라진 문제만 해결됨 |
 | 31 | 사람이 근거 확인된 지식을 보류함 | 필수 사용자와 이유가 있는 이벤트와 현재 상태가 한 트랜잭션에서 함께 기록되고 Agent나 일반 코드는 같은 이벤트를 만들 수 없음 |
+| 32 | 관계 Claim, 구조화 속성값 Claim, 사건 시간만 주장하는 Claim을 각각 승격함 | 각 Claim이 세 허용 의미 연결 가운데 해당하는 한 경로와 정확한 관측을 가지고 승격됨 |
+| 33 | Claim이 어떤 의미 연결도 가지지 않음 | 관측이 있더라도 승격이 차단됨 |
+| 34 | 한 문장에 독립적으로 판단 가능한 사실이 여럿 있거나 분리하면 의미를 잃는 명제가 있음 | 전자는 별도 Claim으로 나뉘고 후자는 여러 의미 연결을 유지하면서 비차단 경고가 생기며 사람 확인 없이 승격할 수 있음 |
+| 35 | 연도 정밀도 목표일, 종료 미상 기간, 닫힌 기간과 잘못된 경계·revision 조합을 저장함 | `DATE`와 두 `PERIOD`는 정밀도를 보존하고, 종료가 시작보다 이르거나 종류·NULL·정밀도·revision 조합이 어긋난 값은 차단됨 |
+| 36 | “기술 T가 표준 S를 공식 지원한다”를 Boolean 속성으로 제안하고 명시적 `false`와 값 부재를 조회함 | 노드 사이 제안은 Relation으로만 허용되고 Boolean 방식은 차단되며, `false`는 근거 있는 부정으로 미상과 구분됨 |
+| 37 | 관계, 속성값, 사건 시간 충돌과 두 범주를 함께 채운 충돌 묶음을 제안함 | 각 단일 대상 충돌만 별도 묶음으로 저장되고 대상 없음·복수 대상 묶음은 차단되며 비교 시간은 구성원 Claim과 구조화 값에서 계산됨 |
+| 38 | 충돌 요약의 입력 Claim 집합이 바뀜 | 새 입력 해시의 `model_task`와 `conflict_summary`가 생기고 기존 요약이 보존되며, 모델·프롬프트·출력 계약·상태·재시도 계보는 `model_task_id`로 조회됨 |
+| 39 | Agent가 제안한 충돌을 사람이 거절함 | 충돌 표현만 숨고 구성원 Claim의 상태와 Evidence Trace는 바뀌지 않음 |
 
 ## 16. 물리 스키마 단계로 넘길 항목
 
@@ -1027,6 +1115,8 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 - 내부 식별자의 실제 자료형과 생성 방식
 - 시간 정밀도와 불완전 날짜의 실제 표현
 - 상태, modality와 값 유형의 CHECK 또는 참조 테이블 선택
+- `attribute_revision(attribute_revision_id, allowed_value_kind)`의 참조 대상 고유성과 `claim_attribute_value(attribute_revision_id, value_kind)`의 복합 외래 키 구현
+- `STRING`, `NUMBER`, `DATE`, `PERIOD`, `BOOLEAN`별 로컬 값 묶음 CHECK와 날짜·기간 경계 및 정밀도 CHECK 구현. 새 종류 열이나 별도 시간값 테이블은 추가하지 않음
 - `source_key + version_no` 고유성과 같은 문서 재적재의 멱등성 구현
 - 안정된 `node_type` 코드 다섯 개의 제약과 `ontology_member`가 노드 유형·관계 revision·속성 revision 가운데 하나만 선택하는 배타 제약 구현
 - `relation_type.relation_code`의 불변 고유성과 revision의 `DIRECTED | SYMMETRIC`, 역관계 허용 조건 구현
@@ -1041,7 +1131,9 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 - 승격 묶음에서 knowledge item으로 이어지는 직접 외래 키와 종속 레코드 계보 구현
 - 사람 전용 knowledge state 전이, 필수 사용자·이유와 현재 상태의 원자 갱신 구현
 - lint policy 활성화와 전체 그래프 run, 결정적 finding key, 반복·해결·재발 처리 구현
-- Claim·관계·노드·사건의 최소 근거와 후속 질문 정확히 두 건을 보장하는 지연 제약 또는 트랜잭션 검증
+- Claim의 세 의미 연결 가운데 최소 하나와 정확한 관측, 관계·노드·사건의 최소 근거와 후속 질문 정확히 두 건을 보장하는 지연 제약 또는 트랜잭션 검증
+- `conflict_set`의 관계, 속성값, 사건 시간 대상 형태 중 정확히 하나만 허용하는 배타적 CHECK와 대상별 외래 키 구현
+- `conflict_summary.model_task_id` 외래 키와 구성원 Claim 집합 변경 시 새 작업·요약을 추가하는 멱등성 구현. 입력 해시와 모델·프롬프트·출력 계약 계보는 요약 테이블에 중복하지 않음
 - 정규화 본문 문자 길이와 인용문 일치를 검증하는 함수 경계
 - 전문 검색의 `tsvector`, GIN, `ts_rank`, `ts_rank_cd` 구성
 - 한국어 corpus의 전문 검색 품질과 alias 정확 검색 검증
@@ -1061,6 +1153,10 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 - Agent의 내부 식별자 발급, 자동 최종 병합, 온톨로지 변경과 상태 확정
 - 모델 제공자의 원시 응답, Agent 응답 JSON, 후보 payload와 승격 전 finding 인스턴스 저장
 - 모델 호출 토큰·비용 원장과 제공자별 응답 메타데이터 저장
+- Claim 의미 연결 수의 임의 상한, 여러 의미 연결만을 이유로 한 사람의 필수 승인과 출처 간 Claim 자동 병합
+- 노드 참조 속성값, 노드 정체성을 넣은 동적 속성 코드와 Relation으로 표현 가능한 노드 사이 사실의 Boolean 속성 표현
+- 별도 날짜·기간 값 테이블, 기존 `value_kind`와 중복되는 새 종류 열과 관계 유효 기간 설계
+- 서로 다른 의미 대상 범주를 합친 충돌 묶음과 어느 충돌 Claim이 참인지 자동 결정하는 기능
 - 노드 클릭마다 LLM 호출
 - 전체 그래프 또는 전역 지도 버전과 지도 구성원 저장
 - 중심 노드별 x·y·z 좌표 저장
