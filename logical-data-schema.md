@@ -60,6 +60,8 @@ Agent는 다음과 같은 버전 있는 계약으로만 결과를 반환한다.
 }
 ```
 
+사건은 `events`의 정식 노드 후보로 내보내고 사건 맥락 관계는 그 사건을 시작 또는 도착 endpoint로 사용하는 `relations` 후보로 내보낸다. 관계 후보에는 숨은 사건 맥락이나 관계 유효 기간을 넣지 않으며, 원문이 주장한 시간은 Claim 후보와 정확한 관측 위치에 둔다.
+
 계약 검증을 통과한 JSON 전체는 `structured_output`에 보존한다. 모델 제공자의 원시 HTTP 응답은 저장하지 않는다. 모델명, 프롬프트 버전, 출력 스키마 버전, 입력 해시, 응답 식별자, 토큰 사용량과 오류는 실행 메타데이터에 따로 저장한다.
 
 JSON 안의 각 후보는 `candidate_item` 행으로 꺼내 개별 상태를 관리한다. 구체적인 후보 값은 JSON에 남기고, 후보 종류·JSON Pointer·fingerprint·상태·검사 결과·승격 결과만 공통 열로 관리한다. 검증을 통과한 후보만 강한 관계형 제약을 가진 기준 그래프 엔터티로 변환한다.
@@ -92,7 +94,7 @@ JSON 안의 각 후보는 `candidate_item` 행으로 꺼내 개별 상태를 관
 | `last_checked_at` | 준비된 문서가 마지막으로 같은 내용인지 확인된 시점 | 사용하지 않음 |
 | `observed_at` | 시스템이 원문 위치에서 Claim을 발견한 시점 | 사용하지 않음 |
 | 사건 시작·종료 | 실제 사건이 발생한 시점이나 기간 | 지도 관심도와 분리 |
-| 관계 유효 시작·종료 | 관계가 유효하다고 주장되는 기간 | 지도 관심도와 분리 |
+| Claim 주장 시작·종료 | 출처가 Claim에서 명시한 시점이나 기간 | 지도 관심도와 분리 |
 
 시간 범위의 시작과 종료에는 각각 `정확한 시각`, `날짜`, `월`, `연도`, `미상` 중 하나의 정밀도를 저장한다. 한쪽 경계만 아는 기간은 모르는 경계를 명시적으로 비워 둔다. 게시 시점을 확인할 수 없는 출처는 상세 패널에는 사용할 수 있지만 기간별 활동량에서는 제외한다.
 
@@ -136,25 +138,25 @@ erDiagram
 ```mermaid
 erDiagram
     ONTOLOGY_VERSION ||--o{ ONTOLOGY_MEMBER : activates
-    NODE_TYPE ||--o{ NODE_TYPE_REVISION : versions
     RELATION_TYPE ||--o{ RELATION_TYPE_REVISION : versions
     ATTRIBUTE ||--o{ ATTRIBUTE_REVISION : versions
-    ONTOLOGY_MEMBER }o--o| NODE_TYPE_REVISION : selects
+    ONTOLOGY_MEMBER }o--o| NODE_TYPE : selects
     ONTOLOGY_MEMBER }o--o| RELATION_TYPE_REVISION : selects
     ONTOLOGY_MEMBER }o--o| ATTRIBUTE_REVISION : selects
     RELATION_TYPE_REVISION ||--o{ RELATION_ENDPOINT_RULE : permits
-    NODE_TYPE_REVISION ||--o{ RELATION_ENDPOINT_RULE : constrains
-    NODE_TYPE_REVISION ||--o{ NODE : classifies
-    NODE ||--o{ NODE_NAME : names
-    NODE ||--o{ NODE_MERGE : redirects
+    NODE_TYPE ||--o{ RELATION_ENDPOINT_RULE : source_type
+    NODE_TYPE ||--o{ RELATION_ENDPOINT_RULE : target_type
+    NODE_TYPE ||--o{ ATTRIBUTE_REVISION : targets
+    NODE_TYPE ||--o{ NODE : classifies
+    NODE ||--o{ NODE_ALIAS : names
 ```
 
 ```mermaid
 erDiagram
     NODE ||--o{ EXTERNAL_IDENTIFIER : identifies
     NODE ||--o| EVENT_TEMPORAL_EXTENT : times_event
-    NODE_NAME ||--o{ NODE_NAME_EVIDENCE : supported_by
-    OBSERVATION ||--o{ NODE_NAME_EVIDENCE : proves
+    NODE_ALIAS ||--o{ NODE_ALIAS_EVIDENCE : supported_by
+    OBSERVATION ||--o{ NODE_ALIAS_EVIDENCE : proves
     NODE ||--o{ NODE_MERGE : merged_source
     NODE ||--o{ NODE_MERGE : canonical_target
 ```
@@ -312,11 +314,19 @@ erDiagram
 
 #### `ontology_version`
 
-노드 유형, 관계 유형과 속성 revision을 함께 활성화하는 사람이 승인한 버전이다. `ontology_member`는 온톨로지 버전이 선택한 revision을 연결하며 한 행은 노드 유형, 관계 유형, 속성 중 정확히 하나의 revision만 가리킨다. 과거 지식은 생성 당시 사용한 revision을 계속 가리킨다.
+노드 유형, 관계 유형 revision과 속성 revision을 함께 활성화하는 사람이 승인한 버전이다. `ontology_member`의 한 행은 안정된 `node_type_id`, `relation_type_revision_id`, `attribute_revision_id` 가운데 정확히 하나만 가리킨다. 과거 관계와 속성값은 생성 당시 사용한 revision을 계속 가리킨다.
 
-#### `node_type`과 `node_type_revision`
+#### `node_type`
 
-`node_type`은 바뀌지 않는 유형 코드의 정체성을 관리하고 `node_type_revision`은 표시 이름과 생성 규칙의 버전을 관리한다. POC에서 허용하는 노드 유형 코드는 사람, 회사, 기술, 주제, 사건 다섯 가지다.
+`node_type`은 안정된 노드 유형의 코드, 표시 이름, 생성 규칙과 수명주기 상태를 관리한다. POC에서 허용하는 노드 유형은 사람, 회사, 기술, 주제, 사건 다섯 가지뿐이다. 의미가 달라진 범주가 필요하면 기존 행을 개정하지 않고 새 유형 코드와 행을 추가한다.
+
+| 필드 | 의미와 규칙 |
+|---|---|
+| `node_type_id` | 노드 유형의 불변 내부 식별자 |
+| `node_type_code` | `PERSON`, `COMPANY`, `TECHNOLOGY`, `TOPIC`, `EVENT` 가운데 하나인 고유하고 안정된 코드 |
+| `display_name` | 화면에 표시할 유형 이름 |
+| `creation_rule` | 해당 유형의 노드를 만들 수 있는 근거 기준 |
+| `lifecycle_state` | 활성 또는 폐기 |
 
 | 유형 | 생성 기준 |
 |---|---|
@@ -326,51 +336,66 @@ erDiagram
 | 주제 | 허용된 주제 목록에 있거나 사람이 새 주제로 승인해야 한다. Agent가 발견한 모든 키워드를 자동 승격하지 않는다. |
 | 사건 | 특정 시점이나 기간, 발생 내용, 최소 한 명의 참여자 또는 대상이 근거로 확인되어야 한다. |
 
-모든 노드는 허용 유형, 출처와 정확한 원문 위치, 동일 대상 검사 가능성, 이름·유형·별칭 등 최소 식별 정보를 가져야 한다. 나머지 세부 사실은 Claim으로 저장한다.
+모든 노드는 허용 유형, 출처와 정확한 원문 위치, 동일 대상 검사 가능성, 유형과 alias 등 최소 식별 정보를 가져야 한다. 나머지 세부 사실은 Claim으로 저장한다.
 
 #### `relation_type`, `relation_type_revision`과 `relation_endpoint_rule`
 
-`relation_type`은 바뀌지 않는 관계 코드를 관리하고 `relation_type_revision`은 그 의미와 규칙의 버전을 관리한다. 관계 유형은 자유 문자열이나 변경되는 DB enum이 아니다.
+`relation_type`은 바뀌지 않는 관계 코드의 정체성을 관리하고 `relation_type_revision`은 같은 관계 의미에 적용하는 표시 이름과 검증 규칙의 버전을 관리한다. 관계 유형은 자유 문자열이나 변경되는 DB enum이 아니다. 관계의 근본 의미가 바뀌면 새 `relation_code`를 가진 관계 유형을 추가하고, 같은 의미의 규칙만 바뀌면 새 revision을 추가한다.
+
+`relation_type`의 필드는 다음과 같다.
+
+| 필드 | 의미와 규칙 |
+|---|---|
+| `relation_type_id` | 관계 유형의 불변 내부 식별자 |
+| `relation_code` | 애플리케이션과 Agent가 관계 의미를 식별하는 불변 고유 코드이며 `relation_type`에 저장 |
+
+`relation_type_revision`의 필드는 다음과 같다.
 
 | 필드 | 의미와 규칙 |
 |---|---|
 | `relation_type_revision_id` | 과거 의미를 보존하는 불변 revision 식별자 |
-| `relation_code`, `display_name` | 기계용 코드와 화면 표시 이름 |
-| `is_directed`, `is_symmetric` | 방향과 대칭 여부 |
+| `relation_type_id` | 이 revision이 속한 안정된 관계 유형 |
+| `display_name` | 화면 표시 이름 |
+| `directionality` | `DIRECTED` 또는 `SYMMETRIC` |
 | `inverse_relation_type_revision_id` | 반대 방향 의미가 있을 때 참조 |
-| `requires_event_context` | 사건 노드를 거쳐야 하는 관계인지 표시 |
-| `requires_valid_period` | 유효 기간이 필수인지 표시 |
 | `lifecycle_state` | 활성 또는 폐기 |
 
-`relation_endpoint_rule`은 관계 revision마다 허용하는 시작·도착 노드 유형 쌍을 저장한다. Agent는 활성 규칙에 맞는 관계만 제안할 수 있고 일반 코드와 DB가 다시 검사한다.
+`relation_endpoint_rule`은 관계 revision마다 `relation_type_revision_id`, `source_node_type_id`, `target_node_type_id`를 저장한다. 두 endpoint 유형은 모두 안정된 `node_type_id`를 참조한다. Agent는 활성 규칙에 맞는 관계만 제안할 수 있고 일반 코드와 DB가 다시 검사한다.
 
-역관계는 `inverse_relation_type_revision_id`를 따라 조회할 때 계산한다. 같은 사실을 반대 방향 관계 행으로 중복 저장하지 않는다.
+역관계는 `DIRECTED` revision에만 지정할 수 있으며 `inverse_relation_type_revision_id`를 따라 조회할 때 계산한다. `SYMMETRIC` revision에는 역관계를 지정할 수 없고 endpoint를 노드 식별자 순서로 정규화하여 반대 방향 중복 행을 만들지 않는다.
 
 #### `attribute`와 `attribute_revision`
 
-`attribute`는 바뀌지 않는 속성 코드를 관리하고 `attribute_revision`은 표시 이름, 허용 대상 노드 유형, 허용 값 유형과 단위 규칙의 버전을 관리한다. 원문에 없는 값을 Agent가 만들어서는 안 된다.
+`attribute`는 바뀌지 않는 고유 속성 코드를 관리하고 `attribute_revision`은 표시 이름, 정확히 하나의 `target_node_type_id`, 허용 값 유형, 단위 규칙과 수명주기 상태의 버전을 관리한다. POC에는 여러 대상 유형을 위한 `attribute_target_rule`을 두지 않는다. 실제 속성이 둘 이상의 노드 유형을 대상으로 해야 할 때만 별도 이슈에서 구조를 다시 설계한다. 원문에 없는 값을 Agent가 만들어서는 안 된다.
+
+| 엔터티 | 필드와 규칙 |
+|---|---|
+| `attribute` | 불변 `attribute_id`와 고유한 `attribute_code` |
+| `attribute_revision` | 불변 `attribute_revision_id`, 안정된 `attribute_id`, `display_name`, 정확히 하나의 `target_node_type_id`, `allowed_value_kind`, `unit_rule`, `lifecycle_state` |
 
 ### 6.4 노드 정체성
 
 #### `node`
 
-변경 불가능한 내부 식별자와 생성 당시의 `node_type_revision_id`만 공통 관리한다. 사람·회사·기술·주제의 프로필 전용 열이나 자유 JSON 속성을 두지 않는다. 사건 시간만 별도 구조화하고 나머지 세부 사실은 Claim으로 표현한다.
-
-#### `node_name`
-
-대표 이름과 별칭을 이력으로 보존한다.
+변경 불가능한 내부 식별자와 안정된 `node_type_id`만 공통 관리한다. 사람·회사·기술·주제의 프로필 전용 열이나 자유 JSON 속성을 두지 않는다. 사건 시간만 별도 구조화하고 나머지 세부 사실은 Claim으로 표현한다.
 
 | 필드 | 의미와 규칙 |
 |---|---|
-| `node_name_id` | 이름 기록 식별자 |
-| `node_id` | 대상 노드 |
-| `name_text`, `language` | 이름과 언어 |
-| `name_kind` | 대표 이름 또는 별칭 |
-| `valid_from`, `valid_to` | 이름이 적용된 것으로 알려진 기간 |
-| `valid_from_precision`, `valid_to_precision` | 각 적용 기간 경계의 정밀도 |
-| `is_current_preferred` | 현재 화면 대표 이름 여부 |
+| `node_id` | `knowledge_item_id`와 일대일인 불변 노드 식별자 |
+| `node_type_id` | 사람·회사·기술·주제·사건 가운데 안정된 유형 참조 |
 
-노드마다 현재 대표 이름은 하나만 허용한다. 대표 이름 변경은 기존 기록을 삭제하지 않고 적용 기간을 닫은 뒤 새 기록을 추가한다. `node_name_evidence`는 이름 기록과 하나 이상의 관측을 연결한다.
+#### `node_alias`
+
+대표 alias와 검색 alias를 불변 노드 식별자에 연결한다. 같은 alias 문자열이 서로 다른 노드를 가리킬 수 있으며 동일 대상 판정은 문자열의 전역 고유성이 아니라 노드 정체성과 근거를 사용한다.
+
+| 필드 | 의미와 규칙 |
+|---|---|
+| `node_alias_id` | alias 기록 식별자 |
+| `node_id` | 대상 노드 |
+| `alias_text`, `language` | 검색할 alias 문자열과 언어 |
+| `is_preferred` | 현재 화면 대표 alias로 사용할지 여부 |
+
+한 노드에 `is_preferred = true`인 행은 최대 하나만 허용하고, 공개 가능한 노드는 정확히 하나를 가져야 한다. 검색은 모든 alias를 대상으로 수행한 뒤 활성 `node_merge`를 따라 최종 기준 노드를 찾고 그 노드의 대표 alias만 표시한다. 과거 명칭이 사용된 기간이 중요하면 alias에 기간 메타데이터를 추가하지 않고 시간 정보가 있는 Claim으로 표현한다. `node_alias_evidence`는 alias와 이를 뒷받침하는 관측을 다대다로 연결한다.
 
 #### `external_identifier`
 
@@ -378,17 +403,36 @@ erDiagram
 
 #### `node_merge`
 
-병합되는 기존 노드와 기준 노드, 병합 이유, 처리한 사람, 처리 시점을 저장한다. 다음 규칙을 적용한다.
+`node_alias`와 별도로 병합되는 기존 노드와 기준 노드 사이의 내부 식별자 리디렉션을 저장한다.
+
+| 필드 | 의미와 규칙 |
+|---|---|
+| `node_merge_id` | 병합 이력의 불변 식별자 |
+| `source_node_id`, `canonical_node_id` | 병합 원본과 기준 노드 |
+| `merge_reason`, `merged_by`, `merged_at` | 병합 이유, 처리자와 처리 시점 |
+| `reversed_reason`, `reversed_by`, `reversed_at` | 잘못된 병합을 취소한 이유, 처리자와 처리 시점이며 활성 병합에서는 `NULL` |
+
+다음 규칙을 적용한다.
 
 - 병합 원본과 기준 노드는 같을 수 없다.
-- 병합 리디렉션은 순환할 수 없다.
-- 이미 병합된 노드는 최종 기준 노드로 해석한다.
+- `reversed_at IS NULL`인 병합만 활성으로 해석하며 원본 노드마다 활성 병합은 최대 하나다.
+- 활성 병합 리디렉션은 순환할 수 없고 연쇄를 따라가면 하나의 최종 기준 노드가 결정되어야 한다.
 - 모호한 동일 대상 병합은 Agent가 후보만 제안하고 사람이 결정한다.
-- 병합 뒤에도 이전 식별자, 이름, Claim과 Evidence Trace를 조회할 수 있다.
+- 병합 뒤에도 이전 식별자, alias, Claim, 관계와 Evidence Trace를 원본 노드에 그대로 보존한다.
+- 병합을 취소하면 행을 삭제하지 않고 취소 정보를 채운다. 같은 원본을 다시 병합할 때는 기존 행을 재사용하지 않고 새 행을 추가한다.
 
 #### `event_temporal_extent`
 
-사건 노드에만 최대 한 건을 두고 사건 시작·종료, `start_precision`, `end_precision`과 미상 여부를 저장한다. `event_temporal_basis`는 이 시간 범위와 이를 직접 뒷받침하는 기준 Claim을 다대다로 연결한다. 종료가 시작보다 이를 수 없다. 서로 다른 시간이 주장되면 기존 Claim을 덮어쓰지 않고 충돌 묶음으로 관리하며, 사건 식별 범위로 채택할 값은 일반 코드의 명확한 규칙이나 사람의 판단이 있어야 바뀐다. 사건 참여자와 발표 기술은 고정 열이 아니라 허용 관계로 연결한다.
+사건 노드에만 최대 한 건을 두고 `start_at`, `end_at`, `start_precision`, `end_precision`을 저장한다. 별도의 시작·종료 미상 Boolean은 두지 않는다. 알 수 없는 경계는 값 `NULL`과 정밀도 `UNKNOWN`으로 저장하고, 값이 있으면 정밀도는 `UNKNOWN`일 수 없다. 월만 알면 해당 월의 첫날과 `MONTH`, 연도만 알면 해당 연도의 첫날과 `YEAR`를 저장하지만, 화면과 시간 필터는 정규화한 1일을 정확한 주장 날짜로 해석하지 않고 정밀도에 맞는 범위로 처리한다.
+
+| 알려진 경계 | 저장 값 | 정밀도 | 표시와 필터 의미 |
+|---|---|---|---|
+| 2025년 2월 20일 | `2025-02-20` | `DAY` | 해당 날짜 |
+| 2025년 2월 | `2025-02-01` | `MONTH` | 2025년 2월 전체 |
+| 2025년 | `2025-01-01` | `YEAR` | 2025년 전체 |
+| 미상 | `NULL` | `UNKNOWN` | 알려진 경계 없음 |
+
+`event_temporal_basis`는 이 시간 범위와 이를 직접 뒷받침하는 기준 Claim을 다대다로 연결한다. 시작과 종료를 모두 알 때 종료가 시작보다 이를 수 없다. 서로 다른 시간이 주장되면 기존 Claim을 덮어쓰지 않고 충돌 묶음으로 관리하며, 사건 식별 범위로 채택할 값은 일반 코드의 명확한 규칙이나 사람의 판단이 있어야 바뀐다. 사건 참여자와 발표 기술은 고정 열이 아니라 허용 관계로 연결한다.
 
 ### 6.5 기준 지식그래프
 
@@ -422,12 +466,13 @@ erDiagram
 | `relation_id` | `knowledge_item_id`와 일대일인 관계 식별자 |
 | `source_node_id`, `target_node_id` | 시작·도착 노드 |
 | `relation_type_revision_id` | 생성 당시 관계 유형 revision |
-| `event_context_node_id` | 관련 사건이 있을 때 사건 노드 참조 |
-| `valid_from`, `valid_to` | 관계가 유효하다고 주장되는 기간 |
-| `valid_from_precision`, `valid_to_precision` | 각 관계 시간 경계의 정밀도 |
-| `relation_identity_key` | 정규화된 endpoint, 관계 revision, 사건 맥락과 유효 기간의 결정적 키 |
+| `relation_identity_key` | 정규화된 endpoint와 정확한 관계 revision의 결정적 키 |
 
-같은 관계는 `시작 노드 + 관계 유형 revision + 도착 노드 + 관련 사건 + 관계 유효 기간과 각 경계의 정밀도`가 모두 같을 때 하나로 집계한다. `relation_identity_key`를 계산할 때 모르는 사건과 시간 경계는 생략하지 않고 정해진 미상 표지를 넣어 `NULL` 때문에 중복 판정이 빠지지 않게 한다. 기간이 끊어져 있으면 별도 관계로 둔다. 기간이 겹치거나 한쪽만 알려져 자동 판정이 어려우면 Agent가 병합 후보를 제안하고 사람이 결정한다. 대칭 관계는 두 내부 식별자를 일정한 순서로 정규화해 방향만 바꾼 중복을 막는다. 역관계 표시는 조회 시점에 계산하며 반대 방향 행을 추가하지 않는다.
+같은 관계는 `정규화된 시작 노드 + 정확한 관계 유형 revision + 정규화된 도착 노드`가 모두 같을 때 하나로 집계한다. `DIRECTED` 관계는 허용된 방향을 유지하고 `SYMMETRIC` 관계는 두 내부 식별자를 일정한 순서로 정규화해 방향만 바꾼 중복을 막는다. 역관계 표시는 조회 시점에 계산하며 반대 방향 행을 추가하지 않는다.
+
+사건 맥락은 숨은 컬럼이 아니라 사건 노드를 명시적인 endpoint로 사용하는 관계 경로로 표현한다. `회사·사람 → 사건 → 기술·주제` 경로는 중요한 2단계 이웃으로 조회한다. 사건 경로만을 근거로 비사건 노드 사이의 직접 관계를 추론하거나 저장하지 않으며, 직접 관계는 이를 명시적으로 지지하는 별도의 Claim과 정확한 관측이 있을 때만 저장한다.
+
+POC 관계에는 유효 기간을 저장하지 않는다. 사건 발생 시간은 `event_temporal_extent`에, 출처가 주장한 시간은 `claim.asserted_from`, `claim.asserted_to`와 각 정밀도에 보존한다. 검색 결과 부재, 언급 감소나 경과 시간은 관계 종료 근거가 아니다. 재직·계약·제휴처럼 관계 기간을 이용한 현재·과거 필터가 승인되거나 특정 관계 유형에 기간이 필요해질 때 별도 설계 이슈를 열어 관계 컬럼과 Claim 기반 시간 범위 가운데 물리 형태를 결정한다.
 
 관계가 `근거 확인됨` 상태로 승격되려면 이 관계를 지지하는 Claim이 하나 이상 있어야 하고, 그 Claim에는 정확한 관측이 하나 이상 연결되어야 한다. 반박 Claim만 있는 관계는 기준 관계로 승격하지 않는다.
 
@@ -467,6 +512,8 @@ Claim이 노드 속성에 관해 주장하는 구조화된 값을 저장한다.
 | `node_value_id` | 다른 노드 참조 값 |
 
 DB 제약은 `value_kind`에 해당하는 값 열만 정확히 하나의 값 묶음으로 채우게 한다. 숫자의 값과 단위, 기간의 시작과 종료는 하나의 값 묶음으로 본다. Claim의 표현 성격은 `claim.modality`에 남기므로 `2027년 상용화 목표`를 확정된 상용화 시점으로 표시하지 않는다.
+
+속성값의 `target_node_id`가 가리키는 노드 유형은 해당 `attribute_revision.target_node_type_id`와 반드시 같아야 한다. `claim_attribute_value`는 값을 해석할 때 사용한 정확한 속성 revision을 계속 참조하며, POC에서는 한 revision을 여러 노드 유형에 적용하지 않는다.
 
 #### `observation`
 
@@ -520,7 +567,7 @@ lint 실행은 후보, 승격 묶음 또는 기준 지식 중 정확히 하나�
 | `started_at`, `committed_at` | 트랜잭션 이력 |
 | `failure_reason` | 원자 승격 실패 이유 |
 
-`promotion_member`는 후보 하나가 생성하거나 기존 기록에 연결한 기준 레코드를 1:N으로 추적한다. 한 행은 `knowledge_item`, `observation`, `node_name`, `node_merge`, `event_temporal_extent`, `evidence_group_assignment` 가운데 정확히 하나만 가리킨다. 사건 후보 하나가 사건 노드와 시간 범위, 이름을 함께 만들거나 Claim 후보가 관측 연결을 만들 수 있으므로 후보에 단일 `promoted_item_id`를 두지 않는다. 여러 출처의 후보가 같은 기존 관계를 가리킬 때도 각 승격 계보를 별도 member로 남긴다. 문서 준비, Agent 호출과 lint는 이 트랜잭션 밖에서 끝낸다. 트랜잭션 안에서는 식별자 발급, 최종 중복·제약 검사, 기준 레코드와 상태 이력 생성, 후보의 승격 표시만 수행한다. 일부만 성공할 수 없으며 실패하면 전체 묶음을 롤백한다.
+`promotion_member`는 후보 하나가 생성하거나 기존 기록에 연결한 기준 레코드를 1:N으로 추적한다. 한 행은 `knowledge_item`, `observation`, `node_alias`, `node_merge`, `event_temporal_extent`, `evidence_group_assignment` 가운데 정확히 하나만 가리킨다. 사건 후보 하나가 사건 노드와 시간 범위, alias를 함께 만들거나 Claim 후보가 관측 연결을 만들 수 있으므로 후보에 단일 `promoted_item_id`를 두지 않는다. 여러 출처의 후보가 같은 기존 관계를 가리킬 때도 각 승격 계보를 별도 member로 남긴다. 문서 준비, Agent 호출과 lint는 이 트랜잭션 밖에서 끝낸다. 트랜잭션 안에서는 식별자 발급, 최종 중복·제약 검사, 기준 레코드와 상태 이력 생성, 후보의 승격 표시만 수행한다. 일부만 성공할 수 없으며 실패하면 전체 묶음을 롤백한다.
 
 #### `derivation_run`
 
@@ -550,11 +597,12 @@ HBF POC의 최초 1년 고정 입력 묶음은 하나의 승격·공개 단위�
 
 노드마다 현재 공개 중인 검색 문서, 임베딩, 맥락 설명, 이를 선택한 `publication_seq`와 `search_exposure_mode`를 한 행에 저장한다. 새 공개가 완료되면 영향받은 노드의 포인터를 같은 짧은 트랜잭션에서 교체한다. 들어오는 `publication_seq`가 현재 값보다 클 때만 교체하여 오래된 작업이 최신 결과를 덮어쓰지 못하게 한다.
 
-`search_exposure_mode`는 `full`, `name_alias_only`, `hidden` 중 하나다. 노드 자체가 거절되면 즉시 `hidden`으로 바꾸고 지도와 모든 검색에서 제외한다. 공개 중인 Claim이나 관계가 거절되면 영향받은 노드는 즉시 `name_alias_only`로 바꾼다. 이 상태에서는 `node_name`의 이름·별칭 정확 검색만 허용하며 기존 검색 문서, 임베딩과 맥락 설명은 사용하지 않는다. 지도와 상세 패널은 현재 상태의 관계·Claim·출처만으로 구성한다. 거절된 지식을 제외한 파생 결과가 준비되고 포인터가 원자적으로 교체되면 `full`로 되돌린다.
+`search_exposure_mode`는 `full`, `name_alias_only`, `hidden` 중 하나다. 노드 자체가 거절되면 즉시 `hidden`으로 바꾸고 지도와 모든 검색에서 제외한다. 공개 중인 Claim이나 관계가 거절되면 영향받은 노드는 즉시 `name_alias_only`로 바꾼다. 이 상태에서는 `node_alias.alias_text` 정확 검색만 허용하며 기존 검색 문서, 임베딩과 맥락 설명은 사용하지 않는다. 지도와 상세 패널은 현재 상태의 관계·Claim·출처만으로 구성한다. 거절된 지식을 제외한 파생 결과가 준비되고 포인터가 원자적으로 교체되면 `full`로 되돌린다.
 
 다음 조건을 모두 만족해야 `ready`로 바꿀 수 있다.
 
 - 승격 트랜잭션이 커밋됐다.
+- 공개할 각 노드에 대표 alias가 정확히 하나 있다.
 - 영향받은 모든 노드에 검색 문서, 임베딩, 한국어 맥락 설명과 후속 질문 두 개가 준비됐다.
 - 상세 패널에서 공개할 `근거 확인됨` 또는 `사람 확인됨` 관계·Claim·출처와 Evidence Trace를 모두 조회할 수 있다.
 - 새 관계가 존재하면 현재 지도 규칙에 해당하는 관계선을 노드와 함께 조회할 수 있다.
@@ -570,7 +618,7 @@ HBF POC의 최초 1년 고정 입력 묶음은 하나의 승격·공개 단위�
 
 공개 가능한 노드 한 개를 키워드 검색과 벡터 검색의 공통 대상으로 만드는 버전 있는 문서다.
 
-검색 문서에는 대표 이름과 별칭, 노드 유형, 공개 가능한 주요 Claim, 연결된 사건과 주변 노드 이름, 한국어 맥락 설명을 포함한다. 원문 기사 전체는 넣지 않는다. 각 문서는 자신을 만든 `derivation_run_id`를 참조한다. 이름과 별칭은 높은 검색 가중치를, Claim과 맥락 설명은 낮은 가중치를 갖도록 물리 검색 단계에서 정한다.
+검색 문서에는 대표 alias와 나머지 alias, 노드 유형, 공개 가능한 주요 Claim, 연결된 사건과 주변 노드의 대표 alias, 한국어 맥락 설명을 포함한다. 원문 기사 전체는 넣지 않는다. 각 문서는 자신을 만든 `derivation_run_id`를 참조한다. alias는 높은 검색 가중치를, Claim과 맥락 설명은 낮은 가중치를 갖도록 물리 검색 단계에서 정한다.
 
 `search_document_basis`는 검색 문서 작성에 기여한 Claim·관계 등 `knowledge_item`과 기여 종류를 연결한다. 검색 결과는 사람·회사·기술·주제·사건 노드만 반환하지만, 이 연결을 통해 Claim과 출처를 검색 이유로 설명할 수 있다.
 
@@ -601,13 +649,18 @@ HBF POC의 최초 1년 고정 입력 묶음은 하나의 승격·공개 단위�
 | model_task → agent_attempt | 1:N, 시도 순서가 작업 안에서 고유함 |
 | agent_attempt → structured_output | 1:0..1, 계약 검증 성공 시에만 존재함 |
 | structured_output → candidate_item | 1:N, JSON Pointer가 출력 안에서 고유함 |
-| ontology_version → ontology_member → revision | 1:N:1, 안정된 코드와 활성 revision 선택을 분리함 |
-| node → node_name | 1:N, 현재 대표 이름은 노드와 언어별 최대 하나 |
-| node_name → node_name_evidence ← observation | N:M, 이름마다 하나 이상의 정확한 원문 근거를 연결할 수 있음 |
+| ontology_version → ontology_member → node type 또는 revision | 1:N:1, 한 member가 안정된 노드 유형, 관계 revision, 속성 revision 가운데 정확히 하나를 선택함 |
+| relation_type → relation_type_revision | 1:N, 안정된 관계 코드는 유형에 두고 관계는 생성 당시의 정확한 revision을 참조함 |
+| relation_type_revision → relation_endpoint_rule → node_type | 1:N:2, 각 규칙은 안정된 시작·도착 노드 유형 한 쌍을 허용함 |
+| attribute → attribute_revision → node_type | 1:N:1, 각 속성 revision은 대상 노드 유형을 정확히 하나 가짐 |
+| node → node_alias | 1:N, 대표 alias는 노드 전체에서 최대 하나이고 공개 가능한 노드에는 정확히 하나가 필요함 |
+| node_alias → node_alias_evidence ← observation | N:M, alias마다 하나 이상의 정확한 원문 근거를 연결할 수 있음 |
+| node → node_merge | 원본 기준 1:N 이력을 보존하되 `reversed_at IS NULL`인 활성 병합은 최대 하나이며 연쇄는 하나의 최종 기준 노드로 끝남 |
 | node → event_temporal_extent | 1:0..1, 사건 유형 노드에만 허용 |
 | event_temporal_extent → event_temporal_basis ← claim | N:M, 채택된 사건 시간을 하나 이상의 Claim이 뒷받침함 |
 | knowledge_item → node/relation/claim | 1:정확히 하나, `item_kind`와 하위 유형이 일치해야 함 |
 | relation → claim_relation ← claim | N:M, Claim은 관계를 지지하거나 반박함 |
+| relation identity | 정규화한 시작·도착 endpoint와 정확한 `relation_type_revision_id` 조합이 고유함 |
 | claim → claim_attribute_value | 1:N, 관계 연결이 없다면 최소 하나가 필요함 |
 | claim → claim_observation ← observation | N:M, Claim마다 최소 한 관측 필요 |
 | source_document → observation | 1:N, 관측 범위는 해당 문서 버전 본문에서만 검증함 |
@@ -654,8 +707,8 @@ HBF POC의 최초 1년 고정 입력 묶음은 하나의 승격·공개 단위�
 - `거절`은 해당 기준 기록의 종료 상태다. 새 근거가 들어오면 기존 기록을 되살리지 않고 새 후보와 새 기록으로 검토한다.
 - 보류와 거절은 지도와 일반 검색에서 제외한다.
 - 사람의 거절은 다음 공개 묶음을 기다리지 않고 즉시 필터링한다.
-- 노드가 거절되면 이름·별칭 검색도 포함해 완전히 숨긴다.
-- Claim이나 관계가 거절되면 영향받은 노드는 새 파생 결과가 공개될 때까지 이름·별칭 정확 검색만 허용한다.
+- 노드가 거절되면 alias 검색도 포함해 완전히 숨긴다.
+- Claim이나 관계가 거절되면 영향받은 노드는 새 파생 결과가 공개될 때까지 alias 정확 검색만 허용한다.
 
 ### 8.3 공개 준비
 
@@ -667,25 +720,35 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 
 공개 준비 실패가 기준 지식 승격을 되돌리지는 않는다. POC에서는 공개 준비를 하나씩 처리하고, 성공한 공개 전환 때만 다음 `publication_seq`를 발급한다. 현재 열린 지도는 자동으로 바꾸지 않고 다음 검색·노드 클릭·시간 범위 변경에서 새롭게 `ready`가 된 묶음을 반영한다. 거절 필터는 이 전환과 무관하게 즉시 적용한다.
 
+### 8.4 노드 병합 리디렉션
+
+```text
+활성 병합 (`reversed_at IS NULL`) → 취소된 병합 (`reversed_at IS NOT NULL`)
+```
+
+병합 취소는 읽기 리디렉션을 즉시 중단하지만 병합·취소 처리자, 시점과 이유를 같은 행에 남긴다. 취소된 원본 노드를 다시 병합할 때는 새 행을 추가하므로 과거 행을 활성 상태로 되돌리거나 삭제하지 않는다.
+
 ## 9. 무결성 규칙
 
 ### 9.1 DB에서 반드시 막을 규칙
 
 - 모든 내부 식별자와 버전 식별자는 변경하지 않는다.
 - 같은 `source_key + version_no`는 하나의 문서 버전만 가질 수 있다.
-- ontology member는 노드 유형, 관계 유형, 속성 revision 가운데 정확히 하나만 가리켜야 한다.
-- relation endpoint와 관계 유형 revision의 허용 노드 유형이 일치해야 한다.
-- 대칭 관계의 endpoint 순서는 결정적으로 정규화한다.
-- relation의 종료 시점은 시작 시점보다 이를 수 없다.
-- event temporal extent의 종료 시점은 시작 시점보다 이를 수 없다.
+- ontology member는 안정된 노드 유형, 관계 유형 revision, 속성 revision 가운데 정확히 하나만 가리켜야 한다.
+- 노드는 안정된 `node_type_id`를 직접 참조하고 POC의 노드 유형 코드는 `PERSON`, `COMPANY`, `TECHNOLOGY`, `TOPIC`, `EVENT`로 제한한다.
+- relation endpoint의 노드 유형은 관계 revision의 `relation_endpoint_rule`에 있는 안정된 `node_type_id` 쌍과 일치해야 한다.
+- 관계 revision의 `directionality`는 `DIRECTED` 또는 `SYMMETRIC`이어야 하고, 역관계 revision은 `DIRECTED`에만 허용한다.
+- `SYMMETRIC` 관계의 endpoint 순서는 결정적으로 정규화하고 반대 방향 중복을 허용하지 않는다.
+- event temporal extent의 각 경계는 값이 `NULL`이면 정밀도가 `UNKNOWN`이고 값이 있으면 정밀도가 `UNKNOWN`이 아니어야 한다. 시작과 종료를 모두 알 때 종료는 시작보다 이를 수 없다.
 - `claim_attribute_value`는 선언한 값 유형에 해당하는 값 묶음만 정확히 하나 가진다.
+- `claim_attribute_value.target_node_id`의 노드 유형은 정확한 `attribute_revision.target_node_type_id`와 일치해야 한다.
 - observation의 시작 위치는 0 이상이고 종료 위치보다 작으며 종료 위치는 본문 문자 길이를 넘을 수 없다.
 - Claim은 승격 묶음 커밋 시점에 최소 하나의 관계 또는 속성값과 최소 하나의 관측을 가져야 한다.
 - `근거 확인됨` 관계는 관측이 연결된 지지 Claim을 최소 하나 가져야 하며 반박 Claim만으로 승격할 수 없다.
-- `근거 확인됨` 노드는 관측이 연결된 대표 이름 또는 자신을 대상으로 하는 근거 있는 Claim을 최소 하나 가져야 한다.
+- `근거 확인됨` 노드는 관측이 연결된 대표 alias 또는 자신을 대상으로 하는 근거 있는 Claim을 최소 하나 가져야 한다.
 - 사건 노드는 사건 시간 범위와 이를 뒷받침하는 Claim, 참여자 또는 대상 관계를 최소 하나씩 가져야 한다.
-- 노드의 현재 대표 이름과 외부 식별자 활성 연결은 허용된 범위에서 유일해야 한다.
-- node merge는 자기 참조와 순환을 허용하지 않는다.
+- 한 노드에는 대표 alias가 최대 하나만 존재해야 하고 공개 가능한 노드는 대표 alias를 정확히 하나 가져야 한다. 외부 식별자 활성 연결은 허용된 범위에서 유일해야 한다.
+- 활성 node merge는 원본 노드마다 최대 하나이고 자기 참조와 순환을 허용하지 않으며, 취소된 행은 삭제하거나 재사용하지 않는다.
 - knowledge item의 공통 유형과 실제 하위 엔터티가 정확히 하나로 일치해야 한다.
 - promotion member는 허용된 기준 레코드 외래 키 가운데 정확히 하나만 가져야 한다.
 - lint run은 후보, 승격 묶음, 기준 지식 대상 가운데 정확히 하나만 가져야 한다.
@@ -703,7 +766,9 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 - 정확히 같은 본문 해시의 독립 근거 묶음 자동 배정
 - 문서 `source_key`, 다음 `version_no`와 관계 identity key의 결정적 계산
 - 명확한 외부 식별자와 승인된 별칭을 이용한 동일 대상 판정
-- 관계 identity와 대칭 endpoint 정규화
+- 관계 identity와 `SYMMETRIC` endpoint 정규화
+- alias 검색 결과에서 활성 node merge 연쇄를 따라 최종 기준 노드를 찾고 그 노드의 대표 alias를 선택
+- 월·연도 정밀도의 사건 경계를 실제 범위로 해석하는 표시와 시간 필터 계산
 - 후보 fingerprint와 반복 거절 억제
 - 선택 기간의 활동량, 관계선 굵기와 2단계 이웃 중요도 계산
 - 공개 준비 상태 전환 전 완결성 검사
@@ -714,6 +779,7 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 
 - 원문에서 노드·사건·관계·Claim·관측 후보 추출
 - 모호한 동일 대상과 관계 병합 후보
+- 준비된 문서에서 관계 시간의 명시적 근거와 정확한 원문 위치 제안
 - 재게시·번역 등 모호한 독립 근거 계보 후보
 - 충돌 후보와 공통점·관점 정리
 - 한국어 맥락 설명과 후속 질문
@@ -725,18 +791,23 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 | 차단 | 문서 버전 또는 정확한 원문 위치 없음 | 승격 금지 |
 | 차단 | 저장 범위, 인용문과 본문이 불일치 | 승격 금지 |
 | 차단 | 허용되지 않은 노드·관계 유형 또는 endpoint | 승격 금지 |
-| 차단 | 관계·사건 기간이 역전되거나 필수 시간이 없음 | 승격 금지 |
+| 차단 | 관계 directionality·역관계 조합이 잘못되거나 대칭 endpoint가 정규화되지 않음 | 승격 금지 |
+| 차단 | 속성값 대상 노드 유형이 속성 revision의 단일 대상 유형과 다름 | 승격 금지 |
+| 차단 | 사건 시간 값과 정밀도 조합이 맞지 않거나 알려진 사건 기간이 역전됨 | 승격 금지 |
 | 차단 | Claim의 관계·속성 또는 관측 연결이 없음 | 승격 금지 |
 | 차단 | 관계에 관측 가능한 지지 Claim이 없거나 반박 Claim만 있음 | 승격 금지 |
-| 차단 | 노드의 근거 있는 대표 이름·Claim이 없거나 사건의 시간·참여 관계가 없음 | 승격 금지 |
+| 차단 | 노드의 근거 있는 대표 alias·Claim이 없거나 사건의 시간·참여 관계가 없음 | 승격 금지 |
+| 차단 | 공개하려는 노드의 대표 alias가 없거나 둘 이상임 | 공개 금지 |
+| 차단 | 활성 node merge가 원본 하나에서 갈라지거나 자기 참조·순환을 만듦 | 병합 반영 금지 |
+| 차단 | 사건 근거를 숨은 맥락이나 비사건 직접 관계로 중복 표현함 | 승격 금지 |
 | 차단 | 모호한 동일 대상인데 확인된 식별자로 가장함 | 승격 금지 |
 | 차단 | 같은 문서 버전의 동일 거절 fingerprint 반복 | 승격 금지, 재호출 억제 |
 | 차단 | 파생 결과가 누락된 변경 묶음을 ready로 전환 | 공개 금지 |
 | 차단 | 선행 dependency가 ready가 아니거나 더 오래된 publication sequence로 포인터 교체 시도 | 공개 금지 |
+| 차단 | 검색 결과 부재, 언급 감소나 경과 시간만으로 관계 종료를 제안함 | 승격 금지 |
 | 경고 | 비교 가능한 지지·반박 Claim이 함께 존재 | 충돌 후보 생성과 호박색 점선 표시 |
 | 경고 | 독립 출처 계보가 하나뿐임 | 상세 패널에 근거 다양성 정보 제공 |
 | 경고 | 고립 노드이지만 공개 필수 파생 결과는 준비됨 | 공개 허용, 가짜 관계 생성 금지 |
-| 경고 | 관계 기간 겹침으로 자동 병합이 모호함 | Agent 후보와 사람 검토 |
 | 경고 | 오래된 관계 또는 게시 시점 미상 | 기본 지도 제외 가능, 상세 패널 유지 |
 
 ## 11. ingest·승격·공개 흐름
@@ -748,7 +819,7 @@ failed → 별도 derivation 재시도 → ready 또는 failed
 3. 본문과 버전 메타데이터가 같으면 현재 행의 마지막 확인 시점과 상태만 갱신한다. 달라졌다면 다음 `version_no`로 새 `source_document` 행을 추가한다.
 4. 본문 해시와 확인된 원문 계보로 독립 근거 묶음을 배정한다.
 5. cache key를 확인하고 성공한 동일 모델 작업이 없을 때만 Agent 추출을 실행한다.
-6. 계약 JSON과 후보 항목을 저장하고 후보별 lint, 온톨로지, 동일 대상, 중복 검사를 수행한다.
+6. 계약 JSON과 후보 항목을 저장하고 후보별 lint, 온톨로지, 동일 대상, 중복 검사를 수행한다. 이때 노드는 안정된 `node_type_id`, 관계는 정확한 revision과 endpoint 규칙, 속성값은 revision의 단일 대상 유형을 사용해야 한다. 사건 맥락은 명시적인 사건 endpoint로만 받고 관계 종료는 명시적 시간 근거가 있어도 POC 관계 컬럼으로 승격하지 않는다.
 
 Agent 호출이 모두 실패하면 준비된 `source_document`, 모델 작업과 실패 이력만 남는다. 기준 지식그래프는 바뀌지 않는다.
 
@@ -757,7 +828,7 @@ Agent 호출이 모두 실패하면 준비된 `source_document`, 모델 작업�
 1. 함께 공개되어야 의미가 맞는 검증 완료 후보를 `promotion_batch`로 묶는다.
 2. 짧은 DB 트랜잭션을 시작한다.
 3. 최종 중복과 제약을 다시 검사하고 필요한 내부 식별자를 발급한다.
-4. 노드·관계·Claim과 비공통 기준 레코드인 관측·이름·병합·사건 시간·근거 묶음 할당을 만들고 각각의 승격 계보를 연결한다.
+4. 노드·관계·Claim과 비공통 기준 레코드인 관측·alias·병합·사건 시간·근거 묶음 할당을 만들고 각각의 승격 계보를 연결한다.
 5. 모든 레코드가 성공하면 후보를 승격으로 표시하고 커밋한다.
 6. 하나라도 실패하면 전체 묶음을 롤백하고 기존 기준 그래프를 유지한다.
 
@@ -795,6 +866,7 @@ display_rule_version
 - 전체 기록 보기는 최근 1년 안에 게시된 출처가 뒷받침하는 관계까지 추가한다.
 - 선택 기간 밖의 `근거 확인됨` 또는 `사람 확인됨` 관계·Claim·출처는 상세 패널에서 전체 기록으로 탐색할 수 있다.
 - 사람·회사·기술·주제·사건 다섯 유형은 모두 새 중심 노드가 될 수 있다.
+- 사건 근거는 명시적인 `회사·사람 → 사건 → 기술·주제` 경로로 조회하고 이 경로의 두 번째 endpoint를 중요한 2단계 이웃 후보에 포함한다. 사건 경로만으로 비사건 노드 사이의 직접 관계를 만들지 않는다.
 - 관계가 전혀 없는 노드도 공개 필수 파생 결과와 상세 자료가 모두 준비되면 중심 노드로 표시한다.
 - 관계가 존재하지만 아직 함께 공개할 준비가 안 됐다면 노드만 먼저 보여주지 않는다.
 
@@ -810,21 +882,21 @@ display_rule_version
 
 반박 근거는 관계선 굵기에서 빼지 않는다. 충돌 여부는 선의 형태와 상세 패널의 엇갈리는 관점으로 별도 표현한다. 시간 감쇠 상수는 데이터로 계산 가능해야 하지만 정확한 값은 시각 POC 검증에서 정한다. 이웃 중요도는 위의 결정적 정렬을 사용한다.
 
-노드 활동량에서 `노드와 연결된 Claim`은 `claim_relation`이 가리키는 관계의 시작·도착·사건 맥락 노드이거나 `claim_attribute_value`의 대상·노드 참조값인 경우로 한정한다. 같은 Claim과 같은 독립 근거 묶음이 여러 경로로 같은 노드에 도달해도 한 번만 센다.
+노드 활동량에서 `노드와 연결된 Claim`은 `claim_relation`이 가리키는 관계의 시작·도착 노드이거나 `claim_attribute_value`의 대상·노드 참조값인 경우로 한정한다. 같은 Claim과 같은 독립 근거 묶음이 여러 경로로 같은 노드에 도달해도 한 번만 센다.
 
 지도 좌표, 현재 카메라 위치, 중심 노드별 구성원과 force layout 결과는 기준 데이터로 저장하지 않는다. 같은 데이터도 세션마다 약간 다르게 배치될 수 있다.
 
 ## 13. 하이브리드 검색 계약
 
-- 키워드 검색은 `node_name`의 이름·별칭 정확 일치와 `node_search_document` 전문 검색으로 구성하고, 벡터 검색은 현재 공개된 `node_embedding`을 대상으로 한다. 최종 결과는 다섯 노드 유형으로 제한한다.
-- 대표 이름·별칭의 정확 일치 결과를 첫 번째 bucket에 두고 하이브리드 점수와 무관하게 먼저 보여준다.
+- 키워드 검색은 모든 `node_alias.alias_text`의 정확 일치와 `node_search_document` 전문 검색으로 구성하고, 벡터 검색은 현재 공개된 `node_embedding`을 대상으로 한다. 최종 결과는 다섯 노드 유형으로 제한한다.
+- alias 정확 일치 결과를 첫 번째 bucket에 두고 하이브리드 점수와 무관하게 먼저 보여준다. 일치한 노드에서 활성 node merge를 따라 최종 기준 노드를 찾은 뒤 그 노드의 단일 대표 alias를 표시한다.
 - 키워드와 벡터 branch는 각각 최대 50개 후보를 반환한다. 두 순위는 RRF로 결합하며 POC 상수는 `k = 60`, 점수식은 `Σ 1 / (60 + branch_rank)`이다. 동점이면 불변 노드 식별자 오름차순으로 정렬한다.
 - Claim과 출처는 순위 계산과 검색 이유 설명에 사용하지만 메인 검색 결과로 직접 반환하지 않는다.
 - 키워드 또는 벡터 한쪽이 실패해도 다른 쪽이 성공하면 결과를 보여주고 실패한 검색 방식은 결과 영역에서 안내한다.
 - 두 방식이 모두 실패하거나 3D 지도를 표시할 수 없으면 목록형 대체 화면을 제공하지 않는다.
-- 노드가 거절되면 모든 branch에서 제외한다. Claim이나 관계 거절로 `name_alias_only`가 된 노드는 이름·별칭 정확 검색에만 포함하고 지식 전문 검색과 벡터 branch에서는 제외한다.
+- 노드가 거절되면 모든 branch에서 제외한다. Claim이나 관계 거절로 `name_alias_only`가 된 노드는 alias 정확 검색에만 포함하고 지식 전문 검색과 벡터 branch에서는 제외한다.
 - 벡터 유사도는 검색 순위에만 사용한다. 동일 대상 병합, 관계 생성, 근거 확인이나 지식 상태 변경의 근거로 사용하지 않는다.
-- PostgreSQL 전문 검색의 `ts_rank`·`ts_rank_cd`는 BM25와 같은 알고리즘으로 표현하지 않는다. 한국어 POC corpus에서 이름·별칭과 본문 검색 품질을 측정한 뒤 사전과 tokenizer 구성을 물리 설계에서 정한다.
+- PostgreSQL 전문 검색의 `ts_rank`·`ts_rank_cd`는 BM25와 같은 알고리즘으로 표현하지 않는다. 한국어 POC corpus에서 alias와 본문 검색 품질을 측정한 뒤 사전과 tokenizer 구성을 물리 설계에서 정한다.
 - pgvector를 POC 기본 후보로 삼되 vector 차원, 거리 함수와 인덱스는 물리 설계에서 검증한다. 별도 검색 DB는 먼저 추가하지 않는다.
 
 ## 14. HBF 예시 데이터 흐름
@@ -842,6 +914,10 @@ Agent는 이 문장을 최소한 다음 원자적 Claim 후보로 나눈다.
 
 네 Claim은 같은 `observation`을 공유할 수 있다. 1~3번은 허용된 사건 중심 관계와 연결하고, 4번은 HBF의 `상용화 목표 시점` 속성에 값 `2027`, 값 유형 `연도`, 표현 성격 `계획·목표`로 연결한다. 원문이 확정된 상용화를 말하지 않았으므로 사실 주장으로 바꿀 수 없다.
 
+사건 중심 관계는 `SK하이닉스 → HBF 발표 사건`, `SanDisk → HBF 발표 사건`, `HBF 발표 사건 → HBF`처럼 명시적인 endpoint로 저장한다. 이 경로만 보고 `SK하이닉스 → HBF` 직접 관계를 추가하지 않는다. 직접 관계는 별도의 원문이 이를 명시적으로 주장할 때만 그 Claim과 관측을 근거로 저장한다. `상용화 목표 시점` attribute revision의 단일 대상 유형은 `TECHNOLOGY`여야 하므로 같은 값을 회사 노드에 연결하면 차단한다.
+
+`Hynix` alias가 병합 전 노드를 가리키더라도 검색은 그 alias를 찾은 뒤 활성 병합 연쇄를 따라 SK하이닉스 기준 노드로 이동하고 기준 노드의 단일 대표 alias를 표시한다. 병합을 취소하면 같은 검색이 즉시 원래 노드를 반환하며 기존 alias와 근거는 이동하거나 삭제하지 않는다.
+
 여러 기사가 같은 보도자료를 재게시했다면 각 문서 버전과 관측은 보존하지만 하나의 `evidence_group`으로 묶는다. 따라서 기사 수가 여러 개여도 관계선 굵기는 독립 근거 하나만큼 증가한다.
 
 SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 직접 이웃과 중요한 2단계 이웃을 계산한다. HBF 발표 사건을 클릭하면 같은 기준 그래프에서 사건 노드를 새 중심으로 다시 조회하고 브라우저가 좌표를 재배치한다.
@@ -858,18 +934,25 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 | 6 | 파생 작업 재시도가 성공함 | 다음 탐색부터 새 관계와 설명·질문이 함께 나타남 |
 | 7 | 근거 있는 관계가 없는 노드의 파생 자료가 모두 준비됨 | 가짜 이웃 없이 검색과 중심 지도에 공개됨 |
 | 8 | 비교 가능한 지지·반박 Claim을 Agent가 발견함 | 호박색 점선과 `Agent가 발견한 엇갈림`이 표시되고, 충돌 거절 시 Claim은 남고 점선만 해제됨 |
-| 9 | 노드 병합이나 회사 대표 이름 변경이 일어남 | 과거 식별자·이름·Claim·근거를 모두 추적할 수 있음 |
+| 9 | alias가 병합된 원본 노드를 가리키거나 활성 병합을 취소함 | 검색은 활성 병합일 때만 최종 기준 노드로 이동해 그 대표 alias를 표시하고, 취소 뒤에는 즉시 원본 노드를 반환하며 alias·Claim·관계·근거와 병합 이력이 모두 남음 |
 | 10 | 같은 중심 노드를 90일과 1년 범위로 조회함 | `published_at` 기준으로 이웃과 투명도가 달라지고 사건 발생 시점은 섞이지 않음 |
 | 11 | 공개된 지식을 사람이 거절함 | 지도와 일반 검색에서 즉시 사라지지만 DB와 거절 이유는 남음 |
 | 12 | 승격 트랜잭션 중 한 관계가 제약을 위반함 | 묶음 전체가 롤백되고 일부 노드나 Claim도 기준 그래프에 남지 않음 |
-| 13 | 사건 후보 하나가 노드·이름·시간·관측을 함께 만듦 | 여러 `promotion_member`가 각 기준 레코드를 가리키며 모두 같은 승격 묶음에서 추적됨 |
+| 13 | 사건 후보 하나가 노드·alias·시간·관측을 함께 만듦 | 여러 `promotion_member`가 각 기준 레코드를 가리키며 모두 같은 승격 묶음에서 추적됨 |
 | 14 | 관계에 반박 Claim만 있거나 사건에 참여 관계가 없음 | 차단 lint가 생기고 해당 관계나 사건이 승격되지 않음 |
-| 15 | 사건 시작은 연도, 종료는 정확한 날짜까지만 알려짐 | 시작·종료 정밀도가 서로 독립적으로 보존됨 |
+| 15 | 사건 시작은 연도, 종료는 정확한 날짜까지만 알려짐 | 시작은 해당 연도의 첫날과 `YEAR`, 종료는 정확한 값과 정밀도로 저장되며 정규화한 시작일을 실제 1월 1일로 표시하지 않음 |
 | 16 | 먼저 시작한 공개 작업이 실패한 뒤 다른 독립 작업이 공개됨 | 성공 시점에 발급된 더 큰 `publication_seq`만 현재 포인터가 되며 늦은 재시도가 이를 덮어쓰지 않음 |
-| 17 | 공개 중인 Claim이나 관계를 사람이 거절함 | 거절 지식은 즉시 숨고 영향 노드는 새 파생 결과가 준비될 때까지 이름·별칭 검색만 가능함 |
+| 17 | 공개 중인 Claim이나 관계를 사람이 거절함 | 거절 지식은 즉시 숨고 영향 노드는 새 파생 결과가 준비될 때까지 alias 검색만 가능함 |
 | 18 | 이웃 후보와 관계선이 상한을 넘음 | 노드 31개와 관계선 60개를 넘지 않으며 같은 입력은 같은 식별자 순서로 선택됨 |
-| 19 | 이름이 정확히 일치하고 두 검색 branch 순위가 다름 | 정확 일치가 먼저 나오고 나머지는 branch별 50개와 `k = 60` RRF로 결정됨 |
+| 19 | alias가 정확히 일치하고 두 검색 branch 순위가 다름 | 정확 일치가 먼저 나오고 나머지는 branch별 50개와 `k = 60` RRF로 결정됨 |
 | 20 | 키워드 또는 벡터 branch 하나가 실패함 | 성공한 branch 결과를 표시하고 실패 안내를 제공함 |
+| 21 | 노드 유형과 관계 endpoint를 검증함 | 노드는 안정된 `node_type_id`를 사용하고 관계 endpoint 유형은 정확한 revision의 안정된 노드 유형 규칙과 일치함 |
+| 22 | 관계 revision에 잘못된 방향성이나 역관계를 지정함 | `DIRECTED`, `SYMMETRIC` 이외의 값과 `SYMMETRIC`의 역관계가 거절되고 대칭 endpoint의 반대 방향 중복도 생기지 않음 |
+| 23 | 속성값을 revision의 대상 유형과 다른 노드에 연결함 | 단일 `target_node_type_id` 규칙에 따라 승격이 차단되고 Claim modality와 값 유형 검사는 그대로 수행됨 |
+| 24 | 공개할 노드에 대표 alias가 없거나 둘 이상임 | 공개가 차단되며 모든 alias 검색과 대표 alias 표시는 서로 분리되어 동작함 |
+| 25 | 사건 경로와 비사건 직접 관계가 같은 근거에서 함께 제안됨 | 사건 endpoint 경로만 승격되고 직접 관계는 이를 별도로 지지하는 Claim과 관측이 있을 때만 승격됨 |
+| 26 | 사건 경계가 미상이거나 월까지만 알려짐 | 미상은 `NULL + UNKNOWN`, 월은 해당 월 첫날과 `MONTH`로 저장되며 표시와 필터는 정밀도에 맞게 해석함 |
+| 27 | 기사 검색 결과가 줄거나 오랫동안 새 언급이 없음 | 관계 종료로 해석하거나 relation identity를 바꾸지 않고, 사건 시간과 Claim 주장 시간은 별도로 유지함 |
 
 ## 16. 물리 스키마 단계로 넘길 항목
 
@@ -879,13 +962,18 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 - 시간 정밀도와 불완전 날짜의 실제 표현
 - 상태, modality와 값 유형의 CHECK 또는 참조 테이블 선택
 - `source_key + version_no` 고유성과 같은 문서 재적재의 멱등성 구현
+- 안정된 `node_type` 코드 다섯 개의 제약과 `ontology_member`가 노드 유형·관계 revision·속성 revision 가운데 하나만 선택하는 배타 제약 구현
+- `relation_type.relation_code`의 불변 고유성과 revision의 `DIRECTED | SYMMETRIC`, 역관계 허용 조건 구현
+- `relation_endpoint_rule`과 `attribute_revision.target_node_type_id`가 안정된 `node_type_id`를 참조하도록 구현
 - 상위 `knowledge_item`과 하위 엔터티의 배타적 일대일 제약 구현
 - `promotion_member`와 `lint_run`의 배타적 typed foreign key 제약 구현
-- 관계 identity, 대칭 endpoint와 열린 기간의 고유성 구현
+- 관계 identity와 대칭 endpoint의 고유성 구현
+- 공개 가능한 노드의 대표 alias 정확히 한 건, alias 검색 뒤 활성 병합 해석, 원본별 활성 병합 최대 한 건과 병합 순환 차단 구현
+- 사건 시간의 `NULL + UNKNOWN` 대응, 비미상 값의 정밀도, 월·연도 정규화와 정밀도 기반 범위 필터 구현
 - Claim·관계·노드·사건의 최소 근거와 후속 질문 정확히 두 건을 보장하는 지연 제약 또는 트랜잭션 검증
 - 정규화 본문 문자 길이와 인용문 일치를 검증하는 함수 경계
 - 전문 검색의 `tsvector`, GIN, `ts_rank`, `ts_rank_cd` 구성
-- 한국어 corpus의 전문 검색 품질과 이름·별칭 정확 검색 검증
+- 한국어 corpus의 전문 검색 품질과 alias 정확 검색 검증
 - pgvector 차원, 거리 함수와 인덱스 선택
 - branch별 상위 50개와 `k = 60` RRF 쿼리, 한 branch 실패 시 fallback 구현
 - 직렬 공개 lease, DB sequence와 node publication pointer 원자 교체 구현
@@ -907,3 +995,4 @@ SK하이닉스를 중심으로 검색하면 공개 준비된 90일 근거에서 
 - Claim과 출처를 메인 검색 결과로 반환
 - POC 자동 삭제와 보존 정리 작업
 - PostgreSQL DDL, migration, API와 화면 구현
+- POC 관계 유효 기간 컬럼과 `attribute_target_rule`; 관계 기간 필터나 실제 다중 대상 속성이 승인되면 각각 별도 이슈에서 논리 모델을 다시 설계함
