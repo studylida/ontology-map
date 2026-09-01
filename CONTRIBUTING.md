@@ -19,6 +19,25 @@ Issue 본문에는 다음 항목을 사용한다.
 
 Issue에는 `bug`, `enhancement`, `documentation`, `question` 중 성격에 맞는 주 라벨 하나를 붙인다. `accessibility`, `help wanted`, `good first issue` 같은 보조 라벨은 실제 의미가 있을 때만 추가한다.
 
+### 작업 시작과 점유 표시
+
+작업을 시작하기 전에 Issue의 assignee, `status: in progress` 라벨과 최근 댓글을 확인한다. 이미 다른 사람이나 세션이 작업 중이면 명시적인 인계 없이 별도 작업을 시작하지 않는다.
+
+작업을 맡은 사람은 자신을 assignee로 지정하고 `status: in progress` 라벨을 붙인다. 같은 GitHub 계정을 여러 세션이 사용할 수 있으므로 다음 형식의 시작 댓글도 남긴다.
+
+```markdown
+## 작업 시작
+
+- 담당자: @GitHub-ID
+- 세션: 세션 이름 또는 작업 환경
+- 브랜치: `종류/Issue 번호-짧은 주제`
+- 범위: 이번 세션에서 맡은 변경
+```
+
+작업을 다른 사람이나 세션에 넘길 때는 기존 담당자와 새 담당자, 새 세션과 브랜치를 댓글에 기록한다. 담당자가 바뀌면 assignee도 갱신한다. 작업을 중단하고 인계할 대상이 없으면 중단 사유를 댓글로 남기고 assignee와 `status: in progress` 라벨을 제거한다.
+
+Pull Request를 열면 Issue에 링크를 남기고 리뷰 중에도 `status: in progress` 라벨을 유지한다. Pull Request가 병합되어 Issue가 닫히면 라벨을 제거한다. Pull Request를 병합하지 않고 닫으면 Issue에 다음 작업 상태를 기록하고, 작업을 계속하지 않는 경우 점유 표시를 해제한다.
+
 ## 브랜치
 
 최신 `main`에서 `<종류>/<Issue 번호>-<짧은 주제>` 형식의 단기 브랜치를 만든다. 예: `docs/2-github-flow-conventions`.
@@ -48,6 +67,7 @@ Issue에는 `bug`, `enhancement`, `documentation`, `question` 중 성격에 맞�
 - 변경한 내용과 변경 이유
 - 사용자에게 보이는 결과와 제외 범위
 - 실행한 검증과 결과
+- 선택할 병합 방식과 그 이유
 - 남은 위험이나 후속 작업
 
 Codex가 Issue나 Pull Request를 작성하거나 수정할 때는 게시 직전에 `$fluent-korean`을 한 번 적용한다. 문장은 자연스럽고 완결된 한국어로 쓰되, 식별자, API 이름, 명령어, 프로토콜 값과 `Closes #번호`는 원문 표기를 유지한다.
@@ -58,7 +78,13 @@ Pull Request에는 연결된 Issue를 해결하는 파일만 포함한다. 병�
 
 리뷰는 요구사항 충족, 데이터 무결성, 실패 처리, 유지보수 가능성과 불필요한 복잡도를 확인한다. 리뷰 의견이 기존 커밋과 다른 목적이라면 새 커밋으로 분리한다.
 
-작은 논리 커밋을 보존하고 `main` 기록을 선형으로 유지하기 위해 GitHub의 Rebase merge를 사용한다. 일반적인 병합에서는 PR 브랜치를 로컬에서 다시 쓰지 않는다. 충돌이 있을 때만 단독 소유 브랜치에서 최신 `main`을 반영하고 다시 검증한다.
+병합 담당자는 GitHub의 병합 메뉴를 열기 전에 commit 목록과 변경 범위를 확인하고 Squash merge와 Rebase merge 중 하나를 선택한다. commit 수만으로 결정하지 않으며, Pull Request 본문이나 병합 전 댓글에 선택한 방식과 이유를 한 줄로 기록한다.
+
+수정 과정의 중간 commit, `fixup`, 되돌림과 반복 보완이 섞여 있고 Pull Request 전체가 하나의 변경으로 읽히는 경우에는 Squash merge를 사용한다. 개별 commit의 중간 상태를 `main`에 남길 가치가 없을 때도 같은 기준을 적용한다.
+
+각 commit이 하나의 목적을 가지며 독립적으로 검증됐고, commit 순서가 변경 이유를 이해하거나 필요한 commit만 추적하는 데 도움이 되는 경우에는 Rebase merge를 사용한다. Rebase merge를 선택하기 전에 임시 commit과 실패 상태가 이력에 남지 않았는지 확인한다.
+
+선호하는 병합 방식이 저장소에서 비활성화되어 있으면 다른 방식을 임의로 선택하지 않는다. 병합 담당자는 Pull Request에 상황을 기록하고 저장소 관리자에게 병합 방식 활성화 또는 대체 방식 승인을 요청한다. 일반적인 병합에서는 PR 브랜치를 로컬에서 다시 쓰지 않는다. 충돌이 있을 때만 단독 소유 브랜치에서 최신 `main`을 반영하고 다시 검증한다.
 
 Pull Request가 병합되면 연결된 Issue를 닫고 원격 작업 브랜치를 삭제한다. Issue만 수동으로 닫았거나 Pull Request를 병합하지 않고 닫은 경우에는 브랜치를 자동 삭제 대상으로 보지 않는다.
 
