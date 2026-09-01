@@ -47,7 +47,17 @@
 
 3d-force-graph 시각 POC에서는 라이브러리가 노출하는 `nodeThreeObject`, `lights`와 `postProcessingComposer`를 사용해 node 재질, 제한된 bloom과 거리 안개를 검증한다. x·y 배치를 유지하면서 사용자 정의 force로 z축을 약 ±20 안에 제한하고 회전 control은 끈다. 관계선은 내장 곡률과 `linkMaterial`로 기본 core를 표현하고 bloom으로 낮은 강도의 halo를 더한다. node 아래에는 배경색의 불투명 가림 glyph를 두고 가림 glyph, node 표면과 label을 투명 렌더 단계로 통일한 뒤 관계선보다 높은 `renderOrder`를 적용한다. 내장 3D 관계선이 점선을 지원하지 않으므로 충돌 관계에만 `linkThreeObject`와 `linkPositionUpdate`를 사용한다. 이 효과는 별도 그래프 라이브러리나 Three.js 확장 의존성을 추가하지 않고 구현하며, 활동량·오래된 정보·충돌 관계의 의미는 `DESIGN.md`의 표시 규칙을 그대로 따른다.
 
-node 선택 시에는 현재 node catalog와 relation을 두 단계까지 탐색해 직접 이웃 전체와 활동량 우선의 중요한 2단계 이웃 최대 6개를 새 부분 graph로 만든다. `requestAnimationFrame`에서 카메라 위치와 control target을 ease-in-out으로 보간해 선택 node의 현재 위치를 약 1200ms 동안 새 look-at 중심으로 이동하고, 선택 node를 그 위치에 고정한 상태에서 `graphData`와 `d3ReheatSimulation`을 적용해 이웃 재배치를 동시에 시작한다. 이전 graph와 새 graph의 합집합은 전환 동안에만 유지하고, 양쪽에 속한 node 객체는 재사용하며 진입·이탈 opacity를 보조 단서로만 사용한다. `prefers-reduced-motion`에서는 같은 상태 변경을 즉시 적용한다.
+node 선택 시에는 현재 node catalog와 relation을 두 단계까지 탐색해 직접 이웃 전체와 활동량 우선의 중요한 2단계 이웃 최대 6개를 새 부분 graph로 만든다. `requestAnimationFrame`의 1200ms ease-in-out 진행률 하나로 카메라 위치, control target, node의 core·halo·외곽선·label, 관계선 재질과 UI 문구를 보간한다. UI 문구는 600ms에 불투명도 0인 상태에서 한 번 교체하고, 확정 `centerId`와 `selectedId`는 전환이 끝날 때 갱신한다. hover·focus 재질 전환은 160ms, 시간 범위에 따른 관측 활동량 전환은 320ms로 분리한다.
+
+전환을 시작할 때 이전 graph와 새 graph의 합집합을 한 번 `graphData`에 전달하고 `d3ReheatSimulation`도 한 번만 호출한다. 공통 node·관계선 객체와 `nodeThreeObject`·`linkMaterial`의 재질은 cache에서 재사용하며 매 frame 다시 만들지 않는다. 이전 전환에서 이탈했다가 다시 진입하는 요소도 기존 data 객체와 Three.js 객체를 함께 재사용한다. 진입 요소는 opacity 0에서, 이탈 요소는 현재 값에서 0까지 보간한다. 이탈 node는 현재 위치에 고정하고 charge를 0으로, 이탈 관계선은 link strength를 0으로 둔 채 다음 전환까지 합집합에 남긴다. 새 graph의 link strength는 연결된 두 node의 degree 중 작은 값의 역수를 사용한다. 전환 종료 시 두 번째 `graphData` 적용이나 reheat를 하지 않는다.
+
+`graphData`가 관계선의 source와 target을 node 객체로 다시 연결하는 frame에는 모든 node를 현재 위치에 고정하고 속도를 0으로 둔다. 다음 `requestAnimationFrame`에서 새 중심을 제외한 활성 node의 고정을 풀고 `d3ReheatSimulation`을 호출해 관계선 끝점 재계산과 force 이동을 분리한다. 1200ms 전환이 끝나면 활성 node의 남은 속도를 0으로 만들고 현재 위치를 고정하며, 다음 전환 준비 frame에서 다시 해제한다.
+
+force 이동은 전환 시작과 끝에서 `d3VelocityDecay`를 0.82로 두고 중간 지점에서 0.42까지 낮춰 카메라와 함께 느리게 출발하고 감속하며 멈추게 한다. layout이 안정되면 기본 감쇠 값으로 되돌리고 simulation을 종료한다. `prefers-reduced-motion`에서는 같은 부분 graph를 한 번만 적용하고 카메라, 재질과 UI 상태를 즉시 확정한다.
+
+POC의 기본 밀도는 활성 node의 charge strength -64, 직접 이웃 link distance 56, 2단계 이웃 link distance 46을 시작값으로 사용한다. 기본 카메라 배율에서 직접 이웃과 중요한 2단계 이웃을 함께 찾을 수 있는지를 우선 검증하며, node와 label이 겹치면 간격만 필요한 만큼 늘린다.
+
+홈페이지 첫 진입은 전체 공개 graph를 한 번 `zoomToFit`으로 조망하고 720ms 뒤 기본 중심 node로 같은 1200ms 전환을 실행한다. 검증 fixture에는 BISTelligence node가 없으므로 SK하이닉스를 기본 중심으로 사용하며, intro 전체 graph는 제품의 기준 지도나 저장 좌표로 보존하지 않는다. `enableNodeDrag(false)`로 node drag를 끄고 click은 중심 이동에만 사용하며, OrbitControls의 pan과 zoom은 계속 활성화한다.
 
 Next.js와 저장소 공통 패키지는 현재 필요하지 않으므로 만들지 않는다. 웹 앱은 Vite 기반의 단일 React 애플리케이션으로 시작한다.
 

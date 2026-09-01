@@ -139,11 +139,19 @@ node type은 색만으로 구분하지 않는다. tooltip, 상세 panel과 keybo
 
 지식맵은 x·y 평면의 군집 배치를 주된 구조로 사용하는 얕은 2.5D 장면이다. 초기 깊이 범위는 중심 기준 약 ±20으로 제한하고 z축은 node 겹침과 앞뒤 구분에만 사용한다. 회전은 제공하지 않으며 빈 map 영역을 drag하면 평행 이동하고 wheel이나 trackpad로 확대·축소한다.
 
+기본 카메라 배율에서는 중심 node, 직접 이웃과 중요한 2단계 이웃의 대부분을 한 화면에서 함께 탐색할 수 있어야 한다. node 간격은 label과 발광 core가 겹치지 않는 범위에서 조밀하게 유지하며, 다른 node를 찾기 위해 매번 축소한 뒤 다시 확대하도록 만들지 않는다. node 사이 거리는 탐색을 위한 layout 값일 뿐 관계 강도나 다른 의미를 나타내지 않는다.
+
 ### Motion
 
-control hover와 panel 상태 전환은 160ms, 새 중심 node로 이동하는 카메라 전환은 1200ms를 기본으로 한다. node를 선택하면 카메라는 선택한 node의 현재 위치를 새 중심으로 바라보며 부드럽게 이동한다. 같은 시간에 이전 중심의 고정을 풀고 선택한 node를 그 위치에 고정한 뒤, 새 직접 이웃과 중요한 2단계 이웃의 force 재배치를 시작한다. 카메라는 천천히 출발해 중간 구간에서 가속하고 도착 전에 다시 감속하는 ease-in-out을 사용한다. 기존 graph와 새 graph에 함께 속한 node는 같은 객체와 위치를 이어서 사용하며 전체 canvas나 panel을 다시 그리는 fade를 적용하지 않는다. 진입·이탈 node의 opacity 전환은 위치 변화를 보조하는 수준으로만 사용하며 카메라 이동이나 이웃 재배치를 대신하지 않는다.
+control의 hover·focus 강조와 panel의 짧은 상태 전환은 160ms, 시간 범위처럼 관측 활동량이 바뀔 때의 node 크기·밝기 전환은 320ms, 새 중심 node로 이동하는 전체 전환은 1200ms를 기본으로 한다. 1200ms 전환은 천천히 출발해 중간 구간에서 가속하고 도착 전에 다시 감속하는 ease-in-out 하나를 사용한다.
 
-force simulation은 layout이 안정되면 멈추고 장식 목적으로 계속 흔들지 않는다. `prefers-reduced-motion`에서는 카메라 중심과 부분 graph를 즉시 전환하고 반복 animation을 끈다.
+node를 선택하면 카메라는 선택한 node의 현재 위치를 새 중심으로 바라보며 이동한다. 같은 1200ms 동안 이전 중심의 고정을 풀고 선택한 node를 그 위치에 고정하며, 새 직접 이웃과 중요한 2단계 이웃의 force 재배치를 연속해서 진행한다. 카메라 위치, node 위치, core 밝기, halo와 외곽선, node와 label의 불투명도, 관계선 색과 불투명도는 하나의 진행률로 보간한다. 기존 graph와 새 graph에 함께 속한 node와 관계선은 같은 객체와 위치를 이어서 사용하고, 진입 요소는 불투명도 0에서 시작하며 이탈 요소는 정확히 0까지 낮춘다. 전체 canvas나 panel을 다시 그리는 fade는 적용하지 않는다.
+
+전환 중에는 기존 중심을 확정 상태로 유지하고 새 중심은 pending 상태로만 다룬다. header, 검색값, 범위 요약과 상세 panel의 동적 문구는 전환 중간인 600ms에 불투명도 0에서 한 번 교체한 뒤 다시 나타나며, `재배치 중` 같은 별도 문구로 내용을 바꾸지 않는다. graph 영역은 전환 시작부터 종료까지 busy 상태를 알리고, 중심 node의 accessible name과 확정 상태는 전환이 끝난 뒤 함께 갱신한다.
+
+부분 graph와 force simulation은 전환 시작 시 한 번만 갱신한다. 전환 종료 시 graph를 다시 교체하거나 force를 다시 시작하지 않으며, 이탈 node와 관계선은 보이지 않는 상태로 위치를 고정하고 force 영향을 0으로 둔 뒤 다음 전환을 시작할 때 제거한다. force simulation은 layout이 안정되면 멈추고 장식 목적으로 계속 흔들지 않는다. `prefers-reduced-motion`에서는 같은 상태를 한 번에 적용하고 반복 animation을 끈다.
+
+전환 시작 시에는 현재 node 위치를 한 render frame 동안 고정한 상태에서 관계선의 source와 target을 새 graph에 다시 연결한다. 다음 frame에 이웃 node의 고정을 풀고 force를 시작해 관계선 끝점 재계산과 위치 이동이 같은 frame에서 겹치지 않게 한다. 전환이 끝나면 남은 node 속도를 0으로 만들고 안정된 위치를 고정해 관계선이 뒤늦게 움찔하거나 장면이 계속 흐르지 않게 한다.
 
 ## Elevation & Depth
 
@@ -172,6 +180,10 @@ header는 56px 높이의 단색 분석 도구 bar로 유지한다. 작은 별자
 ### Knowledge map
 
 모든 공개 node는 pointer와 keyboard로 선택할 수 있고 선택하면 새 중심이 된다. 선택한 node의 현재 world position을 유지한 채 카메라 중심과 부분 graph가 함께 전환되며, 새 중심 기준의 직접 이웃과 중요한 2단계 이웃을 다시 계산한다. accessible name에는 node 이름과 유형을 포함한다.
+
+홈페이지 첫 진입에서는 공개된 전체 graph의 분포가 안정된 뒤 화면에 맞춰 한 번 조망하고, 720ms 동안 유지한 다음 기본 중심 node로 1200ms 동안 확대한다. BISTelligence node가 fixture에 없는 검증 예시에서는 SK하이닉스를 기본 중심으로 사용한다. 이 전체 graph는 저장 좌표나 기준 DB를 뜻하지 않는 일시적인 intro 상태이며, intro가 끝나면 이후 탐색과 같은 동적 부분 graph만 유지한다.
+
+node는 클릭하거나 keyboard로 선택해 중심을 바꾸지만 직접 끌어 배치할 수 없다. 빈 map 영역의 drag는 항상 카메라 평행 이동에만 사용하며, node drag로 force simulation을 다시 시작하거나 navigation control을 점유하지 않는다.
 
 node 크기와 밝기는 선택한 시간 범위의 관측 활동량을 나타낸다. 크기 범위는 가장 작은 node와 가장 큰 node가 지름 기준 1:2.2를 넘지 않게 제한하고, 활동량이 낮아도 label과 선택 가능성을 유지한다.
 
