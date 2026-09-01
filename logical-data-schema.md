@@ -426,7 +426,7 @@ publication_status: NOT_STARTED → PREPARING → READY
 - 중심 1개, 직접 이웃 최대 12개, 중요한 2단계 이웃 최대 18개, 관계선 최대 60개
 - 이웃 정렬: 지지 독립 근거 수 내림차순 → 선택 기간 활동량 내림차순 → 내부 ID 오름차순
 - node 크기: 선택 기간의 독립 근거 묶음 수
-- relation 굵기: 지지 독립 근거 묶음 수
+- relation 필라멘트 수: 지지 독립 근거 묶음 수와 같은 개수의 1px 선을 같은 경로 주변에 겹쳐 표시
 - 충돌 관계: 호박색 점선
 - 중심 강조·active/peripheral 밝기와 opacity: UI 상태이며 DB 비영속
 - 오래됨: 지도 감쇠로 표현하지 않고 상세 패널의 마지막 근거 게시일과 Evidence Trace에서 확인
