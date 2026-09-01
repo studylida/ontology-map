@@ -5,7 +5,7 @@
 - 상태: 승인된 구현 기준
 - 확인일: 2026-09-01
 - 관련 Issue: #38
-- 후속 Issue: #8 코드 컨벤션 정의
+- 코드 컨벤션: [code-conventions.md](code-conventions.md)
 
 이 문서는 Logical Schema v1 동결 이후 적용할 ontology-map의 구현 스택, 목표 폴더 구조, 환경 변수, 의존성, 실행 프로세스와 CI 기준을 기록한다. 현재 저장소에 애플리케이션 코드, 물리 스키마, 의존성, 설정 파일이나 실행 환경을 추가하는 지시가 아니며, 실제 생성은 각각의 후속 Issue와 승인을 거쳐 진행한다.
 
@@ -87,7 +87,7 @@ ontology-map/
 - `server/src/ontology_map/db/`는 데이터베이스 연결과 영속성 코드를 담당한다.
 - `server/migrations/`는 승인된 PostgreSQL 물리 설계를 구현하는 Alembic migration만 둔다.
 
-초기에는 이보다 더 세분화된 layer, 공유 package나 추상화 폴더를 만들지 않는다. 코드가 생긴 뒤 실제 책임이 겹칠 때 Issue #8의 코드 컨벤션에서 경계를 구체화한다.
+초기에는 이보다 더 세분화된 layer, 공유 package나 추상화 폴더를 만들지 않는다. 코드가 생긴 뒤 실제 책임이 겹칠 때 [코드 컨벤션](code-conventions.md)에 따라 경계를 구체화한다.
 
 ## 실행 프로세스
 
@@ -129,7 +129,7 @@ embedding interface는 공통화하더라도 서로 다른 embedding model의 �
 
 ## CI 기준
 
-CI workflow는 애플리케이션 골격을 만들 때 추가한다. 각 단계의 정확한 명령 이름은 실제 manifest와 함께 Issue #8에서 확정한다.
+CI workflow는 애플리케이션 골격을 만들 때 추가한다. 각 단계의 명령 계약은 [코드 컨벤션](code-conventions.md)을 따르고 실제 script와 설정은 manifest를 만드는 Issue에서 추가한다.
 
 | 대상 | 필수 단계 |
 | --- | --- |
