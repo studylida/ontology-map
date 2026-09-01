@@ -9,7 +9,7 @@
 - Git 규칙: [CONTRIBUTING.md](CONTRIBUTING.md)
 - PostgreSQL 물리 규칙: Issue #40
 
-이 문서는 ontology-map의 TypeScript·React·CSS와 Python·FastAPI·SQLAlchemy·LangChain·Alembic 코드에 적용할 최소 규칙을 정한다. 아직 애플리케이션 골격이 없으므로 명령과 설정의 계약만 확정하며 manifest, 도구 설정, 코드, DDL과 migration은 만들지 않는다.
+이 문서는 ontology-map의 TypeScript·React·CSS와 Python·FastAPI·SQLAlchemy·LangChain·Alembic 코드에 적용할 최소 규칙을 정한다. `web/`에는 Issue #67의 React POC와 실행 가능한 manifest·도구 설정이 있다. server 코드, DDL과 migration은 아직 없으며 해당 구현을 시작할 때 같은 규칙을 적용한다.
 
 ## 공통 원칙
 
@@ -131,7 +131,7 @@ ontology-map/
 
 ## 프로젝트 명령 계약
 
-아래 명령은 애플리케이션 골격에서 manifest와 설정을 만들 때 그대로 제공해야 하는 기준이다. 현재 문서 PR에서는 아직 실행할 수 있는 manifest나 설정 파일을 만들지 않는다.
+아래 명령은 각 애플리케이션의 manifest와 설정이 제공해야 하는 기준이다. `web/package.json`에는 web 명령이 구현되어 있으며 server 명령은 server 골격을 만들 때 제공한다.
 
 ### web
 
@@ -139,6 +139,7 @@ ontology-map/
 
 | 목적 | 명령 | 실제 도구 명령 |
 | --- | --- | --- |
+| 개발 서버 | `npm run dev` | `vite` |
 | 포맷 적용 | `npm run format` | `biome format --write .` |
 | 포맷 검사 | `npm run format:check` | `biome format .` |
 | lint | `npm run lint` | `biome lint .` |

@@ -7,7 +7,7 @@
 - 관련 Issue: #38
 - 코드 컨벤션: [code-conventions.md](code-conventions.md)
 
-이 문서는 Logical Schema v1 동결 이후 적용할 ontology-map의 구현 스택, 목표 폴더 구조, 환경 변수, 의존성, 실행 프로세스와 CI 기준을 기록한다. 현재 저장소에 애플리케이션 코드, 물리 스키마, 의존성, 설정 파일이나 실행 환경을 추가하는 지시가 아니며, 실제 생성은 각각의 후속 Issue와 승인을 거쳐 진행한다.
+이 문서는 Logical Schema v1 동결 이후 적용할 ontology-map의 구현 스택, 현재 프론트엔드 POC, 목표 폴더 구조, 환경 변수, 실행 프로세스와 CI 기준을 기록한다. `web/`에는 Issue #67의 실행 가능한 desktop POC와 프론트엔드 의존성이 있다. 백엔드, 물리 스키마, Compose와 운영 환경은 아직 없으며 각각의 후속 Issue와 승인을 거쳐 만든다.
 
 ## 기본 원칙
 
@@ -37,37 +37,51 @@
 | 빌드 도구 | Vite | 8.2.2 |
 | 언어 | TypeScript | 7.0.2 |
 | React 플러그인 | @vitejs/plugin-react | 6.1.1 |
-| 그래프 시각화 우선 검증 후보 | 3d-force-graph | 1.80.0 |
-| 그래프 시각화 비교 후보 | Reagraph | 4.32.0 |
+| 그래프 시각화 POC | 3d-force-graph | 1.80.0 |
+| 3D 렌더링 | Three.js | 0.185.0 |
 | 포맷·lint | Biome | 2.5.11 |
 | 단위·컴포넌트 테스트 | Vitest | 4.1.11 |
 | React 테스트 유틸리티 | React Testing Library | 16.3.3 |
 
-3d-force-graph를 POC의 우선 검증 후보로 삼고 Reagraph는 비교 대상으로만 유지한다. 두 라이브러리를 동시에 제품 의존성으로 추가하지 않으며, 지식맵의 클릭·중심 이동·직접 이웃과 중요 2단계 이웃·낮은 강조의 주변부 표시 요구를 가장 단순하게 충족하는 후보 하나만 채택한다.
+Issue #67의 POC는 3d-force-graph를 채택했고 Reagraph는 설치하지 않았다. 3d-force-graph가 제공하는 Three.js 객체 확장 지점을 사용하므로 Three.js를 직접 의존성으로 함께 고정한다. 다른 그래프 라이브러리는 현재 요구를 충족하지 못한다는 검증 결과가 생길 때만 다시 비교한다.
 
-3d-force-graph 시각 POC에서는 라이브러리가 노출하는 `nodeThreeObject`, `lights`와 `postProcessingComposer`를 사용해 node 재질, 제한된 bloom과 거리 안개를 검증한다. x·y 배치를 유지하면서 사용자 정의 force로 z축을 약 ±32 안에 제한하고 회전 control은 끈다. 각 node의 런타임 depth target은 node ID에서 계산하되 relation 단계나 강도와 연결하지 않고 저장하지도 않는다. 관계선은 `linkThreeObject`와 `linkPositionUpdate`로 독립 근거 묶음마다 1px 필라멘트 하나를 만들고 같은 곡선 주변에 겹친다. node 아래에는 배경색의 불투명 가림 glyph를 두고 가림 glyph, node 표면과 label을 투명 렌더 단계로 통일한 뒤 관계선보다 높은 `renderOrder`를 적용한다. 충돌 관계는 같은 사용자 정의 필라멘트 묶음을 `conflict` 색의 점선으로 그린다. 이 효과는 별도 그래프 라이브러리나 Three.js 확장 의존성을 추가하지 않고 구현하며, 활동량과 상호작용 상태, 충돌 관계의 의미는 `DESIGN.md`의 표시 규칙을 그대로 따른다.
+시각 POC는 `nodeThreeObject`, `lights`와 `postProcessingComposer`를 사용해 node 재질, 제한된 bloom과 거리 안개를 표현한다. x·y 배치를 주된 구조로 유지하면서 사용자 정의 force로 z축을 약 ±32 안에 제한하고 회전 control은 끈다. 각 node의 런타임 depth target은 node ID에서 계산하되 relation 단계나 강도와 연결하지 않고 저장하지도 않는다. 모든 관계선은 `linkThreeObject`와 `linkPositionUpdate`로 직접 그린다. 각 필라멘트는 source와 target의 중심에서 시작하고 중간 control point만 벌어지며 충돌 관계에는 `LineDashedMaterial`을 사용한다. node 아래에는 배경색의 불투명 가림 glyph를 두고 node 표면과 label에 관계선보다 높은 `renderOrder`를 적용해 선이 node 위에 보이지 않게 한다.
 
-관계선의 기본 불투명도는 직접 이웃 0.68, 중요한 2단계 이웃 0.52, 주변부 실제 Relation 0.26으로 둔다. focus 경로는 직접·2단계에서 최대 0.90, 주변부에서 최대 0.66까지 보간한다. POC는 독립 근거 묶음 수와 같은 개수의 1px 필라멘트를 만들고 묶음의 전체 폭이 6px을 넘지 않도록 화면 기준 간격을 줄인다. 각 필라멘트는 같은 Relation 객체의 시각 표현이며 별도 관계로 취급하지 않는다. 단계별 대비에는 색과 불투명도만 사용하고 필라멘트 수는 독립 근거 묶음 수만 나타낸다.
+관계선의 기본 불투명도는 직접 이웃 0.90, 중요한 2단계 이웃 0.56, 주변부 실제 Relation 0.30으로 둔다. 독립 근거 묶음 수만큼 같은 경로에 1px 필라멘트를 겹쳐 그린다. 5개까지는 중간 control point 간격을 1.2px로 유지하고 5개를 넘으면 전체 폭을 4.8px로 고정한 채 간격만 줄인다. 단계별 대비에는 색과 불투명도만 사용하고 근거 강도는 필라멘트 수만 나타낸다.
 
-node 선택 시에는 현재 node catalog와 relation을 두 단계까지 탐색해 직접 이웃 전체와 활동량 우선의 중요한 2단계 이웃 최대 6개를 새 부분 graph로 만든다. `requestAnimationFrame`의 1200ms ease-in-out 진행률 하나로 카메라 위치, control target, node의 core·halo·외곽선·label, 관계선 재질과 UI 문구를 보간한다. UI 문구는 600ms에 불투명도 0인 상태에서 한 번 교체하고, 확정 `centerId`와 `selectedId`는 전환이 끝날 때 갱신한다. hover·focus 재질 전환은 160ms, 시간 범위에 따른 관측 활동량의 node 크기 전환은 320ms로 분리한다.
+node 크기는 선택 기간에 게시된 출처가 뒷받침하는 Claim의 독립 근거 묶음 수를 나타낸다. 중심 node는 가장 밝게 유지하고 직접 이웃과 중요한 2단계 이웃은 같은 기본 밝기와 불투명도를 사용하며 주변부만 낮춘다. 오래됨은 지도의 시각 채널로 사용하지 않고 상세 panel의 근거 게시일과 Evidence Trace에서 제공한다.
 
-검증 fixture에서는 활성 graph 밖의 공개 node를 모두 3단계 이후의 주변부로 표시한다. 주변부 node와 실제로 연결된 Relation은 낮은 불투명도로 유지하되, Relation이 없는 node나 검색 결과에 새 관계선을 만들지 않는다. 제품에서는 현재 경계 node ID를 cursor로 사용해 다음 주변부를 제한된 page 단위로 요청하고, camera가 경계에 접근하거나 주변부 node가 focus되면 다음 page를 미리 불러온다. 멀어진 주변부는 `graphData`와 force 계산에서 제외하고 세션 위치 cache만 유지한다. 임의의 node 1,000개를 초기 graph에 넣거나 서버에 저장된 좌표로 viewport를 조회하지 않는다.
+node를 선택하면 같은 node와 Relation 객체를 유지한 채 1200ms ease-in-out으로 카메라 target, node 재질과 관계선 불투명도를 보간하고 force를 한 번 다시 시작한다. header, URL, 탐색 경로와 상세 panel의 중심 상태는 전환이 끝날 때 갱신한다. hover·focus는 160ms 동안 node halo와 직접 연결된 관계선을 함께 강조하고, 시간 범위에 따른 node 크기는 320ms 동안 전환한다.
 
-주변부 규모가 커지면 상세 node와 같은 다중 mesh·label·bloom을 반복하지 않는다. 먼저 `nodeVisibility`와 `linkVisibility`로 현재 장면의 범위를 제한하고, 같은 형상의 주변부 node는 Three.js `InstancedMesh`나 sprite 기반의 가벼운 표현을 성능 POC에서 비교한다. 실제 page 크기와 장면 상한은 목표 desktop에서 frame time과 interaction 지연을 측정한 뒤 정한다.
+검증 fixture는 작은 전체 node catalog를 브라우저에 두고 선택한 중심의 직접 이웃과 2단계 이웃을 계산한다. 나머지 공개 node는 주변부로 분류하되 실제 Relation만 유지하고, Relation이 없는 node나 검색 결과에 새 관계선을 만들지 않는다. 제품 조회에서는 Logical Schema v1에 따라 중심 1개, 직접 이웃 최대 12개, 중요한 2단계 이웃 최대 18개와 관계선 최대 60개를 결정적으로 선택한다.
+
+현재 POC는 모든 fixture node와 Relation 객체를 처음 한 번 만들고 중심이 바뀔 때 같은 객체의 탐색 단계를 갱신한다. `warmupTicks`와 `cooldownTicks`는 각각 180이고 `d3AlphaDecay`는 0.035, `d3VelocityDecay`는 0.4다.
+
+제품에서는 현재 경계 node ID를 cursor로 사용해 다음 주변부를 제한된 page 단위로 요청하고, camera가 경계에 접근하거나 주변부 node가 focus되면 다음 page를 미리 불러온다. 멀어진 주변부는 `graphData`와 force 계산에서 제외하고 세션 위치 cache만 유지한다. 임의의 node 1,000개를 초기 graph에 넣거나 서버에 저장된 좌표로 viewport를 조회하지 않는다. 주변부 규모가 커지면 먼저 `nodeVisibility`와 `linkVisibility`로 장면 범위를 제한하고, 같은 형상의 주변부 node는 Three.js `InstancedMesh`나 sprite 기반 표현을 성능 POC에서 비교한다.
 
 검색 input은 combobox와 listbox 패턴을 사용한다. 입력값이 바뀌면 이름, 유형과 검색 이유를 포함한 후보를 최대 5개까지 드롭다운으로 표시하고, `ArrowUp`·`ArrowDown`·`Enter`·`Escape`와 pointer 선택을 지원한다. 후보 선택은 별도 모델 호출 없이 기존 중심 이동 함수를 사용한다.
 
-전환을 시작할 때 이전 graph와 새 graph의 합집합을 한 번 `graphData`에 전달하고 `d3ReheatSimulation`도 한 번만 호출한다. 공통 node·관계선 객체와 `nodeThreeObject`·`linkMaterial`의 재질은 cache에서 재사용하며 매 frame 다시 만들지 않는다. 이전 전환에서 이탈했다가 다시 진입하는 요소도 기존 data 객체와 Three.js 객체를 함께 재사용한다. 진입 요소는 opacity 0에서, 이탈 요소는 현재 값에서 0까지 보간한다. 이탈 node는 현재 위치에 고정하고 charge를 0으로, 이탈 관계선은 link strength를 0으로 둔 채 다음 전환까지 합집합에 남긴다. 새 graph의 link strength는 연결된 두 node의 degree 중 작은 값의 역수를 사용한다. 전환 종료 시 두 번째 `graphData` 적용이나 reheat를 하지 않는다.
-
-`graphData`가 관계선의 source와 target을 node 객체로 다시 연결하는 frame에는 모든 node를 현재 위치에 고정하고 속도를 0으로 둔다. 다음 `requestAnimationFrame`에서 새 중심을 제외한 활성 node의 고정을 풀고 `d3ReheatSimulation`을 호출해 관계선 끝점 재계산과 force 이동을 분리한다. 1200ms 전환이 끝나면 활성 node의 남은 속도를 0으로 만들고 현재 위치를 고정하며, 다음 전환 준비 frame에서 다시 해제한다.
-
-force 이동은 전환 시작과 끝에서 `d3VelocityDecay`를 0.82로 두고 중간 지점에서 0.42까지 낮춰 카메라와 함께 느리게 출발하고 감속하며 멈추게 한다. layout이 안정되면 기본 감쇠 값으로 되돌리고 simulation을 종료한다. `prefers-reduced-motion`에서는 같은 부분 graph를 한 번만 적용하고 카메라, 재질과 UI 상태를 즉시 확정한다.
+제품에서 서버가 부분 graph를 교체하게 되면 이전 graph와 새 graph의 합집합을 한 번 `graphData`에 전달하고 `d3ReheatSimulation`도 한 번만 호출한다. 공통 node·관계선 객체와 Three.js 재질은 cache에서 재사용하고 진입 요소와 이탈 요소는 `DESIGN.md`의 전환 계약에 따라 보간한다. 이 서버 연동과 부분 graph paging은 현재 정적 fixture POC에 포함되지 않는다.
 
 POC의 기본 밀도는 활성 node의 charge strength -64, 직접 이웃 link distance 56, 2단계 이웃 link distance 46을 시작값으로 사용한다. 기본 카메라 배율에서 직접 이웃과 중요한 2단계 이웃을 함께 찾을 수 있는지를 우선 검증하며, node와 label이 겹치면 간격만 필요한 만큼 늘린다.
 
-홈페이지 첫 진입은 전체 공개 graph를 한 번 `zoomToFit`으로 조망하고 720ms 뒤 기본 중심 node로 같은 1200ms 전환을 실행한다. 검증 fixture에는 BISTelligence node가 없으므로 SK하이닉스를 기본 중심으로 사용하며, intro 전체 graph는 제품의 기준 지도나 저장 좌표로 보존하지 않는다. `enableNodeDrag(false)`로 node drag를 끄고 click은 중심 이동에만 사용하며, OrbitControls의 pan과 zoom은 계속 활성화한다.
+홈페이지 첫 진입에서는 graph force가 안정될 때까지 전체 viewport loading을 표시한다. 진행률은 1.4초 동안 89%까지 올리고 준비 신호 뒤 90%, 95%, 99%를 거쳐 200ms 동안 loading을 숨긴다. 그 뒤 전체 fixture graph를 `zoomToFit`으로 조망하고 720ms 동안 유지한 다음 1200ms 동안 카메라 target과 node 위치를 바꾸지 않고 카메라 거리만 줄인다. 검증 fixture에는 BISTelligence node가 없으므로 SK하이닉스를 기본 중심으로 사용하며 intro graph는 제품의 기준 지도나 저장 좌표로 보존하지 않는다. `enableNodeDrag(false)`로 node drag를 끄고 click은 중심 이동에만 사용하며 OrbitControls의 pan과 zoom은 계속 활성화한다.
 
-Next.js와 저장소 공통 패키지는 현재 필요하지 않으므로 만들지 않는다. 웹 앱은 Vite 기반의 단일 React 애플리케이션으로 시작한다.
+상세 panel의 `인사이트` tab은 제목 목록만 표시하고 native `<dialog>`로 상세 demo를 연다. SK하이닉스, SanDisk와 HBF에 정적 인사이트를 각각 3개 제공하고 나머지 node에는 empty 상태를 표시한다. 이 데이터는 실제 모델 출력이 아니며 생성·저장·API 계약은 Issue #68에서 결정한다.
+
+Next.js와 저장소 공통 패키지는 현재 필요하지 않으므로 만들지 않는다. 웹 앱은 Vite 기반의 단일 React 애플리케이션이며 반응형 화면, API, DB와 모델 호출은 Issue #67 POC 범위에 포함되지 않는다.
+
+### 로컬 실행과 검증
+
+`web/`에서 다음 명령을 사용한다.
+
+```text
+npm ci
+npm run dev
+npm run check
+```
+
+`npm run check`는 Biome 검사, TypeScript typecheck, Vitest와 Vite production build를 순서대로 실행한다. 브라우저 smoke check는 검색, node 선택, pan·zoom, Evidence Trace, 후속 질문, 인사이트 dialog와 첫 진입 확대를 확인한다.
 
 ## 백엔드와 에이전트
 
@@ -151,7 +165,7 @@ embedding interface는 공통화하더라도 서로 다른 embedding model의 �
 
 ## CI 기준
 
-CI workflow는 애플리케이션 골격을 만들 때 추가한다. 각 단계의 명령 계약은 [코드 컨벤션](code-conventions.md)을 따르고 실제 script와 설정은 manifest를 만드는 Issue에서 추가한다.
+`web/package.json`에는 아래 검증 script가 구현되어 있다. CI workflow는 아직 없으며 추가할 때 같은 명령 계약을 사용한다. server와 데이터베이스 단계는 해당 애플리케이션과 migration이 생긴 뒤 추가한다.
 
 | 대상 | 필수 단계 |
 | --- | --- |
@@ -166,8 +180,8 @@ CI workflow는 애플리케이션 골격을 만들 때 추가한다. 각 단계�
 - PostgreSQL 물리 스키마, 제약과 실제 migration 설계
 - OpenAI chat model의 정확한 ID
 - embedding model, 차원과 벡터 컬럼 설계
-- 그래프 시각화 후보의 최종 선택
-- 실제 시작·검사·테스트 명령 이름
+- 목표 desktop에서의 주변부 page 크기와 장면 상한
+- 실제 인사이트의 출력 구조, 생성·저장 시점과 Evidence Trace 연결
 - 인증, 배포 환경과 운영 인프라
 
 이 항목은 현재 사용자 흐름이나 승인된 스키마로 필요성이 확인된 뒤 결정한다. 미래 확장 가능성만으로 구조나 의존성을 추가하지 않는다.
