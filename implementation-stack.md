@@ -43,11 +43,17 @@
 | 단위·컴포넌트 테스트 | Vitest | 4.1.11 |
 | React 테스트 유틸리티 | React Testing Library | 16.3.3 |
 
-3d-force-graph를 POC의 우선 검증 후보로 삼고 Reagraph는 비교 대상으로만 유지한다. 두 라이브러리를 동시에 제품 의존성으로 추가하지 않으며, 지식맵의 클릭·중심 이동·직접 이웃과 중요 2단계 이웃 표시 요구를 가장 단순하게 충족하는 후보 하나만 채택한다.
+3d-force-graph를 POC의 우선 검증 후보로 삼고 Reagraph는 비교 대상으로만 유지한다. 두 라이브러리를 동시에 제품 의존성으로 추가하지 않으며, 지식맵의 클릭·중심 이동·직접 이웃과 중요 2단계 이웃·낮은 강조의 주변부 표시 요구를 가장 단순하게 충족하는 후보 하나만 채택한다.
 
 3d-force-graph 시각 POC에서는 라이브러리가 노출하는 `nodeThreeObject`, `lights`와 `postProcessingComposer`를 사용해 node 재질, 제한된 bloom과 거리 안개를 검증한다. x·y 배치를 유지하면서 사용자 정의 force로 z축을 약 ±20 안에 제한하고 회전 control은 끈다. 관계선은 내장 곡률과 `linkMaterial`로 기본 core를 표현하고 bloom으로 낮은 강도의 halo를 더한다. node 아래에는 배경색의 불투명 가림 glyph를 두고 가림 glyph, node 표면과 label을 투명 렌더 단계로 통일한 뒤 관계선보다 높은 `renderOrder`를 적용한다. 내장 3D 관계선이 점선을 지원하지 않으므로 충돌 관계에만 `linkThreeObject`와 `linkPositionUpdate`를 사용한다. 이 효과는 별도 그래프 라이브러리나 Three.js 확장 의존성을 추가하지 않고 구현하며, 활동량·오래된 정보·충돌 관계의 의미는 `DESIGN.md`의 표시 규칙을 그대로 따른다.
 
 node 선택 시에는 현재 node catalog와 relation을 두 단계까지 탐색해 직접 이웃 전체와 활동량 우선의 중요한 2단계 이웃 최대 6개를 새 부분 graph로 만든다. `requestAnimationFrame`의 1200ms ease-in-out 진행률 하나로 카메라 위치, control target, node의 core·halo·외곽선·label, 관계선 재질과 UI 문구를 보간한다. UI 문구는 600ms에 불투명도 0인 상태에서 한 번 교체하고, 확정 `centerId`와 `selectedId`는 전환이 끝날 때 갱신한다. hover·focus 재질 전환은 160ms, 시간 범위에 따른 관측 활동량 전환은 320ms로 분리한다.
+
+검증 fixture에서는 활성 graph 밖의 공개 node를 모두 3단계 이후의 주변부로 표시한다. 주변부 node와 실제로 연결된 Relation은 낮은 불투명도로 유지하되, Relation이 없는 node나 검색 결과에 새 관계선을 만들지 않는다. 제품에서는 현재 경계 node ID를 cursor로 사용해 다음 주변부를 제한된 page 단위로 요청하고, camera가 경계에 접근하거나 주변부 node가 focus되면 다음 page를 미리 불러온다. 멀어진 주변부는 `graphData`와 force 계산에서 제외하고 세션 위치 cache만 유지한다. 임의의 node 1,000개를 초기 graph에 넣거나 서버에 저장된 좌표로 viewport를 조회하지 않는다.
+
+주변부 규모가 커지면 상세 node와 같은 다중 mesh·label·bloom을 반복하지 않는다. 먼저 `nodeVisibility`와 `linkVisibility`로 현재 장면의 범위를 제한하고, 같은 형상의 주변부 node는 Three.js `InstancedMesh`나 sprite 기반의 가벼운 표현을 성능 POC에서 비교한다. 실제 page 크기와 장면 상한은 목표 desktop에서 frame time과 interaction 지연을 측정한 뒤 정한다.
+
+검색 input은 combobox와 listbox 패턴을 사용한다. 입력값이 바뀌면 이름, 유형과 검색 이유를 포함한 후보를 최대 5개까지 드롭다운으로 표시하고, `ArrowUp`·`ArrowDown`·`Enter`·`Escape`와 pointer 선택을 지원한다. 후보 선택은 별도 모델 호출 없이 기존 중심 이동 함수를 사용한다.
 
 전환을 시작할 때 이전 graph와 새 graph의 합집합을 한 번 `graphData`에 전달하고 `d3ReheatSimulation`도 한 번만 호출한다. 공통 node·관계선 객체와 `nodeThreeObject`·`linkMaterial`의 재질은 cache에서 재사용하며 매 frame 다시 만들지 않는다. 이전 전환에서 이탈했다가 다시 진입하는 요소도 기존 data 객체와 Three.js 객체를 함께 재사용한다. 진입 요소는 opacity 0에서, 이탈 요소는 현재 값에서 0까지 보간한다. 이탈 node는 현재 위치에 고정하고 charge를 0으로, 이탈 관계선은 link strength를 0으로 둔 채 다음 전환까지 합집합에 남긴다. 새 graph의 link strength는 연결된 두 node의 degree 중 작은 값의 역수를 사용한다. 전환 종료 시 두 번째 `graphData` 적용이나 reheat를 하지 않는다.
 
