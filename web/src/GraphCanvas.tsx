@@ -32,7 +32,9 @@ interface RuntimeLink extends Omit<KnowledgeViewRelation, "source" | "target"> {
 interface GraphCanvasProps {
   centerId: string;
   timeRange: TimeRange;
+  introStarted: boolean;
   onSelect: (nodeId: string) => void;
+  onReady: () => void;
 }
 
 interface GraphControls {
@@ -387,7 +389,9 @@ function depthTargetForNode(node: RuntimeNode): number {
 export function GraphCanvas({
   centerId,
   timeRange,
+  introStarted,
   onSelect,
+  onReady,
 }: GraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<ForceGraph3DInstance<
@@ -401,7 +405,10 @@ export function GraphCanvas({
   const previousCenterRef = useRef(centerId);
   const timeRangeRef = useRef(timeRange);
   const onSelectRef = useRef(onSelect);
+  const onReadyRef = useRef(onReady);
   const dataInitializedRef = useRef(false);
+  const readyRef = useRef(false);
+  const introCompletedRef = useRef(false);
   const animationRef = useRef<number | null>(null);
   const hoverAnimationRef = useRef<number | null>(null);
   const introTimeoutRef = useRef<number | null>(null);
@@ -411,6 +418,10 @@ export function GraphCanvas({
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
 
   useEffect(() => {
     timeRangeRef.current = timeRange;
@@ -489,6 +500,13 @@ export function GraphCanvas({
       })
       .d3AlphaDecay(0.035)
       .d3VelocityDecay(0.4)
+      .warmupTicks(180)
+      .onEngineStop(() => {
+        if (!dataInitializedRef.current || readyRef.current) return;
+        readyRef.current = true;
+        graph.zoomToFit(0, 72);
+        onReadyRef.current();
+      })
       .cooldownTicks(180);
 
     graph
@@ -599,6 +617,8 @@ export function GraphCanvas({
       graph._destructor();
       graphRef.current = null;
       dataInitializedRef.current = false;
+      readyRef.current = false;
+      introCompletedRef.current = false;
       nodesRef.current.clear();
       linksRef.current.clear();
       nodeVisualsRef.current.clear();
@@ -661,18 +681,16 @@ export function GraphCanvas({
       center.fx = center.x ?? 0;
       center.fy = center.y ?? 0;
       center.fz = Math.max(-depthLimit, Math.min(depthLimit, center.z ?? 0));
-      graph.d3ReheatSimulation();
+      if (!intro) graph.d3ReheatSimulation();
 
       const centerChanged = intro || previousCenterRef.current !== centerId;
       const duration = reducedMotion ? 0 : centerChanged ? 1200 : 320;
       const startCameraPosition = graph.camera().position.clone();
       const controls = graph.controls() as GraphControls;
       const startCameraTarget = controls.target.clone();
-      const endCameraTarget = new THREE.Vector3(
-        center.x ?? 0,
-        center.y ?? 0,
-        center.z ?? 0,
-      );
+      const endCameraTarget = intro
+        ? startCameraTarget.clone()
+        : new THREE.Vector3(center.x ?? 0, center.y ?? 0, center.z ?? 0);
       const offset = startCameraPosition.clone().sub(startCameraTarget);
       if (offset.lengthSq() < 1) offset.set(0, 0, 260);
       offset.setLength(
@@ -748,16 +766,24 @@ export function GraphCanvas({
 
     if (!dataInitializedRef.current) {
       dataInitializedRef.current = true;
-      const runtimeNodes = view.nodes.map((node, index) => {
+      let surroundingIndex = 0;
+      const runtimeNodes = view.nodes.map((node) => {
+        const isCenter = node.id === centerId;
+        const index = isCenter ? 0 : surroundingIndex++;
         const angle = index * 2.399963229728653;
-        const distance = 28 * Math.sqrt(index + 1);
+        const distance = isCenter ? 0 : 28 * Math.sqrt(index + 1);
         const runtimeNode: RuntimeNode = {
           ...node,
           tier: "twoHop",
           x: Math.cos(angle) * distance,
           y: Math.sin(angle) * distance,
-          z: depthTargetForNode(node),
+          z: isCenter ? 0 : depthTargetForNode(node),
         };
+        if (isCenter) {
+          runtimeNode.fx = 0;
+          runtimeNode.fy = 0;
+          runtimeNode.fz = 0;
+        }
         nodesRef.current.set(node.id, runtimeNode);
         return runtimeNode;
       });
@@ -772,7 +798,13 @@ export function GraphCanvas({
         return runtimeLink;
       });
       graph.graphData({ nodes: runtimeNodes, links: runtimeLinks });
-      graph.zoomToFit(reducedMotion ? 0 : 500, 72);
+      return;
+    }
+
+    if (!introStarted) return;
+
+    if (!introCompletedRef.current) {
+      introCompletedRef.current = true;
       introTimeoutRef.current = window.setTimeout(
         () => {
           introTimeoutRef.current = null;
@@ -788,7 +820,7 @@ export function GraphCanvas({
       introTimeoutRef.current = null;
     }
     animateToView();
-  }, [centerId, timeRange, view]);
+  }, [centerId, introStarted, timeRange, view]);
 
   return (
     <section className={styles.map} aria-label="동적 지식맵" aria-busy={busy}>

@@ -185,7 +185,9 @@ header는 56px 높이의 단색 분석 도구 bar로 유지한다. 작은 별자
 
 제품은 임의의 공개 node 1,000개를 먼저 불러와 전체 graph처럼 보이게 만들지 않는다. 현재 활성 graph의 경계 node ID를 기준으로 다음 주변부를 제한된 page 단위로 불러오며, 사용자가 빈 map 영역을 이동해 경계에 접근하거나 주변부 node를 선택하기 전에 다음 page를 미리 준비한다. 멀어진 주변부는 짧은 유예 뒤 장면과 force 계산에서 제외하되 세션 동안의 위치만 cache해 다시 나타날 때 갑자기 다른 곳에 배치되지 않게 한다. 이 증분 로드는 서버에 저장된 지도 좌표나 기준 DB를 전제하지 않는다.
 
-홈페이지 첫 진입에서는 공개된 전체 graph의 분포가 안정된 뒤 화면에 맞춰 한 번 조망하고, 720ms 동안 유지한 다음 기본 중심 node로 1200ms 동안 확대한다. BISTelligence node가 fixture에 없는 검증 예시에서는 SK하이닉스를 기본 중심으로 사용한다. 이 전체 graph는 저장 좌표나 기준 DB를 뜻하지 않는 일시적인 intro 상태이며, intro가 끝나면 이후 탐색과 같은 동적 부분 graph만 유지한다.
+홈페이지 첫 진입에서는 graph를 준비하는 동안 viewport 전체에 단색 dark loading 화면을 표시한다. 화면 중앙에는 `Loading`, `-- 42% --` 형식의 진행률과 2px progress bar만 둔다. 진행률은 1.4초 동안 0%에서 89%까지 이동하고 graph 준비가 끝날 때까지 89%를 유지한다. 준비가 끝나면 90%, 95%, 99%를 짧게 표시한 뒤 200ms 동안 loading 화면을 숨기며 100%는 표시하지 않는다.
+
+loading 화면이 사라지면 공개된 전체 graph의 안정된 분포를 화면에 맞춰 한 번 조망하고 720ms 동안 유지한 다음 기본 중심 node로 1200ms 동안 확대한다. 중심 node는 전체 조망부터 화면 중앙에 고정하고 확대 중에는 camera target과 node 위치를 바꾸지 않은 채 camera 거리만 줄인다. BISTelligence node가 fixture에 없는 검증 예시에서는 SK하이닉스를 기본 중심으로 사용한다. 이 전체 graph는 저장 좌표나 기준 DB를 뜻하지 않는 일시적인 intro 상태이며, intro가 끝나면 이후 탐색과 같은 동적 부분 graph만 유지한다.
 
 node는 클릭하거나 keyboard로 선택해 중심을 바꾸지만 직접 끌어 배치할 수 없다. 빈 map 영역의 drag는 항상 카메라 평행 이동에만 사용하며, node drag로 force simulation을 다시 시작하거나 navigation control을 점유하지 않는다.
 
@@ -203,7 +205,11 @@ node core, halo와 bloom은 상호작용 상태를 나타내는 하나의 밝기
 
 ### Detail panel
 
-상세 panel은 node 이름과 유형, 맥락 설명 1개, 근거 확인된 관계, 원자적 Claim, 출처와 Evidence Trace, 후속 질문 2개 순서로 구성한다. Evidence Trace에는 source title, publisher, publication time, 인용문과 원문 위치를 구분해 표시한다.
+상세 panel은 node 이름과 유형 및 맥락 설명 아래에 `근거`와 `인사이트` tab을 둔다. `근거` tab은 근거 확인된 관계, 원자적 Claim, 출처와 Evidence Trace, 후속 질문 2개 순서로 구성한다. Evidence Trace에는 source title, publisher, publication time, 인용문과 원문 위치를 구분해 표시한다.
+
+`인사이트` tab에는 종합 분석의 제목만 표시한다. 제목을 선택하면 viewport 중앙에 modal dialog를 열고 확인된 사실, 종합 해석, 연결 근거와 해석 시 유의점을 분리해 표시한다. dialog surface는 0.88 불투명도, backdrop은 0.12 불투명도를 사용하고 blur와 gradient를 적용하지 않아 뒤의 지식맵을 계속 볼 수 있게 한다. dialog가 열린 동안 배경 조작을 막고 닫기 button과 Escape를 지원하며 닫은 뒤 선택한 제목으로 focus를 돌려준다.
+
+검증 fixture에서는 SK하이닉스, SanDisk와 HBF에 각각 인사이트 3개를 제공하고 다른 node에는 준비되지 않은 상태를 표시한다. 이 fixture는 `데모 · 모델 종합`으로 명확히 표시하며 실제 모델 호출이나 분석 결과로 표현하지 않는다.
 
 후속 질문은 공개 가능한 target node로 이동하는 action이다. 일반 본문처럼 보이게 만들지 않고 명확한 button 또는 link로 표시한다. 클릭 중 모델 호출이 일어나는 것처럼 loading animation을 보여주지 않는다.
 
