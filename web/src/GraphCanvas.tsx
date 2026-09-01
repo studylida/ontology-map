@@ -360,9 +360,9 @@ function updateLinkPosition(
       .add(perpendicular.clone().multiplyScalar(4))
       .add(offset);
     const curve = new THREE.QuadraticBezierCurve3(
-      startPoint.clone().add(offset),
+      startPoint,
       midpoint,
-      endPoint.clone().add(offset),
+      endPoint,
     );
     line.geometry.setFromPoints(curve.getPoints(14));
     if (line.material instanceof THREE.LineDashedMaterial)

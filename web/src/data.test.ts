@@ -47,14 +47,20 @@ describe("knowledge view", () => {
     expect(searchKnowledgeNodes("미연결")[0]?.id).toBe("isolated");
   });
 
-  it("근거 묶음마다 필라멘트 하나를 만들고 전체 폭을 6px 안에 둔다", () => {
-    for (const count of [1, 3, 6, 12]) {
+  it("근거 묶음마다 필라멘트 하나를 만들고 5개 이후에는 간격을 좁힌다", () => {
+    for (const count of [1, 3, 5, 6, 12]) {
       const offsets = getFilamentOffsets(count);
       expect(offsets).toHaveLength(count);
       expect(Math.max(...offsets) - Math.min(...offsets)).toBeLessThanOrEqual(
-        6,
+        4.8,
       );
     }
+    const five = getFilamentOffsets(5);
+    const six = getFilamentOffsets(6);
+    const [fiveFirst = 0, fiveSecond = 0] = five;
+    const [sixFirst = 0, sixSecond = 0] = six;
+    expect(fiveSecond - fiveFirst).toBeCloseTo(1.2);
+    expect(sixSecond - sixFirst).toBeLessThan(fiveSecond - fiveFirst);
     expect(knowledgeRelations.some((relation) => relation.conflict)).toBe(true);
   });
 });

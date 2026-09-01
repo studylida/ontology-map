@@ -100,4 +100,41 @@ describe("desktop exploration", () => {
       2,
     );
   });
+
+  it("최근 탐색 경로에서 이전 node로 돌아가면 이후 경로를 제거한다", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "관계없는 node 선택" }));
+
+    const trail = screen.getByRole("navigation", { name: "최근 탐색 경로" });
+    expect(within(trail).getAllByRole("listitem")).toHaveLength(2);
+    expect(
+      within(trail).getByText("미연결 공개 기술").getAttribute("aria-current"),
+    ).toBe("page");
+
+    fireEvent.click(
+      within(trail).getByRole("button", {
+        name: "탐색 경로에서 SK하이닉스 선택",
+      }),
+    );
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "SK하이닉스",
+    );
+    expect(within(trail).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(trail).queryByRole("button")).toBeNull();
+  });
+
+  it("최근 탐색 경로는 현재 node를 포함해 네 개까지만 유지한다", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /SanDisk로 이동하기/ }));
+    fireEvent.click(screen.getByRole("button", { name: "SK하이닉스" }));
+    fireEvent.click(screen.getByRole("button", { name: "김천성" }));
+    fireEvent.click(screen.getByRole("button", { name: "SK하이닉스" }));
+    fireEvent.click(screen.getByRole("button", { name: "강욱성" }));
+
+    const trail = screen.getByRole("navigation", { name: "최근 탐색 경로" });
+    expect(within(trail).getAllByRole("listitem")).toHaveLength(4);
+    expect(within(trail).getByText("강욱성").getAttribute("aria-current")).toBe(
+      "page",
+    );
+  });
 });
