@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -9,11 +10,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
 vi.mock("./GraphCanvas", () => ({
-  GraphCanvas: ({ onSelect }: { onSelect: (nodeId: string) => void }) => (
+  GraphCanvas: ({
+    introStarted,
+    onReady,
+    onSelect,
+  }: {
+    introStarted: boolean;
+    onReady: () => void;
+    onSelect: (nodeId: string) => void;
+  }) => (
     <section aria-label="동적 지식맵">
       <button type="button" onClick={() => onSelect("isolated")}>
         관계없는 node 선택
       </button>
+      <button type="button" onClick={onReady}>
+        그래프 준비 완료
+      </button>
+      {introStarted && <span>초기 확대 시작</span>}
     </section>
   ),
 }));
@@ -21,9 +34,23 @@ vi.mock("./GraphCanvas", () => ({
 describe("desktop exploration", () => {
   beforeEach(() => {
     window.history.replaceState({}, "", "/?center=sk&range=90d");
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ matches: false }),
+    });
+    HTMLDialogElement.prototype.showModal = function showModal() {
+      this.setAttribute("open", "");
+    };
+    HTMLDialogElement.prototype.close = function close() {
+      this.removeAttribute("open");
+      this.dispatchEvent(new Event("close"));
+    };
   });
 
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   it("잘못된 URL 상태를 기본 중심과 최근 90일로 정규화한다", () => {
     window.history.replaceState({}, "", "/?center=missing&range=invalid");
@@ -136,5 +163,48 @@ describe("desktop exploration", () => {
     expect(within(trail).getByText("강욱성").getAttribute("aria-current")).toBe(
       "page",
     );
+  });
+
+  it("인사이트 제목에서 상세 분석을 열고 닫은 뒤 focus를 복원한다", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("tab", { name: "인사이트" }));
+    const trigger = screen.getByRole("button", {
+      name: "HBF 표준화 참여가 AI 메모리 협상력을 넓힐 수 있다",
+    });
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("확인된 사실")).toBeTruthy();
+    expect(within(dialog).getByText("종합 해석")).toBeTruthy();
+    expect(within(dialog).getByText("해석 시 유의점")).toBeTruthy();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "분석 닫기" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("인사이트가 없는 node에는 준비되지 않은 상태를 표시한다", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "관계없는 node 선택" }));
+    fireEvent.click(screen.getByRole("tab", { name: "인사이트" }));
+    expect(
+      screen.getByText("이 node의 종합 분석 데모는 아직 준비되지 않았습니다."),
+    ).toBeTruthy();
+  });
+
+  it("그래프가 준비되면 90, 95, 99를 거쳐 초기 확대를 시작한다", () => {
+    vi.useFakeTimers();
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "그래프 준비 완료" }));
+
+    act(() => vi.advanceTimersByTime(1400));
+    expect(screen.getByText("-- 90% --")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(120));
+    expect(screen.getByText("-- 95% --")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(120));
+    expect(screen.getByText("-- 99% --")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(360));
+    expect(screen.queryByLabelText("지식맵 준비 중")).toBeNull();
+    expect(screen.getByText("초기 확대 시작")).toBeTruthy();
   });
 });

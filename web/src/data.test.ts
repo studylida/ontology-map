@@ -42,6 +42,12 @@ describe("knowledge view", () => {
     }
   });
 
+  it("주요 3개 node에 인사이트를 세 개씩 제공한다", () => {
+    for (const nodeId of ["sk", "sandisk", "hbf"])
+      expect(getKnowledgeNode(nodeId).insights).toHaveLength(3);
+    expect(getKnowledgeNode("isolated").insights).toHaveLength(0);
+  });
+
   it("검색 후보를 최대 다섯 개로 제한한다", () => {
     expect(searchKnowledgeNodes("기술").length).toBeLessThanOrEqual(5);
     expect(searchKnowledgeNodes("미연결")[0]?.id).toBe("isolated");
