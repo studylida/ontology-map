@@ -7,7 +7,7 @@
 - 관련 Issue: #38
 - 후속 Issue: #8 코드 컨벤션 정의
 
-이 문서는 축약 스키마를 받기 전에 합의한 ontology-map의 구현 스택, 목표 폴더 구조, 환경 변수, 의존성, 실행 프로세스와 CI 기준을 기록한다. 현재 저장소에 코드, 스키마, 의존성, 설정 파일이나 실행 환경을 추가하는 지시가 아니며, 실제 생성은 축약 스키마 검토와 별도 승인 이후에 진행한다.
+이 문서는 Logical Schema v1 동결 이후 적용할 ontology-map의 구현 스택, 목표 폴더 구조, 환경 변수, 의존성, 실행 프로세스와 CI 기준을 기록한다. 현재 저장소에 애플리케이션 코드, 물리 스키마, 의존성, 설정 파일이나 실행 환경을 추가하는 지시가 아니며, 실제 생성은 각각의 후속 Issue와 승인을 거쳐 진행한다.
 
 ## 기본 원칙
 
@@ -15,7 +15,7 @@
 - 로컬 실행은 Docker Compose를 기준으로 하되, API와 worker는 같은 Python 코드와 이미지를 사용하고 실행 명령만 구분한다.
 - POC에는 인증, 클라우드 배포, 브라우저 E2E, 자동 모델 fallback과 통합 모델 gateway를 도입하지 않는다.
 - 직접 의존성은 정확한 버전으로 고정하고, 사용하지 않는 provider integration은 설치하지 않는다.
-- 데이터베이스 구조와 migration은 축약 스키마 승인 전까지 만들지 않는다.
+- 데이터베이스 구조와 migration은 Logical Schema v1을 바꾸지 않으며, Issue #40부터 시작하는 별도 PostgreSQL 물리 설계와 구현 Issue에서 다룬다.
 
 ## 런타임과 기반 서비스
 
@@ -85,7 +85,7 @@ ontology-map/
 - `server/src/ontology_map/api/`는 HTTP 경계, 요청·응답 검증과 API 조합을 담당한다.
 - `server/src/ontology_map/agent/`는 모델 작업별 prompt, structured output과 실행 흐름을 담당한다.
 - `server/src/ontology_map/db/`는 데이터베이스 연결과 영속성 코드를 담당한다.
-- `server/migrations/`는 축약 스키마 승인 이후 Alembic migration만 둔다.
+- `server/migrations/`는 승인된 PostgreSQL 물리 설계를 구현하는 Alembic migration만 둔다.
 
 초기에는 이보다 더 세분화된 layer, 공유 package나 추상화 폴더를 만들지 않는다. 코드가 생긴 뒤 실제 책임이 겹칠 때 Issue #8의 코드 컨벤션에서 경계를 구체화한다.
 
@@ -107,7 +107,7 @@ ontology-map/
 
 `provider:model` 문자열은 모델 작업의 버전과 cache key에 포함한다. provider나 model이 바뀌면 해당 cache를 재사용하지 않는다.
 
-embedding interface는 공통화하더라도 서로 다른 embedding model의 벡터 공간을 섞지 않는다. provider나 model을 바꾸면 영향받는 embedding을 전부 다시 만들고 새 공개 버전이 READY가 된 뒤 전환한다. 차원이 달라지면 먼저 승인된 데이터베이스 migration과 저장 구조가 필요하다. 최초 embedding model과 차원은 축약 스키마와 검색 품질 평가 이후 결정한다.
+embedding interface는 공통화하더라도 서로 다른 embedding model의 벡터 공간을 섞지 않는다. provider나 model을 바꾸면 영향받는 embedding을 전부 다시 만들고 새 공개 버전이 READY가 된 뒤 전환한다. 차원이 달라지면 먼저 승인된 데이터베이스 migration과 저장 구조가 필요하다. 최초 embedding model과 차원은 검색 품질 평가와 별도 물리 설계 결정을 거쳐 확정한다.
 
 ## 환경 변수와 비밀 관리
 
@@ -119,7 +119,7 @@ embedding interface는 공통화하더라도 서로 다른 embedding model의 �
 - `VITE_*` 변수에는 브라우저에 공개되어도 되는 값만 둔다.
 - Pydantic settings는 필수 설정이 없으면 시작 단계에서 실패하고 로그에는 비밀 값을 출력하지 않는다.
 
-`.env.example`, `.gitignore`와 Compose 파일은 코드 작업이 승인될 때 함께 만들며, 이 문서 작업에서는 생성하지 않는다.
+`.gitignore`는 Issue #39에서 별도로 관리한다. `.env.example`과 Compose 파일은 애플리케이션 골격을 만드는 Issue에서 실제 설정 계약과 함께 추가한다.
 
 ## 버전과 lockfile 정책
 
@@ -141,7 +141,7 @@ CI workflow는 애플리케이션 골격을 만들 때 추가한다. 각 단계�
 
 ## 보류한 결정
 
-- 축약 스키마, 제약과 실제 migration 설계
+- PostgreSQL 물리 스키마, 제약과 실제 migration 설계
 - OpenAI chat model의 정확한 ID
 - embedding model, 차원과 벡터 컬럼 설계
 - 그래프 시각화 후보의 최종 선택
