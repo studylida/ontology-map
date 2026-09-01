@@ -52,7 +52,7 @@
 | `REQ-031` | 관계 기간 | POC relation에는 유효 기간 컬럼을 두지 않음 | `relation`, 제외 범위 | 일치 |
 | `REQ-032` | 관계 집계 | 같은 endpoint+정확한 relation revision은 하나의 관계로 집계 | `relation_identity_key` | 일치 |
 | `REQ-033` | 관계 근거 | 여러 Claim이 관계를 지지·반박하고 Claim이 observation을 가짐 | `claim_relation`, `claim_observation` | 일치 |
-| `REQ-034` | 관계 굵기 | 지지 Claim의 독립 근거 묶음 수만 사용 | 지도 계약 | 일치 |
+| `REQ-034` | 관계 필라멘트 | 지지 Claim의 독립 근거 묶음 수와 같은 개수의 1px 선을 같은 경로 주변에 겹쳐 표시 | 지도 계약 | 일치 |
 | `REQ-035` | Claim 원자성 | 독립 판단 가능한 사실은 별도 Claim, 같은 observation 공유 가능 | `claim` | 일치 |
 | `REQ-036` | 구조화 값 | STRING·NUMBER·DATE·PERIOD·BOOLEAN tagged union | `claim_attribute_value` | 일치 |
 | `REQ-037` | 표현 성격 | 사실·계획·예측·의견을 구분 | `claim.modality` | 일치 |
@@ -70,7 +70,7 @@
 | `REQ-049` | 고립 노드 | 관계가 없어도 필수 파생 결과와 상세 자료가 완전하면 공개 | READY 검증 | 일치 |
 | `REQ-050` | 지도 범위 | 중심 1, 직접 12, 2단계 18, 관계선 60 상한 | 지도 조회 계약 | 일치 |
 | `REQ-051` | 시간 보기 | 90일·1년은 지도 프리셋이며 전체 보존 상한이 아님 | 지도 계약·보존 원칙 | 일치 |
-| `REQ-052` | 시각 채널 | node 크기와 relation 굵기만 데이터 채널, 밝기·opacity는 UI 상태 | 지도 계약 | 일치 |
+| `REQ-052` | 시각 채널 | node 크기와 relation 필라멘트 수만 데이터 채널, 밝기·opacity는 UI 상태 | 지도 계약 | 일치 |
 | `REQ-053` | 지도 비영속 | 좌표·카메라·viewport·지도 구성원·전역 지도 버전을 저장하지 않음 | 제외 범위 | 일치 |
 | `REQ-054` | 보존 | 기준 지식·Evidence Trace·검토 이력은 자동 삭제하지 않음 | 공통 보존 원칙 | 일치 |
 
