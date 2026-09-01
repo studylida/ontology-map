@@ -45,7 +45,9 @@
 
 3d-force-graph를 POC의 우선 검증 후보로 삼고 Reagraph는 비교 대상으로만 유지한다. 두 라이브러리를 동시에 제품 의존성으로 추가하지 않으며, 지식맵의 클릭·중심 이동·직접 이웃과 중요 2단계 이웃·낮은 강조의 주변부 표시 요구를 가장 단순하게 충족하는 후보 하나만 채택한다.
 
-3d-force-graph 시각 POC에서는 라이브러리가 노출하는 `nodeThreeObject`, `lights`와 `postProcessingComposer`를 사용해 node 재질, 제한된 bloom과 거리 안개를 검증한다. x·y 배치를 유지하면서 사용자 정의 force로 z축을 약 ±20 안에 제한하고 회전 control은 끈다. 관계선은 내장 곡률과 `linkMaterial`로 기본 core를 표현하고 bloom으로 낮은 강도의 halo를 더한다. node 아래에는 배경색의 불투명 가림 glyph를 두고 가림 glyph, node 표면과 label을 투명 렌더 단계로 통일한 뒤 관계선보다 높은 `renderOrder`를 적용한다. 내장 3D 관계선이 점선을 지원하지 않으므로 충돌 관계에만 `linkThreeObject`와 `linkPositionUpdate`를 사용한다. 이 효과는 별도 그래프 라이브러리나 Three.js 확장 의존성을 추가하지 않고 구현하며, 활동량·오래된 정보·충돌 관계의 의미는 `DESIGN.md`의 표시 규칙을 그대로 따른다.
+3d-force-graph 시각 POC에서는 라이브러리가 노출하는 `nodeThreeObject`, `lights`와 `postProcessingComposer`를 사용해 node 재질, 제한된 bloom과 거리 안개를 검증한다. x·y 배치를 유지하면서 사용자 정의 force로 z축을 약 ±32 안에 제한하고 회전 control은 끈다. 각 node의 런타임 depth target은 node ID에서 계산하되 relation 단계나 강도와 연결하지 않고 저장하지도 않는다. 관계선은 내장 곡률과 `linkMaterial`로 기본 core를 표현하고 bloom으로 낮은 강도의 halo를 더한다. node 아래에는 배경색의 불투명 가림 glyph를 두고 가림 glyph, node 표면과 label을 투명 렌더 단계로 통일한 뒤 관계선보다 높은 `renderOrder`를 적용한다. 내장 3D 관계선이 점선을 지원하지 않으므로 충돌 관계에만 `linkThreeObject`와 `linkPositionUpdate`를 사용한다. 이 효과는 별도 그래프 라이브러리나 Three.js 확장 의존성을 추가하지 않고 구현하며, 활동량·오래된 정보·충돌 관계의 의미는 `DESIGN.md`의 표시 규칙을 그대로 따른다.
+
+관계선의 기본 불투명도는 직접 이웃 0.68, 중요한 2단계 이웃 0.52, 주변부 실제 Relation 0.26으로 둔다. focus 경로는 직접·2단계에서 최대 0.90, 주변부에서 최대 0.66까지 보간한다. POC의 근거 묶음별 `linkWidth`는 1개 0.24, 3개 0.44, 6개 0.72 world unit으로 올리고 `linkResolution`은 12로 사용한다. 단계별 대비에는 색과 불투명도만 사용하고 굵기는 독립 근거 묶음 수만 나타낸다.
 
 node 선택 시에는 현재 node catalog와 relation을 두 단계까지 탐색해 직접 이웃 전체와 활동량 우선의 중요한 2단계 이웃 최대 6개를 새 부분 graph로 만든다. `requestAnimationFrame`의 1200ms ease-in-out 진행률 하나로 카메라 위치, control target, node의 core·halo·외곽선·label, 관계선 재질과 UI 문구를 보간한다. UI 문구는 600ms에 불투명도 0인 상태에서 한 번 교체하고, 확정 `centerId`와 `selectedId`는 전환이 끝날 때 갱신한다. hover·focus 재질 전환은 160ms, 시간 범위에 따른 관측 활동량 전환은 320ms로 분리한다.
 
