@@ -45,7 +45,7 @@
 
 3d-force-graph를 POC의 우선 검증 후보로 삼고 Reagraph는 비교 대상으로만 유지한다. 두 라이브러리를 동시에 제품 의존성으로 추가하지 않으며, 지식맵의 클릭·중심 이동·직접 이웃과 중요 2단계 이웃 표시 요구를 가장 단순하게 충족하는 후보 하나만 채택한다.
 
-3d-force-graph 시각 POC에서는 라이브러리가 노출하는 `nodeThreeObject`, `lights`와 `postProcessingComposer`를 사용해 node 재질, 제한된 bloom과 거리 안개를 검증한다. 관계선의 공간 표현은 내장 곡률 설정을 우선 사용한다. 이 효과는 별도 그래프 라이브러리를 추가하지 않고 구현하며, 활동량·오래된 정보·충돌 관계의 의미는 `DESIGN.md`의 표시 규칙을 그대로 따른다.
+3d-force-graph 시각 POC에서는 라이브러리가 노출하는 `nodeThreeObject`, `lights`와 `postProcessingComposer`를 사용해 node 재질, 제한된 bloom과 거리 안개를 검증한다. 관계선은 내장 곡률과 `linkMaterial`로 기본 core를 표현하고 bloom으로 낮은 강도의 halo를 더한다. 내장 3D 관계선이 점선을 지원하지 않으므로 충돌 관계에만 `linkThreeObject`와 `linkPositionUpdate`를 사용한다. 이 효과는 별도 그래프 라이브러리나 Three.js 확장 의존성을 추가하지 않고 구현하며, 활동량·오래된 정보·충돌 관계의 의미는 `DESIGN.md`의 표시 규칙을 그대로 따른다.
 
 Next.js와 저장소 공통 패키지는 현재 필요하지 않으므로 만들지 않는다. 웹 앱은 Vite 기반의 단일 React 애플리케이션으로 시작한다.
 
