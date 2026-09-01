@@ -137,17 +137,19 @@ node type은 색만으로 구분하지 않는다. tooltip, 상세 panel과 keybo
 
 지도에는 중심 node의 직접 이웃과 중요한 2단계 이웃만 우선 표시한다. 전체 graph를 한 화면에 축소해 보여주거나 고정 좌표·전체 지도 version이 존재하는 것처럼 표현하지 않는다.
 
+지식맵은 x·y 평면의 군집 배치를 주된 구조로 사용하는 얕은 2.5D 장면이다. 초기 깊이 범위는 중심 기준 약 ±20으로 제한하고 z축은 node 겹침과 앞뒤 구분에만 사용한다. 회전은 제공하지 않으며 빈 map 영역을 drag하면 평행 이동하고 wheel이나 trackpad로 확대·축소한다.
+
 ### Motion
 
-control hover와 panel 상태 전환은 160ms, 새 중심 node로 이동하는 카메라 전환은 280ms를 기본으로 한다. easing은 급격한 bounce가 없는 ease-out을 사용한다.
+control hover와 panel 상태 전환은 160ms, 새 중심 node로 이동하는 카메라 전환은 720ms를 기본으로 한다. node를 선택하면 카메라는 선택한 node의 현재 위치를 새 중심으로 바라보며 부드럽게 이동한다. 같은 시간에 이전 중심의 고정을 풀고 선택한 node를 그 위치에 고정한 뒤, 새 직접 이웃과 중요한 2단계 이웃의 force 재배치를 시작한다. 진입·이탈 node의 opacity 전환은 위치 변화를 보조하는 수준으로만 사용하며 카메라 이동이나 이웃 재배치를 대신하지 않는다. easing은 급격한 bounce가 없는 ease-out을 사용한다.
 
-force simulation은 layout이 안정되면 멈추고 장식 목적으로 계속 흔들지 않는다. `prefers-reduced-motion`에서는 카메라 이동을 즉시 전환하거나 짧은 fade로 바꾸고 반복 animation을 끈다.
+force simulation은 layout이 안정되면 멈추고 장식 목적으로 계속 흔들지 않는다. `prefers-reduced-motion`에서는 카메라 중심과 부분 graph를 즉시 전환하고 반복 animation을 끈다.
 
 ## Elevation & Depth
 
 UI panel의 깊이는 `surface`, `surface-elevated`와 1px `border`로 구분한다. 넓고 흐린 shadow, glass blur와 panel 배경 gradient는 사용하지 않는다. 지식맵 canvas에는 node 군집의 공간 깊이를 읽을 수 있도록 낮은 강도의 거리 안개, vignette와 bloom 후처리를 사용할 수 있다.
 
-3D 깊이는 관계 묶음을 읽기 위한 보조 표현이다. node 사이 거리는 대략적인 관련 묶음 배치만 나타내며 관계 강도, 조직 서열, 시간이나 인과를 뜻하지 않는다.
+3D 깊이는 관계 묶음을 읽기 위한 보조 표현이다. 제한된 z축 차이는 겹침을 줄이기 위한 시각 배치일 뿐이며 node 사이 거리와 높이는 관계 강도, 조직 서열, 시간이나 인과를 뜻하지 않는다.
 
 모든 node는 유형 색을 유지하는 작은 발광 core와 낮은 강도의 halo를 가질 수 있다. 중심 node는 현재 탐색의 기준임을 바로 알아볼 수 있도록 활동량이나 hover 상태와 무관하게 장면에서 가장 밝게 유지한다. 다른 node의 기본 발광 강도는 관측 활동량에만 연동하고, 선택하거나 hover한 node와 그 직접 경로는 중심 node보다 밝아지지 않는 범위에서 bloom과 외곽선을 일시적으로 강화한다. bloom 반경이나 halo 크기에 confidence, 근거 수와 같은 별도 의미를 부여하지 않으며 node label과 관계선의 대비를 낮추지 않는다.
 
@@ -157,7 +159,7 @@ UI panel의 깊이는 `surface`, `surface-elevated`와 1px `border`로 구분한
 
 모든 클릭·터치 target은 최소 44px을 확보한다. 작은 icon 자체가 44px일 필요는 없지만 icon을 포함한 button의 hit area는 이 기준을 충족해야 한다.
 
-관계선은 선명한 core와 매우 낮은 강도의 외곽 halo를 겹친 절제된 필라멘트로 표현할 수 있다. 기본 관계는 실선이고 충돌 관계만 `conflict` 색의 점선을 사용한다. 외곽 halo는 관계선의 굵기 의미를 바꾸지 않으며 선택 경로에서도 node와 label을 가리지 않는 범위에서만 밝아진다. 단순한 시각적 다양성을 위해 선 모양이나 node geometry를 늘리지 않는다.
+관계선은 선명한 core와 매우 낮은 강도의 외곽 halo를 겹친 절제된 필라멘트로 표현할 수 있다. 기본 관계는 실선이고 충돌 관계만 `conflict` 색의 점선을 사용한다. 모든 node 표면과 label은 관계선보다 앞에 렌더링해 선이 node를 관통하거나 위에 겹쳐 보이지 않게 한다. 외곽 halo는 관계선의 굵기 의미를 바꾸지 않으며 선택 경로에서도 node와 label을 가리지 않는 범위에서만 밝아진다. 단순한 시각적 다양성을 위해 선 모양이나 node geometry를 늘리지 않는다.
 
 ## Components
 
@@ -169,7 +171,7 @@ header는 56px 높이의 단색 분석 도구 bar로 유지한다. 작은 별자
 
 ### Knowledge map
 
-모든 공개 node는 pointer와 keyboard로 선택할 수 있고 선택하면 새 중심이 된다. accessible name에는 node 이름과 유형을 포함한다.
+모든 공개 node는 pointer와 keyboard로 선택할 수 있고 선택하면 새 중심이 된다. 선택한 node의 현재 world position을 유지한 채 카메라 중심과 부분 graph가 함께 전환되며, 새 중심 기준의 직접 이웃과 중요한 2단계 이웃을 다시 계산한다. accessible name에는 node 이름과 유형을 포함한다.
 
 node 크기와 밝기는 선택한 시간 범위의 관측 활동량을 나타낸다. 크기 범위는 가장 작은 node와 가장 큰 node가 지름 기준 1:2.2를 넘지 않게 제한하고, 활동량이 낮아도 label과 선택 가능성을 유지한다.
 
