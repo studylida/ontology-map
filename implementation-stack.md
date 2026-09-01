@@ -45,7 +45,9 @@
 
 3d-force-graph를 POC의 우선 검증 후보로 삼고 Reagraph는 비교 대상으로만 유지한다. 두 라이브러리를 동시에 제품 의존성으로 추가하지 않으며, 지식맵의 클릭·중심 이동·직접 이웃과 중요 2단계 이웃 표시 요구를 가장 단순하게 충족하는 후보 하나만 채택한다.
 
-3d-force-graph 시각 POC에서는 라이브러리가 노출하는 `nodeThreeObject`, `lights`와 `postProcessingComposer`를 사용해 node 재질, 제한된 bloom과 거리 안개를 검증한다. 관계선은 내장 곡률과 `linkMaterial`로 기본 core를 표현하고 bloom으로 낮은 강도의 halo를 더한다. 내장 3D 관계선이 점선을 지원하지 않으므로 충돌 관계에만 `linkThreeObject`와 `linkPositionUpdate`를 사용한다. 이 효과는 별도 그래프 라이브러리나 Three.js 확장 의존성을 추가하지 않고 구현하며, 활동량·오래된 정보·충돌 관계의 의미는 `DESIGN.md`의 표시 규칙을 그대로 따른다.
+3d-force-graph 시각 POC에서는 라이브러리가 노출하는 `nodeThreeObject`, `lights`와 `postProcessingComposer`를 사용해 node 재질, 제한된 bloom과 거리 안개를 검증한다. x·y 배치를 유지하면서 사용자 정의 force로 z축을 약 ±20 안에 제한하고 회전 control은 끈다. 관계선은 내장 곡률과 `linkMaterial`로 기본 core를 표현하고 bloom으로 낮은 강도의 halo를 더하며, node 표면과 label의 `renderOrder`를 높여 선이 node 뒤에서 가려지게 한다. 내장 3D 관계선이 점선을 지원하지 않으므로 충돌 관계에만 `linkThreeObject`와 `linkPositionUpdate`를 사용한다. 이 효과는 별도 그래프 라이브러리나 Three.js 확장 의존성을 추가하지 않고 구현하며, 활동량·오래된 정보·충돌 관계의 의미는 `DESIGN.md`의 표시 규칙을 그대로 따른다.
+
+node 선택 시에는 현재 node catalog와 relation을 두 단계까지 탐색해 직접 이웃 전체와 활동량 우선의 중요한 2단계 이웃 최대 6개를 새 부분 graph로 만든다. `cameraPosition`으로 선택 node의 현재 위치를 약 720ms 동안 새 look-at 중심으로 이동하고, 선택 node를 그 위치에 고정한 상태에서 `graphData`와 `d3ReheatSimulation`을 적용해 이웃 재배치를 동시에 시작한다. 이전 graph와 새 graph의 합집합은 전환 동안에만 유지하고 진입·이탈 opacity를 보조 단서로 사용한다. `prefers-reduced-motion`에서는 같은 상태 변경을 즉시 적용한다.
 
 Next.js와 저장소 공통 패키지는 현재 필요하지 않으므로 만들지 않는다. 웹 앱은 Vite 기반의 단일 React 애플리케이션으로 시작한다.
 
