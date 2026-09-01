@@ -261,7 +261,7 @@ export function searchKnowledgeNodes(query: string): KnowledgeNode[] {
 export function getFilamentOffsets(evidenceGroupCount: number): number[] {
   const count = Math.max(1, Math.round(evidenceGroupCount));
   if (count === 1) return [0];
-  const spacing = Math.min(1.2, 6 / (count - 1));
+  const spacing = count <= 5 ? 1.2 : 4.8 / (count - 1);
   return Array.from(
     { length: count },
     (_, index) => (index - (count - 1) / 2) * spacing,

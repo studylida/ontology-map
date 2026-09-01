@@ -17,6 +17,13 @@ interface LocationState {
   query: string;
 }
 
+const maxTrailLength = 4;
+
+function appendTrail(trail: string[], nodeId: string): string[] {
+  if (trail.at(-1) === nodeId) return trail;
+  return [...trail, nodeId].slice(-maxTrailLength);
+}
+
 function readLocation(): LocationState {
   const params = new URLSearchParams(window.location.search);
   const candidateCenter = params.get("center") ?? "sk";
@@ -73,6 +80,7 @@ function SearchCandidate({
 export function App() {
   const initial = useMemo(readLocation, []);
   const [centerId, setCenterId] = useState(initial.centerId);
+  const [trail, setTrail] = useState([initial.centerId]);
   const [timeRange, setTimeRange] = useState<TimeRange>(initial.range);
   const [query, setQuery] = useState(initial.query);
   const [panelOpen, setPanelOpen] = useState(true);
@@ -103,14 +111,29 @@ export function App() {
       setCenterId(next.centerId);
       setTimeRange(next.range);
       setQuery(next.query);
+      setTrail((current) => {
+        const index = current.lastIndexOf(next.centerId);
+        return index >= 0
+          ? current.slice(0, index + 1)
+          : appendTrail(current, next.centerId);
+      });
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, [initial]);
 
-  const selectNode = (nextId: string, nextQuery = query) => {
+  const selectNode = (
+    nextId: string,
+    nextQuery = query,
+    trailIndex?: number,
+  ) => {
     const target = getKnowledgeNode(nextId);
     setCenterId(target.id);
+    setTrail((current) =>
+      trailIndex === undefined
+        ? appendTrail(current, target.id)
+        : current.slice(0, trailIndex + 1),
+    );
     setQuery(nextQuery);
     setPanelOpen(true);
     setEvidenceOpen(false);
@@ -157,22 +180,38 @@ export function App() {
           </svg>
           <strong>ontology-map</strong>
         </div>
-        <span className={styles.divider} />
-        <span className={styles.screenName}>동적 3D 지식맵</span>
-        <div className={styles.headerStatus}>
-          <span>
-            <small>CURRENT CENTER</small>
-            {node.name}
-          </span>
-          <span>
-            <small>PARTIAL GRAPH</small>1단계 {directCount} · 2단계{" "}
-            {twoHopCount}
-          </span>
-          <span>
-            <small>PUBLIC</small>
-            <b className={styles.readyDot} /> 공개 관측
-          </span>
-        </div>
+        <nav className={styles.trail} aria-label="최근 탐색 경로">
+          <ol>
+            {trail.map((trailId, index) => {
+              const trailNode = getKnowledgeNode(trailId);
+              const current = index === trail.length - 1;
+              return (
+                // biome-ignore lint/suspicious/noArrayIndexKey: 같은 node가 경로에 반복될 수 있고 항목 내부 상태가 없습니다.
+                <li className={styles.trailItem} key={`${trailId}-${index}`}>
+                  {index > 0 && (
+                    <span className={styles.trailSeparator} aria-hidden="true">
+                      /
+                    </span>
+                  )}
+                  {current ? (
+                    <span aria-current="page" title={trailNode.name}>
+                      {trailNode.name}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      title={trailNode.name}
+                      aria-label={`탐색 경로에서 ${trailNode.name} 선택`}
+                      onClick={() => selectNode(trailId, query, index)}
+                    >
+                      {trailNode.name}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
       </header>
 
       <section className={styles.workspace}>
