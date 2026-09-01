@@ -141,7 +141,7 @@ node type은 색만으로 구분하지 않는다. tooltip, 상세 panel과 keybo
 
 ### Motion
 
-control hover와 panel 상태 전환은 160ms, 새 중심 node로 이동하는 카메라 전환은 720ms를 기본으로 한다. node를 선택하면 카메라는 선택한 node의 현재 위치를 새 중심으로 바라보며 부드럽게 이동한다. 같은 시간에 이전 중심의 고정을 풀고 선택한 node를 그 위치에 고정한 뒤, 새 직접 이웃과 중요한 2단계 이웃의 force 재배치를 시작한다. 진입·이탈 node의 opacity 전환은 위치 변화를 보조하는 수준으로만 사용하며 카메라 이동이나 이웃 재배치를 대신하지 않는다. easing은 급격한 bounce가 없는 ease-out을 사용한다.
+control hover와 panel 상태 전환은 160ms, 새 중심 node로 이동하는 카메라 전환은 1200ms를 기본으로 한다. node를 선택하면 카메라는 선택한 node의 현재 위치를 새 중심으로 바라보며 부드럽게 이동한다. 같은 시간에 이전 중심의 고정을 풀고 선택한 node를 그 위치에 고정한 뒤, 새 직접 이웃과 중요한 2단계 이웃의 force 재배치를 시작한다. 카메라는 천천히 출발해 중간 구간에서 가속하고 도착 전에 다시 감속하는 ease-in-out을 사용한다. 기존 graph와 새 graph에 함께 속한 node는 같은 객체와 위치를 이어서 사용하며 전체 canvas나 panel을 다시 그리는 fade를 적용하지 않는다. 진입·이탈 node의 opacity 전환은 위치 변화를 보조하는 수준으로만 사용하며 카메라 이동이나 이웃 재배치를 대신하지 않는다.
 
 force simulation은 layout이 안정되면 멈추고 장식 목적으로 계속 흔들지 않는다. `prefers-reduced-motion`에서는 카메라 중심과 부분 graph를 즉시 전환하고 반복 animation을 끈다.
 
@@ -159,7 +159,7 @@ UI panel의 깊이는 `surface`, `surface-elevated`와 1px `border`로 구분한
 
 모든 클릭·터치 target은 최소 44px을 확보한다. 작은 icon 자체가 44px일 필요는 없지만 icon을 포함한 button의 hit area는 이 기준을 충족해야 한다.
 
-관계선은 선명한 core와 매우 낮은 강도의 외곽 halo를 겹친 절제된 필라멘트로 표현할 수 있다. 기본 관계는 실선이고 충돌 관계만 `conflict` 색의 점선을 사용한다. 모든 node 표면과 label은 관계선보다 앞에 렌더링해 선이 node를 관통하거나 위에 겹쳐 보이지 않게 한다. 외곽 halo는 관계선의 굵기 의미를 바꾸지 않으며 선택 경로에서도 node와 label을 가리지 않는 범위에서만 밝아진다. 단순한 시각적 다양성을 위해 선 모양이나 node geometry를 늘리지 않는다.
+관계선은 선명한 core와 매우 낮은 강도의 외곽 halo를 겹친 절제된 필라멘트로 표현할 수 있다. 기본 관계는 실선이고 충돌 관계만 `conflict` 색의 점선을 사용한다. z축 위치와 node의 불투명도에 관계없이 관계선은 node 원형 안에서 완전히 가려져야 한다. node 표면 아래에 배경색의 불투명 가림 glyph를 먼저 그리고, 가림 glyph와 node 표면 및 label을 관계선과 같은 투명 렌더 단계의 더 높은 순서로 그린다. 외곽 halo는 관계선의 굵기 의미를 바꾸지 않으며 선택 경로에서도 node와 label을 가리지 않는 범위에서만 밝아진다. 단순한 시각적 다양성을 위해 선 모양이나 node geometry를 늘리지 않는다.
 
 ## Components
 
