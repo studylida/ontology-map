@@ -4,16 +4,16 @@
 
 ## Issue
 
-구현 전에 문제와 완료 조건을 설명하는 GitHub Issue를 만든다. Issue 제목과 본문은 영어로 작성하며, 제목은 `Simplify`, `Remove`, `Define`처럼 변경 목적을 나타내는 동사로 시작한다.
+구현 전에 문제와 완료 조건을 설명하는 GitHub Issue를 만든다. Issue 제목과 본문은 한국어로 작성하며, 제목에는 변경 대상과 목적이 드러나야 한다.
 
 Issue 본문에는 다음 항목을 사용한다.
 
-- `Context`: 문제와 변경이 필요한 이유
-- `Scope` 또는 `Decisions`: 이번 Issue에서 다룰 변경
-- `Acceptance criteria`: 완료를 확인할 수 있는 조건
-- `Out of scope`: 이번 Issue에서 제외하는 내용
-- `Dependencies`: 선행 Issue가 있을 때 `Depends on #번호`로 표시
-- `Blocker`: 외부 결정이나 준비가 필요할 때만 표시
+- `배경`: 문제와 변경이 필요한 이유
+- `범위` 또는 `결정`: 이번 Issue에서 다룰 변경
+- `완료 조건`: 완료를 확인할 수 있는 조건
+- `제외 범위`: 이번 Issue에서 제외하는 내용
+- `의존 관계`: 선행 Issue가 있을 때 `Depends on #번호`로 표시
+- `차단 사유`: 외부 결정이나 준비가 필요할 때만 표시
 
 한 Issue에는 독립적으로 구현하고 검증할 수 있는 하나의 관심사만 담는다. 기본적으로 하나의 Issue에 하나의 작업 브랜치와 하나의 Pull Request를 사용한다.
 
@@ -42,13 +42,15 @@ Issue에는 `bug`, `enhancement`, `documentation`, `question` 중 성격에 맞�
 
 ## Pull Request
 
-관련 검증을 통과한 뒤 Issue를 연결한 Pull Request를 연다. Pull Request 본문에는 다음 내용을 포함한다.
+관련 검증을 통과한 뒤 Issue를 연결한 Pull Request를 연다. Pull Request 제목과 본문은 한국어로 작성하며, 본문에는 다음 내용을 포함한다.
 
 - `Closes #Issue 번호` 형식의 연결된 Issue
 - 변경한 내용과 변경 이유
 - 사용자에게 보이는 결과와 제외 범위
 - 실행한 검증과 결과
 - 남은 위험이나 후속 작업
+
+Codex가 Issue나 Pull Request를 작성하거나 수정할 때는 게시 직전에 `$fluent-korean`을 한 번 적용한다. 문장은 자연스럽고 완결된 한국어로 쓰되, 식별자, API 이름, 명령어, 프로토콜 값과 `Closes #번호`는 원문 표기를 유지한다.
 
 Pull Request에는 연결된 Issue를 해결하는 파일만 포함한다. 병합 전에 staged diff, `git diff --check`, 관련 검증과 최종 변경 파일 목록을 확인한다. 완료되지 않았거나 검증에 실패한 변경은 Draft Pull Request로 두거나 병합하지 않는다.
 
