@@ -177,7 +177,9 @@ UI panel의 깊이는 `surface`, `surface-elevated`와 1px `border`로 구분한
 
 header는 56px 높이의 단색 분석 도구 bar로 유지한다. 작은 별자리형 product mark, `ontology-map`과 현재 세션의 최근 탐색 경로만 표시한다. 화면 이름, 부분 graph 범위와 공개 상태처럼 본문에서 이미 알 수 있는 정보는 반복하지 않는다. 탐색 경로는 현재 node를 포함해 최근 4개까지만 표시하고 이전 node를 선택하면 그 위치로 돌아가며 이후 경로를 제거한다. 현재 node는 link가 아닌 `aria-current` 상태로 표시하고 새로고침하면 URL의 현재 중심부터 경로를 다시 시작한다. 검색, 시간 범위와 필요한 map control은 지도 위 overlay에 둔다. navigation이 실제로 생기기 전에는 빈 menu와 미래 기능 entry를 만들지 않는다.
 
-검색 input에 문자를 입력하면 바로 아래 드롭다운에 node 후보를 표시한다. 각 후보에는 node 이름, 유형과 짧은 검색 이유를 표시하고 Claim과 출처는 결과 순위를 설명하는 보조 근거로만 사용한다. 검색 input과 결과는 keyboard로 이동하고 선택할 수 있어야 하며, 후보를 선택하면 node 클릭과 같은 중심 이동을 실행한다.
+검색 panel에는 `노드 검색`, 현재 중심 주변의 표시 node 수와 시간 범위만 둔다. 검색 input에 문자를 입력하면 다른 control을 밀지 않는 overlay 드롭다운에 node 후보를 표시한다. 각 후보에는 node 이름, 유형과 짧은 검색 이유를 표시하고 Claim과 출처는 결과 순위를 설명하는 보조 근거로만 사용한다. 검색 input과 결과는 keyboard로 이동하고 선택할 수 있어야 하며, 후보를 선택하면 node 클릭과 같은 중심 이동을 실행한다. 직접 이웃과 2단계 이웃의 개별 수는 기본 화면에 반복하지 않는다.
+
+지식맵 범례는 node 유형 색을 요약한 한 줄 상태로 시작하고 `범례` button으로 전체 설명을 펼친다. 펼친 범례에는 node 유형, 독립 근거 수에 따른 필라멘트와 충돌 관계를 표시하며 그래프의 해석 규칙을 별도 점수로 바꾸지 않는다.
 
 ### Knowledge map
 
@@ -207,11 +209,15 @@ Issue #67의 POC에서 직접 이웃의 관계선 core는 전환 감쇠 전 불�
 
 ### Detail panel
 
-상세 panel은 node 이름과 유형 및 맥락 설명 아래에 `근거`와 `인사이트` tab을 둔다. `근거` tab은 근거 확인된 관계, 원자적 Claim, 출처와 Evidence Trace, 후속 질문 2개 순서로 구성한다. Evidence Trace에는 source title, publisher, publication time, 인용문과 원문 위치를 구분해 표시한다.
+상세 panel은 node 이름, 유형과 두 줄 이내의 맥락 설명 아래에 `탐색`, `근거`와 `인사이트` tab을 둔다. 새 중심 node로 이동하면 `탐색` tab을 기본으로 연다. tab bar는 panel을 scroll해도 상단에 남으며 `ArrowLeft`와 `ArrowRight`로 이동할 수 있다.
 
-`인사이트` tab에는 종합 분석의 제목만 표시한다. 제목을 선택하면 viewport 중앙에 modal dialog를 열고 확인된 사실, 종합 해석, 연결 근거와 해석 시 유의점을 분리해 표시한다. dialog surface는 0.88 불투명도, backdrop은 0.12 불투명도를 사용하고 blur와 gradient를 적용하지 않아 뒤의 지식맵을 계속 볼 수 있게 한다. dialog가 열린 동안 배경 조작을 막고 닫기 button과 Escape를 지원하며 닫은 뒤 선택한 제목으로 focus를 돌려준다. 중심 node가 바뀌면 `근거` tab으로 돌아가고 열린 분석 dialog를 닫는다.
+`탐색` tab은 확인된 직접 관계 2개, 2단계 연결 경로 1개와 주변부 공개 node 1개를 기본 추천으로 표시한다. 부족한 범주는 다른 공개 후보로 채워 추천을 4개로 유지한다. 각 카드에는 node 이름과 유형, 추천 이유, `확인된 관계`, `연결 경로 있음` 또는 `관계 미확인` 상태를 표시하고 실제 직접 Relation에만 정확한 독립 근거 수를 붙인다. 추천은 선택 시간 범위의 관측 활동량과 독립 근거 수를 사용해 결정적으로 정렬하지만 의미가 섞인 추천 점수는 표시하지 않는다. 후속 질문 2개는 추천 카드 다음의 tab 하단에 두며 기존 target node 이동과 자기 대상 동작을 유지한다.
 
-검증 fixture에서는 SK하이닉스, SanDisk와 HBF에 각각 인사이트 3개를 제공하고 다른 node에는 `이 node의 종합 분석 데모는 아직 준비되지 않았습니다.`라는 empty 상태를 표시한다. 이 fixture는 `데모 · 모델 종합`으로 명확히 표시하며 실제 모델 호출이나 분석 결과로 표현하지 않는다. 실제 분석의 출력 구조, 생성·저장 시점과 Evidence Trace 연결은 Issue #68에서 별도로 결정한다.
+`근거` tab은 중심 node의 확인된 관계를 한 번에 하나만 펼치는 accordion으로 구성한다. 관계를 펼치면 연결된 Claim, source title, publication time과 세 줄 이내의 원문 인용을 근거별로 표시한다. `근거 추적 보기`를 선택하면 같은 panel 안에서 근거 한 건의 Claim, publisher, publication time, 인용문과 원문 위치를 구분해 표시하고 같은 관계의 이전·다음 근거만 이동한다. 관계 목록으로 돌아오면 펼친 관계와 scroll 위치를 복원한다. 실제 원문 URL이 있을 때만 `원문 열기`를 제공한다. 관계에 속하지 않는 node Claim은 `확인된 사실`로 별도 표시한다.
+
+`인사이트` tab에는 사전 생성된 종합 분석의 제목과 연결된 근거 수만 표시한다. 제목을 선택하면 viewport 중앙에 modal dialog를 열고 확인된 사실, 종합 해석, 연결 근거와 해석 시 유의점을 분리해 표시한다. 연결 근거는 dialog 안에서 여러 건을 동시에 펼쳐 인용문, 출처와 원문 위치를 비교할 수 있으며 두 건 이상 펼치면 `모두 접기`를 제공한다. 이 동작은 상세 panel의 tab이나 scroll 상태를 바꾸지 않는다. dialog surface는 0.88 불투명도, backdrop은 0.12 불투명도를 사용하고 blur와 gradient를 적용하지 않아 뒤의 지식맵을 계속 볼 수 있게 한다. dialog가 열린 동안 배경 조작을 막고 닫기 button과 Escape를 지원하며 닫은 뒤 선택한 제목으로 focus를 돌려준다. 중심 node가 바뀌면 `탐색` tab으로 돌아가고 열린 분석 dialog를 닫는다.
+
+검증 fixture에서는 SK하이닉스, SanDisk와 HBF에 각각 인사이트 3개를 제공하고 다른 node에는 `이 노드의 종합 분석 데모는 아직 준비되지 않았습니다.`라는 empty 상태를 표시한다. fixture는 실제 모델 출력이 아니며 저장된 결과를 읽는 사용자 흐름만 검증한다. 제품의 인사이트는 관련 지식이 변경될 때 사전 생성해 저장하고 node나 인사이트 제목을 선택할 때 모델을 호출하지 않는다. 실제 생성·저장·API 계약과 갱신 실패 처리는 Issue #68에서 결정한다.
 
 후속 질문은 공개 가능한 target node로 이동하는 action이다. 일반 본문처럼 보이게 만들지 않고 명확한 button 또는 link로 표시한다. 클릭 중 모델 호출이 일어나는 것처럼 loading animation을 보여주지 않는다.
 

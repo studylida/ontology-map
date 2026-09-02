@@ -16,6 +16,11 @@
   --focus-ring: #b9d3ff;
   --conflict: #e6a23c;
   --ready: #4fd1a1;
+  --node-person: #6ea8fe;
+  --node-company: #b792f4;
+  --node-technology: #43c6d9;
+  --node-topic: #65c98b;
+  --node-event: #f17c9e;
   --font-technical:
     400 12px / 1.4 ui-monospace, "SFMono-Regular", Consolas, monospace;
 }

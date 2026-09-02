@@ -123,10 +123,9 @@
   align-items: center;
   height: 44px;
   padding: 0 12px;
-  background: rgba(18, 24, 33, 0.96);
-  border: 1px solid #344154;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
 }
 
 .searchBox:focus-within {
@@ -158,13 +157,17 @@
 }
 
 .searchResults {
-  width: 100%;
+  position: absolute;
+  top: 91px;
+  right: 16px;
+  left: 16px;
+  z-index: 2;
   max-height: 290px;
   padding: 6px;
   margin-top: 8px;
   overflow-y: auto;
-  background: rgba(18, 24, 33, 0.99);
-  border: 1px solid #344154;
+  background: rgba(24, 33, 44, 0.99);
+  border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
 }
@@ -201,10 +204,23 @@
   font-size: 11px;
 }
 
-.controls > p {
-  margin: 8px 2px 16px;
-  color: #758296;
+.scopeSummary {
+  display: grid;
+  padding: 16px 2px;
+  gap: 4px;
+}
+
+.scopeSummary span {
+  color: var(--text-muted);
   font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.scopeSummary strong {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 550;
 }
 
 .rangeControl {
@@ -221,8 +237,8 @@
 .rangeControl button {
   min-height: 40px;
   color: var(--text-secondary);
-  background: rgba(18, 24, 33, 0.94);
-  border: 1px solid #344154;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
 }
 
 .rangeControl button:first-of-type {
@@ -246,18 +262,53 @@
   left: 24px;
   z-index: 7;
   width: 300px;
-  padding: 16px;
   background: rgba(18, 24, 33, 0.94);
   border: 1px solid var(--border);
   border-radius: 12px;
 }
 
-.legend h2,
-.detailPanel h2 {
-  margin: 0 0 10px;
-  color: #dbe3ed;
+.legendToggle {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  align-items: center;
+  color: var(--text-secondary);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  gap: 12px;
+}
+
+.legendToggle strong {
+  color: var(--text-primary);
   font-size: 12px;
-  letter-spacing: 0.02em;
+  font-weight: 600;
+}
+
+.legendDots {
+  display: flex;
+  gap: 4px;
+}
+
+.legendDots i {
+  width: 6px;
+  height: 6px;
+  background: var(--kind-color);
+  border-radius: 50%;
+}
+
+.legendContent {
+  padding: 4px 16px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.legendContent h2 {
+  margin: 12px 0 10px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .nodeTypes {
@@ -279,22 +330,28 @@
 .nodeTypes i {
   width: 7px;
   height: 7px;
-  background: #6ea8fe;
+  background: var(--kind-color);
   border-radius: 50%;
-  box-shadow: 0 0 8px currentColor;
 }
 
-.nodeTypes [data-kind="회사"] i {
-  background: #b792f4;
+[data-kind="사람"] {
+  --kind-color: var(--node-person);
 }
-.nodeTypes [data-kind="기술"] i {
-  background: #43c6d9;
+
+[data-kind="회사"] {
+  --kind-color: var(--node-company);
 }
-.nodeTypes [data-kind="주제"] i {
-  background: #65c98b;
+
+[data-kind="기술"] {
+  --kind-color: var(--node-technology);
 }
-.nodeTypes [data-kind="사건"] i {
-  background: #f17c9e;
+
+[data-kind="주제"] {
+  --kind-color: var(--node-topic);
+}
+
+[data-kind="사건"] {
+  --kind-color: var(--node-event);
 }
 
 .legendLine {
@@ -349,7 +406,6 @@
   bottom: 24px;
   z-index: 9;
   width: 420px;
-  padding: 24px;
   overflow-y: auto;
   background: rgba(18, 24, 33, 0.97);
   border: 1px solid var(--border);
@@ -369,20 +425,36 @@
   border: 0;
 }
 
-.eyebrow {
-  color: #6fb3ff;
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
+.panelHeader {
+  padding: 24px 24px 20px;
 }
 
-.detailPanel h1 {
+.nodeKind {
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 550;
+  gap: 8px;
+}
+
+.nodeTypeDot {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  background: var(--kind-color);
+  border-radius: 50%;
+}
+
+.panelHeader h1 {
   margin: 6px 40px 8px 0;
   font-size: 24px;
+  font-weight: 650;
   line-height: 1.25;
 }
 
-.context {
+.panelHeader p {
   margin: 0;
   color: var(--text-secondary);
   font-size: 14px;
@@ -390,9 +462,14 @@
 }
 
 .panelTabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  margin-top: 24px;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 0 24px;
+  background: rgba(18, 24, 33, 0.99);
+  border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
 
@@ -409,145 +486,345 @@
   border-bottom-color: var(--interactive);
 }
 
-.detailPanel section {
-  padding-top: 22px;
-  margin-top: 22px;
-  border-top: 1px solid #273241;
+.tabPanel {
+  padding: 24px;
 }
 
-.detailPanel section p {
+.sectionHeading,
+.dialogSectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionHeading h2,
+.followupSection h2,
+.nodeFacts h2,
+.traceView h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sectionHeading > span {
+  color: var(--text-muted);
+  font: var(--font-technical);
+}
+
+.recommendations,
+.relationAccordion {
+  display: grid;
+  margin-top: 12px;
+  gap: 8px;
+}
+
+.recommendationCard {
+  position: relative;
+  display: grid;
+  min-height: 84px;
+  padding: 12px 36px 12px 12px;
+  color: var(--text-primary);
+  text-align: left;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--kind-color);
+  border-radius: 8px;
+  gap: 5px;
+}
+
+.recommendationCard:hover,
+.recommendationCard:focus-visible,
+.insightList button:hover,
+.relationToggle:hover {
+  border-color: var(--interactive);
+}
+
+.cardTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardTitle > span {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  gap: 8px;
+}
+
+.cardTitle small,
+.cardMeta,
+.evidencePreview small,
+.insightList small,
+.dialogEvidenceList small {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 550;
+}
+
+.cardReason {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cardMeta {
+  color: var(--text-secondary);
+}
+
+.cardArrow {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  color: var(--interactive);
+  font-size: 22px;
+  transform: translateY(-50%);
+}
+
+.followupSection,
+.nodeFacts {
+  padding-top: 24px;
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.followups {
+  display: grid;
+  margin-top: 12px;
+  gap: 8px;
+}
+
+.followups button {
+  display: flex;
+  min-height: 52px;
+  padding: 10px 12px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-primary);
+  text-align: left;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  gap: 12px;
+}
+
+.followups button > span:last-child {
+  color: var(--interactive);
+  font-size: 20px;
+}
+
+.relationCard {
+  overflow: hidden;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.relationCard[data-conflict="true"] {
+  border-left: 2px solid var(--conflict);
+}
+
+.relationToggle {
+  display: flex;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-primary);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  gap: 12px;
+}
+
+.relationToggle > span:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.relationToggle small {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.relationEvidence {
+  display: grid;
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--border);
+  gap: 8px;
+}
+
+.evidencePreview {
+  display: grid;
+  padding: 12px 0 4px;
+  gap: 7px;
+}
+
+.evidencePreview + .evidencePreview {
+  border-top: 1px solid var(--border);
+}
+
+.evidenceStance {
+  width: fit-content;
+  color: var(--interactive);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.relationCard[data-conflict="true"] .evidenceStance {
+  color: var(--conflict);
+}
+
+.evidencePreview p,
+.nodeFacts p {
   margin: 0;
   font-size: 14px;
   line-height: 1.55;
 }
 
-.relationList {
-  display: grid;
-  padding: 0;
+.evidencePreview blockquote {
+  display: -webkit-box;
   margin: 0;
-  list-style: none;
-  gap: 8px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
-.relationList li {
-  display: grid;
-  padding: 10px 12px;
-  background: #161f2a;
-  border: 1px solid #2a3747;
-  border-radius: 8px;
-  gap: 3px;
-}
-
-.relationList button {
+.evidencePreview button {
+  width: fit-content;
+  min-height: 36px;
   padding: 0;
-  color: #dceaff;
-  text-align: left;
+  color: var(--interactive);
+  font-size: 12px;
   background: transparent;
   border: 0;
 }
 
-.relationList span,
-.empty {
+.empty,
+.insightEmpty {
+  padding: 16px;
+  margin: 12px 0 0;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 
-.evidenceButton {
+.traceHeader {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
+  min-height: 52px;
+  padding: 0 24px;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
-  min-height: 64px;
-  padding: 10px 12px;
-  color: var(--text-primary);
-  text-align: left;
-  background: #161f2a;
-  border: 1px solid #2a3747;
-  border-radius: 8px;
-  gap: 12px;
+  background: rgba(18, 24, 33, 0.99);
+  border-bottom: 1px solid var(--border);
 }
 
-.evidenceButton > span:first-child {
-  display: grid;
-  gap: 4px;
-}
-
-.evidenceButton small,
-.followups small {
-  color: var(--text-secondary);
-}
-
-.evidenceButton > span:last-child {
+.traceHeader button {
+  min-height: 44px;
+  padding: 0;
   color: var(--interactive);
-  font-size: 11px;
+  background: transparent;
+  border: 0;
 }
 
-.evidenceTrace {
-  padding: 14px;
-  margin-top: 8px;
-  background: #0f151d;
-  border-left: 2px solid #526d91;
+.traceHeader span {
+  color: var(--text-muted);
+  font: var(--font-technical);
 }
 
-.evidenceTrace > span {
+.traceView {
+  padding: 24px;
+}
+
+.traceRelation {
+  color: var(--interactive);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.traceView h1 {
+  margin: 6px 0 24px;
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.traceView section {
+  padding-top: 20px;
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.traceView section p,
+.traceView blockquote {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.traceView blockquote {
+  padding: 14px 16px;
   color: var(--text-secondary);
-  font-size: 11px;
+  background: var(--background);
+  border-left: 2px solid var(--interactive);
 }
 
-.evidenceTrace blockquote {
-  margin: 8px 0 14px;
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.evidenceTrace dl {
+.traceView dl {
   display: grid;
-  grid-template-columns: 70px 1fr;
-  margin: 0;
+  grid-template-columns: 72px 1fr;
+  margin: 12px 0 0;
   color: var(--text-secondary);
-  font-size: 11px;
-  gap: 5px;
-}
-
-.evidenceTrace dd {
-  margin: 0;
-  color: #cad3df;
-}
-
-.followups {
-  display: grid;
+  font-size: 12px;
   gap: 8px;
 }
 
-.followups button {
-  display: grid;
-  min-height: 56px;
-  padding: 10px 12px;
-  color: #dceaff;
-  text-align: left;
-  background: #182538;
-  border: 1px solid #345073;
-  border-radius: 8px;
-  gap: 4px;
-}
-
-.insightsPanel {
-  padding-top: 22px;
-}
-
-.insightsHeading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.insightsHeading h2 {
+.traceView dd {
   margin: 0;
+  color: var(--text-primary);
 }
 
-.insightsHeading span {
+.traceView a,
+.dialogEvidenceTrace a {
+  display: inline-block;
+  margin-top: 16px;
+  color: var(--interactive);
+  font-size: 12px;
+}
+
+.traceNavigation {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 0 24px 24px;
+  gap: 8px;
+}
+
+.traceNavigation button {
+  min-height: 44px;
+  color: var(--text-primary);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.traceNavigation button:disabled {
   color: var(--text-muted);
-  font: var(--font-technical);
+  cursor: default;
+  opacity: 0.55;
 }
 
 .insightList {
@@ -563,39 +840,25 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 64px;
-  padding: 12px 14px;
-  color: #dceaff;
+  min-height: 72px;
+  padding: 12px;
+  color: var(--text-primary);
   text-align: left;
-  background: #182538;
-  border: 1px solid #345073;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
   border-radius: 8px;
   gap: 16px;
 }
 
 .insightList button > span:first-child {
-  line-height: 1.45;
+  display: grid;
+  line-height: 1.4;
+  gap: 6px;
 }
 
 .insightList button > span:last-child {
   color: var(--interactive);
   font-size: 22px;
-}
-
-.insightList button:hover {
-  background: #1d2d43;
-  border-color: #4a6e9d;
-}
-
-.insightEmpty {
-  padding: 16px;
-  margin: 12px 0 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.5;
-  background: #111923;
-  border: 1px solid var(--border);
-  border-radius: 8px;
 }
 
 .openPanel {
@@ -717,10 +980,15 @@
 }
 
 .dialogSummary {
-  margin: 0;
+  margin: 16px 0 0;
   color: #c8d6e8;
   font-size: 15px;
   line-height: 1.65;
+}
+
+.insightEvidenceCount {
+  color: var(--text-muted);
+  font: var(--font-technical);
 }
 
 .insightDialog section {
@@ -735,11 +1003,75 @@
   font-size: 12px;
 }
 
+.dialogSectionHeading h3 {
+  margin: 0;
+}
+
+.dialogSectionHeading button {
+  min-height: 36px;
+  padding: 0 4px;
+  color: var(--interactive);
+  font-size: 12px;
+  background: transparent;
+  border: 0;
+}
+
 .insightDialog section p {
   margin: 0;
   color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.65;
+}
+
+.dialogEvidenceList {
+  display: grid;
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.dialogEvidenceList > article {
+  overflow: hidden;
+  background: rgba(24, 33, 44, 0.86);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.dialogEvidenceList > article > button {
+  display: flex;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 12px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-primary);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  gap: 16px;
+}
+
+.dialogEvidenceList > article > button > span:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.dialogEvidenceTrace {
+  padding: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.dialogEvidenceTrace blockquote {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.dialogEvidenceTrace > span {
+  display: block;
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .insightDialog .caveat {

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildKnowledgeView,
+  getExplorationRecommendations,
   getFilamentOffsets,
   getKnowledgeNode,
+  getRelationEvidence,
   isKnownNode,
   knowledgeNodes,
   knowledgeRelations,
@@ -43,9 +45,40 @@ describe("knowledge view", () => {
   });
 
   it("주요 3개 node에 인사이트를 세 개씩 제공한다", () => {
-    for (const nodeId of ["sk", "sandisk", "hbf"])
+    for (const nodeId of ["sk", "sandisk", "hbf"]) {
       expect(getKnowledgeNode(nodeId).insights).toHaveLength(3);
+      for (const insight of getKnowledgeNode(nodeId).insights) {
+        expect(insight.evidenceIds.length).toBeGreaterThan(0);
+        expect(insight.evidenceIds.every(getRelationEvidence)).toBe(true);
+      }
+    }
     expect(getKnowledgeNode("isolated").insights).toHaveLength(0);
+  });
+
+  it("탐색 추천은 직접 관계 두 개와 경로 및 주변부 후보를 하나씩 제공한다", () => {
+    const recommendations = getExplorationRecommendations("sk", "90d");
+    expect(recommendations).toHaveLength(4);
+    expect(new Set(recommendations.map(({ node }) => node.id)).size).toBe(4);
+    expect(
+      recommendations.filter(({ status }) => status === "confirmedRelation"),
+    ).toHaveLength(2);
+    expect(
+      recommendations.filter(({ status }) => status === "connectedPath"),
+    ).toHaveLength(1);
+    expect(
+      recommendations.filter(({ status }) => status === "unconfirmed"),
+    ).toHaveLength(1);
+  });
+
+  it("관계의 독립 근거 수와 근거 레코드 수가 일치한다", () => {
+    for (const relation of knowledgeRelations) {
+      expect(relation.evidence).toHaveLength(relation.evidenceGroupCount);
+      expect(
+        relation.evidence.every(
+          (evidence) => getRelationEvidence(evidence.id) === evidence,
+        ),
+      ).toBe(true);
+    }
   });
 
   it("검색 후보를 최대 다섯 개로 제한한다", () => {

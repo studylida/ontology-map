@@ -59,7 +59,7 @@ node를 선택하면 같은 node와 Relation 객체를 유지한 채 1200ms ease
 
 제품에서는 현재 경계 node ID를 cursor로 사용해 다음 주변부를 제한된 page 단위로 요청하고, camera가 경계에 접근하거나 주변부 node가 focus되면 다음 page를 미리 불러온다. 멀어진 주변부는 `graphData`와 force 계산에서 제외하고 세션 위치 cache만 유지한다. 임의의 node 1,000개를 초기 graph에 넣거나 서버에 저장된 좌표로 viewport를 조회하지 않는다. 주변부 규모가 커지면 먼저 `nodeVisibility`와 `linkVisibility`로 장면 범위를 제한하고, 같은 형상의 주변부 node는 Three.js `InstancedMesh`나 sprite 기반 표현을 성능 POC에서 비교한다.
 
-검색 input은 combobox와 listbox 패턴을 사용한다. 입력값이 바뀌면 이름, 유형과 검색 이유를 포함한 후보를 최대 5개까지 드롭다운으로 표시하고, `ArrowUp`·`ArrowDown`·`Enter`·`Escape`와 pointer 선택을 지원한다. 후보 선택은 별도 모델 호출 없이 기존 중심 이동 함수를 사용한다.
+검색 input은 combobox와 listbox 패턴을 사용한다. 입력값이 바뀌면 이름, 유형과 검색 이유를 포함한 후보를 최대 5개까지 overlay 드롭다운으로 표시하고, `ArrowUp`·`ArrowDown`·`Enter`·`Escape`와 pointer 선택을 지원한다. 후보 선택은 별도 모델 호출 없이 기존 중심 이동 함수를 사용한다. 검색 panel에는 현재 중심 주변의 전체 표시 node 수와 시간 범위만 남기며 범례는 기본적으로 접는다.
 
 제품에서 서버가 부분 graph를 교체하게 되면 이전 graph와 새 graph의 합집합을 한 번 `graphData`에 전달하고 `d3ReheatSimulation`도 한 번만 호출한다. 공통 node·관계선 객체와 Three.js 재질은 cache에서 재사용하고 진입 요소와 이탈 요소는 `DESIGN.md`의 전환 계약에 따라 보간한다. 이 서버 연동과 부분 graph paging은 현재 정적 fixture POC에 포함되지 않는다.
 
@@ -67,7 +67,9 @@ POC의 기본 밀도는 활성 node의 charge strength -64, 직접 이웃 link d
 
 홈페이지 첫 진입에서는 graph force가 안정될 때까지 전체 viewport loading을 표시한다. 진행률은 1.4초 동안 89%까지 올리고 준비 신호 뒤 90%, 95%, 99%를 거쳐 200ms 동안 loading을 숨긴다. 그 뒤 전체 fixture graph를 `zoomToFit`으로 조망하고 720ms 동안 유지한 다음 1200ms 동안 카메라 target과 node 위치를 바꾸지 않고 카메라 거리만 줄인다. 검증 fixture에는 BISTelligence node가 없으므로 SK하이닉스를 기본 중심으로 사용하며 intro graph는 제품의 기준 지도나 저장 좌표로 보존하지 않는다. `enableNodeDrag(false)`로 node drag를 끄고 click은 중심 이동에만 사용하며 OrbitControls의 pan과 zoom은 계속 활성화한다.
 
-상세 panel의 `인사이트` tab은 제목 목록만 표시하고 native `<dialog>`로 상세 demo를 연다. SK하이닉스, SanDisk와 HBF에 정적 인사이트를 각각 3개 제공하고 나머지 node에는 empty 상태를 표시한다. 이 데이터는 실제 모델 출력이 아니며 생성·저장·API 계약은 Issue #68에서 결정한다.
+상세 panel은 `탐색`, `근거`와 `인사이트` tab을 제공하며 새 중심에서는 `탐색`을 기본으로 연다. `탐색` tab은 현재 graph 단계와 관측 활동량을 재사용해 직접 관계 2개, 2단계 경로 1개와 주변부 후보 1개를 결정적으로 고른다. 별도 추천 모델이나 의미가 섞인 점수는 추가하지 않는다.
+
+fixture의 Relation은 독립 근거 묶음 수와 같은 수의 근거 레코드를 가지며 인사이트는 근거 ID를 참조한다. `근거` tab은 관계 하나만 펼치고 패널 내부의 한 건 단위 `근거 추적` 화면으로 이동한다. `인사이트` tab은 제목과 근거 수를 표시하고 native `<dialog>` 안에서 여러 근거를 동시에 펼친다. SK하이닉스, SanDisk와 HBF에 정적 인사이트를 각각 3개 제공하고 나머지 node에는 empty 상태를 표시한다. 이 fixture는 저장된 결과를 읽는 흐름만 검증하며 실제 제품은 관련 지식 변경 시 인사이트를 사전 생성한다. 생성·저장·API 계약과 갱신 실패 처리는 Issue #68에서 결정한다.
 
 Next.js와 저장소 공통 패키지는 현재 필요하지 않으므로 만들지 않는다. 웹 앱은 Vite 기반의 단일 React 애플리케이션이며 반응형 화면, API, DB와 모델 호출은 Issue #67 POC 범위에 포함되지 않는다.
 
@@ -81,7 +83,7 @@ npm run dev
 npm run check
 ```
 
-`npm run check`는 Biome 검사, TypeScript typecheck, Vitest와 Vite production build를 순서대로 실행한다. 브라우저 smoke check는 검색, node 선택, pan·zoom, Evidence Trace, 후속 질문, 인사이트 dialog와 첫 진입 확대를 확인한다.
+`npm run check`는 Biome 검사, TypeScript typecheck, Vitest와 Vite production build를 순서대로 실행한다. 브라우저 smoke check는 검색, node 선택, pan·zoom, 추천 대상, 관계 accordion, 근거 추적, 후속 질문, 인사이트 dialog의 다중 근거 펼치기와 첫 진입 확대를 확인한다.
 
 ## 백엔드와 에이전트
 
@@ -181,7 +183,7 @@ embedding interface는 공통화하더라도 서로 다른 embedding model의 �
 - OpenAI chat model의 정확한 ID
 - embedding model, 차원과 벡터 컬럼 설계
 - 목표 desktop에서의 주변부 page 크기와 장면 상한
-- 실제 인사이트의 출력 구조, 생성·저장 시점과 Evidence Trace 연결
+- 실제 인사이트의 생성·저장·API 계약, 갱신 실패 처리와 Evidence Trace 연결
 - 인증, 배포 환경과 운영 인프라
 
 이 항목은 현재 사용자 흐름이나 승인된 스키마로 필요성이 확인된 뒤 결정한다. 미래 확장 가능성만으로 구조나 의존성을 추가하지 않는다.
