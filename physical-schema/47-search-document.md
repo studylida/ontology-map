@@ -95,7 +95,7 @@ ASCII "NSD1"
 
 ### 2.7 전문 검색 expression index
 
-POC는 별도 `tsvector` 컬럼을 저장하지 않고 다음 expression과 동일한 GIN index를 사용한다.
+POC는 별도 `tsvector` 컬럼을 저장하지 않고 다음 expression과 동일한 GIN index를 사용한다. `simple` config는 최종 한국어 검색 방식이 아니라 POC 기준선이다.
 
 ```sql
 CREATE INDEX ix_node_search_document__fts
@@ -108,6 +108,7 @@ USING GIN ((
 ```
 
 - query도 정확히 같은 `simple` config와 expression을 사용한다.
+- 향후 검색 구현은 FTS expression과 조회 조합을 한 검색 모듈에서 소유하고, index migration과 회귀 테스트도 같은 계약을 기준으로 삼는다. 현재는 구현 코드가 없으므로 문서에 전환 경계만 기록한다.
 - `identity_text`를 A, `knowledge_text`를 B 가중치로 둔다.
 - rank는 PostgreSQL `ts_rank_cd`를 우선 평가한다.
 - 이 순위 함수를 BM25라고 부르지 않는다.
@@ -218,7 +219,7 @@ RRF 결과나 검색 session을 DB 테이블로 저장하지 않는다.
 
 ### 저장 `tsvector`
 
-expression 계산이 실제 병목이면 다음 순서로 전환한다.
+query의 expression 복제가 늘거나 expression을 자주 변경해야 할 때, 실행 계획에 문제가 생길 때, 또는 운영 중 검색 vector를 직접 관찰해야 할 때만 다음 순서로 전환한다.
 
 1. 동일 expression의 generated 또는 저장 `search_vector` 컬럼을 추가한다.
 2. 기존 행을 backfill하고 GIN index를 새 컬럼으로 교체한다.
@@ -227,7 +228,7 @@ expression 계산이 실제 병목이면 다음 순서로 전환한다.
 
 ### 한국어 검색 확장
 
-HBF 한국어·영문 fixture에서 품질이 부족할 때만 tokenizer·`pg_trgm`·BM25 후보를 별도 benchmark Issue에서 비교한다. 새 dependency를 먼저 추가하지 않는다.
+#80에서 정확한 이름과 별칭, 오타, 부분 일치, 조사·어미 변화, 복합어, 자연어 의미 검색을 현재 POC 기준선으로 먼저 측정한다. 품질이 부족한 항목에 한해 tokenizer·`pg_trgm`·BM25 후보를 비교하며, extension이나 외부 검색 엔진을 먼저 추가하지 않는다.
 
 ### basis 세분화
 
