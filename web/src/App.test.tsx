@@ -43,6 +43,14 @@ function completeTransition() {
   fireEvent.click(screen.getByRole("button", { name: "중심 전환 완료" }));
 }
 
+function searchAndSelect(query: string) {
+  const search = screen.getByRole("combobox");
+  fireEvent.focus(search);
+  fireEvent.change(search, { target: { value: query } });
+  fireEvent.keyDown(search, { key: "Enter" });
+  completeTransition();
+}
+
 describe("desktop exploration", () => {
   beforeEach(() => {
     window.history.replaceState({}, "", "/?center=sk&range=90d");
@@ -93,14 +101,65 @@ describe("desktop exploration", () => {
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
       "미연결 공개 기술",
     );
-    expect(screen.getByText("현재 공개된 Relation이 없습니다.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "근거" }));
+    expect(screen.getByText("현재 공개된 관계가 없습니다.")).toBeTruthy();
   });
 
-  it("Evidence Trace를 같은 상세 패널에서 펼친다", () => {
+  it("관계 근거에서 근거 추적을 열고 목록으로 돌아간다", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /Evidence Trace/ }));
+    fireEvent.click(screen.getByRole("tab", { name: "근거" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /AI 메모리.*독립 근거 6개/ }),
+    );
+    const traceButtons = screen.getAllByRole("button", {
+      name: "근거 추적 보기",
+    });
+    expect(traceButtons.length).toBeGreaterThan(0);
+    fireEvent.click(traceButtons[0] as HTMLElement);
+    expect(screen.getByRole("heading", { name: "근거 추적" })).toBeTruthy();
     expect(screen.getByText("원문 인용")).toBeTruthy();
-    expect(screen.getByText("데스크톱 핵심 탐색 fixture")).toBeTruthy();
+    expect(screen.getByText("근거 1 / 6")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "다음 근거 ›" }));
+    expect(screen.getByText("근거 2 / 6")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "← 근거로 돌아가기" }));
+    expect(
+      screen
+        .getByRole("button", { name: /AI 메모리.*독립 근거 6개/ })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+  });
+
+  it("탐색 탭에 관계 상태가 구분된 추천 대상 네 개를 표시한다", () => {
+    render(<App />);
+    expect(
+      screen.getByRole("tab", { name: "탐색" }).getAttribute("aria-selected"),
+    ).toBe("true");
+    const recommendations = screen.getByRole("heading", {
+      name: "이어서 탐색",
+    }).parentElement?.nextElementSibling;
+    expect(recommendations).not.toBeNull();
+    expect(
+      within(recommendations as HTMLElement).getAllByRole("button"),
+    ).toHaveLength(4);
+    expect(screen.getAllByText(/확인된 관계/).length).toBeGreaterThan(0);
+    expect(screen.getByText("연결 경로 있음")).toBeTruthy();
+    expect(screen.getByText("관계 미확인")).toBeTruthy();
+  });
+
+  it("근거 탭에서는 관계를 하나만 펼친다", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("tab", { name: "근거" }));
+    const aiMemory = screen.getByRole("button", {
+      name: /AI 메모리.*독립 근거 6개/,
+    });
+    const sandisk = screen.getByRole("button", {
+      name: /SanDisk.*독립 근거 3개/,
+    });
+    fireEvent.click(aiMemory);
+    expect(aiMemory.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(sandisk);
+    expect(aiMemory.getAttribute("aria-expanded")).toBe("false");
+    expect(sandisk.getAttribute("aria-expanded")).toBe("true");
   });
 
   it("시간 범위를 전체 1년으로 바꾸고 URL에 반영한다", () => {
@@ -125,8 +184,7 @@ describe("desktop exploration", () => {
       screen.getByRole("button", { name: /SK하이닉스로 이동하기/ }),
     );
     completeTransition();
-    fireEvent.click(screen.getByRole("button", { name: "김천성" }));
-    completeTransition();
+    searchAndSelect("김천성");
     fireEvent.click(
       screen.getByRole("button", { name: /현재 근거를 더 확인하기/ }),
     );
@@ -177,14 +235,10 @@ describe("desktop exploration", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: /SanDisk로 이동하기/ }));
     completeTransition();
-    fireEvent.click(screen.getByRole("button", { name: "SK하이닉스" }));
-    completeTransition();
-    fireEvent.click(screen.getByRole("button", { name: "김천성" }));
-    completeTransition();
-    fireEvent.click(screen.getByRole("button", { name: "SK하이닉스" }));
-    completeTransition();
-    fireEvent.click(screen.getByRole("button", { name: "강욱성" }));
-    completeTransition();
+    searchAndSelect("SK하이닉스");
+    searchAndSelect("김천성");
+    searchAndSelect("SK하이닉스");
+    searchAndSelect("강욱성");
 
     const trail = screen.getByRole("navigation", { name: "최근 탐색 경로" });
     expect(within(trail).getAllByRole("listitem")).toHaveLength(4);
@@ -197,7 +251,7 @@ describe("desktop exploration", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("tab", { name: "인사이트" }));
     const trigger = screen.getByRole("button", {
-      name: "HBF 표준화 참여가 AI 메모리 협상력을 넓힐 수 있다",
+      name: /HBF 표준화 참여가 AI 메모리 협상력을 넓힐 수 있다/,
     });
     fireEvent.click(trigger);
 
@@ -206,9 +260,33 @@ describe("desktop exploration", () => {
     expect(within(dialog).getByText("종합 해석")).toBeTruthy();
     expect(within(dialog).getByText("해석 시 유의점")).toBeTruthy();
 
+    const evidenceButtons = within(dialog).getAllByRole("button", {
+      expanded: false,
+    });
+    expect(evidenceButtons.length).toBeGreaterThanOrEqual(2);
+    fireEvent.click(evidenceButtons[0] as HTMLElement);
+    fireEvent.click(evidenceButtons[1] as HTMLElement);
+    expect(
+      within(dialog).getAllByRole("button", { expanded: true }),
+    ).toHaveLength(2);
+    fireEvent.click(within(dialog).getByRole("button", { name: "모두 접기" }));
+    expect(
+      within(dialog).queryAllByRole("button", { expanded: true }),
+    ).toHaveLength(0);
+
     fireEvent.click(within(dialog).getByRole("button", { name: "분석 닫기" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it("범례는 기본적으로 접혀 있고 버튼으로 펼친다", () => {
+    render(<App />);
+    expect(screen.queryByRole("heading", { name: "노드 유형" })).toBeNull();
+    const toggle = screen.getByRole("button", { name: "범례" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("heading", { name: "노드 유형" })).toBeTruthy();
   });
 
   it("인사이트가 없는 node에는 준비되지 않은 상태를 표시한다", () => {
@@ -217,7 +295,7 @@ describe("desktop exploration", () => {
     completeTransition();
     fireEvent.click(screen.getByRole("tab", { name: "인사이트" }));
     expect(
-      screen.getByText("이 node의 종합 분석 데모는 아직 준비되지 않았습니다."),
+      screen.getByText("이 노드의 종합 분석 데모는 아직 준비되지 않았습니다."),
     ).toBeTruthy();
   });
 

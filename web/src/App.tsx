@@ -1,12 +1,11 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import styles from "./App.module.css";
+import { DetailPanel } from "./DetailPanel";
 import {
   buildKnowledgeView,
   getKnowledgeNode,
-  type InsightReport,
   isKnownNode,
   type KnowledgeNode,
-  knowledgeRelations,
   searchKnowledgeNodes,
   type TimeRange,
 } from "./data";
@@ -93,11 +92,7 @@ export function App() {
   const [timeRange, setTimeRange] = useState<TimeRange>(initial.range);
   const [query, setQuery] = useState(initial.query);
   const [panelOpen, setPanelOpen] = useState(true);
-  const [panelTab, setPanelTab] = useState<"evidence" | "insights">("evidence");
-  const [selectedInsight, setSelectedInsight] = useState<InsightReport | null>(
-    null,
-  );
-  const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const [activeCandidate, setActiveCandidate] = useState(0);
   const [announcement, setAnnouncement] = useState(
@@ -111,22 +106,10 @@ export function App() {
   >("visible");
   const loadingStartedAt = useRef(Date.now());
   const pendingNavigationRef = useRef<PendingNavigation | null>(null);
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const insightTriggerRef = useRef<HTMLButtonElement>(null);
   const searchListId = useId();
-  const panelTabsId = useId();
   const node = getKnowledgeNode(centerId);
   const view = useMemo(() => buildKnowledgeView(centerId), [centerId]);
   const candidates = useMemo(() => searchKnowledgeNodes(query), [query]);
-  const directCount = view.nodes.filter(
-    (item) => item.tier === "direct",
-  ).length;
-  const twoHopCount = view.nodes.filter(
-    (item) => item.tier === "twoHop",
-  ).length;
-  const related = knowledgeRelations.filter(
-    (relation) => relation.source === centerId || relation.target === centerId,
-  );
 
   useEffect(() => {
     writeLocation(initial);
@@ -137,8 +120,6 @@ export function App() {
       setCenterId(next.centerId);
       setTimeRange(next.range);
       setQuery(next.query);
-      setPanelTab("evidence");
-      setSelectedInsight(null);
       setTrail((current) => {
         const index = current.lastIndexOf(next.centerId);
         return index >= 0
@@ -201,18 +182,6 @@ export function App() {
     };
   }, [graphReady]);
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (selectedInsight && !dialog.open) dialog.showModal();
-    if (!selectedInsight && dialog.open) dialog.close();
-  }, [selectedInsight]);
-
-  const closeInsight = () => {
-    if (dialogRef.current?.open) dialogRef.current.close();
-    else setSelectedInsight(null);
-  };
-
   const commitNodeSelection = ({
     targetId,
     query: nextQuery,
@@ -227,9 +196,6 @@ export function App() {
     );
     setQuery(nextQuery);
     setPanelOpen(true);
-    setPanelTab("evidence");
-    closeInsight();
-    setEvidenceOpen(false);
     writeLocation(
       { centerId: target.id, range: timeRange, query: nextQuery },
       "push",
@@ -252,9 +218,6 @@ export function App() {
     setRequestedCenterId(target.id);
     setQuery(nextQuery);
     setPanelOpen(true);
-    setPanelTab("evidence");
-    closeInsight();
-    setEvidenceOpen(false);
   };
 
   const finishNodeTransition = (completedCenterId: string) => {
@@ -352,7 +315,7 @@ export function App() {
           />
 
           <div className={styles.controls}>
-            <label htmlFor="node-search">중심 NODE 검색</label>
+            <label htmlFor="node-search">노드 검색</label>
             <div className={styles.searchBox}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="10.5" cy="10.5" r="6.5" />
@@ -426,9 +389,12 @@ export function App() {
                 ))}
               </div>
             )}
-            <p>
-              직접 이웃 {directCount}개 · 중요한 2단계 이웃 {twoHopCount}개
-            </p>
+            <div className={styles.scopeSummary}>
+              <span>현재 지도</span>
+              <strong>
+                {node.name} 주변 · 노드 {view.nodes.length}개
+              </strong>
+            </div>
 
             <fieldset className={styles.rangeControl}>
               <legend>시간 범위</legend>
@@ -450,211 +416,66 @@ export function App() {
           </div>
 
           <aside className={styles.legend} aria-label="지식맵 범례">
-            <h2>NODE 유형</h2>
-            <div className={styles.nodeTypes}>
-              {(["사람", "회사", "기술", "주제", "사건"] as const).map(
-                (kind) => (
-                  <span key={kind} data-kind={kind}>
-                    <i />
-                    {kind}
+            <button
+              type="button"
+              className={styles.legendToggle}
+              aria-expanded={legendOpen}
+              onClick={() => setLegendOpen((open) => !open)}
+            >
+              <span className={styles.legendDots} aria-hidden="true">
+                {(["사람", "회사", "기술", "주제", "사건"] as const).map(
+                  (kind) => (
+                    <i key={kind} data-kind={kind} />
+                  ),
+                )}
+              </span>
+              <strong>범례</strong>
+              <span aria-hidden="true">{legendOpen ? "⌄" : "⌃"}</span>
+            </button>
+            {legendOpen && (
+              <div className={styles.legendContent}>
+                <h2>노드 유형</h2>
+                <div className={styles.nodeTypes}>
+                  {(["사람", "회사", "기술", "주제", "사건"] as const).map(
+                    (kind) => (
+                      <span key={kind} data-kind={kind}>
+                        <i />
+                        {kind}
+                      </span>
+                    ),
+                  )}
+                </div>
+                <div className={styles.legendLine}>
+                  <span>
+                    <i className={styles.line1} />
+                    근거 1개
                   </span>
-                ),
-              )}
-            </div>
-            <div className={styles.legendLine}>
-              <span>
-                <i className={styles.line1} />
-                근거 1개
-              </span>
-              <span>
-                <i className={styles.line3} />
-                근거 3개
-              </span>
-              <span>
-                <i className={styles.line6} />
-                근거 6개
-              </span>
-              <span>
-                <i className={styles.conflictLine} />
-                충돌 관계
-              </span>
-            </div>
+                  <span>
+                    <i className={styles.line3} />
+                    근거 3개
+                  </span>
+                  <span>
+                    <i className={styles.line6} />
+                    근거 6개
+                  </span>
+                  <span>
+                    <i className={styles.conflictLine} />
+                    충돌 관계
+                  </span>
+                </div>
+              </div>
+            )}
           </aside>
 
           {panelOpen ? (
-            <aside
-              className={styles.detailPanel}
-              aria-label={`${node.name} 상세 정보`}
-            >
-              <button
-                type="button"
-                className={styles.closeButton}
-                aria-label="상세 패널 닫기"
-                onClick={() => setPanelOpen(false)}
-              >
-                ×
-              </button>
-              <span className={styles.eyebrow}>현재 중심 · {node.kind}</span>
-              <h1>{node.name}</h1>
-              <p className={styles.context}>{node.context}</p>
-
-              <div
-                className={styles.panelTabs}
-                role="tablist"
-                aria-label="상세 정보 보기"
-              >
-                <button
-                  type="button"
-                  id={`${panelTabsId}-evidence-tab`}
-                  role="tab"
-                  aria-selected={panelTab === "evidence"}
-                  aria-controls={`${panelTabsId}-evidence-panel`}
-                  onClick={() => setPanelTab("evidence")}
-                >
-                  근거
-                </button>
-                <button
-                  type="button"
-                  id={`${panelTabsId}-insights-tab`}
-                  role="tab"
-                  aria-selected={panelTab === "insights"}
-                  aria-controls={`${panelTabsId}-insights-panel`}
-                  onClick={() => setPanelTab("insights")}
-                >
-                  인사이트
-                </button>
-              </div>
-
-              {panelTab === "evidence" ? (
-                <div
-                  id={`${panelTabsId}-evidence-panel`}
-                  role="tabpanel"
-                  aria-labelledby={`${panelTabsId}-evidence-tab`}
-                >
-                  <section>
-                    <h2>근거 확인된 관계</h2>
-                    {related.length ? (
-                      <ul className={styles.relationList}>
-                        {related.map((relation) => {
-                          const otherId =
-                            relation.source === centerId
-                              ? relation.target
-                              : relation.source;
-                          return (
-                            <li key={relation.id}>
-                              <button
-                                type="button"
-                                onClick={() => selectNode(otherId)}
-                              >
-                                {getKnowledgeNode(otherId).name}
-                              </button>
-                              <span>
-                                {relation.label} · 독립 근거{" "}
-                                {relation.evidenceGroupCount}개
-                                {relation.conflict ? " · 충돌" : ""}
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : (
-                      <p className={styles.empty}>
-                        현재 공개된 Relation이 없습니다.
-                      </p>
-                    )}
-                  </section>
-
-                  <section>
-                    <h2>원자적 Claim</h2>
-                    <p>{node.claim}</p>
-                  </section>
-
-                  <section>
-                    <h2>출처</h2>
-                    <button
-                      type="button"
-                      className={styles.evidenceButton}
-                      aria-expanded={evidenceOpen}
-                      onClick={() => setEvidenceOpen((open) => !open)}
-                    >
-                      <span>
-                        <strong>{node.evidence.sourceTitle}</strong>
-                        <small>
-                          {node.evidence.publisher} ·{" "}
-                          {node.evidence.publishedAt}
-                        </small>
-                      </span>
-                      <span>{evidenceOpen ? "접기" : "Evidence Trace"}</span>
-                    </button>
-                    {evidenceOpen && (
-                      <div className={styles.evidenceTrace}>
-                        <span>원문 인용</span>
-                        <blockquote>{node.evidence.quote}</blockquote>
-                        <dl>
-                          <dt>원문 위치</dt>
-                          <dd>{node.evidence.locator}</dd>
-                          <dt>게시 시점</dt>
-                          <dd>{node.evidence.publishedAt}</dd>
-                        </dl>
-                      </div>
-                    )}
-                  </section>
-
-                  <section>
-                    <h2>후속 질문</h2>
-                    <div className={styles.followups}>
-                      {node.followups.map((followup) => (
-                        <button
-                          type="button"
-                          key={followup.id}
-                          onClick={() => handleFollowup(followup.targetNodeId)}
-                        >
-                          <span>{followup.text}</span>
-                          <small>
-                            대상 ·{" "}
-                            {getKnowledgeNode(followup.targetNodeId).name}
-                          </small>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-                </div>
-              ) : (
-                <div
-                  id={`${panelTabsId}-insights-panel`}
-                  role="tabpanel"
-                  aria-labelledby={`${panelTabsId}-insights-tab`}
-                  className={styles.insightsPanel}
-                >
-                  <div className={styles.insightsHeading}>
-                    <h2>종합 분석</h2>
-                    <span>{node.insights.length}개</span>
-                  </div>
-                  {node.insights.length ? (
-                    <ul className={styles.insightList}>
-                      {node.insights.map((insight) => (
-                        <li key={insight.id}>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              insightTriggerRef.current = event.currentTarget;
-                              setSelectedInsight(insight);
-                            }}
-                          >
-                            <span>{insight.title}</span>
-                            <span aria-hidden="true">›</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className={styles.insightEmpty}>
-                      이 node의 종합 분석 데모는 아직 준비되지 않았습니다.
-                    </p>
-                  )}
-                </div>
-              )}
-            </aside>
+            <DetailPanel
+              key={centerId}
+              centerId={centerId}
+              timeRange={timeRange}
+              onClose={() => setPanelOpen(false)}
+              onFollowup={handleFollowup}
+              onSelect={selectNode}
+            />
           ) : (
             <button
               type="button"
@@ -693,52 +514,6 @@ export function App() {
           </div>
         </div>
       )}
-
-      <dialog
-        ref={dialogRef}
-        className={styles.insightDialog}
-        aria-labelledby={selectedInsight ? "insight-dialog-title" : undefined}
-        onClose={() => {
-          setSelectedInsight(null);
-          insightTriggerRef.current?.focus();
-        }}
-        onCancel={(event) => {
-          event.preventDefault();
-          closeInsight();
-        }}
-      >
-        {selectedInsight && (
-          <article>
-            <button
-              type="button"
-              className={styles.dialogClose}
-              aria-label="분석 닫기"
-              onClick={closeInsight}
-            >
-              ×
-            </button>
-            <span className={styles.dialogEyebrow}>데모 · 모델 종합</span>
-            <h2 id="insight-dialog-title">{selectedInsight.title}</h2>
-            <p className={styles.dialogSummary}>{selectedInsight.summary}</p>
-            <section>
-              <h3>확인된 사실</h3>
-              <p>{selectedInsight.verifiedFact}</p>
-            </section>
-            <section>
-              <h3>종합 해석</h3>
-              <p>{selectedInsight.synthesis}</p>
-            </section>
-            <section>
-              <h3>연결 근거</h3>
-              <p>{selectedInsight.evidence}</p>
-            </section>
-            <section className={styles.caveat}>
-              <h3>해석 시 유의점</h3>
-              <p>{selectedInsight.caveat}</p>
-            </section>
-          </article>
-        )}
-      </dialog>
     </>
   );
 }
