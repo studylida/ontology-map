@@ -71,7 +71,7 @@ PostgreSQL과 pgvector의 정확한 버전은 `implementation-stack.md`를 따�
 
 내부 식별자는 `bigint` identity를 사용하므로 UUID 생성 extension을 추가하지 않는다. 오타 검색, 문자 정규화나 고급 제약에 별도 extension이 실제로 필요해지면 해당 조회나 무결성을 소유하는 후속 Issue에서 근거와 함께 승인한다.
 
-pgvector가 설치되었다는 사실과 `node_embedding.embedding_vector`의 구체적인 차원이 정해졌다는 것은 다르다. extension은 승인되었지만 벡터 차원은 #47에서 결정한다.
+pgvector가 설치되었다는 사실과 `node_embedding.embedding_vector`의 구체적인 차원이 정해졌다는 것은 다르다. extension은 승인되었지만 벡터 차원은 #78에서 임베딩 모델·거리 연산자와 함께 결정한다.
 
 ## 3. PostgreSQL namespace와 객체 소유
 
@@ -501,10 +501,11 @@ POC는 한 시점에 승인된 하나의 embedding 모델과 하나의 호환 �
 - 서로 다른 차원의 벡터를 같은 컬럼에 섞지 않는다.
 - `halfvec`, SQL 배열과 JSON 배열을 사용하지 않는다.
 - 초기 검색은 exact nearest-neighbor 검색을 사용한다.
-- 거리 연산자와 HNSW·IVFFlat 도입 여부는 #47에서 실제 모델·쿼리·평가 결과로 정한다.
+- 임베딩 모델, 벡터 차원과 거리 연산자는 #78에서 하나의 호환 계약으로 정한다.
+- HNSW·IVFFlat은 #81에서 exact search의 실행 계획, p95 응답 시간과 검색 품질을 측정한 뒤 기준을 충족하지 못할 때만 검토한다.
 - 모델이나 차원이 바뀌면 기존 벡터를 덮어쓰지 않고 전부 새로 생성한 뒤 공개 결과가 `READY`가 되면 전환한다.
 
-구체적인 `n`은 현재 blocker이며 임의의 placeholder 숫자를 넣지 않는다.
+구체적인 `n`은 현재 blocker이며 임의의 placeholder 숫자를 넣지 않는다. 기존 자료의 `1536`은 예시 또는 임시값이며 확정 차원이 아니다.
 
 ## 7. 닫힌 코드와 확장 가능한 참조 목록
 
@@ -838,7 +839,7 @@ conflict_set
 
 | ID | 구분 | 영향 객체 | 이유 | 담당 Issue | 막는 작업 | 상태 |
 |---|---|---|---|---|---|---|
-| `PHY-BLOCK-001` | Blocker | `node_embedding.embedding_vector` | 승인된 embedding 모델과 차원이 아직 결정되지 않음 | #47 | `node_embedding`의 최종 컬럼 타입과 해당 migration | OPEN |
+| `PHY-BLOCK-001` | Blocker | `node_embedding.embedding_vector` | 승인된 embedding 모델과 차원이 아직 결정되지 않음 | #78 | `node_embedding`의 최종 컬럼 타입과 해당 migration | OPEN |
 | `PHY-DEFER-001` | Deferred | `knowledge_state_event`, `conflict_state_event`의 처리자 참조 | 관리자·인증 기능이 POC happy path에 포함되지 않음 | 후속 관리자·인증 Issue | 사람 상태 변경 기능의 정확한 actor 컬럼·FK만 지연 | NON_BLOCKING |
 
 blocker가 있는 객체에는 임의의 차원, placeholder 타입이나 가짜 FK를 넣지 않는다. blocking 결정이 닫히기 전에는 영향을 받는 테이블이나 migration을 최종 확정하지 않는다.

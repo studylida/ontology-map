@@ -32,7 +32,7 @@
 | `embedding_vector` | `vector(n)` | 불가 | 없음 | 불변 |
 | `created_at` | `timestamptz` | 불가 | `CURRENT_TIMESTAMP` | 불변 |
 
-`n`은 #78에서 승인할 실제 모델 차원이다. placeholder 숫자와 차원 없는 `vector`를 사용하지 않는다.
+`n`은 #78에서 임베딩 모델·거리 연산자와 함께 승인할 실제 모델 차원이다. 기존 자료의 `1536`은 예시 또는 임시값이며 계약이 아니다. placeholder 숫자와 차원 없는 `vector`를 사용하지 않는다.
 
 ### 2.3 PK·FK·고유성
 
@@ -243,7 +243,7 @@ node_context(
 | 거리 연산자 | #78 OPEN blocker |
 | query 입력 규칙 | #78 OPEN blocker |
 | 초기 exact search | 확정 |
-| HNSW·IVFFlat | 실제 병목 전 제외 |
+| HNSW·IVFFlat | #81의 측정 기준을 충족하기 전 제외 |
 
 #78이 닫히기 전에는 `node_embedding` migration을 최종 확정하지 않는다. 다른 네 파생 테이블과 FK·수명주기 설계는 차단하지 않는다.
 
@@ -286,4 +286,4 @@ node_context(
 
 ### 근사 검색
 
-exact query의 실제 실행 계획과 응답 시간이 기준을 넘을 때만 HNSW·IVFFlat을 비교한다. recall 평가 없이 인덱스를 추가하지 않는다.
+#81에서 공개 임베딩 수, 실제 query 실행 계획, p95 응답 시간과 검색 품질을 측정한다. exact search가 기준을 충족하지 못할 때만 HNSW와 IVFFlat의 recall, 인덱스 생성·갱신 비용을 비교한다. 모델이 바뀌면 서로 다른 임베딩 공간을 섞지 않고 재임베딩과 인덱스 재생성 경계를 함께 검증한다.
