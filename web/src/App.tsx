@@ -18,6 +18,12 @@ interface LocationState {
   query: string;
 }
 
+interface PendingNavigation {
+  targetId: string;
+  query: string;
+  trailIndex: number | undefined;
+}
+
 const maxTrailLength = 4;
 const loadingRampDuration = 1400;
 
@@ -82,6 +88,7 @@ function SearchCandidate({
 export function App() {
   const initial = useMemo(readLocation, []);
   const [centerId, setCenterId] = useState(initial.centerId);
+  const [requestedCenterId, setRequestedCenterId] = useState(initial.centerId);
   const [trail, setTrail] = useState([initial.centerId]);
   const [timeRange, setTimeRange] = useState<TimeRange>(initial.range);
   const [query, setQuery] = useState(initial.query);
@@ -103,6 +110,7 @@ export function App() {
     "visible" | "leaving" | "hidden"
   >("visible");
   const loadingStartedAt = useRef(Date.now());
+  const pendingNavigationRef = useRef<PendingNavigation | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const insightTriggerRef = useRef<HTMLButtonElement>(null);
   const searchListId = useId();
@@ -124,6 +132,8 @@ export function App() {
     writeLocation(initial);
     const onPopState = () => {
       const next = readLocation();
+      pendingNavigationRef.current = null;
+      setRequestedCenterId(next.centerId);
       setCenterId(next.centerId);
       setTimeRange(next.range);
       setQuery(next.query);
@@ -203,12 +213,12 @@ export function App() {
     else setSelectedInsight(null);
   };
 
-  const selectNode = (
-    nextId: string,
-    nextQuery = query,
-    trailIndex?: number,
-  ) => {
-    const target = getKnowledgeNode(nextId);
+  const commitNodeSelection = ({
+    targetId,
+    query: nextQuery,
+    trailIndex,
+  }: PendingNavigation) => {
+    const target = getKnowledgeNode(targetId);
     setCenterId(target.id);
     setTrail((current) =>
       trailIndex === undefined
@@ -225,6 +235,33 @@ export function App() {
       "push",
     );
     setAnnouncement(`${target.name} 중심으로 이동했습니다.`);
+  };
+
+  const selectNode = (
+    nextId: string,
+    nextQuery = query,
+    trailIndex?: number,
+  ) => {
+    const target = getKnowledgeNode(nextId);
+    const navigation = { targetId: target.id, query: nextQuery, trailIndex };
+    if (target.id === centerId && requestedCenterId === centerId) {
+      commitNodeSelection(navigation);
+      return;
+    }
+    pendingNavigationRef.current = navigation;
+    setRequestedCenterId(target.id);
+    setQuery(nextQuery);
+    setPanelOpen(true);
+    setPanelTab("evidence");
+    closeInsight();
+    setEvidenceOpen(false);
+  };
+
+  const finishNodeTransition = (completedCenterId: string) => {
+    const navigation = pendingNavigationRef.current;
+    if (!navigation || navigation.targetId !== completedCenterId) return;
+    pendingNavigationRef.current = null;
+    commitNodeSelection(navigation);
   };
 
   const changeRange = (range: TimeRange) => {
@@ -306,11 +343,12 @@ export function App() {
 
         <section className={styles.workspace}>
           <GraphCanvas
-            centerId={centerId}
+            centerId={requestedCenterId}
             introStarted={introStarted}
             timeRange={timeRange}
             onReady={() => setGraphReady(true)}
             onSelect={selectNode}
+            onTransitionComplete={finishNodeTransition}
           />
 
           <div className={styles.controls}>

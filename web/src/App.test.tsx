@@ -11,13 +11,17 @@ import { App } from "./App";
 
 vi.mock("./GraphCanvas", () => ({
   GraphCanvas: ({
+    centerId,
     introStarted,
     onReady,
     onSelect,
+    onTransitionComplete,
   }: {
+    centerId: string;
     introStarted: boolean;
     onReady: () => void;
     onSelect: (nodeId: string) => void;
+    onTransitionComplete: (nodeId: string) => void;
   }) => (
     <section aria-label="동적 지식맵">
       <button type="button" onClick={() => onSelect("isolated")}>
@@ -26,10 +30,18 @@ vi.mock("./GraphCanvas", () => ({
       <button type="button" onClick={onReady}>
         그래프 준비 완료
       </button>
+      <button type="button" onClick={() => onTransitionComplete(centerId)}>
+        중심 전환 완료
+      </button>
+      <span>{`요청 중심: ${centerId}`}</span>
       {introStarted && <span>초기 확대 시작</span>}
     </section>
   ),
 }));
+
+function completeTransition() {
+  fireEvent.click(screen.getByRole("button", { name: "중심 전환 완료" }));
+}
 
 describe("desktop exploration", () => {
   beforeEach(() => {
@@ -73,6 +85,12 @@ describe("desktop exploration", () => {
     fireEvent.change(search, { target: { value: "미연결" } });
     fireEvent.keyDown(search, { key: "Enter" });
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "SK하이닉스",
+    );
+    expect(screen.getByText("요청 중심: isolated")).toBeTruthy();
+    expect(window.location.search).toContain("center=sk");
+    completeTransition();
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
       "미연결 공개 기술",
     );
     expect(screen.getByText("현재 공개된 Relation이 없습니다.")).toBeTruthy();
@@ -99,13 +117,16 @@ describe("desktop exploration", () => {
   it("외부 대상 후속 질문은 중심을 옮기고 자기 대상은 중심을 유지한다", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: /SanDisk로 이동하기/ }));
+    completeTransition();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
       "SanDisk",
     );
     fireEvent.click(
       screen.getByRole("button", { name: /SK하이닉스로 이동하기/ }),
     );
+    completeTransition();
     fireEvent.click(screen.getByRole("button", { name: "김천성" }));
+    completeTransition();
     fireEvent.click(
       screen.getByRole("button", { name: /현재 근거를 더 확인하기/ }),
     );
@@ -131,6 +152,7 @@ describe("desktop exploration", () => {
   it("최근 탐색 경로에서 이전 node로 돌아가면 이후 경로를 제거한다", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "관계없는 node 선택" }));
+    completeTransition();
 
     const trail = screen.getByRole("navigation", { name: "최근 탐색 경로" });
     expect(within(trail).getAllByRole("listitem")).toHaveLength(2);
@@ -143,6 +165,7 @@ describe("desktop exploration", () => {
         name: "탐색 경로에서 SK하이닉스 선택",
       }),
     );
+    completeTransition();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
       "SK하이닉스",
     );
@@ -153,10 +176,15 @@ describe("desktop exploration", () => {
   it("최근 탐색 경로는 현재 node를 포함해 네 개까지만 유지한다", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: /SanDisk로 이동하기/ }));
+    completeTransition();
     fireEvent.click(screen.getByRole("button", { name: "SK하이닉스" }));
+    completeTransition();
     fireEvent.click(screen.getByRole("button", { name: "김천성" }));
+    completeTransition();
     fireEvent.click(screen.getByRole("button", { name: "SK하이닉스" }));
+    completeTransition();
     fireEvent.click(screen.getByRole("button", { name: "강욱성" }));
+    completeTransition();
 
     const trail = screen.getByRole("navigation", { name: "최근 탐색 경로" });
     expect(within(trail).getAllByRole("listitem")).toHaveLength(4);
@@ -186,6 +214,7 @@ describe("desktop exploration", () => {
   it("인사이트가 없는 node에는 준비되지 않은 상태를 표시한다", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "관계없는 node 선택" }));
+    completeTransition();
     fireEvent.click(screen.getByRole("tab", { name: "인사이트" }));
     expect(
       screen.getByText("이 node의 종합 분석 데모는 아직 준비되지 않았습니다."),

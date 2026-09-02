@@ -34,6 +34,7 @@ interface GraphCanvasProps {
   timeRange: TimeRange;
   introStarted: boolean;
   onSelect: (nodeId: string) => void;
+  onTransitionComplete: (nodeId: string) => void;
   onReady: () => void;
 }
 
@@ -109,13 +110,13 @@ const nodeStyles: Record<NodeTier, NodeStyle> = {
     colorScale: 0.86,
   },
   twoHop: {
-    opacity: 0.66,
-    emission: 0.72,
-    haloOpacity: 0.1,
-    haloFactor: 4.2,
+    opacity: 0.9,
+    emission: 1.05,
+    haloOpacity: 0.19,
+    haloFactor: 4.6,
     shellOpacity: 0,
     labelOpacity: 0.3,
-    colorScale: 0.68,
+    colorScale: 0.86,
   },
   ambient: {
     opacity: 0.48,
@@ -379,6 +380,10 @@ function easeInOutCubic(value: number): number {
     : 1 - (-2 * value + 2) ** 3 / 2;
 }
 
+function endpointId(endpoint: string | RuntimeNode): string {
+  return typeof endpoint === "string" ? endpoint : endpoint.id;
+}
+
 function depthTargetForNode(node: RuntimeNode): number {
   let hash = 0;
   for (const character of node.id)
@@ -391,6 +396,7 @@ export function GraphCanvas({
   timeRange,
   introStarted,
   onSelect,
+  onTransitionComplete,
   onReady,
 }: GraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -405,7 +411,9 @@ export function GraphCanvas({
   const previousCenterRef = useRef(centerId);
   const timeRangeRef = useRef(timeRange);
   const onSelectRef = useRef(onSelect);
+  const onTransitionCompleteRef = useRef(onTransitionComplete);
   const onReadyRef = useRef(onReady);
+  const focusPathRef = useRef<(nodeId: string | null) => void>(() => {});
   const dataInitializedRef = useRef(false);
   const readyRef = useRef(false);
   const introCompletedRef = useRef(false);
@@ -418,6 +426,10 @@ export function GraphCanvas({
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+
+  useEffect(() => {
+    onTransitionCompleteRef.current = onTransitionComplete;
+  }, [onTransitionComplete]);
 
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -461,41 +473,8 @@ export function GraphCanvas({
         updateLinkPosition(object, coordinates.start, coordinates.end),
       )
       .onNodeClick((node) => onSelectRef.current(node.id))
-      .onNodeHover((node, previous) => {
-        if (hoverAnimationRef.current !== null)
-          cancelAnimationFrame(hoverAnimationRef.current);
-        const targets = [previous, node].filter((item): item is RuntimeNode =>
-          Boolean(item),
-        );
-        const starts = targets.map((item) => {
-          const visual = nodeVisualsRef.current.get(item.id);
-          return {
-            item,
-            visual,
-            from: visual
-              ? (visual.userData.halo.material as THREE.SpriteMaterial).opacity
-              : 0,
-            to:
-              node?.id === item.id
-                ? Math.min(0.52, nodeStyles[item.tier].haloOpacity + 0.14)
-                : nodeStyles[item.tier].haloOpacity,
-          };
-        });
-        const startedAt = performance.now();
-        const animate = (now: number) => {
-          const progress = Math.min(1, (now - startedAt) / 160);
-          const eased = 1 - (1 - progress) ** 3;
-          for (const target of starts) {
-            if (!target.visual) continue;
-            (
-              target.visual.userData.halo.material as THREE.SpriteMaterial
-            ).opacity = target.from + (target.to - target.from) * eased;
-          }
-          if (progress < 1)
-            hoverAnimationRef.current = requestAnimationFrame(animate);
-          else hoverAnimationRef.current = null;
-        };
-        hoverAnimationRef.current = requestAnimationFrame(animate);
+      .onNodeHover((node) => {
+        focusPathRef.current(node?.id ?? null);
         container.style.cursor = node ? "pointer" : "grab";
       })
       .d3AlphaDecay(0.035)
@@ -508,6 +487,63 @@ export function GraphCanvas({
         onReadyRef.current();
       })
       .cooldownTicks(180);
+
+    focusPathRef.current = (nodeId) => {
+      if (hoverAnimationRef.current !== null)
+        cancelAnimationFrame(hoverAnimationRef.current);
+      const nodeTargets = [...nodesRef.current.values()].map((item) => {
+        const visual = nodeVisualsRef.current.get(item.id);
+        return {
+          item,
+          visual,
+          from: visual
+            ? (visual.userData.halo.material as THREE.SpriteMaterial).opacity
+            : 0,
+          to:
+            nodeId === item.id
+              ? Math.min(0.52, nodeStyles[item.tier].haloOpacity + 0.14)
+              : nodeStyles[item.tier].haloOpacity,
+        };
+      });
+      const linkTargets = [...linksRef.current.values()].map((link) => {
+        const visual = linkVisualsRef.current.get(link.id);
+        const focused =
+          nodeId !== null &&
+          (endpointId(link.source) === nodeId ||
+            endpointId(link.target) === nodeId);
+        return {
+          visual,
+          from: visual?.userData.opacity ?? 0,
+          to: focused
+            ? link.tier === "ambient"
+              ? 0.66
+              : 0.9
+            : relationOpacity[link.tier],
+        };
+      });
+      const startedAt = performance.now();
+      const animate = (now: number) => {
+        const progress = Math.min(1, (now - startedAt) / 160);
+        const eased = 1 - (1 - progress) ** 3;
+        for (const target of nodeTargets) {
+          if (!target.visual) continue;
+          (
+            target.visual.userData.halo.material as THREE.SpriteMaterial
+          ).opacity = target.from + (target.to - target.from) * eased;
+        }
+        for (const target of linkTargets) {
+          if (!target.visual) continue;
+          const opacity = target.from + (target.to - target.from) * eased;
+          for (const line of target.visual.userData.lines)
+            (line.material as THREE.Material).opacity = opacity;
+          target.visual.userData.opacity = opacity;
+        }
+        if (progress < 1)
+          hoverAnimationRef.current = requestAnimationFrame(animate);
+        else hoverAnimationRef.current = null;
+      };
+      hoverAnimationRef.current = requestAnimationFrame(animate);
+    };
 
     graph
       .d3Force("charge")
@@ -623,6 +659,7 @@ export function GraphCanvas({
       linksRef.current.clear();
       nodeVisualsRef.current.clear();
       linkVisualsRef.current.clear();
+      focusPathRef.current = () => {};
     };
   }, []);
 
@@ -757,11 +794,13 @@ export function GraphCanvas({
         if (progress < 1) animationRef.current = requestAnimationFrame(animate);
         else {
           animationRef.current = null;
+          previousCenterRef.current = centerId;
+          if (centerChanged && !intro)
+            onTransitionCompleteRef.current(centerId);
           setBusy(false);
         }
       };
       animationRef.current = requestAnimationFrame(animate);
-      previousCenterRef.current = centerId;
     };
 
     if (!dataInitializedRef.current) {
@@ -831,7 +870,13 @@ export function GraphCanvas({
         aria-label="탐색 가능한 node 목록"
       >
         {view.nodes.map((node) => (
-          <button key={node.id} type="button" onClick={() => onSelect(node.id)}>
+          <button
+            key={node.id}
+            type="button"
+            onClick={() => onSelect(node.id)}
+            onFocus={() => focusPathRef.current(node.id)}
+            onBlur={() => focusPathRef.current(null)}
+          >
             {node.name} · {node.kind}
           </button>
         ))}
