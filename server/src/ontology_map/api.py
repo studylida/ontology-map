@@ -12,6 +12,7 @@ from ontology_map.exploration import (
     TimeWindow,
     get_exploration,
 )
+from ontology_map.search import InvalidSearchQueryError, search_nodes
 
 router = APIRouter(prefix="/api/v1")
 
@@ -79,6 +80,17 @@ class ExplorationResponse(BaseModel):
     graph: GraphResponse
     recommendations: list[RecommendationResponse]
     followup_questions: list[FollowupQuestionResponse]
+
+
+class SearchResultResponse(BaseModel):
+    node_id: str
+    name: str
+    node_type: NodeTypeResponse
+    match_reasons: list[Literal["EXACT_ALIAS", "FULL_TEXT"]]
+
+
+class SearchResponse(BaseModel):
+    items: list[SearchResultResponse]
 
 
 class APIError(Exception):
@@ -202,4 +214,35 @@ def read_exploration(
             )
             for question in result.followup_questions
         ],
+    )
+
+
+@router.get(
+    "/nodes/search",
+    response_model=SearchResponse,
+    responses={422: {"model": ErrorResponse}},
+)
+def read_node_search(
+    q: Annotated[str, Query(min_length=1)],
+    session: Annotated[Session, Depends(open_read_session)],
+    limit: Annotated[int, Query(ge=1, le=20)] = 5,
+) -> SearchResponse:
+    try:
+        results = search_nodes(session, q, limit)
+    except InvalidSearchQueryError as error:
+        raise APIError(422, "INVALID_REQUEST", retryable=False) from error
+
+    return SearchResponse(
+        items=[
+            SearchResultResponse(
+                node_id=str(result.node.node_id),
+                name=result.node.name,
+                node_type=NodeTypeResponse(
+                    code=result.node.node_type.code,
+                    display_name=result.node.node_type.display_name,
+                ),
+                match_reasons=list(result.match_reasons),
+            )
+            for result in results
+        ]
     )
