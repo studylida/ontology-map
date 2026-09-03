@@ -12,6 +12,7 @@ from ontology_map.exploration import (
     PublicationNotReadyError,
     TimeWindow,
     get_exploration,
+    list_peripheral_nodes,
 )
 from ontology_map.pagination import InvalidCursorError
 from ontology_map.relations import (
@@ -88,6 +89,24 @@ class ExplorationResponse(BaseModel):
     graph: GraphResponse
     recommendations: list[RecommendationResponse]
     followup_questions: list[FollowupQuestionResponse]
+
+
+class PeripheralNodeResponse(BaseModel):
+    node_id: str
+    name: str
+    node_type: NodeTypeResponse
+    tier: Literal["AMBIENT"]
+    activity_evidence_group_count: int = Field(ge=0)
+
+
+class PeripheralGraphResponse(BaseModel):
+    nodes: list[PeripheralNodeResponse]
+    relations: list[GraphRelationResponse]
+
+
+class PeripheralResponse(BaseModel):
+    graph: PeripheralGraphResponse
+    next_cursor: str | None
 
 
 class SearchResultResponse(BaseModel):
@@ -269,6 +288,73 @@ def read_exploration(
             )
             for question in result.followup_questions
         ],
+    )
+
+
+@router.get(
+    "/exploration/{center_node_id}/peripheral",
+    response_model=PeripheralResponse,
+    responses={
+        404: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
+def read_peripheral_nodes(
+    center_node_id: Annotated[
+        str,
+        Path(pattern=r"^[1-9][0-9]{0,18}$"),
+    ],
+    time_window: Annotated[TimeWindow, Query()],
+    session: Annotated[Session, Depends(open_read_session)],
+    cursor: Annotated[str | None, Query(max_length=2048)] = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+) -> PeripheralResponse:
+    try:
+        result = list_peripheral_nodes(
+            session,
+            _resource_id(center_node_id),
+            time_window,
+            cursor=cursor,
+            limit=limit,
+        )
+    except InvalidCursorError as error:
+        raise APIError(422, "INVALID_REQUEST", retryable=False) from error
+    except ExplorationNotFoundError as error:
+        raise APIError(404, "NODE_NOT_FOUND", retryable=False) from error
+    except PublicationNotReadyError as error:
+        raise APIError(503, "PUBLICATION_NOT_READY", retryable=True) from error
+
+    return PeripheralResponse(
+        graph=PeripheralGraphResponse(
+            nodes=[
+                PeripheralNodeResponse(
+                    node_id=str(node.node_id),
+                    name=node.name,
+                    node_type=NodeTypeResponse(
+                        code=node.node_type.code,
+                        display_name=node.node_type.display_name,
+                    ),
+                    tier="AMBIENT",
+                    activity_evidence_group_count=node.activity_evidence_group_count,
+                )
+                for node in result.graph.nodes
+            ],
+            relations=[
+                GraphRelationResponse(
+                    relation_id=str(relation.relation_id),
+                    source_node_id=str(relation.source_node_id),
+                    target_node_id=str(relation.target_node_id),
+                    relation_type_display_name=relation.relation_type_display_name,
+                    supporting_evidence_group_count=(
+                        relation.supporting_evidence_group_count
+                    ),
+                    has_conflict=relation.has_conflict,
+                )
+                for relation in result.graph.relations
+            ],
+        ),
+        next_cursor=result.next_cursor,
     )
 
 

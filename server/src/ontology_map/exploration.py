@@ -13,7 +13,9 @@ from ontology_map.db.exploration import (
     list_adjacencies,
     list_ambient_nodes,
     list_followups,
+    list_peripheral_node_rows,
 )
+from ontology_map.pagination import InvalidCursorError, decode_cursor, encode_cursor
 
 MAX_DIRECT_NODES = 12
 MAX_TWO_HOP_NODES = 18
@@ -98,6 +100,12 @@ class Exploration:
     graph: Graph
     recommendations: list[Recommendation]
     followup_questions: list[FollowupQuestion]
+
+
+@dataclass(frozen=True)
+class PeripheralPage:
+    graph: Graph
+    next_cursor: str | None
 
 
 @dataclass
@@ -435,4 +443,126 @@ def get_exploration(
             )
             for followup in followups
         ],
+    )
+
+
+def _peripheral_position(
+    cursor: str | None,
+    center_node_id: int,
+    time_window: TimeWindow,
+) -> int:
+    if cursor is None:
+        return 0
+    values = decode_cursor(
+        cursor,
+        kind="exploration_peripheral",
+        scope={
+            "center_node_id": center_node_id,
+            "time_window": time_window.value,
+        },
+    )
+    if len(values) != 1 or type(values[0]) is not int or values[0] <= 0:
+        raise InvalidCursorError
+    return values[0]
+
+
+def _connects_page_to_active(
+    relation: _Relation,
+    page_node_ids: set[int],
+    active_node_ids: set[int],
+) -> bool:
+    return (
+        relation.source_node_id in page_node_ids
+        and relation.target_node_id in active_node_ids
+    ) or (
+        relation.target_node_id in page_node_ids
+        and relation.source_node_id in active_node_ids
+    )
+
+
+def list_peripheral_nodes(
+    session: Session,
+    center_node_id: int,
+    time_window: TimeWindow,
+    *,
+    cursor: str | None,
+    limit: int,
+    now: datetime | None = None,
+) -> PeripheralPage:
+    after_node_id = _peripheral_position(cursor, center_node_id, time_window)
+    end_at = now or datetime.now(UTC)
+    start_at = time_window.start_at(end_at)
+
+    # ponytail: 같은 선택 규칙을 재사용한다.
+    # 조회 비용이 문제가 되면 활성 graph 계산만 분리한다.
+    active_graph = get_exploration(
+        session,
+        center_node_id,
+        time_window,
+        now=end_at,
+    ).graph
+    active_node_ids = {node.node_id for node in active_graph.nodes}
+    rows = list_peripheral_node_rows(
+        session,
+        sorted(active_node_ids),
+        start_at,
+        end_at,
+        after_node_id,
+        limit + 1,
+    )
+    page_rows = rows[:limit]
+    page_node_ids = {node.node_id for node, _activity_count in page_rows}
+    selected_node_ids = active_node_ids | page_node_ids
+    relations = _collect_relations(
+        list_adjacencies(session, sorted(selected_node_ids)),
+        selected_node_ids,
+    )
+    page_relations = sorted(
+        (
+            relation
+            for relation in relations.values()
+            if _connects_page_to_active(
+                relation,
+                page_node_ids,
+                active_node_ids,
+            )
+        ),
+        key=lambda relation: relation.relation_id,
+    )
+    next_cursor = None
+    if len(rows) > limit:
+        next_cursor = encode_cursor(
+            "exploration_peripheral",
+            {
+                "center_node_id": center_node_id,
+                "time_window": time_window.value,
+            },
+            [page_rows[-1][0].node_id],
+        )
+
+    return PeripheralPage(
+        graph=Graph(
+            nodes=[
+                GraphNode(
+                    node_id=node.node_id,
+                    name=node.name,
+                    node_type=_node_type(node),
+                    tier="AMBIENT",
+                    activity_evidence_group_count=activity_count,
+                )
+                for node, activity_count in page_rows
+            ],
+            relations=[
+                GraphRelation(
+                    relation_id=relation.relation_id,
+                    source_node_id=relation.source_node_id,
+                    target_node_id=relation.target_node_id,
+                    relation_type_display_name=relation.relation_type_display_name,
+                    supporting_evidence_group_count=len(relation.evidence_group_ids),
+                    has_conflict=relation.has_conflict,
+                )
+                for relation in page_relations
+            ],
+        ),
+        next_cursor=next_cursor,
     )
