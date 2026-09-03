@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./App.module.css";
 import { DetailPanel } from "./DetailPanel";
 import {
-  ExplorationRequestError,
+  APIRequestError,
   type ExplorationView,
   fetchExploration,
   type KnowledgeNode,
   type TimeRange,
 } from "./data";
 import { GraphCanvas } from "./GraphCanvas";
+import { NodeSearch } from "./NodeSearch";
 
 interface LocationState {
   centerId: string | null;
@@ -62,7 +63,7 @@ function writeLocation(
   );
 }
 
-function errorCopy(error: ExplorationRequestError | null): {
+function errorCopy(error: APIRequestError | null): {
   title: string;
   detail: string;
 } {
@@ -209,7 +210,7 @@ function LoadNotice({
 }: {
   status: LoadStatus;
   hasView: boolean;
-  error: ExplorationRequestError | null;
+  error: APIRequestError | null;
   onRetry: () => void;
 }) {
   const copy = errorCopy(error);
@@ -262,8 +263,9 @@ export function App() {
   const [legendOpen, setLegendOpen] = useState(false);
   const [graphReady, setGraphReady] = useState(false);
   const [status, setStatus] = useState<LoadStatus>("loading");
-  const [requestError, setRequestError] =
-    useState<ExplorationRequestError | null>(null);
+  const [requestError, setRequestError] = useState<APIRequestError | null>(
+    null,
+  );
   const [announcement, setAnnouncement] = useState(
     "탐색 데이터를 불러오는 중입니다.",
   );
@@ -352,9 +354,9 @@ export function App() {
       } catch (error) {
         if (controller.signal.aborted) return;
         const normalized =
-          error instanceof Error && "code" in error
-            ? (error as ExplorationRequestError)
-            : new ExplorationRequestError("NETWORK_ERROR", 0, true);
+          error instanceof APIRequestError
+            ? error
+            : new APIRequestError("NETWORK_ERROR", 0, true);
         setRequestError(normalized);
         setStatus("error");
       }
@@ -370,9 +372,7 @@ export function App() {
         navigation: null,
       });
     } else {
-      setRequestError(
-        new ExplorationRequestError("MISSING_DEFAULT_CENTER", 0, false),
-      );
+      setRequestError(new APIRequestError("MISSING_DEFAULT_CENTER", 0, false));
       setStatus("error");
     }
 
@@ -454,14 +454,7 @@ export function App() {
             <>
               <div className={styles.controls}>
                 <label htmlFor="node-search">노드 검색</label>
-                <div className={styles.searchBox}>
-                  <input
-                    id="node-search"
-                    type="search"
-                    disabled
-                    placeholder="검색 API 준비 중"
-                  />
-                </div>
+                <NodeSearch onSelect={selectNode} />
                 <div className={styles.scopeSummary}>
                   <span>현재 지도</span>
                   <strong>
