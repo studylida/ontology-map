@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request
@@ -11,6 +12,13 @@ from ontology_map.exploration import (
     PublicationNotReadyError,
     TimeWindow,
     get_exploration,
+)
+from ontology_map.pagination import InvalidCursorError
+from ontology_map.relations import (
+    NodeRelationsNotFoundError,
+    RelationEvidenceNotFoundError,
+    list_node_relations,
+    list_relation_evidence,
 )
 from ontology_map.search import InvalidSearchQueryError, search_nodes
 
@@ -93,6 +101,53 @@ class SearchResponse(BaseModel):
     items: list[SearchResultResponse]
 
 
+class RelatedNodeResponse(BaseModel):
+    node_id: str
+    name: str
+    node_type: NodeTypeResponse
+
+
+class NodeRelationResponse(BaseModel):
+    relation_id: str
+    other_node: RelatedNodeResponse
+    relation_type_display_name: str
+    supporting_evidence_group_count: int = Field(ge=1)
+    has_conflict: bool
+
+
+class NodeRelationsResponse(BaseModel):
+    items: list[NodeRelationResponse]
+    next_cursor: str | None
+
+
+class EvidenceSourceResponse(BaseModel):
+    title: str
+    publisher_name: str
+    published_at: datetime | None
+    published_precision: Literal["INSTANT", "DAY", "MONTH", "YEAR", "UNKNOWN"]
+    canonical_url: str
+
+
+class EvidenceLocatorResponse(BaseModel):
+    paragraph_number: int | None = Field(default=None, ge=1)
+    start_char: int = Field(ge=0)
+    end_char: int = Field(ge=1)
+
+
+class RelationEvidenceResponse(BaseModel):
+    claim_text: str
+    stance: Literal["SUPPORT", "DISPUTE"]
+    source: EvidenceSourceResponse
+    quote_text: str
+    locator: EvidenceLocatorResponse
+
+
+class RelationEvidencePageResponse(BaseModel):
+    items: list[RelationEvidenceResponse]
+    trace_count: int = Field(ge=0)
+    next_cursor: str | None
+
+
 class APIError(Exception):
     def __init__(self, status_code: int, code: str, *, retryable: bool) -> None:
         self.status_code = status_code
@@ -118,11 +173,11 @@ async def validation_error_handler(
     )
 
 
-def _node_id(value: str) -> int:
-    node_id = int(value)
-    if node_id > _MAX_BIGINT:
+def _resource_id(value: str) -> int:
+    resource_id = int(value)
+    if resource_id > _MAX_BIGINT:
         raise APIError(422, "INVALID_REQUEST", retryable=False)
-    return node_id
+    return resource_id
 
 
 @router.get(
@@ -145,7 +200,7 @@ def read_exploration(
     try:
         result = get_exploration(
             session,
-            _node_id(center_node_id),
+            _resource_id(center_node_id),
             time_window,
         )
     except ExplorationNotFoundError as error:
@@ -245,4 +300,107 @@ def read_node_search(
             )
             for result in results
         ]
+    )
+
+
+@router.get(
+    "/nodes/{node_id}/relations",
+    response_model=NodeRelationsResponse,
+    responses={
+        404: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
+def read_node_relations(
+    node_id: Annotated[str, Path(pattern=r"^[1-9][0-9]{0,18}$")],
+    session: Annotated[Session, Depends(open_read_session)],
+    cursor: Annotated[str | None, Query(max_length=2048)] = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+) -> NodeRelationsResponse:
+    try:
+        result = list_node_relations(
+            session,
+            _resource_id(node_id),
+            cursor=cursor,
+            limit=limit,
+        )
+    except InvalidCursorError as error:
+        raise APIError(422, "INVALID_REQUEST", retryable=False) from error
+    except NodeRelationsNotFoundError as error:
+        raise APIError(404, "NODE_NOT_FOUND", retryable=False) from error
+    except PublicationNotReadyError as error:
+        raise APIError(503, "PUBLICATION_NOT_READY", retryable=True) from error
+
+    return NodeRelationsResponse(
+        items=[
+            NodeRelationResponse(
+                relation_id=str(item.relation_id),
+                other_node=RelatedNodeResponse(
+                    node_id=str(item.other_node.node_id),
+                    name=item.other_node.name,
+                    node_type=NodeTypeResponse(
+                        code=item.other_node.node_type.code,
+                        display_name=item.other_node.node_type.display_name,
+                    ),
+                ),
+                relation_type_display_name=item.relation_type_display_name,
+                supporting_evidence_group_count=(item.supporting_evidence_group_count),
+                has_conflict=item.has_conflict,
+            )
+            for item in result.items
+        ],
+        next_cursor=result.next_cursor,
+    )
+
+
+@router.get(
+    "/relations/{relation_id}/evidence",
+    response_model=RelationEvidencePageResponse,
+    responses={
+        404: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+    },
+)
+def read_relation_evidence(
+    relation_id: Annotated[str, Path(pattern=r"^[1-9][0-9]{0,18}$")],
+    session: Annotated[Session, Depends(open_read_session)],
+    cursor: Annotated[str | None, Query(max_length=2048)] = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 10,
+) -> RelationEvidencePageResponse:
+    try:
+        result = list_relation_evidence(
+            session,
+            _resource_id(relation_id),
+            cursor=cursor,
+            limit=limit,
+        )
+    except InvalidCursorError as error:
+        raise APIError(422, "INVALID_REQUEST", retryable=False) from error
+    except RelationEvidenceNotFoundError as error:
+        raise APIError(404, "RELATION_NOT_FOUND", retryable=False) from error
+
+    return RelationEvidencePageResponse(
+        items=[
+            RelationEvidenceResponse(
+                claim_text=item.claim_text,
+                stance=item.stance,
+                source=EvidenceSourceResponse(
+                    title=item.source.title,
+                    publisher_name=item.source.publisher_name,
+                    published_at=item.source.published_at,
+                    published_precision=item.source.published_precision,
+                    canonical_url=item.source.canonical_url,
+                ),
+                quote_text=item.quote_text,
+                locator=EvidenceLocatorResponse(
+                    paragraph_number=item.locator.paragraph_number,
+                    start_char=item.locator.start_char,
+                    end_char=item.locator.end_char,
+                ),
+            )
+            for item in result.items
+        ],
+        trace_count=result.trace_count,
+        next_cursor=result.next_cursor,
     )
