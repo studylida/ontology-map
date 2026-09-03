@@ -4,7 +4,7 @@
 
 - 관련 Issue: #91
 - 제품 기능: #68
-- 기준 논리 모델: [`logical-data-schema.md`](../logical-data-schema.md)
+- 기준 논리 모델: [`logical-data-schema.md`](../../logical-data-schema.md)
 - 상태: Logical Schema v1.2에 추가되는 승인 확장
 - 범위: `node_insight`, `node_insight_claim`, 모델 작업과 공개 선택의 논리 계약
 

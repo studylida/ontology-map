@@ -2,15 +2,15 @@
 
 > 상태: Logical Schema v1.2 — Frozen
 >
-> 변경 기준일: 2026-09-02
+> 변경 기준일: 2026-09-03
 >
-> 관련 변경: Issue #69, #41
+> 관련 변경: Issue #41, #69, #91
 >
 > 제품 기준: 공개 자료를 근거와 시간축이 있는 지식그래프로 축적하고, 검색한 노드를 중심으로 탐색하는 HBF POC
 
 ## 1. 목적과 경계
 
-이 문서는 제품 의미, 논리 엔터티, 참조 관계, 카디널리티, 수명주기와 무결성 책임을 정의한다. PostgreSQL 자료형·DDL·migration·인덱스 표현식과 API는 `physical-data-schema.md`, `physical-schema/`와 후속 구현 Issue에서 정한다.
+이 문서는 제품 의미, 논리 엔터티, 참조 관계, 카디널리티, 수명주기와 무결성 책임을 정의한다. PostgreSQL 자료형·DDL·migration과 인덱스 표현식은 [physical-data-schema.md](physical-data-schema.md), HTTP 표현과 현재 구현 상태는 [DESIGN.md](DESIGN.md)와 [implementation-stack.md](implementation-stack.md)에서 정한다.
 
 Logical Schema v1.2는 다음 원칙을 고정한다.
 
@@ -33,7 +33,7 @@ Logical Schema v1.2는 다음 원칙을 고정한다.
 → 버전이 고정된 Structured Output 계약으로 모델 작업 실행
 → 메모리에서 계약·원문 위치·온톨로지·동일 대상·중복·lint 검사
 → 통과한 결과만 짧은 트랜잭션으로 기준 지식그래프에 승격
-→ 검색 문서·임베딩·한국어 맥락·후속 질문 생성
+→ 검색 문서·임베딩·한국어 맥락·후속 질문·인사이트 생성
 → 영향받은 노드의 공개 준비를 원자적으로 READY 전환
 → 검색·클릭·시간 범위 변경 시 동적 부분 그래프 조회
 ```
@@ -128,9 +128,14 @@ erDiagram
     NODE_SEARCH_DOCUMENT ||--o{ NODE_EMBEDDING : input_to
     NODE_SEARCH_DOCUMENT ||--o{ NODE_CONTEXT : input_to
     NODE_CONTEXT ||--|{ FOLLOWUP_QUESTION : contains
+    NODE_SEARCH_DOCUMENT ||--o{ NODE_INSIGHT : input_scope
+    NODE_INSIGHT ||--|{ NODE_INSIGHT_CLAIM : grounded_by
+    CLAIM ||--o{ NODE_INSIGHT_CLAIM : supports
     MODEL_TASK ||--o{ NODE_EMBEDDING : creates
     MODEL_TASK ||--o{ NODE_CONTEXT : creates
     MODEL_TASK ||--o{ FOLLOWUP_QUESTION : creates
+    MODEL_TASK ||--o{ NODE_INSIGHT : creates
+    MODEL_TASK ||--o{ PUBLICATION_AFFECTED_NODE : selects_insight_task
 ```
 
 ## 4. 공통 표준
@@ -235,6 +240,8 @@ erDiagram
 | `attempt_count`, `next_attempt_at` | 실제 호출 수와 다음 실행 시점 |
 | `lease_owner`, `lease_expires_at` | 동시 실행 방지 lease |
 | `created_at`, `finished_at` | 생성·종료 시각 |
+
+허용 작업은 `KNOWLEDGE_EXTRACTION`, `ENTITY_RESOLUTION_PROPOSAL`, `EVIDENCE_LINEAGE_PROPOSAL`, `CONFLICT_SUMMARY`, `NODE_CONTEXT`, `FOLLOWUP_QUESTIONS`, `NODE_INSIGHT`와 schema가 없는 `EMBEDDING`이다.
 
 캐시 적중은 호출 횟수를 늘리지 않는다. `SUCCESS`는 결과가 영속 저장소에 연결되었거나 유효 응답에 관련 후보가 없다는 뜻이다.
 
@@ -346,14 +353,49 @@ Claim이 노드의 구조화 속성을 주장하는 tagged union이다. 공통 �
 
 ### 5.10 검색과 공개 파생 결과
 
-- `publication_affected_node`: `(promotion_batch_id, node_id)`와 선택된 검색 문서·임베딩·맥락 설명
+- `publication_affected_node`: `(promotion_batch_id, node_id)`와 선택된 `node_search_document_id`, `node_embedding_id`, `node_context_id`, `node_insight_model_task_id`
 - `node_search_document`: `node_id`, `identity_text`, `knowledge_text`, `input_hash`, `generator_version`, `created_at`
 - `search_document_basis`: 검색 문서가 사용한 공개 `knowledge_item`
 - `node_embedding`: 정확한 검색 문서와 성공한 embedding 작업에서 만든 불변 벡터
 - `node_context`: 검색 문서에서 만든 한국어 설명
 - `followup_question`: context마다 slot 1·2의 질문과 필수 `target_node_id`
 
-모든 영향 노드의 필수 결과와 질문 두 개가 준비되고 공개 조건을 통과해야 batch를 `READY`로 바꿀 수 있다.
+모든 영향 노드의 필수 결과, 질문 두 개와 성공한 `NODE_INSIGHT` 작업이 준비되고 공개 조건을 통과해야 batch를 `READY`로 바꿀 수 있다. 한 인사이트 작업은 같은 node와 검색 문서를 대상으로 90일과 1년 범위를 함께 처리한다.
+
+### 5.11 node 인사이트
+
+`node_insight`는 한 node의 한 공개 검색 문서와 한 `NODE_INSIGHT` 모델 작업에서 생성한 제목 있는 불변 분석 리포트다. `node_context`의 일반 맥락 설명이나 `followup_question`을 대체하지 않는다.
+
+| 필드 | 의미 |
+|---|---|
+| `node_insight_id` | 불변 인사이트 ID |
+| `node_id` | 중심 node |
+| `node_search_document_id` | 생성 입력의 공개 지식 범위 |
+| `model_task_id` | 두 시간 범위를 함께 처리한 성공 작업 |
+| `time_window` | `RECENT_90_DAYS | RECENT_1_YEAR` |
+| `as_of_at` | 상대 기간 계산 기준 시각 |
+| `slot` | 같은 작업·시간 범위의 표시 순서 1–3 |
+| `title` | 목록 제목 |
+| `summary_text` | 짧은 요약 |
+| `synthesis_text` | 여러 Claim과 Relation을 종합한 모델 해석 |
+| `caveat_text` | 근거 한계와 주의점 |
+| `created_at` | 불변 결과 생성 시각 |
+
+`node_insight_claim`은 인사이트가 실제로 사용한 기존 Claim을 `KEY_CLAIM | SUPPORTING_CLAIM | CONTRASTING_CLAIM` 역할과 표시 순서로 연결한다. 한 인사이트에는 Claim과 `KEY_CLAIM`이 각각 최소 한 건 필요하며 Claim 문장, Relation과 원문을 복사한 별도 사실 행을 만들지 않는다.
+
+```text
+node_insight
+→ node_insight_claim
+→ claim
+→ claim_observation
+→ observation
+→ source_document
+→ evidence_group
+```
+
+목록의 근거 수는 저장하지 않고 선택 시간 범위의 `COUNT(DISTINCT source_document.evidence_group_id)`로 계산한다. 근거가 부족한 범위는 `SUCCESS` 작업과 0개 행으로 표현하며 빈 문자열이나 `NO_RESULT` 가짜 인사이트를 만들지 않는다.
+
+basis Claim 하나가 보류·거절되거나 열린 `BLOCKING` lint finding을 가지면 해당 Claim만 빼고 기존 모델 문장을 계속 사용하지 않는다. 관련 인사이트 전체를 read-time에서 숨기고 새 검색 문서와 작업으로 재생성한다. 실패한 새 작업은 기준 지식을 되돌리지 않으며 이전 READY 인사이트를 계속 제공한다.
 
 ## 6. 수명주기
 
@@ -415,13 +457,13 @@ publication_status: NOT_STARTED → PREPARING → READY
 - 관계의 관측 가능한 지지 Claim, 노드·사건의 최소 근거
 - 서로 다른 시간 정밀도의 기간 비교
 - 상태 이벤트와 현재 상태의 동시 갱신
-- 충돌 snapshot 생성과 READY 완결성
+- 충돌 snapshot 생성과 검색·임베딩·맥락·질문·인사이트의 READY 완결성
 
 같은 교차 행 규칙을 DB custom trigger와 서비스 양쪽에 중복 구현하지 않는다.
 
 ## 8. 동적 지도와 검색 계약
 
-- 지도 입력: `center_node_id`, `recent_90_days | recent_1_year`
+- 지도 입력: `center_node_id`, `RECENT_90_DAYS | RECENT_1_YEAR`
 - 90일·1년은 지도 표시 프리셋이며 데이터 보존 상한이 아니다.
 - 중심 1개, 직접 이웃 최대 12개, 중요한 2단계 이웃 최대 18개, 관계선 최대 60개
 - 이웃 정렬: 지지 독립 근거 수 내림차순 → 선택 기간 활동량 내림차순 → 내부 ID 오름차순
@@ -430,10 +472,10 @@ publication_status: NOT_STARTED → PREPARING → READY
 - 충돌 관계: 호박색 점선
 - 중심 강조·active/peripheral 밝기와 opacity: UI 상태이며 DB 비영속
 - 오래됨: 지도 감쇠로 표현하지 않고 상세 패널의 마지막 근거 게시일과 Evidence Trace에서 확인
-- 검색·상세 패널·Evidence Trace는 보존된 전체 이력을 조회할 수 있음
+- 일반 사용자 검색·상세 패널·Evidence Trace는 현재 공개 가능한 READY 범위만 조회하며 내부 이력은 삭제하지 않고 보존함
 - 좌표·카메라·viewport·지도 snapshot은 저장하지 않음
 
-검색은 alias 정확 일치를 먼저 반환하고 전문 검색·벡터 검색 결과를 각각 최대 50개 구한 뒤 `k = 60` RRF로 결합한다. 한 branch 실패 시 다른 결과를 제공한다. 벡터 유사도는 검색 순위에만 사용한다.
+검색은 alias 정확 일치를 먼저 반환하고 전문 검색·벡터 검색 결과를 각각 최대 50개 구한 뒤 `k = 60` RRF로 결합한다. 한 branch 실패 시 다른 결과를 제공한다. 벡터 유사도는 검색 순위에만 사용한다. 현재 HTTP 구현은 alias와 `simple` FTS까지이며 vector·RRF 구현은 #117에 남아 있다.
 
 ## 9. HBF 검증 흐름
 
@@ -444,7 +486,7 @@ evidence_group
 → 원자적 Claim
 → 사건 endpoint 관계 / 구조화 목표 날짜 / 사건 시간
 → promotion_batch COMMITTED
-→ 검색 문서·embedding·context·질문
+→ 검색 문서·embedding·context·질문·인사이트
 → publication READY
 → SK하이닉스 또는 HBF 발표 사건 중심의 동적 지도
 ```
@@ -475,7 +517,7 @@ evidence_group
 - 지도 좌표·구성원·전역 graph/map version·`display_rule_version`
 - 클릭 시 LLM 호출, 별도 검색 DB와 조기 근사 벡터 인덱스
 - POC 자동 삭제·retention 작업
-- PostgreSQL DDL, migration, API와 UI 구현
+- PostgreSQL DDL, migration, HTTP DTO와 UI의 구현 세부사항
 
 ## 11. 선택의 trade-off와 되돌리기
 

@@ -3,13 +3,13 @@
 ## 문서 상태
 
 - 상태: 승인된 구현 기준
-- 확인일: 2026-09-01
-- 관련 Issue: #8
+- 확인일: 2026-09-03
+- 관련 Issue: #8, #95–#100
 - 구현 스택: [implementation-stack.md](implementation-stack.md)
 - Git 규칙: [CONTRIBUTING.md](CONTRIBUTING.md)
-- PostgreSQL 물리 규칙: Issue #40
+- PostgreSQL 물리 규칙: [physical-data-schema.md](physical-data-schema.md)
 
-이 문서는 ontology-map의 TypeScript·React·CSS와 Python·FastAPI·SQLAlchemy·LangChain·Alembic 코드에 적용할 최소 규칙을 정한다. `web/`에는 Issue #67의 React POC와 실행 가능한 manifest·도구 설정이 있다. server 코드, DDL과 migration은 아직 없으며 해당 구현을 시작할 때 같은 규칙을 적용한다.
+이 문서는 ontology-map의 TypeScript·React·CSS와 Python·FastAPI·SQLAlchemy·Alembic 코드에 적용할 최소 규칙을 정한다. `web/`에는 실제 FastAPI adapter를 사용하는 React 화면이 있고 `server/`에는 읽기 API, SQLAlchemy query, frozen schema migration과 개발 fixture가 있다. agent/worker는 아직 구현되지 않았으므로 해당 절은 구현할 때 지킬 경계만 정한다.
 
 ## 공통 원칙
 
@@ -30,15 +30,19 @@ ontology-map/
     ├── migrations/
     └── src/
         └── ontology_map/
-            ├── api/
-            ├── agent/
+            ├── main.py
+            ├── api.py
+            ├── exploration.py
+            ├── search.py
+            ├── relations.py
+            ├── pagination.py
             └── db/
 ```
 
 - `web/src/`에는 앱 진입점과 실제 기능 코드를 둔다. 기능별 디렉터리는 그 기능에 코드가 두 개 이상 생길 때 만들고, 컴포넌트·CSS Module·테스트는 사용하는 기능 가까이에 둔다.
 - `web/src/shared/`나 공통 component 디렉터리는 서로 다른 기능에서 실제로 재사용하는 코드가 생긴 뒤에만 만든다.
-- `api`는 HTTP 요청·응답 검증과 오류 변환을 담당한다. `agent`는 모델 계약과 실행을 담당하고 `db`는 연결·transaction·영속성을 담당한다.
-- `db`는 `api`나 `agent`를 import하지 않는다. `agent`는 `api`를 import하지 않는다. API와 worker 진입점이 필요한 `agent`와 `db` 작업을 조합한다.
+- `api.py`는 HTTP 요청·응답 검증과 오류 변환만 담당한다. top-level 기능 모듈은 application-service 함수로 use case를 조합하고 `db/`는 연결, query와 영속성을 담당한다.
+- `db/`는 `api.py`나 application-service 모듈을 import하지 않는다. API와 향후 worker 진입점이 필요한 query와 model 작업을 조합한다.
 - 단일 구현을 감싸는 service, repository interface나 범용 base class는 만들지 않는다. 실제 책임이 겹칠 때 가장 가까운 기능에서 분리한다.
 
 ## TypeScript와 React
@@ -69,7 +73,7 @@ ontology-map/
 ## CSS
 
 - 컴포넌트 스타일은 `Component.module.css`를 사용한다. 전역 CSS는 reset, 디자인 토큰과 기본 요소 스타일에만 사용한다.
-- 색, 간격, typography와 상태 표현은 후속 `DESIGN.md`가 추가된 뒤 그 문서의 토큰을 따른다. 임의의 비슷한 색이나 간격을 컴포넌트마다 새로 만들지 않는다.
+- 색, 간격, typography와 상태 표현은 [DESIGN.md](DESIGN.md)의 token을 따른다. 임의의 비슷한 색이나 간격을 컴포넌트마다 새로 만들지 않는다.
 - layout은 CSS Grid와 Flexbox를 우선하고, DOM 측정이나 JavaScript 배치는 3D graph canvas처럼 CSS로 해결할 수 없는 경우에만 사용한다.
 - hover만으로 의미를 전달하지 않는다. focus-visible, reduced-motion, text contrast와 최소 44px 조작 영역을 기본으로 유지한다.
 - CSS-in-JS, utility CSS framework와 별도 reset package는 승인된 요구가 생기기 전에는 추가하지 않는다.
@@ -93,6 +97,8 @@ ontology-map/
 - N+1 query를 감추기 위한 범용 repository를 만들지 않는다. 실제 query에서 필요한 eager loading이나 명시적 select를 사용한다.
 
 ## Agent와 모델 호출
+
+현재 agent/worker와 model provider dependency는 구현되어 있지 않다. 아래 규칙은 #111, #113과 #68에서 실제 경계를 만들 때 적용하며 임시 launcher나 가짜 실행 경로를 추가하지 않는다.
 
 - provider 선택과 `provider:model` 해석은 `agent` 경계 안에 둔다. provider 전용 class를 API나 데이터베이스 모듈에 노출하지 않는다.
 - 모델 출력은 작업별 Pydantic structured output으로 검증한다. 실제 응답 JSON과 후보 payload는 기준 데이터베이스에 저장하지 않는다.
@@ -118,7 +124,7 @@ ontology-map/
 - migration은 Alembic과 SQLAlchemy metadata만 사용하고 API, Agent, application service나 외부 모델을 import하지 않는다.
 - `upgrade()`와 `downgrade()`를 명시한다. 안전하게 되돌릴 수 없는 변경은 가짜 역연산을 쓰지 않고 해당 물리 설계 Issue와 PR에 위험과 복구 방법을 기록한다.
 - `main`에 병합된 revision을 수정하거나 순서를 다시 쓰지 않는다. 변경이 필요하면 새 revision을 만든다.
-- PostgreSQL 자료형, ID, schema namespace, object·constraint 이름, `NULL`, default, hash, comment와 삭제 정책은 Issue #40의 물리 규칙을 따른다.
+- PostgreSQL 자료형, ID, schema namespace, object·constraint 이름, `NULL`, default, hash, comment와 삭제 정책은 [physical-data-schema.md](physical-data-schema.md)를 따른다.
 
 ## 테스트 기준
 
@@ -131,7 +137,7 @@ ontology-map/
 
 ## 프로젝트 명령 계약
 
-아래 명령은 각 애플리케이션의 manifest와 설정이 제공해야 하는 기준이다. `web/package.json`에는 web 명령이 구현되어 있으며 server 명령은 server 골격을 만들 때 제공한다.
+아래 명령은 현재 각 애플리케이션의 manifest와 설정에 구현되어 있다. DB가 필요한 정확한 실행 순서와 환경 변수는 [database-operations.md](database-operations.md)를 따른다.
 
 ### web
 
@@ -165,7 +171,7 @@ ontology-map/
 | migration 적용 | `uv run alembic upgrade head` |
 | metadata와 migration 비교 | `uv run alembic check` |
 
-데이터베이스 명령은 PostgreSQL과 migration이 실제로 추가된 뒤 사용한다. 별도 Makefile, task runner나 shell wrapper는 같은 명령을 반복할 필요가 생기기 전에는 만들지 않는다.
+PostgreSQL이 필요한 pytest와 Alembic 명령에는 `uv run --env-file ../.env`를 사용한다. 별도 Makefile, task runner나 shell wrapper는 같은 명령을 반복할 필요가 생기기 전에는 만들지 않는다.
 
 ## 주석, 설정과 생성 파일
 
@@ -185,7 +191,7 @@ ontology-map/
 - 입력, 오류, transaction, 로그와 secret 경계가 분명한가?
 - 변경한 함수가 복잡도 10 이하이며 비자명한 동작에 가장 작은 검증이 있는가?
 - 관련 format, lint, typecheck, test와 build 검사가 통과했는가?
-- PostgreSQL 물리 결정은 #40을 따르고 Git 작업은 `CONTRIBUTING.md`를 따르는가?
+- PostgreSQL 물리 결정은 `physical-data-schema.md`를 따르고 Git 작업은 `CONTRIBUTING.md`를 따르는가?
 
 ## 참고 자료
 

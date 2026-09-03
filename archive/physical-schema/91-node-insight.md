@@ -5,7 +5,7 @@
 - 관련 Issue: #91
 - 제품 기능: #68
 - 논리 확장: [`../logical-schema/91-node-insight.md`](../logical-schema/91-node-insight.md)
-- 공통 규칙: [`../physical-data-schema.md`](../physical-data-schema.md)
+- 공통 규칙: [`../physical-data-schema.md`](../../physical-data-schema.md)
 - 선행 매핑: #43, #44, #46, #47
 - 범위: `node_insight`, `node_insight_claim`, `NODE_INSIGHT` 작업과 공개 선택 FK
 

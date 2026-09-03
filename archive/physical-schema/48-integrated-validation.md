@@ -4,7 +4,7 @@
 
 - 관련 Issue: #48
 - 상태: 통합 물리 설계 완료
-- 공통 규칙: [`../physical-data-schema.md`](../physical-data-schema.md)
+- 공통 규칙: [`../physical-data-schema.md`](../../physical-data-schema.md)
 - 전체 inventory: [`48-integrated-inventory.md`](48-integrated-inventory.md)
 - 무결성·migration·검증: [`48-integrity-migration-tests.md`](48-integrity-migration-tests.md)
 - 임베딩 호환 계약: [`78-embedding-contract.md`](78-embedding-contract.md)

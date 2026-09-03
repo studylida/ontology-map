@@ -5,7 +5,7 @@
 - 관련 Issue: #48
 - 기준선: [`48-integrated-inventory.md`](48-integrated-inventory.md), PR #89
 - 추가 설계: #91, PR #92
-- 논리 기준: [`../logical-data-schema.md`](../logical-data-schema.md) + [`../logical-schema/91-node-insight.md`](../logical-schema/91-node-insight.md)
+- 논리 기준: [`../logical-data-schema.md`](../../logical-data-schema.md) + [`../logical-schema/91-node-insight.md`](../logical-schema/91-node-insight.md)
 - 상태: 인사이트 확장을 반영한 최종 구현 inventory
 
 기존 inventory의 43개 테이블 정의는 그대로 유지한다. 이 문서는 #91 이후 달라진 전체 수량, task-kind 계약, `publication_affected_node`와 새 인사이트 테이블을 최종 기준으로 갱신한다. 아래에서 명시적으로 바뀐 항목은 기존 문서의 같은 항목을 대체한다.
