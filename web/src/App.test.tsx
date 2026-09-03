@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -120,6 +121,35 @@ function response(body: unknown, status = 200): Response {
   } as Response;
 }
 
+function searchResults(
+  items = [
+    {
+      node_id: "9223372036854775806",
+      name: "HBF",
+      node_type: { code: "TECHNOLOGY", display_name: "기술" },
+      match_reasons: ["EXACT_ALIAS", "FULL_TEXT"],
+    },
+    {
+      node_id: "9223372036854775805",
+      name: "UCIe",
+      node_type: { code: "TECHNOLOGY", display_name: "기술" },
+      match_reasons: ["FULL_TEXT"],
+    },
+  ],
+) {
+  return { items };
+}
+
+function searchInput(): HTMLInputElement {
+  return screen.getByRole("combobox") as HTMLInputElement;
+}
+
+async function enterSearch(query: string) {
+  fireEvent.change(searchInput(), { target: { value: query } });
+  expect(screen.getByText("검색 결과를 불러오는 중입니다.")).toBeTruthy();
+  await screen.findByRole("listbox");
+}
+
 const fetchMock = vi.fn();
 
 describe("exploration API 화면", () => {
@@ -128,6 +158,9 @@ describe("exploration API 화면", () => {
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
     fetchMock.mockImplementation(async (input: string) => {
+      if (input.startsWith("/api/v1/nodes/search?")) {
+        return response(searchResults());
+      }
       const centerId = input.match(/exploration\/([^?]+)/)?.[1];
       return response(exploration(centerId));
     });
@@ -154,9 +187,7 @@ describe("exploration API 화면", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       "/api/v1/exploration/9223372036854775807?time_window=RECENT_90_DAYS",
     );
-    expect((screen.getByRole("searchbox") as HTMLInputElement).disabled).toBe(
-      true,
-    );
+    expect(searchInput().disabled).toBe(false);
     expect(screen.queryByText("Evidence Trace")).toBeNull();
     expect(screen.queryByText("인사이트")).toBeNull();
   });
@@ -260,5 +291,150 @@ describe("exploration API 화면", () => {
     expect(
       await screen.findByText("표시할 탐색 데이터가 없습니다."),
     ).toBeTruthy();
+  });
+
+  it("별칭 검색을 limit 5로 요청하고 응답 순서와 문자열 ID를 유지한다", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { name: "SK하이닉스" });
+
+    await enterSearch("HBF");
+
+    const searchCall = fetchMock.mock.calls.find(([input]) =>
+      input.startsWith("/api/v1/nodes/search?"),
+    );
+    expect(searchCall?.[0]).toBe("/api/v1/nodes/search?q=HBF&limit=5");
+    const options = screen.getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "HBF기술별칭 정확 일치 · 공개 지식 일치",
+      "UCIe기술공개 지식 일치",
+    ]);
+    expect(searchInput().getAttribute("aria-activedescendant")).toContain(
+      "9223372036854775806",
+    );
+    fireEvent.keyDown(searchInput(), { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("방향키와 Enter로 후보를 선택해 exploration을 한 번 요청한다", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { name: "SK하이닉스" });
+    await enterSearch("HBF");
+
+    fireEvent.keyDown(searchInput(), { key: "ArrowDown" });
+    expect(
+      screen
+        .getByRole("option", { name: /UCIe/ })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+    fireEvent.keyDown(searchInput(), { key: "ArrowUp" });
+    fireEvent.keyDown(searchInput(), { key: "Enter" });
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(([input]) =>
+          input.includes("/exploration/"),
+        ),
+      ).toHaveLength(2),
+    );
+    expect(searchInput().value).toBe("HBF");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(fetchMock.mock.calls.at(-1)?.[0]).toContain(
+      "/api/v1/exploration/9223372036854775806",
+    );
+  });
+
+  it("마우스로 후보를 선택해 preferred name을 남기고 exploration을 한 번 요청한다", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { name: "SK하이닉스" });
+    await enterSearch("interconnect");
+
+    fireEvent.click(screen.getByRole("option", { name: /UCIe/ }));
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(([input]) =>
+          input.includes("/exploration/"),
+        ),
+      ).toHaveLength(2),
+    );
+    expect(searchInput().value).toBe("UCIe");
+    expect(fetchMock.mock.calls.at(-1)?.[0]).toContain(
+      "/api/v1/exploration/9223372036854775805",
+    );
+  });
+
+  it("공백 검색은 요청하지 않고 결과를 지운다", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { name: "SK하이닉스" });
+    await enterSearch("HBF");
+    const callsBeforeBlank = fetchMock.mock.calls.length;
+
+    fireEvent.change(searchInput(), { target: { value: "   " } });
+
+    expect(screen.queryByRole("listbox")).toBeNull();
+    await new Promise((resolve) => window.setTimeout(resolve, 300));
+    expect(fetchMock).toHaveBeenCalledTimes(callsBeforeBlank);
+  });
+
+  it("검색 빈 결과와 재시도 가능한 오류를 표시하고 다시 요청한다", async () => {
+    let searchAttempt = 0;
+    fetchMock.mockImplementation(async (input: string) => {
+      if (!input.startsWith("/api/v1/nodes/search?")) {
+        const centerId = input.match(/exploration\/([^?]+)/)?.[1];
+        return response(exploration(centerId));
+      }
+      searchAttempt += 1;
+      if (searchAttempt === 1) return response(searchResults([]));
+      if (searchAttempt === 2) throw new TypeError("offline");
+      return response(searchResults());
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "SK하이닉스" });
+
+    fireEvent.change(searchInput(), { target: { value: "없음" } });
+    expect(await screen.findByText("검색 결과가 없습니다.")).toBeTruthy();
+    fireEvent.change(searchInput(), { target: { value: "HBF" } });
+    expect(
+      await screen.findByText("검색 결과를 불러오지 못했습니다."),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+    expect(await screen.findByRole("listbox")).toBeTruthy();
+    expect(searchAttempt).toBe(3);
+  });
+
+  it("늦게 도착한 이전 검색 응답이 최신 결과를 덮지 않는다", async () => {
+    let resolveFirst: ((value: Response) => void) | undefined;
+    let resolveSecond: ((value: Response) => void) | undefined;
+    let searchAttempt = 0;
+    fetchMock.mockImplementation((input: string) => {
+      if (!input.startsWith("/api/v1/nodes/search?")) {
+        const centerId = input.match(/exploration\/([^?]+)/)?.[1];
+        return Promise.resolve(response(exploration(centerId)));
+      }
+      searchAttempt += 1;
+      return new Promise<Response>((resolve) => {
+        if (searchAttempt === 1) resolveFirst = resolve;
+        else resolveSecond = resolve;
+      });
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "SK하이닉스" });
+
+    fireEvent.change(searchInput(), { target: { value: "old" } });
+    await waitFor(() => expect(searchAttempt).toBe(1));
+    fireEvent.change(searchInput(), { target: { value: "new" } });
+    await waitFor(() => expect(searchAttempt).toBe(2));
+    await act(async () => {
+      resolveSecond?.(response(searchResults(searchResults().items.slice(1))));
+    });
+    expect(await screen.findByRole("option", { name: /UCIe/ })).toBeTruthy();
+
+    await act(async () => {
+      resolveFirst?.(
+        response(searchResults(searchResults().items.slice(0, 1))),
+      );
+    });
+    expect(screen.queryByRole("option", { name: /HBF/ })).toBeNull();
+    expect(screen.getByRole("option", { name: /UCIe/ })).toBeTruthy();
   });
 });

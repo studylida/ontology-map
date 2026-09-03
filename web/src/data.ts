@@ -42,10 +42,20 @@ export interface ExplorationView {
   followups: FollowupQuestion[];
 }
 
+export type SearchMatchReason = "EXACT_ALIAS" | "FULL_TEXT";
+
+export interface SearchCandidate {
+  nodeId: string;
+  name: string;
+  kind: string;
+  kindCode: string;
+  matchReasons: SearchMatchReason[];
+}
+
 export type KnowledgeViewNode = KnowledgeNode;
 export type KnowledgeViewRelation = KnowledgeRelation;
 
-export class ExplorationRequestError extends Error {
+export class APIRequestError extends Error {
   constructor(
     readonly code: string,
     readonly status: number,
@@ -59,35 +69,35 @@ type JsonObject = Record<string, unknown>;
 
 function object(value: unknown): JsonObject {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new ExplorationRequestError("INVALID_RESPONSE", 0, true);
+    throw new APIRequestError("INVALID_RESPONSE", 0, true);
   }
   return value as JsonObject;
 }
 
 function array(value: unknown): unknown[] {
   if (!Array.isArray(value)) {
-    throw new ExplorationRequestError("INVALID_RESPONSE", 0, true);
+    throw new APIRequestError("INVALID_RESPONSE", 0, true);
   }
   return value;
 }
 
 function string(value: unknown): string {
   if (typeof value !== "string") {
-    throw new ExplorationRequestError("INVALID_RESPONSE", 0, true);
+    throw new APIRequestError("INVALID_RESPONSE", 0, true);
   }
   return value;
 }
 
 function number(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new ExplorationRequestError("INVALID_RESPONSE", 0, true);
+    throw new APIRequestError("INVALID_RESPONSE", 0, true);
   }
   return value;
 }
 
 function boolean(value: unknown): boolean {
   if (typeof value !== "boolean") {
-    throw new ExplorationRequestError("INVALID_RESPONSE", 0, true);
+    throw new APIRequestError("INVALID_RESPONSE", 0, true);
   }
   return value;
 }
@@ -96,7 +106,7 @@ function nodeTier(value: unknown): Exclude<NodeTier, "ambient"> {
   if (value === "CENTER") return "center";
   if (value === "DIRECT") return "direct";
   if (value === "TWO_HOP") return "twoHop";
-  throw new ExplorationRequestError("INVALID_RESPONSE", 0, true);
+  throw new APIRequestError("INVALID_RESPONSE", 0, true);
 }
 
 function relationTier(
@@ -128,7 +138,7 @@ function recommendationReason(
   if (code === "AMBIENT") {
     return "현재 지도 밖의 공개 node를 새 탐색 출발점으로 살펴봅니다.";
   }
-  throw new ExplorationRequestError("INVALID_RESPONSE", 0, true);
+  throw new APIRequestError("INVALID_RESPONSE", 0, true);
 }
 
 export function toExplorationView(payload: unknown): ExplorationView {
@@ -152,7 +162,7 @@ export function toExplorationView(payload: unknown): ExplorationView {
     const source = nodesById.get(string(item.source_node_id));
     const target = nodesById.get(string(item.target_node_id));
     if (!source || !target) {
-      throw new ExplorationRequestError("INVALID_RESPONSE", 0, true);
+      throw new APIRequestError("INVALID_RESPONSE", 0, true);
     }
     return {
       id: string(item.relation_id),
@@ -223,23 +233,33 @@ export function toExplorationView(payload: unknown): ExplorationView {
   };
 }
 
-export async function fetchExploration(
-  centerId: string,
-  timeRange: TimeRange,
-  signal?: AbortSignal,
-): Promise<ExplorationView> {
+function matchReason(value: unknown): SearchMatchReason {
+  if (value === "EXACT_ALIAS" || value === "FULL_TEXT") return value;
+  throw new APIRequestError("INVALID_RESPONSE", 0, true);
+}
+
+export function toSearchCandidates(payload: unknown): SearchCandidate[] {
+  return array(object(payload).items).map((value) => {
+    const item = object(value);
+    const type = object(item.node_type);
+    return {
+      nodeId: string(item.node_id),
+      name: string(item.name),
+      kind: string(type.display_name),
+      kindCode: string(type.code),
+      matchReasons: array(item.match_reasons).map(matchReason),
+    };
+  });
+}
+
+async function fetchAPI(path: string, signal?: AbortSignal): Promise<unknown> {
   let response: Response;
   try {
-    response = await fetch(
-      `/api/v1/exploration/${encodeURIComponent(centerId)}?time_window=${
-        timeRange === "90d" ? "RECENT_90_DAYS" : "RECENT_1_YEAR"
-      }`,
-      signal ? { signal } : undefined,
-    );
+    response = await fetch(path, signal ? { signal } : undefined);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError")
       throw error;
-    throw new ExplorationRequestError("NETWORK_ERROR", 0, true);
+    throw new APIRequestError("NETWORK_ERROR", 0, true);
   }
 
   const payload: unknown = await response.json().catch(() => null);
@@ -252,7 +272,7 @@ export async function fetchExploration(
       errorBody && typeof errorBody === "object"
         ? (errorBody as JsonObject)
         : {};
-    throw new ExplorationRequestError(
+    throw new APIRequestError(
       typeof detail.code === "string" ? detail.code : "REQUEST_FAILED",
       response.status,
       typeof detail.retryable === "boolean"
@@ -260,7 +280,28 @@ export async function fetchExploration(
         : response.status >= 500,
     );
   }
-  return toExplorationView(payload);
+  return payload;
+}
+
+export async function fetchExploration(
+  centerId: string,
+  timeRange: TimeRange,
+  signal?: AbortSignal,
+): Promise<ExplorationView> {
+  const path = `/api/v1/exploration/${encodeURIComponent(
+    centerId,
+  )}?time_window=${timeRange === "90d" ? "RECENT_90_DAYS" : "RECENT_1_YEAR"}`;
+  return toExplorationView(await fetchAPI(path, signal));
+}
+
+export async function fetchNodeSearch(
+  query: string,
+  signal?: AbortSignal,
+): Promise<SearchCandidate[]> {
+  const params = new URLSearchParams({ q: query, limit: "5" });
+  return toSearchCandidates(
+    await fetchAPI(`/api/v1/nodes/search?${params.toString()}`, signal),
+  );
 }
 
 export function getFilamentOffsets(evidenceGroupCount: number): number[] {
