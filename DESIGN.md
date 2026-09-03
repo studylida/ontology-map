@@ -97,6 +97,59 @@ ontology-map은 공개 자료에서 얻은 근거와 시간축을 탐색하는 �
 
 UI 문구는 한국어를 기본으로 한다. node type, relation type, model identifier, ontology code와 API 값처럼 정확한 식별이 필요한 값은 원래 영어 표기를 보존한다.
 
+## 현재 구현과 제품 경계
+
+브라우저와 PostgreSQL 사이의 유일한 제품 경계는 FastAPI HTTP API다. web은 DB table이나 SQLAlchemy model을 알지 않으며 API 응답을 `web/src/data.ts`에서 화면 모델로 검증·변환한다.
+
+현재 web은 exploration aggregate와 node search를 사용한다. Relation·Evidence Trace와 peripheral API는 backend에만 구현되어 있으며 각각 #118과 #115에서 web에 연결한다. 인사이트 목록·상세 endpoint와 현재 화면은 아직 없고 #68이 소유한다.
+
+중심 node 변경 요청은 동작하지만 선택 node를 시각 중심으로 옮기고 이웃을 연속해서 재배치하는 전환은 #114의 회귀 복구 대상이다. node·label 가독성은 #106에서 사용자가 반복 검토하고, 빈 map drag pan은 #107에서 복구한다. 아래 시각·상호작용 절은 구현 완료 보고가 아니라 유지해야 할 제품 계약이며 현재 차이는 해당 Issue로 추적한다.
+
+## 현재 HTTP 읽기 계약
+
+| 화면 흐름 | HTTP endpoint | 주요 응답 | application service | DB query 경로 | web 상태 |
+| --- | --- | --- | --- | --- | --- |
+| 초기 탐색·중심 이동·시간 범위 변경 | `GET /api/v1/exploration/{center_node_id}?time_window=...` | 중심 맥락, 활성 graph, 구조화 추천, 후속 질문 2개 | `get_exploration` | 최신 node별 READY → 검색 문서·basis·context·질문 → 공개 relation·Claim·Evidence Trace 집계 | 연동 완료 |
+| node 검색 | `GET /api/v1/nodes/search?q=...&limit=5` | node 이름·유형과 `EXACT_ALIAS | FULL_TEXT` 이유 | `search_nodes` | 활성 merge 해소 → 최신 READY 검색 문서 → alias 또는 `simple` expression GIN | 연동 완료 |
+| node의 공개 Relation | `GET /api/v1/nodes/{node_id}/relations?cursor=...&limit=20` | 상대 node, relation 유형, 지지 근거 묶음 수, 충돌 여부 | `list_node_relations` | 최신 READY 검색 문서·basis → relation → 지지 Claim → Observation → Source Document | backend만 구현 |
+| Relation 근거 | `GET /api/v1/relations/{relation_id}/evidence?cursor=...&limit=10` | Claim stance, source metadata, quote와 locator | `list_relation_evidence` | Claim Relation → Claim Observation → Observation → Source Document | backend만 구현 |
+| 주변부 추가 조회 | `GET /api/v1/exploration/{center_node_id}/peripheral?time_window=...&cursor=...&limit=20` | `AMBIENT` node, 활성 graph와의 실제 Relation, 다음 cursor | `list_peripheral_nodes` | exploration 활성 graph → 최신 READY 공개 node의 다음 page → 활성 graph와의 relation | backend만 구현 |
+
+응답 DTO는 DB table 모양을 그대로 노출하지 않는다.
+
+| 응답 | 필드 |
+| --- | --- |
+| exploration | `center_node_id`, `context_text`, `graph.nodes[]`, `graph.relations[]`, `recommendations[]`, `followup_questions[]` |
+| graph node | `node_id`, `name`, `node_type { code, display_name }`, `tier`, `activity_evidence_group_count` |
+| graph Relation | `relation_id`, `source_node_id`, `target_node_id`, `relation_type_display_name`, `supporting_evidence_group_count`, `has_conflict` |
+| recommendation | `target_node`, `reason_code`, nullable `via_node_id`, 직접 근거가 있을 때만 `supporting_evidence_group_count` |
+| follow-up question | `slot`, `question_text`, `target_node_id` |
+| search | `items[] { node_id, name, node_type, match_reasons[] }` |
+| node Relations | `items[] { relation_id, other_node, relation_type_display_name, supporting_evidence_group_count, has_conflict }`, `next_cursor` |
+| Relation Evidence | `items[] { claim_text, stance, source, quote_text, locator }`, 전체 공개 trace의 `trace_count`, `next_cursor` |
+| Evidence source·locator | `source { title, publisher_name, published_at, published_precision, canonical_url }`, `locator { paragraph_number, start_char, end_char }` |
+| peripheral | `graph.nodes[]`, `graph.relations[]`, `next_cursor`; 모든 node의 `tier`는 `AMBIENT` |
+
+`time_window`는 필수이며 `RECENT_90_DAYS | RECENT_1_YEAR`만 허용한다. exploration은 중심 1개, 직접 이웃 최대 12개, 중요한 2단계 이웃 최대 18개와 활성 graph Relation 최대 60개를 반환한다. 후보는 지지 독립 근거 묶음 수 내림차순, 선택 기간 활동량 내림차순, 내부 ID 오름차순으로 정렬한다.
+
+추천은 backend가 `DIRECT | TWO_HOP | AMBIENT`, 대상 node, 선택적 경유 node와 적용 가능한 근거 수를 반환한다. 사용자에게 보이는 한국어 추천 문장은 frontend가 작성한다. 후속 질문 문장은 사전 생성해 저장한 결과이며 항상 slot 1과 2가 있고 `target_node_id`가 필수다. 자기 대상 질문은 허용하지만 질문 선택이나 node 클릭으로 모델을 호출하지 않는다.
+
+PostgreSQL의 `bigint` ID는 JavaScript 정밀도 손실을 막기 위해 모든 HTTP JSON에서 문자열로 보낸다. DB 내부 ID, 검색 순위 점수, Claim·Observation·Source Document·evidence group ID와 의미가 섞인 confidence는 화면에 노출하지 않는다.
+
+`cursor`는 정렬 위치와 endpoint scope를 담아 server가 발급하는 불투명한 문자열이다. client는 내용을 해석하거나 만들지 않고 같은 resource와 query에 그대로 재전송한다. server는 cursor 종류, version, scope와 값을 검증하며 다른 node·Relation·시간 범위에 사용된 cursor는 `422 INVALID_REQUEST`로 거절한다.
+
+| 목록 | 기본·최대 limit | 안정 정렬 |
+| --- | --- | --- |
+| peripheral node | 20·50 | node 내부 ID 오름차순 |
+| node Relation | 20·50 | 지지 독립 근거 묶음 수 내림차순, Relation 내부 ID 오름차순 |
+| Relation Evidence Trace | 10·50 | 게시 시점 내림차순(`NULLS LAST`), Source Document ID 내림차순, Observation ID와 Claim ID 오름차순 |
+
+공통 오류 본문은 `{"error":{"code":"...","retryable":false}}`다. 잘못된 ID, query, limit, time window와 cursor는 `422 INVALID_REQUEST`다. 공개 node가 없으면 exploration·peripheral·Relation 목록은 `404 NODE_NOT_FOUND`, 공개 Relation 근거가 없으면 Evidence Trace는 `404 RELATION_NOT_FOUND`를 반환한다. node는 공개 가능하지만 필요한 READY 결과가 없으면 exploration·peripheral·Relation 목록은 `503 PUBLICATION_NOT_READY`와 `retryable: true`를 반환한다.
+
+일반 사용자 조회에는 현재 공개 가능한 최신 READY 결과만 포함한다. `promotion_status = COMMITTED`, `publication_status = READY`, 지식 상태 `EVIDENCE_VERIFIED | HUMAN_VERIFIED`와 열린 `BLOCKING` lint 부재를 다시 확인한다. 파생 결과의 basis 지식이 보류·거절되거나 차단되면 read-time에서 숨긴다. 새 publication이 실패해도 이전 READY 결과가 있으면 계속 제공한다.
+
+현재 search는 alias 정확 일치를 첫 bucket으로 반환한 뒤 `simple` FTS를 사용한다. frozen 계약의 Qwen `vector(1024)` cosine exact branch, branch별 최대 50건과 `k = 60` RRF는 아직 구현되지 않았으며 #117이 소유한다. #80 전에는 tokenizer, `pg_trgm`, BM25나 외부 검색 엔진을 추가하지 않고 #81의 기준 전에는 HNSW와 IVFFlat을 추가하지 않는다.
+
 ## Colors
 
 배경은 `background` 하나를 기준으로 하고 panel은 `surface`, overlay와 입력 요소는 `surface-elevated`를 사용한다. 계층은 밝은 배경을 새로 만드는 대신 표면 색과 `border`로 표현한다.
@@ -133,7 +186,7 @@ node type은 색만으로 구분하지 않는다. tooltip, 상세 panel과 keybo
 
 너비가 768px 이상 1024px 미만이면 상세 panel은 화면 너비의 46%를 사용하되 420px을 넘지 않는다. 너비가 768px 미만이면 검색은 좌우 16px 여백을 두고, 상세 정보는 전체 너비의 bottom sheet로 표시하며 높이는 viewport의 72%를 넘지 않는다.
 
-Issue #67의 실행 가능한 POC는 너비 1024px 이상의 desktop 핵심 화면만 검증한다. 1024px 미만의 반응형 동작은 이 계약을 유지하되 별도 범위에서 구현한다.
+현재 실행 가능한 web은 너비 1024px 이상의 desktop 핵심 화면을 우선 검증한다. 1024px 미만의 반응형 동작은 이 계약을 유지하되 별도 범위에서 구현한다.
 
 간격은 front matter의 4·8·12·16·24·32px 단계만 사용한다. map 위 overlay 사이에는 최소 12px, panel section 사이에는 24px, 관련된 label과 값 사이에는 8px을 둔다.
 
@@ -187,11 +240,11 @@ header는 56px 높이의 단색 분석 도구 bar로 유지한다. 작은 별자
 
 주변부 공개 node는 중심과 1·2단계 이웃보다 작고 어둡게 보이되 선택 가능성을 잃지 않는다. 주변부 node와 활성 graph 사이에 실제 Relation이 있으면 낮은 불투명도의 관계선을 이어서 2단계 이웃 바깥의 탐색 경로를 보여준다. Relation이 없는 node나 검색으로만 정한 대상에는 관계선을 만들지 않는다. 주변부 node를 선택하면 현재 위치에서 같은 중심 이동을 시작하고, 해당 node 기준의 활성 graph와 주변부를 다시 계산한다.
 
-제품은 임의의 공개 node 1,000개를 먼저 불러와 전체 graph처럼 보이게 만들지 않는다. 현재 활성 graph의 경계 node ID를 기준으로 다음 주변부를 제한된 page 단위로 불러오며, 사용자가 빈 map 영역을 이동해 경계에 접근하거나 주변부 node를 선택하기 전에 다음 page를 미리 준비한다. 멀어진 주변부는 짧은 유예 뒤 장면과 force 계산에서 제외하되 세션 동안의 위치만 cache해 다시 나타날 때 갑자기 다른 곳에 배치되지 않게 한다. 이 증분 로드는 서버에 저장된 지도 좌표나 기준 DB를 전제하지 않는다.
+제품은 임의의 공개 node 1,000개를 먼저 불러와 전체 graph처럼 보이게 만들지 않는다. server가 발급한 opaque cursor로 내부 ID 오름차순의 다음 주변부 page를 요청하며, 사용자가 빈 map 영역을 이동해 경계에 접근하거나 주변부 node를 선택하기 전에 다음 page를 준비한다. 멀어진 주변부는 짧은 유예 뒤 장면과 force 계산에서 제외하되 세션 동안의 위치만 cache해 다시 나타날 때 갑자기 다른 곳에 배치되지 않게 한다. 이 증분 로드는 서버에 저장된 지도 좌표나 기준 DB를 전제하지 않는다.
 
 홈페이지 첫 진입에서는 graph를 준비하는 동안 viewport 전체에 단색 dark loading 화면을 표시한다. 화면 중앙에는 `Loading`, `-- 42% --` 형식의 진행률과 2px progress bar만 둔다. 진행률은 1.4초 동안 0%에서 89%까지 이동하고 graph 준비가 끝날 때까지 89%를 유지한다. 준비가 끝나면 90%, 95%, 99%를 짧게 표시한 뒤 200ms 동안 loading 화면을 숨기며 100%는 표시하지 않는다.
 
-loading 화면이 사라지면 공개된 전체 graph의 안정된 분포를 화면에 맞춰 한 번 조망하고 720ms 동안 유지한 다음 기본 중심 node로 1200ms 동안 확대한다. 중심 node는 전체 조망부터 화면 중앙에 고정하고 확대 중에는 camera target과 node 위치를 바꾸지 않은 채 camera 거리만 줄인다. BISTelligence node가 fixture에 없는 검증 예시에서는 SK하이닉스를 기본 중심으로 사용한다. 이 전체 graph는 저장 좌표나 기준 DB를 뜻하지 않는 일시적인 intro 상태이며, intro가 끝나면 이후 탐색과 같은 동적 부분 graph만 유지한다.
+loading 화면이 사라지면 첫 exploration 응답의 부분 graph를 화면에 맞춰 한 번 조망하고 720ms 동안 유지한 다음 기본 중심 node로 1200ms 동안 확대한다. 중심 node는 전체 조망부터 화면 중앙에 고정하고 확대 중에는 camera target과 node 위치를 바꾸지 않은 채 camera 거리만 줄인다. BISTelligence node가 fixture에 없는 검증 예시에서는 SK하이닉스를 기본 중심으로 사용한다. 이 조망은 저장 좌표나 기준 DB를 뜻하지 않는 일시적인 intro 상태이며, intro가 끝나면 같은 동적 부분 graph 탐색을 유지한다.
 
 node는 클릭하거나 keyboard로 선택해 중심을 바꾸지만 직접 끌어 배치할 수 없다. 빈 map 영역의 drag는 항상 카메라 평행 이동에만 사용하며, node drag로 force simulation을 다시 시작하거나 navigation control을 점유하지 않는다.
 
@@ -217,7 +270,7 @@ Issue #67의 POC에서 직접 이웃의 관계선 core는 전환 감쇠 전 불�
 
 `인사이트` tab에는 사전 생성된 종합 분석의 제목과 연결된 근거 수만 표시한다. 제목을 선택하면 viewport 중앙에 modal dialog를 열고 확인된 사실, 종합 해석, 연결 근거와 해석 시 유의점을 분리해 표시한다. 연결 근거는 dialog 안에서 여러 건을 동시에 펼쳐 인용문, 출처와 원문 위치를 비교할 수 있으며 두 건 이상 펼치면 `모두 접기`를 제공한다. 이 동작은 상세 panel의 tab이나 scroll 상태를 바꾸지 않는다. dialog surface는 0.88 불투명도, backdrop은 0.12 불투명도를 사용하고 blur와 gradient를 적용하지 않아 뒤의 지식맵을 계속 볼 수 있게 한다. dialog가 열린 동안 배경 조작을 막고 닫기 button과 Escape를 지원하며 닫은 뒤 선택한 제목으로 focus를 돌려준다. 중심 node가 바뀌면 `탐색` tab으로 돌아가고 열린 분석 dialog를 닫는다.
 
-검증 fixture에서는 SK하이닉스, SanDisk와 HBF에 각각 인사이트 3개를 제공하고 다른 node에는 `이 노드의 종합 분석 데모는 아직 준비되지 않았습니다.`라는 empty 상태를 표시한다. fixture는 실제 모델 출력이 아니며 저장된 결과를 읽는 사용자 흐름만 검증한다. 제품의 인사이트는 관련 지식이 변경될 때 사전 생성해 저장하고 node나 인사이트 제목을 선택할 때 모델을 호출하지 않는다. 실제 생성·저장·API 계약과 갱신 실패 처리는 Issue #68에서 결정한다.
+과거 정적 POC는 SK하이닉스, SanDisk와 HBF의 인사이트 fixture로 화면 모양을 검증했지만 현재 API 연동 web에는 인사이트 tab이 없다. 제품의 인사이트는 관련 지식이 변경될 때 사전 생성해 저장하고 node나 인사이트 제목을 선택할 때 모델을 호출하지 않는다. 생성·저장·API, 품질, empty와 실패 처리는 #68에서 구현한다.
 
 후속 질문은 공개 가능한 target node로 이동하는 action이다. 일반 본문처럼 보이게 만들지 않고 명확한 button 또는 link로 표시한다. 클릭 중 모델 호출이 일어나는 것처럼 loading animation을 보여주지 않는다.
 

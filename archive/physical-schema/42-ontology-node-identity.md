@@ -4,7 +4,7 @@
 
 - 관련 Issue: #42
 - 선행 결정: #40, #41, #69
-- 공통 규칙: [`physical-data-schema.md`](../physical-data-schema.md)
+- 공통 규칙: [`physical-data-schema.md`](../../physical-data-schema.md)
 - 현재 커밋 범위: 온톨로지 코드·revision, node·alias·외부 식별자
 
 ## 1. 공통 결정

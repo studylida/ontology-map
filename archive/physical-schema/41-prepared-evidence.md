@@ -3,7 +3,7 @@
 ## 문서 상태
 
 - 관련 Issue: #41
-- 공통 규칙: [`physical-data-schema.md`](../physical-data-schema.md)
+- 공통 규칙: [`physical-data-schema.md`](../../physical-data-schema.md)
 - 범위: `evidence_group`, `source_document`, `observation`
 - 제외: 자료 발견·크롤링·HTTP 이력, 근거 묶음 판정 알고리즘, Claim과 alias 연결, DDL·migration
 

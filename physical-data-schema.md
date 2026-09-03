@@ -1,18 +1,85 @@
-# ontology-map PostgreSQL 물리 스키마 공통 규칙
+# ontology-map PostgreSQL 물리 데이터 스키마
 
 ## 문서 상태
 
-- 상태: 승인된 공통 물리 설계 기준
-- 확인일: 2026-09-01
+- 상태: Physical Schema v2 — 동결 및 migration 구현 완료
+- 확인일: 2026-09-03
 - 관련 Issue: [#40 Define PostgreSQL physical schema conventions](https://github.com/studylida/ontology-map/issues/40)
 - 논리 모델: [logical-data-schema.md](logical-data-schema.md)
 - 구현 스택: [implementation-stack.md](implementation-stack.md)
 - 코드·migration 규칙: [code-conventions.md](code-conventions.md)
-- 후속 물리 매핑: #41–#48
+- 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`
 
-이 문서는 Logical Schema v1의 의미를 PostgreSQL로 옮길 때 모든 테이블에 공통으로 적용할 자료형, 이름, 식별자, `NULL`, 기본값, 삭제, 불변성, 인덱스와 주석 규칙을 정의한다.
+이 문서는 Logical Schema v1.2의 의미를 PostgreSQL로 옮긴 동결된 테이블 목록과 모든 객체에 적용할 자료형, 이름, 식별자, `NULL`, 기본값, 삭제, 불변성, 인덱스, 주석과 publication 규칙을 정의한다.
 
-현재 단계에서는 테이블별 컬럼 목록, 구체적인 DDL, Alembic migration, seed, API와 애플리케이션 코드를 작성하지 않는다. 각 논리 엔터티의 정확한 PostgreSQL 매핑과 무결성 보장 주체는 #41–#47에서 결정하고, #48에서 전체 설계를 통합 검증한다.
+#41–#48에서 기본 매핑을 확정했고 #78에서 embedding 계약, #91에서 node 인사이트 확장을 추가했다. #95는 이 결과를 SQLAlchemy metadata와 Alembic migration으로 구현했다. migration과 metadata가 이 문서와 다르면 임의로 한쪽을 정답으로 바꾸지 않고 #116에서 의미 차이인지 구현 오류인지 감사한다.
+
+## 현재 구현과 테이블 목록
+
+- SQLAlchemy metadata: `server/src/ontology_map/db/schema.py`
+- Alembic revision: `server/migrations/versions/0001_create_frozen_schema.py`
+- 개발 fixture: `server/src/ontology_map/db/fixture.py`
+- PostgreSQL namespace: `public`
+- 구현된 table: 43개
+- 논리 모델에는 있지만 actor 계약이 없어 보류한 table: `knowledge_state_event`, `conflict_state_event`
+
+| 영역 | 구현 table |
+|---|---|
+| 온톨로지·계약 | `node_type`, `relation_type`, `attribute`, `output_schema_definition`, `lint_rule`, `lint_policy_version`, `relation_type_revision`, `relation_endpoint_rule`, `attribute_revision`, `lint_policy_rule` |
+| 준비 근거 | `evidence_group`, `source_document`, `observation` |
+| 모델 실행 | `model_task`, `agent_attempt`, `blocked_fingerprint` |
+| 승격·기준 지식 | `promotion_batch`, `knowledge_item`, `node`, `relation`, `claim` |
+| node 정체성 | `node_alias`, `node_alias_evidence`, `external_identifier`, `node_merge`, `event_temporal_extent` |
+| Claim과 Evidence Trace | `claim_relation`, `claim_attribute_value`, `claim_observation`, `event_temporal_basis` |
+| lint·충돌 | `lint_run`, `lint_finding`, `conflict_set`, `conflict_member`, `conflict_summary` |
+| 검색·파생 결과 | `node_search_document`, `search_document_basis`, `node_embedding`, `node_context`, `followup_question`, `node_insight`, `node_insight_claim`, `publication_affected_node` |
+
+Evidence Trace는 새 사본을 만들지 않고 다음 경로를 사용한다.
+
+```text
+claim
+→ claim_observation
+→ observation
+→ source_document
+→ evidence_group
+```
+
+Relation의 stance는 `claim_relation`, 구조화 속성값은 `claim_attribute_value`, 사건 시간 근거는 `event_temporal_basis`가 Claim에 연결한다. node 인사이트도 `node_insight_claim`에서 기존 Claim으로 이어져 같은 Evidence Trace를 재사용한다.
+
+`publication_affected_node`는 한 batch가 영향을 준 node와 선택한 검색 문서, embedding, context와 `NODE_INSIGHT` 작업을 가리킨다. 이 행은 지도 구성원, 좌표나 전체 graph snapshot이 아니다.
+
+### Publication과 공개 조회
+
+`promotion_batch.promotion_status`는 기준 지식의 원자 저장 결과이고 `publication_status`는 파생 결과 준비 상태다. 둘을 하나의 상태로 합치지 않는다.
+
+```text
+promotion_status:   PENDING → COMMITTED | FAILED
+publication_status: NOT_STARTED → PREPARING → READY
+                                          └→ FAILED → PREPARING
+```
+
+READY 전환은 같은 transaction에서 모든 영향 node를 검사한다. 각 node에는 `node_search_document`와 그 문서에 속하는 `node_embedding`, `node_context`, 정확히 두 개의 `followup_question` 및 성공한 `NODE_INSIGHT` 작업이 필요하다. 인사이트 작업은 `RECENT_90_DAYS`와 `RECENT_1_YEAR`를 모두 처리하며 각 범위의 결과는 0–3개다. 현재 공개 가능한 basis 지식과 열린 `BLOCKING` lint 부재도 함께 검사한다.
+
+이 완결성은 여러 table의 개수, task kind와 상태를 함께 읽어야 하므로 DB의 nullable column만으로 보장하지 않고 publication application service가 짧은 transaction 안에서 보장한다. `READY` 뒤 선택 pointer와 산출물은 바꾸지 않는다.
+
+일반 사용자 조회는 node별 `ready_at DESC, promotion_batch_id DESC` 순서의 최신 `COMMITTED + READY`를 선택한다. node, Relation, Claim과 파생 결과의 basis 지식이 `EVIDENCE_VERIFIED | HUMAN_VERIFIED` 상태이고 열린 `BLOCKING` lint가 없는지 read-time에서 다시 확인한다. 새 publication이 실패하면 기준 지식과 과거 산출물을 삭제하지 않고 이전 READY를 계속 제공한다. 이전 READY가 전혀 없으면 현재 exploration 계열 API는 `503 PUBLICATION_NOT_READY`를 반환한다.
+
+관계가 없는 공개 node도 각자 완전한 READY 결과를 가지면 검색과 주변부 조회에 포함할 수 있다. 검색, node 선택, 후속 질문과 주변부 이동은 Relation을 새로 만들지 않는다.
+
+### 검색과 파생 산출물
+
+`node_search_document`는 `identity_text`와 `knowledge_text`를 분리하고 `search_document_basis`가 사용한 공개 `knowledge_item`을 연결한다. migration은 다음 expression GIN을 구현한다.
+
+```sql
+setweight(to_tsvector('simple', identity_text), 'A')
+|| setweight(to_tsvector('simple', knowledge_text), 'B')
+```
+
+`node_embedding`은 같은 node와 검색 문서를 composite FK로 고정하고 성공한 `EMBEDDING` 작업 하나와 연결한다. `node_context`, `followup_question`과 `node_insight`도 같은 검색 문서·node 조합을 물리 FK로 고정한다. `followup_question.slot`은 1 또는 2이고 `target_node_id`는 필수지만 target과 중심 사이 Relation을 뜻하지 않는다.
+
+`node_insight`는 `RECENT_90_DAYS | RECENT_1_YEAR`, slot 1–3, `as_of_at`, 제목, 요약, 종합 해석과 유의점을 가진 불변 행이다. `node_insight_claim`은 기존 Claim을 `KEY_CLAIM | SUPPORTING_CLAIM | CONTRASTING_CLAIM`으로 연결한다. 인사이트 근거 수는 column으로 저장하지 않고 Evidence Trace에서 `COUNT(DISTINCT evidence_group_id)`로 계산한다.
+
+지도 좌표, 카메라, node 밝기와 opacity, 화면 표시 단계, 전역 graph/map version, 검색 rank와 의미가 섞인 confidence는 저장하지 않는다.
 
 ## 1. 설계 경계
 
@@ -33,14 +100,12 @@
 
 ### 1.2 이 문서가 결정하지 않는 것
 
-- 테이블별 전체 DDL과 migration
-- 개별 테이블의 정확한 nullable 컬럼과 상태 전이
-- 다른 행이나 테이블을 함께 검사하는 구체적인 trigger 또는 서비스 함수
-- PostgreSQL 전문 검색 표현식과 한국어 검색 구성
-- 임베딩 모델, 벡터 차원과 거리 연산자
+- HTTP DTO와 화면용 표현
+- 외부 source 선정, raw snapshot과 수집 manifest
+- 실제 lint 정책에 포함할 entity·event·relation 범위
+- 다른 행이나 테이블을 함께 검사하는 application-service 함수의 구현 세부사항
 - HNSW·IVFFlat 등 근사 검색 인덱스
 - 사용자·관리자 인증과 권한 모델
-- API, ORM, repository와 application-service 구조
 - 운영 규모의 성능 benchmark
 
 ## 2. PostgreSQL 기준과 extension
@@ -71,7 +136,7 @@ PostgreSQL과 pgvector의 정확한 버전은 `implementation-stack.md`를 따�
 
 내부 식별자는 `bigint` identity를 사용하므로 UUID 생성 extension을 추가하지 않는다. 오타 검색, 문자 정규화나 고급 제약에 별도 extension이 실제로 필요해지면 해당 조회나 무결성을 소유하는 후속 Issue에서 근거와 함께 승인한다.
 
-pgvector가 설치되었다는 사실과 `node_embedding.embedding_vector`의 구체적인 차원이 정해졌다는 것은 다르다. extension은 승인되었지만 벡터 차원은 #78에서 임베딩 모델·거리 연산자와 함께 결정한다.
+`node_embedding.embedding_vector`는 #78에서 `qwen3.7-text-embedding`, dense 1024차원과 cosine distance를 하나의 호환 계약으로 확정했다.
 
 ## 3. PostgreSQL namespace와 객체 소유
 
@@ -154,7 +219,7 @@ knowledge_item.knowledge_item_id
 - `node`, `relation`, `claim`의 공유 기본 키에는 별도의 identity나 default를 두지 않는다.
 - subtype 행은 같은 트랜잭션에서 상위 식별자를 전달받아 생성한다.
 
-“정확히 한 subtype” 규칙의 구체적인 보장 방법은 #43에서 결정한다.
+“정확히 한 subtype”의 교차 행 검증은 짧은 승격 transaction이 담당하며 공유 PK와 item kind의 로컬 조건은 DB가 보장한다.
 
 ### 4.3 연결 테이블과 순번
 
@@ -346,7 +411,7 @@ PostgreSQL
 
 이 값은 안정된 `text`로 유지한다.
 
-결정적 키를 소유하는 #41–#47의 각 매핑은 다음을 반드시 문서화한다.
+결정적 키를 추가하거나 바꾸는 migration은 다음을 반드시 문서화한다.
 
 - 포함 필드
 - 필드 순서
@@ -489,10 +554,10 @@ FALSE
 
 ### 6.7 벡터
 
-`node_embedding.embedding_vector`는 pgvector의 다음 타입 계열을 사용한다.
+`node_embedding.embedding_vector`는 pgvector의 다음 타입을 사용한다.
 
 ```text
-vector(n) NOT NULL
+vector(1024) NOT NULL
 ```
 
 POC는 한 시점에 승인된 하나의 embedding 모델과 하나의 호환 벡터 공간만 사용한다.
@@ -501,11 +566,13 @@ POC는 한 시점에 승인된 하나의 embedding 모델과 하나의 호환 �
 - 서로 다른 차원의 벡터를 같은 컬럼에 섞지 않는다.
 - `halfvec`, SQL 배열과 JSON 배열을 사용하지 않는다.
 - 초기 검색은 exact nearest-neighbor 검색을 사용한다.
-- 임베딩 모델, 벡터 차원과 거리 연산자는 #78에서 하나의 호환 계약으로 정한다.
+- 모델은 `qwen3.7-text-embedding`, 출력은 dense 1024차원이며 거리 연산자는 cosine `<=>`를 사용한다.
+- FTS와 vector branch는 각각 최대 50개를 구하고 `k = 60` RRF로 결합한다.
+- 한 branch가 실패하면 가능한 다른 branch 결과를 반환한다.
 - HNSW·IVFFlat은 #81에서 exact search의 실행 계획, p95 응답 시간과 검색 품질을 측정한 뒤 기준을 충족하지 못할 때만 검토한다.
 - 모델이나 차원이 바뀌면 기존 벡터를 덮어쓰지 않고 전부 새로 생성한 뒤 공개 결과가 `READY`가 되면 전환한다.
 
-구체적인 `n`은 현재 blocker이며 임의의 placeholder 숫자를 넣지 않는다. 기존 자료의 `1536`은 예시 또는 임시값이며 확정 차원이 아니다.
+현재 migration에는 ANN index가 없다. HTTP search의 vector·RRF branch는 #117에 남아 있으며 storage 계약이 구현되었다는 사실만으로 조회 기능이 완료된 것으로 보지 않는다.
 
 ## 7. 닫힌 코드와 확장 가능한 참조 목록
 
@@ -533,11 +600,11 @@ PERIOD
 UNKNOWN
 ```
 
-위 값은 저장 형식을 설명하는 예시이며, 테이블별 정확한 허용 목록은 #41–#47에서 확정한다.
+위 값은 저장 형식을 설명하는 예시다. 테이블별 정확한 허용 목록은 SQLAlchemy metadata와 migration의 이름 있는 CHECK가 고정한다.
 
 POC에서는 PostgreSQL enum 타입을 만들지 않는다. `CHECK` 값 목록의 변경은 승인된 migration으로 수행한다.
 
-값의 허용 목록을 CHECK로 제한하는 것은 상태 전이를 보장하지 않는다. 예를 들어 `REJECTED`가 허용 값이어도 어느 상태에서 누가 그 상태로 바꿀 수 있는지는 #43–#46의 트랜잭션 규칙이 따로 검사한다.
+값의 허용 목록을 CHECK로 제한하는 것은 상태 전이를 보장하지 않는다. 예를 들어 `REJECTED`가 허용 값이어도 어느 상태에서 누가 그 상태로 바꿀 수 있는지는 application-service transaction이 따로 검사한다.
 
 ### 7.2 확장 가능한 의미 사전
 
@@ -669,7 +736,7 @@ ON UPDATE RESTRICT
 
 | 분류 | 의미 | 대표 예 |
 |---|---|---|
-| 불변 버전·산출물 | 의미가 바뀌면 UPDATE 대신 새 행 생성 | 문서 버전, relation·claim, ontology revision, 검색 문서, embedding, context, question, summary |
+| 불변 버전·산출물 | 의미가 바뀌면 UPDATE 대신 새 행 생성 | 문서 버전, relation·claim, ontology revision, 검색 문서, embedding, context, question, insight, conflict summary |
 | append-only 사건·이력 | 기존 행을 수정·삭제하지 않고 새 사건만 추가 | `agent_attempt`, 사람 상태 변경 이력 |
 | 수정 가능한 운영 상태 | 정해진 상태 전이·lease·재시도·카운터만 갱신 | `model_task`, `promotion_batch`, finding 감지 메타데이터 |
 | 한 방향 종료·취소 | `NULL`에서 종료값으로 닫히며 되돌리지 않음 | `valid_to`, `reversed_at`, `resolved_at` |
@@ -703,7 +770,7 @@ output_schema_definition
 3. 위험도가 높은 불변식에 한정한 좁은 trigger
 4. 짧은 트랜잭션 안의 서비스 검증
 
-모든 불변 행에 범용 UPDATE 차단 trigger를 자동 생성하지 않는다. #41–#47에서 위험과 실제 변경 경로를 확인해 결정한다.
+모든 불변 행에 범용 UPDATE 차단 trigger를 자동 생성하지 않는다. 위험과 실제 변경 경로를 확인한 좁은 제약만 migration에 추가한다.
 
 ## 11. 인덱스 정책
 
@@ -730,7 +797,7 @@ INDEX (observation_id, claim_id)
 → observation을 공유하는 Claim 조회 지원
 ```
 
-이 원칙의 대상 여부는 다음 연결 테이블의 실제 쿼리를 #41–#47에서 확인해 결정한다.
+이 원칙의 대상 여부는 각 연결 table을 사용하는 실제 query를 확인해 결정한다.
 
 - `claim_observation`
 - `claim_relation`
@@ -760,15 +827,9 @@ partial unique index가 “최대 하나”를 보장해도 “공개 시 정확
 
 ### 11.4 특수 인덱스
 
-다음 인덱스는 구체적인 쿼리와 평가를 소유하는 Issue에서만 결정한다.
+현재 migration은 `node_search_document`의 `simple` A/B `tsvector` 표현식 GIN만 구현한다. JSON GIN, vector HNSW·IVFFlat과 대규모 covering index는 없다.
 
-- 전문 검색 `tsvector`와 GIN
-- JSON GIN
-- vector HNSW·IVFFlat
-- 표현식 인덱스
-- 대규모 covering index
-
-초기 벡터 검색은 exact search이므로 근사 검색 인덱스를 미리 만들지 않는다.
+새 특수 인덱스는 실제 query와 측정 결과를 소유하는 Issue에서만 결정한다. 초기 vector 검색은 cosine exact search이므로 근사 검색 인덱스를 미리 만들지 않는다.
 
 ## 12. 데이터베이스 주석
 
@@ -808,7 +869,7 @@ external_identifier.identifier_value
   POC에서는 Claim·Observation Evidence Trace와 연결하지 않는다.
 
 promotion_batch.publication_status
-→ 검색 문서·임베딩·맥락·후속 질문의 공개 준비 상태.
+→ 검색 문서·임베딩·맥락·후속 질문·인사이트의 공개 준비 상태.
   기준 지식 저장 결과인 promotion_status와 별개다.
 
 conflict_set
@@ -820,7 +881,7 @@ conflict_set
 
 ## 13. 무결성 보장 책임
 
-각 #41–#47 테이블 매핑은 모든 불변식을 다음 중 정확한 보장 주체에 배정한다.
+모든 table mapping은 각 불변식을 다음 중 정확한 보장 주체에 배정한다.
 
 | 보장 수단 | 사용 대상 |
 |---|---|
@@ -835,43 +896,18 @@ conflict_set
 
 애플리케이션이 canonical input을 계산하는 결정적 키는 PostgreSQL UNIQUE와 함께 사용한다. 애플리케이션 계산만 믿거나 DB 해시만으로 비즈니스 의미를 추론하지 않는다.
 
-## 14. Blockers and Deferred Decisions
+## 14. Deferred Decisions
 
-| ID | 구분 | 영향 객체 | 이유 | 담당 Issue | 막는 작업 | 상태 |
-|---|---|---|---|---|---|---|
-| `PHY-BLOCK-001` | Blocker | `node_embedding.embedding_vector` | 승인된 embedding 모델과 차원이 아직 결정되지 않음 | #78 | `node_embedding`의 최종 컬럼 타입과 해당 migration | OPEN |
-| `PHY-DEFER-001` | Deferred | `knowledge_state_event`, `conflict_state_event`의 처리자 참조 | 관리자·인증 기능이 POC happy path에 포함되지 않음 | 후속 관리자·인증 Issue | 사람 상태 변경 기능의 정확한 actor 컬럼·FK만 지연 | NON_BLOCKING |
+| ID | 영향 객체 | 현재 결정 | 다시 여는 조건 |
+|---|---|---|---|
+| `PHY-DEFER-001` | `knowledge_state_event`, `conflict_state_event` | actor·principal FK를 임의로 만들지 않고 두 table 전체를 초기 migration에서 제외 | 관리자·인증과 사람 상태 변경 기능의 actor 계약 승인 |
 
-blocker가 있는 객체에는 임의의 차원, placeholder 타입이나 가짜 FK를 넣지 않는다. blocking 결정이 닫히기 전에는 영향을 받는 테이블이나 migration을 최종 확정하지 않는다.
+#78의 embedding dimension blocker는 해소되어 `vector(1024)`로 구현되었다. 의미가 불명확한 `TBD`, placeholder dimension과 가짜 actor FK는 frozen schema에 넣지 않는다.
 
-non-blocking deferred 기능은 초기 migration에서 명시적으로 제외할 수 있다. 이 경우 논리 모델에서 해당 기능이 삭제된 것으로 해석하지 않고 후속 Issue의 책임으로 남긴다.
+## 15. Migration과 변경 기준
 
-#48 통합 검토가 끝날 때는 의미가 불명확한 `TBD`가 남아 있으면 안 된다. 모든 미결정은 위 형식의 blocker 또는 deferred 항목으로 추적한다.
+#41–#48의 table mapping, #78의 embedding 계약과 #91의 인사이트 확장은 `0001_create_frozen_schema.py`에 통합되어 있다. `server/src/ontology_map/db/schema.py`는 Alembic 비교와 query 작성에 쓰는 같은 metadata를 제공한다.
 
-## 15. 후속 물리 매핑 순서
+이미 `main`에 병합된 revision을 수정하거나 순서를 다시 쓰지 않는다. 저장 의미, 제약이나 publication 계약이 바뀌면 먼저 logical·physical 결정 Issue를 승인하고 새 Alembic revision으로 변경한다. HTTP DTO나 화면 전용 상태는 DB column을 추가하지 않고 [DESIGN.md](DESIGN.md)의 API 경계에 기록한다.
 
-이 문서를 공통 기준으로 사용해 다음 순서로 `physical-data-schema.md`를 확장한다.
-
-1. #41 — 준비된 문서, 독립 근거 묶음·할당과 observation
-2. #42 — 온톨로지와 노드 정체성
-3. #43 — 기준 지식, relation, Claim, 구조화 값과 Evidence Trace 연결
-4. #44 — 모델 작업, 시도, 차단 fingerprint와 persisted lint
-5. #45 — 불변 conflict snapshot과 요약
-6. #46 — promotion과 publication 제어
-7. #47 — 검색 문서, embedding, context, 질문과 표시 규칙
-8. #48 — 전체 물리 스키마, 무결성 책임과 migration 순서 검증
-
-각 이슈는 다음 내용을 추가한다.
-
-- 논리 필드와 실제 물리 컬럼 대응
-- PostgreSQL 타입
-- `NULL`과 default
-- PK·FK·UNIQUE·CHECK
-- 삭제·갱신 동작
-- lifecycle class와 수정 가능 컬럼
-- 필요한 인덱스와 지원 쿼리
-- 한국어 DB 주석
-- DB와 서비스의 무결성 책임
-- 정상·실패 검증 예시
-
-#48이 완료되기 전에는 실제 DDL·Alembic migration 구현 이슈를 시작하지 않는다.
+migration 변경은 논리 필드와 물리 컬럼, PostgreSQL type, `NULL`과 default, PK·FK·UNIQUE·CHECK, 삭제·갱신 동작, lifecycle, index, 한국어 DB comment, DB와 service의 무결성 책임 및 정상·실패 검증을 함께 설명해야 한다.

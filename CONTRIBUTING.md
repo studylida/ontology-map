@@ -1,6 +1,6 @@
 # 기여 규칙
 
-이 저장소는 `main`을 검토와 검증이 끝난 상태로 유지하는 GitHub Flow를 사용한다. `main` 변경은 Pull Request를 통해서만 병합하며, force push와 branch 삭제를 허용하지 않는다.
+이 저장소는 `main`을 검토와 검증이 끝난 상태로 유지하는 GitHub Flow를 사용한다. `main` 변경은 Pull Request를 통해서만 병합하며 force push를 허용하지 않는다. 병합이 끝난 원격 작업 branch는 아래 정리 규칙에 따라 삭제한다.
 
 ## Issue
 
@@ -58,6 +58,16 @@ Pull Request를 열면 Issue에 링크를 남기고 리뷰 중에도 `status: in
 - `chore`: 위 종류에 속하지 않는 저장소 관리
 
 한 커밋에는 한 기능, 모듈, 수정, 테스트 또는 문서 변경만 담는다. 서로 다른 목적의 변경, 자동 생성 파일과 수동 변경, 무관한 정리는 한 커밋에 섞지 않는다.
+
+## 문서
+
+활성 정식 문서는 `README.md`, `database-operations.md`, `code-conventions.md`, `CONTRIBUTING.md`, `DESIGN.md`, `implementation-stack.md`, `logical-data-schema.md`와 `physical-data-schema.md`로 제한한다. `HANDOFF.md`는 새 세션 인계에만 쓰는 임시 문서다.
+
+새 주제별 Markdown 파일을 만들기 전에 기존 정식 문서의 절로 합칠 수 있는지 확인한다. 완료된 계획, 과거 인계, 대화 기록과 Issue별 설계 메모는 필요한 현재 결론을 정식 문서에 반영한 뒤 `archive/`로 옮긴다. 후속 계획과 미결정 사항은 Markdown 파일이 아니라 GitHub Issue에서 관리한다.
+
+역사 문서가 현재 계약과 충돌하면 frozen schema, 병합된 코드와 최신 GitHub 결정 순으로 확인한다. 파일 이동은 `git mv`를 사용하고 저장소 내부 상대 링크를 함께 갱신한다.
+
+한국어 prose의 각 문단과 목록 항목은 한 물리 줄로 작성하고 renderer의 soft wrap을 사용한다. 표, fenced code와 구조를 표현하기 위한 줄바꿈은 유지한다.
 
 ## Pull Request
 
