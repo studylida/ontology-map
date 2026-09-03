@@ -450,3 +450,53 @@ def list_ambient_nodes(
         )
         for row in rows
     ]
+
+
+def list_peripheral_node_rows(
+    session: Session,
+    excluded_node_ids: list[int],
+    start_at: datetime,
+    end_at: datetime,
+    after_node_id: int,
+    limit: int,
+) -> list[tuple[NodeRow, int]]:
+    statement = sa.text(
+        _PUBLIC_NODES_CTE
+        + _ACTIVITY_CTES
+        + """
+        SELECT
+            pn.node_id,
+            pn.name,
+            pn.node_type_code,
+            pn.node_type_display_name,
+            coalesce(ac.evidence_group_count, 0) AS activity_count
+        FROM public_nodes AS pn
+        LEFT JOIN activity_counts AS ac ON ac.node_id = pn.node_id
+        WHERE pn.node_id > :after_node_id
+          AND NOT (pn.node_id = ANY(CAST(:excluded_node_ids AS bigint[])))
+        ORDER BY pn.node_id ASC
+        LIMIT :limit
+        """
+    )
+    rows = session.execute(
+        statement,
+        {
+            "excluded_node_ids": excluded_node_ids,
+            "start_at": start_at,
+            "end_at": end_at,
+            "after_node_id": after_node_id,
+            "limit": limit,
+        },
+    ).mappings()
+    return [
+        (
+            NodeRow(
+                node_id=int(row["node_id"]),
+                name=str(row["name"]),
+                node_type_code=str(row["node_type_code"]),
+                node_type_display_name=str(row["node_type_display_name"]),
+            ),
+            int(row["activity_count"]),
+        )
+        for row in rows
+    ]
