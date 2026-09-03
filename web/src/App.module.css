@@ -156,6 +156,11 @@
   color: #647286;
 }
 
+.searchBox input:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
 .searchResults {
   position: absolute;
   top: 91px;
@@ -880,6 +885,50 @@
   height: 1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
+}
+
+.requestStatus,
+.fullStatus {
+  z-index: 20;
+  display: grid;
+  padding: 16px;
+  color: var(--text-primary);
+  background: rgba(18, 24, 33, 0.98);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  gap: 8px;
+}
+
+.requestStatus {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  min-width: 320px;
+  transform: translateX(-50%);
+}
+
+.fullStatus {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(440px, calc(100vw - 48px));
+  transform: translate(-50%, -50%);
+}
+
+.requestStatus span,
+.fullStatus span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.requestStatus button,
+.fullStatus button {
+  min-height: 40px;
+  color: var(--text-primary);
+  background: #22334a;
+  border: 1px solid #628ed0;
+  border-radius: 8px;
 }
 
 .loadingOverlay {

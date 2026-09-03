@@ -1,14 +1,13 @@
 import ForceGraph3D, { type ForceGraph3DInstance } from "3d-force-graph";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import {
-  buildKnowledgeView,
+  type ExplorationView,
   getFilamentOffsets,
   type KnowledgeViewNode,
   type KnowledgeViewRelation,
   type NodeTier,
-  type TimeRange,
 } from "./data";
 import styles from "./GraphCanvas.module.css";
 
@@ -30,8 +29,7 @@ interface RuntimeLink extends Omit<KnowledgeViewRelation, "source" | "target"> {
 }
 
 interface GraphCanvasProps {
-  centerId: string;
-  timeRange: TimeRange;
+  view: ExplorationView;
   introStarted: boolean;
   onSelect: (nodeId: string) => void;
   onTransitionComplete: (nodeId: string) => void;
@@ -132,10 +130,10 @@ const nodeStyles: Record<NodeTier, NodeStyle> = {
 const relationOpacity = { direct: 0.9, twoHop: 0.56, ambient: 0.3 } as const;
 const depthLimit = 32;
 
-function radiusFor(node: RuntimeNode, range: TimeRange): number {
-  const activity = node.activity[range];
-  if (activity >= 84) return 3.5;
-  if (activity >= 56) return 2.35;
+function radiusFor(node: RuntimeNode): number {
+  const activity = node.activityEvidenceGroupCount;
+  if (activity >= 6) return 3.5;
+  if (activity >= 3) return 2.35;
   return 1.6;
 }
 
@@ -200,7 +198,9 @@ function applyNodeVisual(
   radius: number,
   style: NodeStyle,
 ) {
-  const color = new THREE.Color(colors[node.kind]);
+  const color = new THREE.Color(
+    colors[node.kind as keyof typeof colors] ?? "#8fa1b8",
+  );
   visual.userData.surface.material.color
     .copy(color)
     .multiplyScalar(style.colorScale);
@@ -225,10 +225,12 @@ function applyNodeVisual(
   visual.userData.style = { ...style };
 }
 
-function makeNodeVisual(node: RuntimeNode, range: TimeRange): NodeVisual {
+function makeNodeVisual(node: RuntimeNode): NodeVisual {
   const group = new THREE.Group() as NodeVisual;
   const geometry = new THREE.SphereGeometry(1, 28, 18);
-  const color = new THREE.Color(colors[node.kind]);
+  const color = new THREE.Color(
+    colors[node.kind as keyof typeof colors] ?? "#8fa1b8",
+  );
   const occluder = new THREE.Mesh(
     geometry,
     new THREE.MeshBasicMaterial({
@@ -300,7 +302,7 @@ function makeNodeVisual(node: RuntimeNode, range: TimeRange): NodeVisual {
     halo,
     shell,
     label,
-    radius: radiusFor(node, range),
+    radius: radiusFor(node),
     style: { ...nodeStyles[node.tier] },
   };
   applyNodeVisual(group, node, group.userData.radius, group.userData.style);
@@ -392,13 +394,13 @@ function depthTargetForNode(node: RuntimeNode): number {
 }
 
 export function GraphCanvas({
-  centerId,
-  timeRange,
+  view,
   introStarted,
   onSelect,
   onTransitionComplete,
   onReady,
 }: GraphCanvasProps) {
+  const centerId = view.centerId;
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<ForceGraph3DInstance<
     RuntimeNode,
@@ -409,7 +411,6 @@ export function GraphCanvas({
   const nodeVisualsRef = useRef(new Map<string, NodeVisual>());
   const linkVisualsRef = useRef(new Map<string, LinkVisual>());
   const previousCenterRef = useRef(centerId);
-  const timeRangeRef = useRef(timeRange);
   const onSelectRef = useRef(onSelect);
   const onTransitionCompleteRef = useRef(onTransitionComplete);
   const onReadyRef = useRef(onReady);
@@ -421,7 +422,6 @@ export function GraphCanvas({
   const hoverAnimationRef = useRef<number | null>(null);
   const introTimeoutRef = useRef<number | null>(null);
   const [busy, setBusy] = useState(true);
-  const view = useMemo(() => buildKnowledgeView(centerId), [centerId]);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -434,10 +434,6 @@ export function GraphCanvas({
   useEffect(() => {
     onReadyRef.current = onReady;
   }, [onReady]);
-
-  useEffect(() => {
-    timeRangeRef.current = timeRange;
-  }, [timeRange]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -460,7 +456,7 @@ export function GraphCanvas({
       .nodeId("id")
       .nodeLabel((node) => `${node.name} · ${node.kind}`)
       .nodeThreeObject((node) => {
-        const visual = makeNodeVisual(node, timeRangeRef.current);
+        const visual = makeNodeVisual(node);
         nodeVisualsRef.current.set(node.id, visual);
         return visual;
       })
@@ -679,15 +675,45 @@ export function GraphCanvas({
       const targetLinks = new Map(
         view.relations.map((relation) => [relation.id, relation]),
       );
+      let surroundingIndex = nodesRef.current.size;
+      const anchor = nodesRef.current.get(previousCenterRef.current);
+      for (const target of view.nodes) {
+        if (nodesRef.current.has(target.id)) continue;
+        const angle = surroundingIndex * 2.399963229728653;
+        const distance = 28 * Math.sqrt(surroundingIndex + 1);
+        surroundingIndex += 1;
+        nodesRef.current.set(target.id, {
+          ...target,
+          tier: "ambient",
+          x: (anchor?.x ?? 0) + Math.cos(angle) * distance,
+          y: (anchor?.y ?? 0) + Math.sin(angle) * distance,
+          z: depthTargetForNode(target),
+        });
+      }
+      for (const target of view.relations) {
+        if (linksRef.current.has(target.id)) continue;
+        linksRef.current.set(target.id, {
+          ...target,
+          tier: "ambient",
+          source: target.source,
+          target: target.target,
+        });
+      }
+      graph.graphData({
+        nodes: [...nodesRef.current.values()],
+        links: [...linksRef.current.values()],
+      });
+
       const nodeStarts = new Map(
         [...nodesRef.current].map(([id, node]) => {
           const visual = nodeVisualsRef.current.get(id);
           const target = targetNodes.get(id);
           if (target) Object.assign(node, target);
+          else node.tier = "ambient";
           return [
             id,
             {
-              radius: visual?.userData.radius ?? radiusFor(node, timeRange),
+              radius: visual?.userData.radius ?? radiusFor(node),
               style: visual?.userData.style ?? nodeStyles[node.tier],
             },
           ];
@@ -702,7 +728,7 @@ export function GraphCanvas({
             link.evidenceGroupCount = target.evidenceGroupCount;
             if (target.conflict === undefined) delete link.conflict;
             else link.conflict = target.conflict;
-          }
+          } else link.tier = "ambient";
           return [id, linkVisualsRef.current.get(id)?.userData.opacity ?? 0];
         }),
       );
@@ -747,7 +773,7 @@ export function GraphCanvas({
           const visual = nodeVisualsRef.current.get(id);
           const start = nodeStarts.get(id);
           if (!visual || !start) continue;
-          const targetRadius = radiusFor(node, timeRange);
+          const targetRadius = radiusFor(node);
           const targetStyle = nodeStyles[node.tier];
           const style = Object.fromEntries(
             Object.keys(targetStyle).map((key) => {
@@ -859,7 +885,7 @@ export function GraphCanvas({
       introTimeoutRef.current = null;
     }
     animateToView();
-  }, [centerId, introStarted, timeRange, view]);
+  }, [centerId, introStarted, view]);
 
   return (
     <section className={styles.map} aria-label="동적 지식맵" aria-busy={busy}>
