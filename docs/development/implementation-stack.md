@@ -5,7 +5,7 @@
 - 상태: 승인된 현재 구현 기준
 - 확인일: 2026-09-03
 - 관련 Issue: #38, #95–#100
-- 실행 안내: [database-operations.md](database-operations.md)
+- 실행 안내: [DB 운영](../operations/database.md)
 - 코드 규칙: [code-conventions.md](code-conventions.md)
 
 이 문서는 ontology-map의 실제 런타임, 직접 의존성, 프로세스와 코드 구조를 설명한다. 목표 구조를 미리 만들지 않고 현재 저장소와 lockfile에 존재하는 경계만 정식 상태로 기록한다.
@@ -126,7 +126,7 @@ browser
 | web | 구현 | `web/`의 `npm run dev` |
 | agent/worker | 미구현 | 없음 |
 
-개발 환경 설정부터 fixture, smoke check와 종료까지의 정확한 명령은 [database-operations.md](database-operations.md)를 따른다. API 컨테이너는 migration을 자동 실행하지 않으므로 migration과 fixture를 명시적으로 적용한 뒤 시작한다.
+개발 환경 설정부터 fixture, smoke check와 종료까지의 정확한 명령은 [DB 운영](../operations/database.md)을 따른다. API 컨테이너는 migration을 자동 실행하지 않으므로 migration과 fixture를 명시적으로 적용한 뒤 시작한다.
 
 ## 설정과 비밀 관리
 
@@ -150,8 +150,9 @@ Compose는 `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`와 `POSTGRES_PORT
 | web | `npm run check` |
 | server | `uv run ruff format --check .`, `uv run ruff check .`, `uv run mypy src`, `uv run --env-file ../.env pytest -q` |
 | schema | `uv run --env-file ../.env alembic check` |
+| 문서 | `uv run --project server --frozen python scripts/check_docs.py --check` |
 
-현재 GitHub Actions workflow는 없다. browser E2E, cloud deployment와 자동 release도 현재 기준에 포함되지 않는다.
+모든 Pull Request에서 GitHub Actions가 DB 없이 문서 생성 결과, 저장소 내부 Markdown 링크와 ADR 규칙을 검사한다. 애플리케이션 검사 workflow, browser E2E, cloud deployment와 자동 release는 현재 기준에 포함되지 않는다.
 
 ## 승인된 계약과 남은 구현
 

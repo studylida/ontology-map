@@ -10,7 +10,7 @@
 
 ## 1. 목적과 경계
 
-이 문서는 제품 의미, 논리 엔터티, 참조 관계, 카디널리티, 수명주기와 무결성 책임을 정의한다. PostgreSQL 자료형·DDL·migration과 인덱스 표현식은 [physical-data-schema.md](physical-data-schema.md), HTTP 표현과 현재 구현 상태는 [DESIGN.md](DESIGN.md)와 [implementation-stack.md](implementation-stack.md)에서 정한다.
+이 문서는 사람이 관리하는 도메인 계약이다. 제품 의미, 논리 엔터티, 참조 관계, 카디널리티, 소유권, 수명주기와 무결성 책임을 정의한다. 엔터티·관계·카디널리티·소유권·수명주기가 바뀌는 구현 PR은 이 문서를 함께 갱신한다. PostgreSQL 자료형·DDL·migration과 인덱스 표현식은 [물리 스키마](physical-schema.md), HTTP 표현과 현재 구현 상태는 [제품 설계](../product/design.md)와 [구현 스택](../development/implementation-stack.md)에서 정한다.
 
 Logical Schema v1.2는 다음 원칙을 고정한다.
 
