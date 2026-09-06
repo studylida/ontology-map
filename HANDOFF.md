@@ -40,7 +40,7 @@ search의 Qwen cosine exact vector branch와 `k = 60` RRF는 #117에 남아 있�
 
 ## 문서 정리 결과
 
-- 루트의 정식 문서는 `README.md`, `database-operations.md`, `code-conventions.md`, `CONTRIBUTING.md`, `DESIGN.md`, `implementation-stack.md`, `logical-data-schema.md`와 `physical-data-schema.md`로 제한했다.
+- 루트에는 진입 문서인 `README.md`, 기여 규칙인 `CONTRIBUTING.md`와 임시 인계 문서인 `HANDOFF.md`를 두고, 제품·아키텍처·데이터·운영·개발 정식 문서는 `docs/` 아래에서 관리한다.
 - 완료된 Issue별 schema 문서, 과거 요구사항 추적표와 대화 기록은 현재 결론을 정식 문서에 반영한 뒤 `archive/`로 옮겼다.
 - `HANDOFF.md`는 정식 계약이 아니라 현재 작업 상태만 전달한다.
 

@@ -3376,7 +3376,7 @@ ERD는 `논리 ER`, 문서 안쪽 폭, 구현 담당자 대상, 균형 수준으
 
 논리 데이터 스키마 설계를 완료하고 커밋했습니다.
 
-- 문서: [logical-data-schema.md](../logical-data-schema.md)
+- 문서: [logical-data-schema.md](../docs/data/logical-schema.md)
 - 포함 내용: 논리 ERD, JSON 후보 계층, 데이터 사전, 카디널리티, 상태 전이, 무결성·lint 규칙, ingest·승격·공개 흐름, HBF 검증 시나리오
 - 제외: PostgreSQL DDL, migration, API 및 제품 코드
 - 검사: 필수 구조, 코드 블록 균형, 폐기된 지도 버전 구조 부재, `git diff --check` 통과
@@ -3418,25 +3418,25 @@ ERD는 `논리 ER`, 문서 안쪽 폭, 구현 담당자 대상, 균형 수준으
 
 1. 출처 버전 필드가 일부 잘못 배치됐습니다.
 
-대화에서는 출처 버전에 작성자, URL, 통신 방식까지 저장하기로 확정했습니다([대화 원문](people-intelligence-requirements-transcript.md)). 현재 문서는 작성자를 `source`에 두고 URL과 통신 방식을 `source_version`에서 누락했습니다([논리 스키마](../logical-data-schema.md)).
+대화에서는 출처 버전에 작성자, URL, 통신 방식까지 저장하기로 확정했습니다([대화 원문](people-intelligence-requirements-transcript.md)). 현재 문서는 작성자를 `source`에 두고 URL과 통신 방식을 `source_version`에서 누락했습니다([논리 스키마](../docs/data/logical-schema.md)).
 
 또한 현재 중복 기준은 본문 해시만 사용하므로 작성자·게시일 같은 메타데이터만 수정되면 새 버전을 만들지 못합니다. `body_hash`와 별도로 본문과 버전 메타데이터를 함께 반영한 `version_fingerprint`가 필요합니다.
 
 2. 후보 승격 대상의 참조가 성립하지 않습니다.
 
-`candidate_item`은 노드·관계·Claim뿐 아니라 관측과 동일 대상 후보도 포함합니다([논리 스키마](../logical-data-schema.md)). 그러나 `promotion_member`는 후보를 `knowledge_item`에만 연결합니다([논리 스키마](../logical-data-schema.md)).
+`candidate_item`은 노드·관계·Claim뿐 아니라 관측과 동일 대상 후보도 포함합니다([논리 스키마](../docs/data/logical-schema.md)). 그러나 `promotion_member`는 후보를 `knowledge_item`에만 연결합니다([논리 스키마](../docs/data/logical-schema.md)).
 
 `observation`, `node_name`, `node_merge`, 근거 묶음 같은 결과는 `knowledge_item`이 아니므로 승격 계보를 기록할 수 없습니다. 각 결과 테이블에 `origin_candidate_item_id`와 `promotion_batch_id`를 두거나, 유형별 FK를 가진 승격 결과 구조로 바꿔야 합니다.
 
 3. 맥락 설명의 근거 연결이 빠졌습니다.
 
-대화에서는 맥락 설명에 사용한 Claim과 출처를 연결하기로 했습니다([대화 원문](people-intelligence-requirements-transcript.md)). 현재 `node_context`에는 입력 해시와 모델 계보만 있고 구체적인 근거 연결이 없습니다([논리 스키마](../logical-data-schema.md)).
+대화에서는 맥락 설명에 사용한 Claim과 출처를 연결하기로 했습니다([대화 원문](people-intelligence-requirements-transcript.md)). 현재 `node_context`에는 입력 해시와 모델 계보만 있고 구체적인 근거 연결이 없습니다([논리 스키마](../docs/data/logical-schema.md)).
 
 `node_context_basis`를 두어 Claim·관계와 연결해야 Evidence Trace를 제공하고, 거절된 Claim이 설명에 포함됐는지도 판별할 수 있습니다.
 
 4. 근거를 요구하는 DB 불변조건이 부족합니다.
 
-현재는 Claim에 관측이 있어야 한다는 규칙만 있습니다([논리 스키마](../logical-data-schema.md)). 다음 조건도 필요합니다.
+현재는 Claim에 관측이 있어야 한다는 규칙만 있습니다([논리 스키마](../docs/data/logical-schema.md)). 다음 조건도 필요합니다.
 
 - `근거 확인됨` 관계에는 최소 하나의 지지 Claim과 관측이 있어야 합니다.
 - 노드에는 최소 하나의 근거 있는 이름 또는 속성 Claim이 있어야 합니다.
@@ -3447,7 +3447,7 @@ PostgreSQL의 `CHECK`는 다른 행이나 테이블을 참조하는 제약을 �
 
 5. 시간 정밀도가 범위의 양쪽을 표현하지 못합니다.
 
-관계와 Claim이 시작·종료 시간 하나에 `time_precision` 하나만 사용합니다([관계](../logical-data-schema.md), [Claim](../logical-data-schema.md)). 시작은 정확한 날짜이고 종료는 연도만 아는 경우를 표현하려면 `from_precision`과 `to_precision`을 분리해야 합니다.
+관계와 Claim이 시작·종료 시간 하나에 `time_precision` 하나만 사용합니다([관계](../docs/data/logical-schema.md), [Claim](../docs/data/logical-schema.md)). 시작은 정확한 날짜이고 종료는 연도만 아는 경우를 표현하려면 `from_precision`과 `to_precision`을 분리해야 합니다.
 
 6. 충돌 상태 이력이 부족합니다.
 
@@ -3489,7 +3489,7 @@ PostgreSQL의 `CHECK`는 다른 행이나 테이블을 참조하는 제약을 �
 
 ## 요약
 
-- [logical-data-schema.md](../logical-data-schema.md)를 기존 확정 요구사항과 이번 검토 결정에 맞게 수정한다.
+- [logical-data-schema.md](../docs/data/logical-schema.md)를 기존 확정 요구사항과 이번 검토 결정에 맞게 수정한다.
 - 정규화 원문 → 후보 → 기준 그래프 → 파생 데이터 → 동적 지도라는 구조는 유지한다.
 - 대화 원문 파일, PostgreSQL DDL, migration, API와 제품 코드는 변경하지 않는다.
 - 별도 `confidence` 필드는 만들지 않는다. 실행 상태, lint, 검증 상태와 독립 근거 수를 각각 사용한다.
@@ -3595,7 +3595,7 @@ Implement the plan.
 
 논리 데이터 스키마 보정을 완료하고 별도 작업 브랜치에 커밋했습니다.
 
-- 문서: [logical-data-schema.md](../logical-data-schema.md)
+- 문서: [logical-data-schema.md](../docs/data/logical-schema.md)
 - 브랜치: `fix/logical-schema-invariants`
 - 커밋: `7798fa5379831637c507a184098ff189bd018e3a`
 - 검사: `git diff --check`, 코드 블록 균형, 필수 엔터티·규칙 검사 통과
@@ -3659,7 +3659,7 @@ Implement the plan.
 - 장점과 비용은 무엇인가?
 - POC에서 더 줄일 수 있는가?
 
-최신 스키마는 [logical-data-schema.md](../logical-data-schema.md), 결정의 원문은 [people-intelligence-requirements-transcript.md](people-intelligence-requirements-transcript.md)를 기준으로 보겠습니다.
+최신 스키마는 [logical-data-schema.md](../docs/data/logical-schema.md), 결정의 원문은 [people-intelligence-requirements-transcript.md](people-intelligence-requirements-transcript.md)를 기준으로 보겠습니다.
 
 ## 첫 번째 학습: 기준 그래프와 지식맵의 분리
 
@@ -4145,7 +4145,7 @@ source_document
 
 검사는 `git diff --check`, 코드 블록 균형, 제거된 엔터티 잔존 여부와 PR 포함 파일 검사를 통과했습니다. CI는 아직 설정되어 있지 않습니다.
 
-PR에는 [논리 스키마](../logical-data-schema.md)와 [기여 규칙](../CONTRIBUTING.md)만 포함했습니다. 대화 원문 파일은 공개하지 않았으며 기존 로컬 수정도 그대로 보존했습니다. PR은 아직 병합하지 않았습니다.
+PR에는 [논리 스키마](../docs/data/logical-schema.md)와 [기여 규칙](../CONTRIBUTING.md)만 포함했습니다. 대화 원문 파일은 공개하지 않았으며 기존 로컬 수정도 그대로 보존했습니다. PR은 아직 병합하지 않았습니다.
 
 ## 사용자
 
@@ -4166,7 +4166,7 @@ PR에는 [논리 스키마](../logical-data-schema.md)와 [기여 규칙](../CON
 | [`1dae309`](https://github.com/studylida/ontology-map/commit/1dae30957ceeaf1883e2f2994fbd3e021cc8c13e) | 최신 결정에 따라 출처 모델을 단순화했습니다. GDELT·발견·수집 이력을 제거하고 `source_document` 하나로 합쳤습니다. |
 | [`5c9d191`](https://github.com/studylida/ontology-map/commit/5c9d191bfd8576c711cef6a7d244c3adad359d44) | Issue → 브랜치 → 작은 커밋 → PR로 이어지는 GitHub Flow 규칙을 `CONTRIBUTING.md`에 기록했습니다. |
 
-최종 스키마는 네 커밋의 누적 결과입니다. 따라서 `0ba1c00`과 `9e0b75d`에 등장하는 복잡한 수집 계층은 `1dae309`에서 제거됐습니다. 현재 기준은 [최종 논리 스키마](../logical-data-schema.md)입니다.
+최종 스키마는 네 커밋의 누적 결과입니다. 따라서 `0ba1c00`과 `9e0b75d`에 등장하는 복잡한 수집 계층은 `1dae309`에서 제거됐습니다. 현재 기준은 [최종 논리 스키마](../docs/data/logical-schema.md)입니다.
 
 `main`에는 아직 `18c6686 Initial commit`만 있습니다. PR은 열려 있지만 병합되지 않았습니다.
 
@@ -4204,7 +4204,7 @@ candidate_item
     └→ lint_run → lint_finding
 ```
 
-현재 문서는 [Agent 실행과 후보](../logical-data-schema.md)에서 확인할 수 있습니다.
+현재 문서는 [Agent 실행과 후보](../docs/data/logical-schema.md)에서 확인할 수 있습니다.
 
 ## 1. `model_task`
 
@@ -13916,7 +13916,7 @@ source_document
 
 실제 HBF 예시를 이 흐름에 넣어 누락된 FK, 모순되는 상태와 중복 컬럼이 없는지 확인합니다. 이 검토가 끝나면 PostgreSQL 물리 스키마로 넘어갈 수 있습니다.
 
-다만 현재 [logical-data-schema.md](../logical-data-schema.md)는 공부하면서 만든 #4~#27 이슈가 아직 반영되지 않은 옛 구조입니다. 따라서 권장 순서는 다음과 같습니다.
+다만 현재 [logical-data-schema.md](../docs/data/logical-schema.md)는 공부하면서 만든 #4~#27 이슈가 아직 반영되지 않은 옛 구조입니다. 따라서 권장 순서는 다음과 같습니다.
 
 ```text
 전체 무결성·연결 검토

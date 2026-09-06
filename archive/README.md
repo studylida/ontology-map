@@ -2,7 +2,7 @@
 
 이 디렉터리는 완료된 계획, 과거 대화 기록과 정식 문서에 결론이 반영된 Issue별 설계 문서를 보존한다. 새 세션의 기본 읽기 대상이 아니며 현재 계약의 근거로 단독 사용하지 않는다.
 
-현재 계약은 저장소 루트의 `DESIGN.md`, `implementation-stack.md`, `logical-data-schema.md`와 `physical-data-schema.md`를 우선한다. 내용이 충돌하면 승인된 frozen schema, 병합된 코드와 최신 GitHub 결정 순으로 다시 확인한다.
+현재 계약은 [문서 안내](../docs/README.md)에 등록된 제품, 아키텍처, 데이터, 운영과 개발 문서를 우선한다. 내용이 충돌하면 승인된 frozen schema, 병합된 코드와 최신 GitHub 결정 순으로 다시 확인한다.
 
 ## 보존 범위
 

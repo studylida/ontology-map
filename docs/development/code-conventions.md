@@ -6,8 +6,8 @@
 - 확인일: 2026-09-03
 - 관련 Issue: #8, #95–#100
 - 구현 스택: [implementation-stack.md](implementation-stack.md)
-- Git 규칙: [CONTRIBUTING.md](CONTRIBUTING.md)
-- PostgreSQL 물리 규칙: [physical-data-schema.md](physical-data-schema.md)
+- Git 규칙: [CONTRIBUTING.md](../../CONTRIBUTING.md)
+- PostgreSQL 물리 규칙: [물리 스키마](../data/physical-schema.md)
 
 이 문서는 ontology-map의 TypeScript·React·CSS와 Python·FastAPI·SQLAlchemy·Alembic 코드에 적용할 최소 규칙을 정한다. `web/`에는 실제 FastAPI adapter를 사용하는 React 화면이 있고 `server/`에는 읽기 API, SQLAlchemy query, frozen schema migration과 개발 fixture가 있다. agent/worker는 아직 구현되지 않았으므로 해당 절은 구현할 때 지킬 경계만 정한다.
 
@@ -73,7 +73,7 @@ ontology-map/
 ## CSS
 
 - 컴포넌트 스타일은 `Component.module.css`를 사용한다. 전역 CSS는 reset, 디자인 토큰과 기본 요소 스타일에만 사용한다.
-- 색, 간격, typography와 상태 표현은 [DESIGN.md](DESIGN.md)의 token을 따른다. 임의의 비슷한 색이나 간격을 컴포넌트마다 새로 만들지 않는다.
+- 색, 간격, typography와 상태 표현은 [제품 설계](../product/design.md)의 token을 따른다. 임의의 비슷한 색이나 간격을 컴포넌트마다 새로 만들지 않는다.
 - layout은 CSS Grid와 Flexbox를 우선하고, DOM 측정이나 JavaScript 배치는 3D graph canvas처럼 CSS로 해결할 수 없는 경우에만 사용한다.
 - hover만으로 의미를 전달하지 않는다. focus-visible, reduced-motion, text contrast와 최소 44px 조작 영역을 기본으로 유지한다.
 - CSS-in-JS, utility CSS framework와 별도 reset package는 승인된 요구가 생기기 전에는 추가하지 않는다.
@@ -124,7 +124,7 @@ ontology-map/
 - migration은 Alembic과 SQLAlchemy metadata만 사용하고 API, Agent, application service나 외부 모델을 import하지 않는다.
 - `upgrade()`와 `downgrade()`를 명시한다. 안전하게 되돌릴 수 없는 변경은 가짜 역연산을 쓰지 않고 해당 물리 설계 Issue와 PR에 위험과 복구 방법을 기록한다.
 - `main`에 병합된 revision을 수정하거나 순서를 다시 쓰지 않는다. 변경이 필요하면 새 revision을 만든다.
-- PostgreSQL 자료형, ID, schema namespace, object·constraint 이름, `NULL`, default, hash, comment와 삭제 정책은 [physical-data-schema.md](physical-data-schema.md)를 따른다.
+- PostgreSQL 자료형, ID, schema namespace, object·constraint 이름, `NULL`, default, hash, comment와 삭제 정책은 [물리 스키마](../data/physical-schema.md)를 따른다.
 
 ## 테스트 기준
 
@@ -137,7 +137,7 @@ ontology-map/
 
 ## 프로젝트 명령 계약
 
-아래 명령은 현재 각 애플리케이션의 manifest와 설정에 구현되어 있다. DB가 필요한 정확한 실행 순서와 환경 변수는 [database-operations.md](database-operations.md)를 따른다.
+아래 명령은 현재 각 애플리케이션의 manifest와 설정에 구현되어 있다. DB가 필요한 정확한 실행 순서와 환경 변수는 [DB 운영](../operations/database.md)을 따른다.
 
 ### web
 
@@ -182,6 +182,7 @@ PostgreSQL이 필요한 pytest와 Alembic 명령에는 `uv run --env-file ../.en
 - `.env.example`에는 이름과 안전한 예시 형식만 두며 실제 secret은 넣지 않는다. 브라우저에 공개할 수 없는 값은 `VITE_*`로 만들지 않는다.
 - `package-lock.json`과 `uv.lock`은 manifest와 함께 커밋한다. build output, cache, coverage와 로컬 환경 파일은 커밋하지 않는다.
 - 생성 파일에는 생성 원본과 명령이 있어야 한다. 생성된 API client나 schema 복사본은 실제 소비자가 생기고 갱신 검사가 마련되기 전에는 추가하지 않는다.
+- `docs/data/schema-reference.md`는 SQLAlchemy metadata에서 생성한다. `uv run --project server --frozen python scripts/check_docs.py --write`로 갱신하고 수동으로 수정하지 않는다.
 
 ## 리뷰 확인표
 
@@ -191,7 +192,7 @@ PostgreSQL이 필요한 pytest와 Alembic 명령에는 `uv run --env-file ../.en
 - 입력, 오류, transaction, 로그와 secret 경계가 분명한가?
 - 변경한 함수가 복잡도 10 이하이며 비자명한 동작에 가장 작은 검증이 있는가?
 - 관련 format, lint, typecheck, test와 build 검사가 통과했는가?
-- PostgreSQL 물리 결정은 `physical-data-schema.md`를 따르고 Git 작업은 `CONTRIBUTING.md`를 따르는가?
+- PostgreSQL 물리 결정은 [물리 스키마](../data/physical-schema.md)를 따르고 Git 작업은 [기여 규칙](../../CONTRIBUTING.md)을 따르는가?
 
 ## 참고 자료
 

@@ -5,34 +5,24 @@
 - 상태: Physical Schema v2 — 동결 및 migration 구현 완료
 - 확인일: 2026-09-03
 - 관련 Issue: [#40 Define PostgreSQL physical schema conventions](https://github.com/studylida/ontology-map/issues/40)
-- 논리 모델: [logical-data-schema.md](logical-data-schema.md)
-- 구현 스택: [implementation-stack.md](implementation-stack.md)
-- 코드·migration 규칙: [code-conventions.md](code-conventions.md)
+- 논리 모델: [논리 스키마](logical-schema.md)
+- 생성 목록: [스키마 참고 문서](schema-reference.md)
+- 구현 스택: [구현 스택](../development/implementation-stack.md)
+- 코드·migration 규칙: [코드 규칙](../development/code-conventions.md)
 - 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`
 
-이 문서는 Logical Schema v1.2의 의미를 PostgreSQL로 옮긴 동결된 테이블 목록과 모든 객체에 적용할 자료형, 이름, 식별자, `NULL`, 기본값, 삭제, 불변성, 인덱스, 주석과 publication 규칙을 정의한다.
+이 문서는 Logical Schema v1.2의 의미를 PostgreSQL로 옮기는 공통 표현 규칙을 정의한다. 실제 table, column, constraint와 index 목록은 SQLAlchemy metadata에서 생성한 [스키마 참고 문서](schema-reference.md)가 소유한다.
 
 #41–#48에서 기본 매핑을 확정했고 #78에서 embedding 계약, #91에서 node 인사이트 확장을 추가했다. #95는 이 결과를 SQLAlchemy metadata와 Alembic migration으로 구현했다. migration과 metadata가 이 문서와 다르면 임의로 한쪽을 정답으로 바꾸지 않고 #116에서 의미 차이인지 구현 오류인지 감사한다.
 
-## 현재 구현과 테이블 목록
+## 현재 구현 기준
 
 - SQLAlchemy metadata: `server/src/ontology_map/db/schema.py`
 - Alembic revision: `server/migrations/versions/0001_create_frozen_schema.py`
 - 개발 fixture: `server/src/ontology_map/db/fixture.py`
 - PostgreSQL namespace: `public`
-- 구현된 table: 43개
-- 논리 모델에는 있지만 actor 계약이 없어 보류한 table: `knowledge_state_event`, `conflict_state_event`
-
-| 영역 | 구현 table |
-|---|---|
-| 온톨로지·계약 | `node_type`, `relation_type`, `attribute`, `output_schema_definition`, `lint_rule`, `lint_policy_version`, `relation_type_revision`, `relation_endpoint_rule`, `attribute_revision`, `lint_policy_rule` |
-| 준비 근거 | `evidence_group`, `source_document`, `observation` |
-| 모델 실행 | `model_task`, `agent_attempt`, `blocked_fingerprint` |
-| 승격·기준 지식 | `promotion_batch`, `knowledge_item`, `node`, `relation`, `claim` |
-| node 정체성 | `node_alias`, `node_alias_evidence`, `external_identifier`, `node_merge`, `event_temporal_extent` |
-| Claim과 Evidence Trace | `claim_relation`, `claim_attribute_value`, `claim_observation`, `event_temporal_basis` |
-| lint·충돌 | `lint_run`, `lint_finding`, `conflict_set`, `conflict_member`, `conflict_summary` |
-| 검색·파생 결과 | `node_search_document`, `search_document_basis`, `node_embedding`, `node_context`, `followup_question`, `node_insight`, `node_insight_claim`, `publication_affected_node` |
+- 현재 metadata에 구현된 table 수와 각 객체의 세부 정의는 [스키마 참고 문서](schema-reference.md)에서 확인한다.
+- 논리 모델에는 있지만 actor 계약이 없어 구현을 보류한 table은 `knowledge_state_event`와 `conflict_state_event`다.
 
 Evidence Trace는 새 사본을 만들지 않고 다음 경로를 사용한다.
 
@@ -120,7 +110,7 @@ setweight(to_tsvector('simple', identity_text), 'A')
 | 애플리케이션 schema | `public` |
 | pgvector 설치 schema | `public` |
 
-PostgreSQL과 pgvector의 정확한 버전은 `implementation-stack.md`를 따른다. 버전 갱신은 별도 Issue와 호환성 검증 없이 이루어지지 않는다.
+PostgreSQL과 pgvector의 정확한 버전은 [구현 스택](../development/implementation-stack.md)을 따른다. 버전 갱신은 별도 Issue와 호환성 검증 없이 이루어지지 않는다.
 
 ### 2.2 extension 최소화
 
@@ -301,7 +291,7 @@ Boolean 컬럼은 의미가 실제로 참·거짓일 때만 `is_` 또는 `has_`�
 
 이름은 모든 컬럼을 기계적으로 이어 붙이지 않고, 어떤 역할·업무 키·불변식을 보장하는지 짧게 나타낸다.
 
-SQL 문법과 Alembic migration 파일 이름은 `code-conventions.md`를 따른다.
+SQL 문법과 Alembic migration 파일 이름은 [코드 규칙](../development/code-conventions.md)을 따른다.
 
 ## 6. 공통 자료형
 
@@ -908,6 +898,6 @@ conflict_set
 
 #41–#48의 table mapping, #78의 embedding 계약과 #91의 인사이트 확장은 `0001_create_frozen_schema.py`에 통합되어 있다. `server/src/ontology_map/db/schema.py`는 Alembic 비교와 query 작성에 쓰는 같은 metadata를 제공한다.
 
-이미 `main`에 병합된 revision을 수정하거나 순서를 다시 쓰지 않는다. 저장 의미, 제약이나 publication 계약이 바뀌면 먼저 logical·physical 결정 Issue를 승인하고 새 Alembic revision으로 변경한다. HTTP DTO나 화면 전용 상태는 DB column을 추가하지 않고 [DESIGN.md](DESIGN.md)의 API 경계에 기록한다.
+이미 `main`에 병합된 revision을 수정하거나 순서를 다시 쓰지 않는다. 저장 의미, 제약이나 publication 계약이 바뀌면 먼저 logical·physical 결정 Issue를 승인하고 새 Alembic revision으로 변경한다. HTTP DTO나 화면 전용 상태는 DB column을 추가하지 않고 [제품 설계](../product/design.md)의 API 경계에 기록한다.
 
 migration 변경은 논리 필드와 물리 컬럼, PostgreSQL type, `NULL`과 default, PK·FK·UNIQUE·CHECK, 삭제·갱신 동작, lifecycle, index, 한국어 DB comment, DB와 service의 무결성 책임 및 정상·실패 검증을 함께 설명해야 한다.
