@@ -103,7 +103,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 
 현재 web은 exploration aggregate와 node search를 사용한다. Relation·Evidence Trace와 peripheral API는 backend에만 구현되어 있으며 각각 #118과 #115에서 web에 연결한다. 인사이트 목록·상세 endpoint와 현재 화면은 아직 없고 #68이 소유한다.
 
-중심 node 변경 요청은 동작하지만 선택 node를 시각 중심으로 옮기고 이웃을 연속해서 재배치하는 전환은 #114의 회귀 복구 대상이다. node·label 가독성은 #106에서 사용자가 반복 검토하고, 빈 map drag pan은 #107에서 복구한다. 아래 시각·상호작용 절은 구현 완료 보고가 아니라 유지해야 할 제품 계약이며 현재 차이는 해당 Issue로 추적한다.
+중심 node 변경 요청은 동작하지만 선택 node를 시각 중심으로 옮기고 이웃을 연속해서 재배치하는 전환은 #114의 회귀 복구 대상이다. node·label 가독성은 #106에서 사용자가 반복 검토하고, 빈 map drag pan은 #107에서 복구한다. 첫 진입의 0~99% loading 연출은 #134가 복구하고, 현재 token과 다른 Relation 색·panel 제목 및 일부 40px 조작 영역은 #135가 기존 디자인 계약에 맞춘다. 여러 peripheral page가 누적된 뒤 장면 정리와 세션 위치 cache가 실제로 필요한지는 #136에서 관찰 후 결정한다. 아래 시각·상호작용 절은 구현 완료 보고가 아니라 유지해야 할 제품 계약이며 현재 차이는 해당 Issue로 추적한다.
 
 ## 현재 HTTP 읽기 계약
 
@@ -132,7 +132,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 
 `time_window`는 필수이며 `RECENT_90_DAYS | RECENT_1_YEAR`만 허용한다. exploration은 중심 1개, 직접 이웃 최대 12개, 중요한 2단계 이웃 최대 18개와 활성 graph Relation 최대 60개를 반환한다. 후보는 지지 독립 근거 묶음 수 내림차순, 선택 기간 활동량 내림차순, 내부 ID 오름차순으로 정렬한다.
 
-추천은 backend가 `DIRECT | TWO_HOP | AMBIENT`, 대상 node, 선택적 경유 node와 적용 가능한 근거 수를 반환한다. 사용자에게 보이는 한국어 추천 문장은 frontend가 작성한다. 후속 질문 문장은 사전 생성해 저장한 결과이며 항상 slot 1과 2가 있고 `target_node_id`가 필수다. 자기 대상 질문은 허용하지만 질문 선택이나 node 클릭으로 모델을 호출하지 않는다.
+추천은 backend가 `DIRECT | TWO_HOP | AMBIENT`, 대상 node, 선택적 경유 node와 적용 가능한 근거 수를 반환한다. 사용자에게 보이는 한국어 추천 문장은 frontend가 작성한다. 후속 질문 문장은 사전 생성해 저장한 결과이며 항상 slot 1과 2가 있고 `target_node_id`가 필수다. #113의 계약에 따라 질문 target은 애플리케이션이 공개 graph의 `DIRECT`를 먼저, 부족하면 `TWO_HOP`을 사용해 결정하고 `AMBIENT`는 제외한다. graph 후보가 부족한 slot은 현재 중심 node를 target으로 채울 수 있으며 모델은 애플리케이션이 확정한 target마다 질문 문장만 생성한다. 질문 선택이나 node 클릭으로 모델을 호출하지 않는다.
 
 PostgreSQL의 `bigint` ID는 JavaScript 정밀도 손실을 막기 위해 모든 HTTP JSON에서 문자열로 보낸다. DB 내부 ID, 검색 순위 점수, Claim·Observation·Source Document·evidence group ID와 의미가 섞인 confidence는 화면에 노출하지 않는다.
 
@@ -146,9 +146,9 @@ PostgreSQL의 `bigint` ID는 JavaScript 정밀도 손실을 막기 위해 모든
 
 공통 오류 본문은 `{"error":{"code":"...","retryable":false}}`다. 잘못된 ID, query, limit, time window와 cursor는 `422 INVALID_REQUEST`다. 공개 node가 없으면 exploration·peripheral·Relation 목록은 `404 NODE_NOT_FOUND`, 공개 Relation 근거가 없으면 Evidence Trace는 `404 RELATION_NOT_FOUND`를 반환한다. node는 공개 가능하지만 필요한 READY 결과가 없으면 exploration·peripheral·Relation 목록은 `503 PUBLICATION_NOT_READY`와 `retryable: true`를 반환한다.
 
-일반 사용자 조회에는 현재 공개 가능한 최신 READY 결과만 포함한다. `promotion_status = COMMITTED`, `publication_status = READY`, 지식 상태 `EVIDENCE_VERIFIED | HUMAN_VERIFIED`와 열린 `BLOCKING` lint 부재를 다시 확인한다. 파생 결과의 basis 지식이 보류·거절되거나 차단되면 read-time에서 숨긴다. 새 publication이 실패해도 이전 READY 결과가 있으면 계속 제공한다.
+일반 사용자 조회에는 현재 공개 가능한 최신 READY 결과만 포함한다. `promotion_status = COMMITTED`, `publication_status = READY`, 지식 상태 `EVIDENCE_VERIFIED | HUMAN_VERIFIED`와 열린 `BLOCKING` lint 부재를 다시 확인한다. selected 검색 문서의 모든 `search_document_basis`가 계속 공개 가능한지 재검증하는 것은 제품 불변성이다. 현재 search 경로는 이 basis 재검증을 수행하지만 exploration, peripheral, node Relation과 Relation Evidence Trace가 사용하는 공통 공개 경로에는 아직 같은 검사가 없으며 이 구현 gap은 #120이 소유한다. 새 publication이 실패해도 이전 READY 결과가 있으면 계속 제공한다.
 
-현재 search는 alias 정확 일치를 첫 bucket으로 반환한 뒤 `simple` FTS를 사용한다. frozen 계약의 Qwen `vector(1024)` cosine exact branch, branch별 최대 50건과 `k = 60` RRF는 아직 구현되지 않았으며 #117이 소유한다. #80 전에는 tokenizer, `pg_trgm`, BM25나 외부 검색 엔진을 추가하지 않고 #81의 기준 전에는 HNSW와 IVFFlat을 추가하지 않는다.
+현재 search는 alias 정확 일치를 첫 bucket으로 반환한 뒤 `identity_text`와 `knowledge_text`를 함께 사용한 PostgreSQL `simple` FTS 결과를 이어서 반환하고 HTTP 응답과 web에 `match_reasons`를 노출한다. 아직 구현되지 않은 frozen node embedding 저장 계약과 pgvector·READY embedding 의존성은 #121에서 제거한다. 그 뒤 #117은 exact alias → identity FTS → knowledge FTS의 세 bucket을 고정하고 `match_reasons`와 검색 이유 표시를 제거한다. 실제 한국어 단어 FTS 누락 사례가 확인될 때만 #80에서 tokenizer, `pg_trgm` 또는 BM25 같은 확장을 다시 검토한다.
 
 ## Colors
 
@@ -220,7 +220,7 @@ UI panel의 깊이는 `surface`, `surface-elevated`와 1px `border`로 구분한
 
 일반 control과 입력은 `rounded.md`, tooltip과 작은 label은 `rounded.sm`, 큰 panel과 sheet는 `rounded.lg`를 사용한다. `rounded.full`은 status badge처럼 짧고 독립된 상태 표시에만 사용한다.
 
-모든 클릭·터치 target은 최소 44px을 확보한다. 작은 icon 자체가 44px일 필요는 없지만 icon을 포함한 button의 hit area는 이 기준을 충족해야 한다.
+모든 클릭·터치 target은 최소 44px을 확보한다. 작은 icon 자체가 44px일 필요는 없지만 icon을 포함한 button의 hit area는 이 기준을 충족해야 한다. 현재 기간 선택과 일부 retry button처럼 40px인 조작 영역, 일반 Relation 색과 상세 panel 제목의 token 차이는 #135에서 기존 계약으로 복구한다.
 
 관계선은 독립 근거 묶음마다 1px core 필라멘트 하나를 같은 경로 주변에 겹쳐 하나의 관계 묶음으로 표현한다. 기본 관계의 필라멘트는 실선이고 충돌 관계의 모든 필라멘트만 `conflict` 색의 점선을 사용한다. 모든 필라멘트는 source node의 정확한 중심에서 시작해 target node의 정확한 중심으로 들어가며 곡선의 중간 control point만 벌린다. z축 위치와 node의 불투명도에 관계없이 관계선 묶음은 node 원형 안에서 완전히 가려져야 한다. node 표면 아래에 배경색의 불투명 가림 glyph를 먼저 그리고, 가림 glyph와 node 표면 및 label을 관계선과 같은 투명 렌더 단계의 더 높은 순서로 그린다. 외곽 halo는 필라멘트 수를 알아보기 어렵게 만들지 않으며 선택 경로에서도 node와 label을 가리지 않는 범위에서만 밝아진다. 단순한 시각적 다양성을 위해 선 모양이나 node geometry를 늘리지 않는다.
 
@@ -230,7 +230,7 @@ UI panel의 깊이는 `surface`, `surface-elevated`와 1px `border`로 구분한
 
 header는 56px 높이의 단색 분석 도구 bar로 유지한다. 작은 별자리형 product mark, `ontology-map`과 현재 세션의 최근 탐색 경로만 표시한다. 화면 이름, 부분 graph 범위와 공개 상태처럼 본문에서 이미 알 수 있는 정보는 반복하지 않는다. 탐색 경로는 현재 node를 포함해 최근 4개까지만 표시하고 이전 node를 선택하면 그 위치로 돌아가며 이후 경로를 제거한다. 현재 node는 link가 아닌 `aria-current` 상태로 표시하고 새로고침하면 URL의 현재 중심부터 경로를 다시 시작한다. 검색, 시간 범위와 필요한 map control은 지도 위 overlay에 둔다. navigation이 실제로 생기기 전에는 빈 menu와 미래 기능 entry를 만들지 않는다.
 
-검색 panel에는 `노드 검색`, 현재 중심 주변의 표시 node 수와 시간 범위만 둔다. 검색 input에 문자를 입력하면 다른 control을 밀지 않는 overlay 드롭다운에 node 후보를 표시한다. 각 후보에는 node 이름, 유형과 짧은 검색 이유를 표시하고 Claim과 출처는 결과 순위를 설명하는 보조 근거로만 사용한다. 검색 input과 결과는 keyboard로 이동하고 선택할 수 있어야 하며, 후보를 선택하면 node 클릭과 같은 중심 이동을 실행한다. 직접 이웃과 2단계 이웃의 개별 수는 기본 화면에 반복하지 않는다.
+검색 panel에는 `노드 검색`, 현재 중심 주변의 표시 node 수와 시간 범위만 둔다. 현재 snapshot은 검색 후보마다 node 이름, 유형과 `match_reasons` 기반의 짧은 검색 이유를 표시한다. 검색 input과 결과는 keyboard로 이동하고 선택할 수 있어야 하며, 후보를 선택하면 node 클릭과 같은 중심 이동을 실행한다. #117이 구현되면 검색 이유를 제거하고 후보에는 node 이름과 유형만 남긴다. 직접 이웃과 2단계 이웃의 개별 수는 기본 화면에 반복하지 않는다.
 
 지식맵 범례는 node 유형 색을 요약한 한 줄 상태로 시작하고 `범례` button으로 전체 설명을 펼친다. 펼친 범례에는 node 유형, 독립 근거 수에 따른 필라멘트와 충돌 관계를 표시하며 그래프의 해석 규칙을 별도 점수로 바꾸지 않는다.
 
@@ -238,13 +238,15 @@ header는 56px 높이의 단색 분석 도구 bar로 유지한다. 작은 별자
 
 모든 공개 node는 pointer와 keyboard로 선택할 수 있고 선택하면 새 중심이 된다. 선택한 node의 현재 world position을 유지한 채 카메라 중심과 부분 graph가 함께 전환되며, 새 중심 기준의 직접 이웃과 중요한 2단계 이웃을 다시 계산한다. accessible name에는 node 이름과 유형을 포함한다.
 
+Relation 방향 표현과 Evidence Trace 상호작용은 #118의 승인된 후속 계약을 따른다. `DIRECTED` Relation만 target 방향 화살표를 표시하고 `SYMMETRIC` Relation에는 화살표를 표시하지 않는다. Relation 선을 hover하거나 focus하면 선과 양쪽 node를 함께 강조하고 관계명과 근거 수를 보여준다. graph Relation과 상세 panel의 Relation 행은 같은 Evidence Trace dialog를 열며 중심 node는 바꾸지 않는다. keyboard 사용자는 접근 가능한 Relation button 목록에서 같은 정보와 dialog에 접근한다. 현재 main에는 Relation·Evidence Trace backend endpoint만 있고 이 web 상호작용과 graph `directionality` 응답 확장은 아직 #118의 구현 범위다.
+
 주변부 공개 node는 중심과 1·2단계 이웃보다 작고 어둡게 보이되 선택 가능성을 잃지 않는다. 주변부 node와 활성 graph 사이에 실제 Relation이 있으면 낮은 불투명도의 관계선을 이어서 2단계 이웃 바깥의 탐색 경로를 보여준다. Relation이 없는 node나 검색으로만 정한 대상에는 관계선을 만들지 않는다. 주변부 node를 선택하면 현재 위치에서 같은 중심 이동을 시작하고, 해당 node 기준의 활성 graph와 주변부를 다시 계산한다.
 
-제품은 임의의 공개 node 1,000개를 먼저 불러와 전체 graph처럼 보이게 만들지 않는다. server가 발급한 opaque cursor로 내부 ID 오름차순의 다음 주변부 page를 요청하며, 사용자가 빈 map 영역을 이동해 경계에 접근하거나 주변부 node를 선택하기 전에 다음 page를 준비한다. 멀어진 주변부는 짧은 유예 뒤 장면과 force 계산에서 제외하되 세션 동안의 위치만 cache해 다시 나타날 때 갑자기 다른 곳에 배치되지 않게 한다. 이 증분 로드는 서버에 저장된 지도 좌표나 기준 DB를 전제하지 않는다.
+제품은 임의의 공개 node 1,000개를 먼저 불러와 전체 graph처럼 보이게 만들지 않는다. server가 발급한 opaque cursor를 사용한 주변부 증분 조회는 backend에 구현되어 있고 #115가 cursor 없는 첫 page, 후속 `next_cursor`, 중복 요청 방지와 page 병합을 web에 연결한다. 여러 page가 누적됐을 때 멀어진 주변부를 장면과 force 계산에서 제외하거나 세션 위치를 cache해야 하는지는 현재 필수 구현 계약으로 확정하지 않는다. #115 구현 뒤 실제 여러-page 탐색에서 문제가 재현될 때 #136이 제거·보호·유예·cache 초기화의 최소 경계를 정하며, 문제가 없으면 해당 정리와 cache를 구현하지 않는다. 이 증분 로드는 서버에 저장된 지도 좌표나 기준 DB를 전제하지 않는다.
 
-홈페이지 첫 진입에서는 graph를 준비하는 동안 viewport 전체에 단색 dark loading 화면을 표시한다. 화면 중앙에는 `Loading`, `-- 42% --` 형식의 진행률과 2px progress bar만 둔다. 진행률은 1.4초 동안 0%에서 89%까지 이동하고 graph 준비가 끝날 때까지 89%를 유지한다. 준비가 끝나면 90%, 95%, 99%를 짧게 표시한 뒤 200ms 동안 loading 화면을 숨기며 100%는 표시하지 않는다.
+홈페이지 첫 진입의 제품 계약은 graph를 준비하는 동안 viewport 전체에 단색 dark loading 화면을 표시하고 중앙에 `Loading`, `-- 42% --` 형식의 진행률과 2px progress bar만 두는 것이다. 진행률은 1.4초 동안 0%에서 89%까지 이동하고 graph 준비가 끝날 때까지 89%를 유지한다. 준비가 끝나면 90%, 95%, 99%를 짧게 표시한 뒤 200ms 동안 loading 화면을 숨기며 100%는 표시하지 않는다. 현재 API 연동 web은 첫 요청 중 `탐색 데이터를 불러오는 중입니다.` 문구만 표시하는 회귀가 있으며 #134가 이 진행률, reduced-motion 처리와 graph-ready 연결을 복구한다.
 
-loading 화면이 사라지면 첫 exploration 응답의 부분 graph를 화면에 맞춰 한 번 조망하고 720ms 동안 유지한 다음 기본 중심 node로 1200ms 동안 확대한다. 중심 node는 전체 조망부터 화면 중앙에 고정하고 확대 중에는 camera target과 node 위치를 바꾸지 않은 채 camera 거리만 줄인다. BISTelligence node가 fixture에 없는 검증 예시에서는 SK하이닉스를 기본 중심으로 사용한다. 이 조망은 저장 좌표나 기준 DB를 뜻하지 않는 일시적인 intro 상태이며, intro가 끝나면 같은 동적 부분 graph 탐색을 유지한다.
+loading 화면이 사라지면 첫 exploration 응답의 부분 graph를 화면에 맞춰 한 번 조망하고 720ms 동안 유지한 다음 기본 중심 node로 1200ms 동안 확대한다. 중심 node는 전체 조망부터 화면 중앙에 고정하고 확대 중에는 camera target과 node 위치를 바꾸지 않은 채 camera 거리만 줄인다. BISTelligence node가 fixture에 없는 검증 예시에서는 SK하이닉스를 기본 중심으로 사용한다. 이 조망은 저장 좌표나 기준 DB를 뜻하지 않는 일시적인 intro 상태이며, intro가 끝나면 같은 동적 부분 graph 탐색을 유지한다. #134는 loading 종료 뒤 현재 GraphCanvas의 이 intro가 정확히 한 번 시작되는지도 함께 검증한다.
 
 node는 클릭하거나 keyboard로 선택해 중심을 바꾸지만 직접 끌어 배치할 수 없다. 빈 map 영역의 drag는 항상 카메라 평행 이동에만 사용하며, node drag로 force simulation을 다시 시작하거나 navigation control을 점유하지 않는다.
 
@@ -264,19 +266,19 @@ Issue #67의 POC에서 직접 이웃의 관계선 core는 전환 감쇠 전 불�
 
 상세 panel은 node 이름, 유형과 두 줄 이내의 맥락 설명 아래에 `탐색`, `근거`와 `인사이트` tab을 둔다. 새 중심 node로 이동하면 `탐색` tab을 기본으로 연다. tab bar는 panel을 scroll해도 상단에 남으며 `ArrowLeft`와 `ArrowRight`로 이동할 수 있다.
 
-`탐색` tab은 확인된 직접 관계 2개, 2단계 연결 경로 1개와 주변부 공개 node 1개를 기본 추천으로 표시한다. 부족한 범주는 다른 공개 후보로 채워 추천을 4개로 유지한다. 각 카드에는 node 이름과 유형, 추천 이유, `확인된 관계`, `연결 경로 있음` 또는 `관계 미확인` 상태를 표시하고 실제 직접 Relation에만 정확한 독립 근거 수를 붙인다. 추천은 선택 시간 범위의 관측 활동량과 독립 근거 수를 사용해 결정적으로 정렬하지만 의미가 섞인 추천 점수는 표시하지 않는다. 후속 질문 2개는 추천 카드 다음의 tab 하단에 두며 기존 target node 이동과 자기 대상 동작을 유지한다.
+`탐색` tab은 확인된 직접 관계 2개, 2단계 연결 경로 1개와 주변부 공개 node 1개를 기본 추천으로 표시한다. 부족한 범주는 다른 공개 후보로 채워 추천을 4개로 유지한다. 각 카드에는 node 이름과 유형, 추천 이유, `확인된 관계`, `연결 경로 있음` 또는 `관계 미확인` 상태를 표시하고 실제 직접 Relation에만 정확한 독립 근거 수를 붙인다. 추천은 선택 시간 범위의 관측 활동량과 독립 근거 수를 사용해 결정적으로 정렬하지만 의미가 섞인 추천 점수는 표시하지 않는다. 후속 질문 2개는 추천 카드 다음의 tab 하단에 두며 #113에서 정한 `DIRECT` 우선, `TWO_HOP` 보완, 중심 node fallback target으로 이동한다. `AMBIENT`는 후속 질문 target이 아니다.
 
-`근거` tab은 중심 node의 확인된 관계를 한 번에 하나만 펼치는 accordion으로 구성한다. 관계를 펼치면 연결된 Claim, source title, publication time과 세 줄 이내의 원문 인용을 근거별로 표시한다. `근거 추적 보기`를 선택하면 같은 panel 안에서 근거 한 건의 Claim, publisher, publication time, 인용문과 원문 위치를 구분해 표시하고 같은 관계의 이전·다음 근거만 이동한다. 관계 목록으로 돌아오면 펼친 관계와 scroll 위치를 복원한다. 실제 원문 URL이 있을 때만 `원문 열기`를 제공한다. 관계에 속하지 않는 node Claim은 `확인된 사실`로 별도 표시한다.
+`근거` tab은 중심 node의 확인된 Relation 목록과 각 Relation의 근거 진입점을 제공한다. #118이 구현되면 상세 Relation 행과 graph Relation이 같은 Evidence Trace dialog를 열고, dialog는 Claim, publisher, publication time, 인용문과 원문 위치를 구분해 표시하며 backend cursor로 같은 Relation의 근거를 이어서 조회한다. 실제 원문 URL이 있을 때만 `원문 열기`를 제공한다. dialog는 focus 이동·복귀, Escape 닫기와 접근 가능한 이름을 제공하고 Relation 선택으로 중심 node를 바꾸지 않는다. 현재 main에는 Relation 목록과 Evidence Trace backend만 구현되어 있으며 이전의 같은-panel trace 전환은 유지할 계약이 아니다. 관계에 속하지 않는 node Claim을 별도 `확인된 사실`로 보여주는 데 필요한 조회·표시 경계는 현재 구현에 없으며 실제 필요성이 확인되면 별도 범위로 다룬다.
 
 `인사이트` tab에는 사전 생성된 종합 분석의 제목과 연결된 근거 수만 표시한다. 제목을 선택하면 viewport 중앙에 modal dialog를 열고 확인된 사실, 종합 해석, 연결 근거와 해석 시 유의점을 분리해 표시한다. 연결 근거는 dialog 안에서 여러 건을 동시에 펼쳐 인용문, 출처와 원문 위치를 비교할 수 있으며 두 건 이상 펼치면 `모두 접기`를 제공한다. 이 동작은 상세 panel의 tab이나 scroll 상태를 바꾸지 않는다. dialog surface는 0.88 불투명도, backdrop은 0.12 불투명도를 사용하고 blur와 gradient를 적용하지 않아 뒤의 지식맵을 계속 볼 수 있게 한다. dialog가 열린 동안 배경 조작을 막고 닫기 button과 Escape를 지원하며 닫은 뒤 선택한 제목으로 focus를 돌려준다. 중심 node가 바뀌면 `탐색` tab으로 돌아가고 열린 분석 dialog를 닫는다.
 
 과거 정적 POC는 SK하이닉스, SanDisk와 HBF의 인사이트 fixture로 화면 모양을 검증했지만 현재 API 연동 web에는 인사이트 tab이 없다. 제품의 인사이트는 관련 지식이 변경될 때 사전 생성해 저장하고 node나 인사이트 제목을 선택할 때 모델을 호출하지 않는다. 생성·저장·API, 품질, empty와 실패 처리는 #68에서 구현한다.
 
-후속 질문은 공개 가능한 target node로 이동하는 action이다. 일반 본문처럼 보이게 만들지 않고 명확한 button 또는 link로 표시한다. 클릭 중 모델 호출이 일어나는 것처럼 loading animation을 보여주지 않는다.
+후속 질문은 공개 가능한 target node로 이동하는 action이다. 일반 본문처럼 보이게 만들지 않고 명확한 button 또는 link로 표시한다. target은 #113에 따라 애플리케이션이 결정하며 모델은 target을 다시 고르지 않는다. 클릭 중 모델 호출이 일어나는 것처럼 loading animation을 보여주지 않는다.
 
 ### 상태
 
-일반적인 부분 loading은 어느 영역을 준비하는지 문구로 알리고 map 전체를 불필요하게 가리지 않는다. 첫 진입 graph 준비는 사용자가 조작할 수 있는 화면이 아직 없으므로 앞에서 정의한 viewport 전체 loading을 예외로 사용한다. empty 상태는 시간 범위 변경이나 새 검색처럼 가능한 다음 행동을 하나 제시한다.
+일반적인 부분 loading은 어느 영역을 준비하는지 문구로 알리고 map 전체를 불필요하게 가리지 않는다. 첫 진입 graph 준비는 사용자가 조작할 수 있는 화면이 아직 없으므로 앞에서 정의한 viewport 전체 loading을 예외로 사용한다. 현재 첫 진입 loading 회귀와 복구 범위는 #134가 소유한다. empty 상태는 시간 범위 변경이나 새 검색처럼 가능한 다음 행동을 하나 제시한다.
 
 error 상태는 실패한 영역과 다시 시도할 수 있는지 설명한다. publication 준비 실패 중에는 이전 READY 결과를 계속 보여주고 최신 기준 지식이 사라진 것처럼 빈 화면으로 바꾸지 않는다.
 
