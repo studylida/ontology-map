@@ -13,9 +13,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: 저장소 받기
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: uv 준비
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.12.7"
           enable-cache: true
