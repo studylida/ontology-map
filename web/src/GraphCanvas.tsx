@@ -331,7 +331,9 @@ function makeLinkVisual(link: RuntimeLink): LinkVisual {
             depthWrite: false,
           })
         : new THREE.LineBasicMaterial({
-            color: "#8fa1b8",
+            color: getComputedStyle(document.documentElement)
+              .getPropertyValue("--relation")
+              .trim(),
             transparent: true,
             opacity,
             depthTest: true,
