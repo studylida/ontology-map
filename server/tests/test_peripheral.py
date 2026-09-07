@@ -26,6 +26,7 @@ from ontology_map.db.schema import (
     promotion_batch,
     publication_affected_node,
     relation,
+    relation_type_revision,
     search_document_basis,
 )
 from ontology_map.db.session import get_engine
@@ -252,9 +253,15 @@ def insert_public_relation(
     return int(relation_id)
 
 
-def test_repository_pages_nodes_and_returns_only_active_graph_relations() -> None:
+@pytest.mark.parametrize("directionality", ["DIRECTED", "SYMMETRIC"])
+def test_repository_pages_nodes_and_returns_only_active_graph_relations(
+    directionality: str,
+) -> None:
     _created, node_ids = load_hbf_fixture()
     with rollback_session() as session:
+        session.execute(
+            relation_type_revision.update().values(directionality=directionality)
+        )
         first_id, first_document_id = insert_public_node(session, "주변부 1")
         second_id, second_document_id = insert_public_node(session, "주변부 2")
         third_id, _third_document_id = insert_public_node(session, "주변부 3")
@@ -318,6 +325,7 @@ def test_repository_pages_nodes_and_returns_only_active_graph_relations() -> Non
             now=NOW,
         )
 
+    assert all(item.directionality == directionality for item in first.graph.relations)
     assert first == repeated
     assert [item.node_id for item in first.graph.nodes] == [first_id, second_id]
     assert all(item.tier == "AMBIENT" for item in first.graph.nodes)
@@ -418,6 +426,7 @@ def test_http_contract_returns_only_approved_fields(
                     source_node_id=1,
                     target_node_id=9_007_199_254_740_993,
                     relation_type_display_name="공개 관계",
+                    directionality="DIRECTED",
                     supporting_evidence_group_count=2,
                     has_conflict=False,
                 )
@@ -448,11 +457,13 @@ def test_http_contract_returns_only_approved_fields(
         "source_node_id",
         "target_node_id",
         "relation_type_display_name",
+        "directionality",
         "supporting_evidence_group_count",
         "has_conflict",
     }
     assert body["graph"]["nodes"][0]["node_id"] == "9007199254740993"
     assert body["graph"]["relations"][0]["relation_id"] == "9007199254740995"
+    assert body["graph"]["relations"][0]["directionality"] == "DIRECTED"
     assert body["next_cursor"] == "next-page"
 
 

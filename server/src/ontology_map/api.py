@@ -51,6 +51,7 @@ class GraphNodeResponse(BaseModel):
 
 
 class GraphRelationResponse(BaseModel):
+    directionality: Literal["DIRECTED", "SYMMETRIC"]
     relation_id: str
     source_node_id: str
     target_node_id: str
@@ -250,6 +251,7 @@ def read_exploration(
                     source_node_id=str(relation.source_node_id),
                     target_node_id=str(relation.target_node_id),
                     relation_type_display_name=relation.relation_type_display_name,
+                    directionality=relation.directionality,
                     supporting_evidence_group_count=(
                         relation.supporting_evidence_group_count
                     ),
@@ -346,6 +348,7 @@ def read_peripheral_nodes(
                     source_node_id=str(relation.source_node_id),
                     target_node_id=str(relation.target_node_id),
                     relation_type_display_name=relation.relation_type_display_name,
+                    directionality=relation.directionality,
                     supporting_evidence_group_count=(
                         relation.supporting_evidence_group_count
                     ),

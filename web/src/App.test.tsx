@@ -81,6 +81,7 @@ function exploration(centerId = "9223372036854775807") {
           source_node_id: centerId,
           target_node_id: neighborId,
           relation_type_display_name: "관련 기술",
+          directionality: "SYMMETRIC",
           supporting_evidence_group_count: 3,
           has_conflict: false,
         },
@@ -155,7 +156,11 @@ const fetchMock = vi.fn();
 describe("exploration API 화면", () => {
   beforeEach(() => {
     vi.stubEnv("VITE_DEFAULT_CENTER_NODE_ID", "9223372036854775807");
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", (input: string, init?: RequestInit) => {
+      if (/\/nodes\/[^/]+\/relations/.test(input))
+        return Promise.resolve(response({ items: [], next_cursor: null }));
+      return fetchMock(input, init);
+    });
     fetchMock.mockReset();
     fetchMock.mockImplementation(async (input: string) => {
       if (input.startsWith("/api/v1/nodes/search?")) {

@@ -29,6 +29,7 @@ from ontology_map.db.schema import (
     promotion_batch,
     publication_affected_node,
     relation,
+    relation_type_revision,
     source_document,
 )
 from ontology_map.db.session import get_engine
@@ -143,9 +144,13 @@ def hbf_relation_evidence_ids(
     return int(relation_id), int(claim_id), int(evidence_group_id)
 
 
-def test_repository_builds_hbf_graph_and_can_change_center() -> None:
+@pytest.mark.parametrize("directionality", ["DIRECTED", "SYMMETRIC"])
+def test_repository_builds_hbf_graph_and_can_change_center(directionality: str) -> None:
     _created, node_ids = load_hbf_fixture()
-    with Session(get_engine()) as session:
+    with rollback_session() as session:
+        session.execute(
+            relation_type_revision.update().values(directionality=directionality)
+        )
         first = get_exploration(
             session, node_ids["sk_hynix"], TimeWindow.RECENT_90_DAYS, now=NOW
         )
@@ -167,6 +172,7 @@ def test_repository_builds_hbf_graph_and_can_change_center() -> None:
         "UCIe",
     ]
     assert len(first.graph.nodes) <= 1 + MAX_DIRECT_NODES + MAX_TWO_HOP_NODES
+    assert all(item.directionality == directionality for item in first.graph.relations)
     assert len(first.graph.relations) <= MAX_RELATIONS
     assert len(first.recommendations) == 4
     assert [question.slot for question in first.followup_questions] == [1, 2]
@@ -424,6 +430,7 @@ def test_http_contract_returns_string_ids_and_only_approved_fields() -> None:
         "source_node_id",
         "target_node_id",
         "relation_type_display_name",
+        "directionality",
         "supporting_evidence_group_count",
         "has_conflict",
     }

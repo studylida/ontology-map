@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from typing import Literal
 
 from sqlalchemy.orm import Session
 
@@ -61,6 +62,7 @@ class GraphRelation:
     source_node_id: int
     target_node_id: int
     relation_type_display_name: str
+    directionality: Literal["DIRECTED", "SYMMETRIC"]
     supporting_evidence_group_count: int
     has_conflict: bool
 
@@ -134,6 +136,7 @@ class _Relation:
     source_node_id: int
     target_node_id: int
     relation_type_display_name: str
+    directionality: Literal["DIRECTED", "SYMMETRIC"]
     evidence_group_ids: set[int] = field(default_factory=set)
     has_conflict: bool = False
 
@@ -192,6 +195,7 @@ def _collect_relations(
                 source_node_id=row.source_node_id,
                 target_node_id=row.target_node_id,
                 relation_type_display_name=row.relation_type_display_name,
+                directionality=row.directionality,
             ),
         )
         relation.evidence_group_ids.update(row.evidence_group_ids)
@@ -425,6 +429,7 @@ def get_exploration(
             source_node_id=relation.source_node_id,
             target_node_id=relation.target_node_id,
             relation_type_display_name=relation.relation_type_display_name,
+            directionality=relation.directionality,
             supporting_evidence_group_count=len(relation.evidence_group_ids),
             has_conflict=relation.has_conflict,
         )
@@ -558,6 +563,7 @@ def list_peripheral_nodes(
                     source_node_id=relation.source_node_id,
                     target_node_id=relation.target_node_id,
                     relation_type_display_name=relation.relation_type_display_name,
+                    directionality=relation.directionality,
                     supporting_evidence_group_count=len(relation.evidence_group_ids),
                     has_conflict=relation.has_conflict,
                 )

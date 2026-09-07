@@ -15,6 +15,7 @@ export interface KnowledgeRelation {
   source: string;
   target: string;
   label: string;
+  directionality: "DIRECTED" | "SYMMETRIC";
   evidenceGroupCount: number;
   conflict?: boolean;
   tier: Exclude<NodeTier, "center">;
@@ -169,6 +170,7 @@ export function toExplorationView(payload: unknown): ExplorationView {
       source: source.id,
       target: target.id,
       label: string(item.relation_type_display_name),
+      directionality: directionality(item.directionality),
       evidenceGroupCount: number(item.supporting_evidence_group_count),
       conflict: boolean(item.has_conflict),
       tier: relationTier(source, target),
@@ -312,4 +314,131 @@ export function getFilamentOffsets(evidenceGroupCount: number): number[] {
     { length: count },
     (_, index) => (index - (count - 1) / 2) * spacing,
   );
+}
+
+function member<T extends string>(value: unknown, choices: readonly T[]): T {
+  const matched = choices.find((choice) => choice === value);
+  if (matched === undefined)
+    throw new APIRequestError("INVALID_RESPONSE", 0, true);
+  return matched;
+}
+
+function directionality(value: unknown): KnowledgeRelation["directionality"] {
+  return member(value, ["DIRECTED", "SYMMETRIC"] as const);
+}
+
+export interface CursorPage<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+export interface NodeRelation {
+  id: string;
+  label: string;
+  otherName: string;
+  otherKind: string;
+  evidenceGroupCount: number;
+  conflict: boolean;
+}
+export interface EvidenceTrace {
+  key: string;
+  claimText: string;
+  stance: "SUPPORT" | "DISPUTE";
+  title: string;
+  publisher: string;
+  publishedAt: string | null;
+  precision: "INSTANT" | "DAY" | "MONTH" | "YEAR" | "UNKNOWN";
+  url: string;
+  quote: string;
+  paragraph: number | null;
+  start: number;
+  end: number;
+}
+
+function nullableString(value: unknown): string | null {
+  return value === null ? null : string(value);
+}
+
+function pagePath(path: string, cursor: string | null): string {
+  const params = new URLSearchParams({ limit: "20" });
+  if (cursor !== null) params.set("cursor", cursor);
+  return `${path}?${params}`;
+}
+
+export async function fetchNodeRelations(
+  id: string,
+  cursor: string | null,
+  signal: AbortSignal,
+): Promise<CursorPage<NodeRelation>> {
+  const payload = object(
+    await fetchAPI(
+      pagePath(`/api/v1/nodes/${encodeURIComponent(id)}/relations`, cursor),
+      signal,
+    ),
+  );
+  return {
+    items: array(payload.items).map((value) => {
+      const item = object(value);
+      const other = object(item.other_node);
+      return {
+        id: string(item.relation_id),
+        label: string(item.relation_type_display_name),
+        otherName: string(other.name),
+        otherKind: string(object(other.node_type).display_name),
+        evidenceGroupCount: number(item.supporting_evidence_group_count),
+        conflict: boolean(item.has_conflict),
+      };
+    }),
+    nextCursor: nullableString(payload.next_cursor),
+  };
+}
+
+function toEvidenceTrace(value: unknown): EvidenceTrace {
+  const item = object(value);
+  const source = object(item.source);
+  const locator = object(item.locator);
+  const stance = member(item.stance, ["SUPPORT", "DISPUTE"] as const);
+  const precision = member(source.published_precision, [
+    "INSTANT",
+    "DAY",
+    "MONTH",
+    "YEAR",
+    "UNKNOWN",
+  ] as const);
+  const url = string(source.canonical_url);
+  if (!/^https?:\/\//i.test(url))
+    throw new APIRequestError("INVALID_RESPONSE", 0, true);
+  const trace: Omit<EvidenceTrace, "key"> = {
+    claimText: string(item.claim_text),
+    stance,
+    title: string(source.title),
+    publisher: string(source.publisher_name),
+    publishedAt: nullableString(source.published_at),
+    precision,
+    url,
+    quote: string(item.quote_text),
+    paragraph:
+      locator.paragraph_number === null
+        ? null
+        : number(locator.paragraph_number),
+    start: number(locator.start_char),
+    end: number(locator.end_char),
+  };
+  return { ...trace, key: JSON.stringify(trace) };
+}
+
+export async function fetchRelationEvidence(
+  id: string,
+  cursor: string | null,
+  signal: AbortSignal,
+): Promise<CursorPage<EvidenceTrace>> {
+  const payload = object(
+    await fetchAPI(
+      pagePath(`/api/v1/relations/${encodeURIComponent(id)}/evidence`, cursor),
+      signal,
+    ),
+  );
+  return {
+    items: array(payload.items).map(toEvidenceTrace),
+    nextCursor: nullableString(payload.next_cursor),
+  };
 }

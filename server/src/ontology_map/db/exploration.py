@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal, cast
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -34,6 +35,7 @@ class AdjacencyRow:
     source_node_id: int
     target_node_id: int
     relation_type_display_name: str
+    directionality: Literal["DIRECTED", "SYMMETRIC"]
     evidence_group_ids: tuple[int, ...]
     has_conflict: bool
 
@@ -262,6 +264,7 @@ def list_adjacencies(session: Session, owner_node_ids: list[int]) -> list[Adjace
             r.source_node_id,
             r.target_node_id,
             rtr.display_name AS relation_type_display_name,
+            rtr.directionality,
             array_agg(
                 DISTINCT sd.evidence_group_id ORDER BY sd.evidence_group_id
             ) AS evidence_group_ids,
@@ -352,7 +355,8 @@ def list_adjacencies(session: Session, owner_node_ids: list[int]) -> list[Adjace
             r.relation_id,
             r.source_node_id,
             r.target_node_id,
-            rtr.display_name
+            rtr.display_name,
+            rtr.directionality
         """
     )
     rows = session.execute(statement, {"owner_node_ids": owner_node_ids}).mappings()
@@ -369,6 +373,9 @@ def list_adjacencies(session: Session, owner_node_ids: list[int]) -> list[Adjace
             source_node_id=int(row["source_node_id"]),
             target_node_id=int(row["target_node_id"]),
             relation_type_display_name=str(row["relation_type_display_name"]),
+            directionality=cast(
+                Literal["DIRECTED", "SYMMETRIC"], row["directionality"]
+            ),
             evidence_group_ids=tuple(int(value) for value in row["evidence_group_ids"]),
             has_conflict=bool(row["has_conflict"]),
         )
