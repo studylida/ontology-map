@@ -1,6 +1,7 @@
 import ForceGraph3D, { type ForceGraph3DInstance } from "3d-force-graph";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import {
   type ExplorationView,
@@ -17,6 +18,7 @@ import {
   type Position,
   retainGraphItems,
 } from "./graphLayout";
+import { watchBoundaryPan } from "./peripheralPan";
 import type { EvidenceSelection } from "./RelationPanel";
 
 interface RuntimeNode extends KnowledgeViewNode {
@@ -42,25 +44,11 @@ interface GraphCanvasProps {
   onSelect: (nodeId: string) => void;
   onTransitionComplete: (nodeId: string) => void;
   onReady: () => void;
+  onPanBoundary: () => void;
   onEvidence: (selection: EvidenceSelection) => void;
 }
 
-interface GraphControls {
-  mouseButtons: {
-    LEFT?: THREE.MOUSE;
-    MIDDLE?: THREE.MOUSE;
-    RIGHT?: THREE.MOUSE;
-  };
-  enableRotate: boolean;
-  enablePan: boolean;
-  enableZoom: boolean;
-  enableDamping: boolean;
-  dampingFactor: number;
-  minDistance: number;
-  maxDistance: number;
-  target: THREE.Vector3;
-  update: () => void;
-}
+type GraphControls = OrbitControls;
 
 interface NodeStyle {
   opacity: number;
@@ -409,6 +397,7 @@ export function GraphCanvas({
   onTransitionComplete,
   onReady,
   onEvidence,
+  onPanBoundary,
 }: GraphCanvasProps) {
   const centerId = view.centerId;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -439,6 +428,10 @@ export function GraphCanvas({
   const [hoveredRelation, setHoveredRelation] = useState<string | null>(null);
   const focusRelationRef = useRef<(id: string | null) => void>(() => {});
   const onEvidenceRef = useRef(onEvidence);
+  const onPanRef = useRef(onPanBoundary);
+  useEffect(() => {
+    onPanRef.current = onPanBoundary;
+  }, [onPanBoundary]);
   const relationButtonsRef = useRef(new Map<string, HTMLButtonElement>());
   useEffect(() => {
     onEvidenceRef.current = onEvidence;
@@ -650,6 +643,20 @@ export function GraphCanvas({
     controls.dampingFactor = 0.08;
     controls.minDistance = 95;
     controls.maxDistance = 620;
+    const stopWatchingPan = watchBoundaryPan(
+      controls,
+      () =>
+        [...nodesRef.current.values()].map((node) => ({
+          x: node.x ?? 0,
+          y: node.y ?? 0,
+          z: node.z ?? 0,
+        })),
+      () =>
+        readyRef.current &&
+        introTimeoutRef.current === null &&
+        animationRef.current === null,
+      () => onPanRef.current(),
+    );
 
     const renderer = graph.renderer();
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -711,6 +718,7 @@ export function GraphCanvas({
     graph.cameraPosition({ x: 0, y: 0, z: 360 }, { x: 0, y: 0, z: 0 }, 0);
 
     return () => {
+      stopWatchingPan();
       observer.disconnect();
       if (animationRef.current !== null)
         cancelAnimationFrame(animationRef.current);

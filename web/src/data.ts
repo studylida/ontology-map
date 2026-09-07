@@ -442,3 +442,72 @@ export async function fetchRelationEvidence(
     nextCursor: nullableString(payload.next_cursor),
   };
 }
+
+export interface PeripheralPage {
+  nodes: KnowledgeNode[];
+  relations: KnowledgeRelation[];
+  nextCursor: string | null;
+}
+
+export function mergeById<T extends { id: string }>(
+  current: T[],
+  additions: T[],
+): T[] {
+  return [
+    ...new Map(
+      [...current, ...additions].map((item) => [item.id, item]),
+    ).values(),
+  ];
+}
+
+export async function fetchPeripheral(
+  view: ExplorationView,
+  range: TimeRange,
+  cursor: string | null,
+  signal: AbortSignal,
+): Promise<PeripheralPage> {
+  const params = new URLSearchParams({
+    time_window: range === "90d" ? "RECENT_90_DAYS" : "RECENT_1_YEAR",
+    limit: "20",
+  });
+  if (cursor !== null) params.set("cursor", cursor);
+  const payload = object(
+    await fetchAPI(
+      `/api/v1/exploration/${encodeURIComponent(view.centerId)}/peripheral?${params}`,
+      signal,
+    ),
+  );
+  const graph = object(payload.graph);
+  const nodes = array(graph.nodes).map((value) => {
+    const item = object(value);
+    const type = object(item.node_type);
+    member(item.tier, ["AMBIENT"] as const);
+    return {
+      id: string(item.node_id),
+      name: string(item.name),
+      kind: string(type.display_name),
+      kindCode: string(type.code),
+      tier: "ambient" as const,
+      activityEvidenceGroupCount: number(item.activity_evidence_group_count),
+    };
+  });
+  const known = new Set([...view.nodes, ...nodes].map((node) => node.id));
+  const relations = array(graph.relations).map((value) => {
+    const item = object(value);
+    const source = string(item.source_node_id);
+    const target = string(item.target_node_id);
+    if (!known.has(source) || !known.has(target))
+      throw new APIRequestError("INVALID_RESPONSE", 0, true);
+    return {
+      id: string(item.relation_id),
+      source,
+      target,
+      label: string(item.relation_type_display_name),
+      directionality: directionality(item.directionality),
+      evidenceGroupCount: number(item.supporting_evidence_group_count),
+      conflict: boolean(item.has_conflict),
+      tier: "ambient" as const,
+    };
+  });
+  return { nodes, relations, nextCursor: nullableString(payload.next_cursor) };
+}
