@@ -22,7 +22,7 @@ ontology-map은 공개 자료의 원문 근거를 지식그래프로 축적하�
 flowchart LR
     User[지식그래프 탐색 사용자]
     Developer[개발자]
-    System[ontology-map<br/>공개 근거 기반 동적 지식그래프 탐색]
+    System[ontology-map<br/>공개 근거 기반 동적 지식그래프 탐색 시스템]
     User -->|Node 검색과 그래프 탐색| System
     Developer -->|로컬 실행과 데이터 준비| System
 ```
