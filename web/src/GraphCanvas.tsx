@@ -10,6 +10,13 @@ import {
   type NodeTier,
 } from "./data";
 import styles from "./GraphCanvas.module.css";
+import {
+  depthLimit,
+  depthTargetForNode,
+  layoutTargets,
+  type Position,
+  retainGraphItems,
+} from "./graphLayout";
 
 interface RuntimeNode extends KnowledgeViewNode {
   x?: number;
@@ -133,7 +140,6 @@ const nodeStyles: Record<NodeTier, NodeStyle> = {
 };
 
 const relationOpacity = { direct: 0.9, twoHop: 0.56, ambient: 0.3 } as const;
-const depthLimit = 32;
 
 function radiusFor(node: RuntimeNode): number {
   const activity = node.activityEvidenceGroupCount;
@@ -214,6 +220,7 @@ function applyNodeVisual(
   visual.userData.surface.material.opacity = style.opacity;
   visual.userData.surface.scale.setScalar(radius);
   visual.userData.occluder.scale.setScalar(radius * 1.04);
+  visual.userData.occluder.material.opacity = style.opacity;
   visual.userData.core.material.color.copy(color);
   visual.userData.core.material.opacity = style.opacity;
   visual.userData.core.scale.setScalar(radius * 0.22);
@@ -393,13 +400,6 @@ function endpointId(endpoint: string | RuntimeNode): string {
   return typeof endpoint === "string" ? endpoint : endpoint.id;
 }
 
-function depthTargetForNode(node: RuntimeNode): number {
-  let hash = 0;
-  for (const character of node.id)
-    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  return ((hash % 2001) / 1000 - 1) * depthLimit;
-}
-
 export function GraphCanvas({
   view,
   introStarted,
@@ -418,6 +418,10 @@ export function GraphCanvas({
   const nodeVisualsRef = useRef(new Map<string, NodeVisual>());
   const linkVisualsRef = useRef(new Map<string, LinkVisual>());
   const previousCenterRef = useRef(centerId);
+  const viewNodesRef = useRef(new Set(view.nodes.map((node) => node.id)));
+  useEffect(() => {
+    viewNodesRef.current = new Set(view.nodes.map((node) => node.id));
+  }, [view]);
   const onSelectRef = useRef(onSelect);
   const onTransitionCompleteRef = useRef(onTransitionComplete);
   const onReadyRef = useRef(onReady);
@@ -475,7 +479,9 @@ export function GraphCanvas({
       .linkPositionUpdate((object, coordinates) =>
         updateLinkPosition(object, coordinates.start, coordinates.end),
       )
-      .onNodeClick((node) => onSelectRef.current(node.id))
+      .onNodeClick((node) => {
+        if (viewNodesRef.current.has(node.id)) onSelectRef.current(node.id);
+      })
       .onNodeHover((node) => {
         focusPathRef.current(node?.id ?? null);
         container.style.cursor = node ? "pointer" : "grab";
@@ -684,7 +690,9 @@ export function GraphCanvas({
         view.relations.map((relation) => [relation.id, relation]),
       );
       let surroundingIndex = nodesRef.current.size;
-      const anchor = nodesRef.current.get(previousCenterRef.current);
+      const anchor =
+        nodesRef.current.get(centerId) ??
+        nodesRef.current.get(previousCenterRef.current);
       for (const target of view.nodes) {
         if (nodesRef.current.has(target.id)) continue;
         const angle = surroundingIndex * 2.399963229728653;
@@ -721,6 +729,9 @@ export function GraphCanvas({
           return [
             id,
             {
+              x: node.x ?? 0,
+              y: node.y ?? 0,
+              z: node.z ?? 0,
               radius: visual?.userData.radius ?? radiusFor(node),
               style: visual?.userData.style ?? nodeStyles[node.tier],
             },
@@ -755,6 +766,14 @@ export function GraphCanvas({
       if (!intro) graph.d3ReheatSimulation();
 
       const centerChanged = intro || previousCenterRef.current !== centerId;
+      const positions =
+        !intro && centerChanged
+          ? layoutTargets(view.nodes, centerId, {
+              x: center.fx,
+              y: center.fy,
+              z: center.fz,
+            })
+          : new Map<string, Position>();
       const duration = reducedMotion ? 0 : centerChanged ? 1200 : 320;
       const startCameraPosition = graph.camera().position.clone();
       const controls = graph.controls() as GraphControls;
@@ -773,38 +792,76 @@ export function GraphCanvas({
       const startedAt = performance.now();
       setBusy(true);
 
+      const animateNode = (id: string, node: RuntimeNode, eased: number) => {
+        const visual = nodeVisualsRef.current.get(id);
+        const start = nodeStarts.get(id);
+        if (!visual || !start) return;
+        const targetRadius = radiusFor(node);
+        const targetStyle = { ...nodeStyles[node.tier] };
+        if (!targetNodes.has(id)) {
+          targetStyle.opacity = 0;
+          targetStyle.haloOpacity = 0;
+          targetStyle.shellOpacity = 0;
+          targetStyle.labelOpacity = 0;
+        }
+        const position = positions.get(id);
+        if (position) {
+          node.x = node.fx = start.x + (position.x - start.x) * eased;
+          node.y = node.fy = start.y + (position.y - start.y) * eased;
+          node.z = node.fz = start.z + (position.z - start.z) * eased;
+        }
+        const style = Object.fromEntries(
+          Object.keys(targetStyle).map((key) => {
+            const name = key as keyof NodeStyle;
+            return [
+              name,
+              start.style[name] +
+                (targetStyle[name] - start.style[name]) * eased,
+            ];
+          }),
+        ) as unknown as NodeStyle;
+        applyNodeVisual(
+          visual,
+          node,
+          start.radius + (targetRadius - start.radius) * eased,
+          style,
+        );
+      };
+
+      const finish = () => {
+        animationRef.current = null;
+        previousCenterRef.current = centerId;
+        const nodeIds = new Set(targetNodes.keys());
+        const linkIds = new Set(targetLinks.keys());
+        retainGraphItems(nodesRef.current, nodeIds);
+        retainGraphItems(linksRef.current, linkIds);
+        retainGraphItems(nodeVisualsRef.current, nodeIds);
+        retainGraphItems(linkVisualsRef.current, linkIds);
+        for (const node of nodesRef.current.values()) {
+          if (node.id === centerId) continue;
+          delete node.fx;
+          delete node.fy;
+          delete node.fz;
+        }
+        graph.graphData({
+          nodes: [...nodesRef.current.values()],
+          links: [...linksRef.current.values()],
+        });
+        if (!intro) graph.d3ReheatSimulation();
+        if (centerChanged && !intro) onTransitionCompleteRef.current(centerId);
+        setBusy(false);
+      };
+
       const animate = (now: number) => {
         const progress =
           duration === 0 ? 1 : Math.min(1, (now - startedAt) / duration);
         const eased = easeInOutCubic(progress);
-        for (const [id, node] of nodesRef.current) {
-          const visual = nodeVisualsRef.current.get(id);
-          const start = nodeStarts.get(id);
-          if (!visual || !start) continue;
-          const targetRadius = radiusFor(node);
-          const targetStyle = nodeStyles[node.tier];
-          const style = Object.fromEntries(
-            Object.keys(targetStyle).map((key) => {
-              const name = key as keyof NodeStyle;
-              return [
-                name,
-                start.style[name] +
-                  (targetStyle[name] - start.style[name]) * eased,
-              ];
-            }),
-          ) as unknown as NodeStyle;
-          applyNodeVisual(
-            visual,
-            node,
-            start.radius + (targetRadius - start.radius) * eased,
-            style,
-          );
-        }
+        for (const [id, node] of nodesRef.current) animateNode(id, node, eased);
         for (const [id, link] of linksRef.current) {
           const visual = linkVisualsRef.current.get(id);
           if (!visual) continue;
           const start = linkStarts.get(id) ?? 0;
-          const target = relationOpacity[link.tier];
+          const target = targetLinks.has(id) ? relationOpacity[link.tier] : 0;
           const opacity = start + (target - start) * eased;
           for (const line of visual.userData.lines)
             (line.material as THREE.LineBasicMaterial).opacity = opacity;
@@ -827,11 +884,7 @@ export function GraphCanvas({
         }
         if (progress < 1) animationRef.current = requestAnimationFrame(animate);
         else {
-          animationRef.current = null;
-          previousCenterRef.current = centerId;
-          if (centerChanged && !intro)
-            onTransitionCompleteRef.current(centerId);
-          setBusy(false);
+          finish();
         }
       };
       animationRef.current = requestAnimationFrame(animate);
@@ -893,6 +946,10 @@ export function GraphCanvas({
       introTimeoutRef.current = null;
     }
     animateToView();
+    return () => {
+      if (animationRef.current !== null)
+        cancelAnimationFrame(animationRef.current);
+    };
   }, [centerId, introStarted, view]);
 
   return (

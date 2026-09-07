@@ -218,6 +218,31 @@ describe("exploration API 화면", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
   });
 
+  it("새 선택이 이전 응답과 이전 전환 완료를 무효화한다", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { name: "SK하이닉스" });
+    let finishOld: (value: Response) => void = () => {};
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          finishOld = resolve;
+        }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "다른 graph node 선택" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "SK하이닉스 다시 보기" }),
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    await act(async () =>
+      finishOld(response(exploration("9223372036854775806"))),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "중심 전환 완료" }));
+    expect(screen.getByRole("heading", { name: "SK하이닉스" })).toBeTruthy();
+    expect(screen.getByText("요청 중심: 9223372036854775807")).toBeTruthy();
+  });
+
   it("시간 범위를 바꾸면 같은 중심의 1년 aggregate를 한 번 요청한다", async () => {
     render(<App />);
     await screen.findByRole("heading", { name: "SK하이닉스" });
