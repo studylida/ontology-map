@@ -22,7 +22,7 @@ ontology-map은 공개 자료의 원문 근거를 지식그래프로 축적하�
 flowchart LR
     User[지식그래프 탐색 사용자]
     Developer[개발자]
-    System[ontology-map]
+    System[ontology-map<br/>공개 근거 기반 동적 지식그래프 탐색]
     User -->|Node 검색과 그래프 탐색| System
     Developer -->|로컬 실행과 데이터 준비| System
 ```
@@ -34,16 +34,16 @@ flowchart LR
 ```mermaid
 flowchart LR
     User[사용자]
-    Browser[브라우저]
-    Web[React SPA<br/>Vite 개발 서버]
-    API[FastAPI 애플리케이션]
-    DB[(PostgreSQL<br/>pgvector)]
+    Browser[웹 브라우저<br/>SPA 실행과 사용자 입력 전달]
+    Web[React SPA<br/>React + TypeScript<br/>탐색 UI와 화면 상태 관리]
+    API[FastAPI 애플리케이션<br/>Python + FastAPI<br/>HTTP API와 application use case 제공]
+    DB[(PostgreSQL + pgvector<br/>기준 지식·근거·공개 결과 저장)]
     Developer[개발자]
-    Alembic[Alembic CLI]
-    Fixture[개발 fixture]
-    User --> Browser --> Web -->|/api/v1 HTTP| API -->|SQLAlchemy와 psycopg| DB
-    Developer --> Alembic --> DB
-    Developer --> Fixture --> DB
+    Alembic[Alembic CLI<br/>Python + Alembic<br/>frozen migration 적용]
+    Fixture[개발 fixture<br/>Python + SQLAlchemy<br/>고정 시연 데이터 적재]
+    User -->|브라우저로 접근| Browser -->|SPA 실행| Web -->|/api/v1 HTTP| API -->|SQLAlchemy + psycopg| DB
+    Developer -->|schema 적용| Alembic -->|migration 실행| DB
+    Developer -->|개발 데이터 준비| Fixture -->|fixture 적재| DB
 ```
 
 `compose.yaml`은 PostgreSQL과 FastAPI 컨테이너를 제공한다. React web은 현재 호스트의 Vite 개발 서버에서 실행하며 `/api/v1`을 FastAPI로 proxy한다.
@@ -63,13 +63,13 @@ flowchart LR
 ```mermaid
 flowchart LR
     User[사용자 동작]
-    App[App과 화면 컴포넌트]
-    Adapter[web/src/data.ts]
-    Route[FastAPI route와 DTO]
-    Service[exploration·search·relations service]
-    Query[db query 함수]
-    DB[(PostgreSQL)]
-    User --> App --> Adapter -->|HTTP| Route --> Service --> Query --> DB
+    App[App과 화면 컴포넌트<br/>화면 상태와 사용자 상호작용]
+    Adapter[web/src/data.ts<br/>HTTP 호출·응답 검증·화면 모델 변환]
+    Route[FastAPI route와 DTO<br/>HTTP parsing·Pydantic DTO·오류 변환]
+    Service[exploration·search·relations service<br/>use case 조합과 조회 규칙]
+    Query[db query 함수<br/>명시적 SQLAlchemy 조회]
+    DB[(PostgreSQL<br/>공개 가능한 지식과 근거 조회)]
+    User -->|선택·검색·기간 변경| App --> Adapter -->|/api/v1 HTTP| Route --> Service --> Query -->|SQLAlchemy SQL| DB
 ```
 
 현재 web은 exploration aggregate와 node search를 사용한다. server에는 peripheral, Node Relation 목록과 Relation Evidence Trace endpoint도 구현되어 있으나 해당 web adapter는 아직 없다. route는 ORM row를 그대로 반환하지 않고 응답 DTO로 변환한다.
@@ -79,16 +79,16 @@ flowchart LR
 ```mermaid
 flowchart LR
     Developer[개발자]
-    Metadata[SQLAlchemy metadata<br/>db/schema.py]
-    Alembic[Alembic env와 CLI]
-    Migration[0001 frozen migration]
-    Fixture[db/fixture.py]
-    Connection[SQLAlchemy Connection]
-    DB[(PostgreSQL)]
-    Developer --> Alembic --> Migration --> DB
-    Metadata --> Alembic
-    Developer --> Fixture --> Connection --> DB
-    Metadata --> Fixture
+    Metadata[SQLAlchemy metadata<br/>db/schema.py<br/>Python-side schema 표현]
+    Alembic[Alembic env와 CLI<br/>metadata 비교와 revision 실행]
+    Migration[0001 frozen migration<br/>현재 물리 schema baseline]
+    Fixture[db/fixture.py<br/>개발용 고정 시연 데이터 구성]
+    Connection[SQLAlchemy Connection<br/>transaction과 SQL 실행]
+    DB[(PostgreSQL<br/>migration 결과와 fixture 데이터 저장)]
+    Developer -->|schema 적용| Alembic -->|revision 실행| Migration -->|DDL 적용| DB
+    Metadata -->|비교 기준| Alembic
+    Developer -->|fixture 실행| Fixture -->|table 객체로 작업| Connection -->|INSERT·조회| DB
+    Metadata -->|table 정의 재사용| Fixture
 ```
 
 Alembic은 metadata를 비교 기준으로 사용하고 migration revision을 DB에 적용한다. 개발 fixture는 같은 metadata의 table 객체를 사용하지만 migration을 대신하지 않으며 `development` 환경에서만 실행된다.
