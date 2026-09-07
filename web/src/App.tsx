@@ -10,6 +10,7 @@ import {
 } from "./data";
 import { GraphCanvas } from "./GraphCanvas";
 import { NodeSearch } from "./NodeSearch";
+import { useInitialLoading } from "./useInitialLoading";
 
 interface LocationState {
   centerId: string | null;
@@ -427,7 +428,11 @@ export function App() {
   const currentNode = currentView?.nodes.find(
     (node) => node.id === currentView.centerId,
   );
-  const initialLoading = !currentView && status === "loading";
+  const loading = useInitialLoading(
+    graphReady,
+    status === "error" || status === "empty",
+  );
+  const initialLoading = loading.phase !== "hidden";
 
   return (
     <>
@@ -443,7 +448,7 @@ export function App() {
           {graphView && (
             <GraphCanvas
               view={graphView}
-              introStarted={graphReady}
+              introStarted={graphReady && !initialLoading}
               onReady={() => setGraphReady(true)}
               onSelect={selectNode}
               onTransitionComplete={finishNodeTransition}
@@ -522,11 +527,23 @@ export function App() {
       {initialLoading && (
         <div
           className={styles.loadingOverlay}
+          data-leaving={loading.phase === "leaving"}
           role="status"
           aria-label="탐색 데이터 불러오는 중"
         >
           <div className={styles.loadingContent}>
-            <strong>탐색 데이터를 불러오는 중입니다.</strong>
+            <strong>Loading</strong>
+            <span>-- {loading.progress}% --</span>
+            <div
+              className={styles.loadingTrack}
+              role="progressbar"
+              aria-label="지도 준비"
+              aria-valuemin={0}
+              aria-valuemax={99}
+              aria-valuenow={loading.progress}
+            >
+              <i style={{ width: `${loading.progress}%` }} />
+            </div>
           </div>
         </div>
       )}

@@ -103,7 +103,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 
 현재 web은 exploration aggregate와 node search를 사용한다. Relation·Evidence Trace와 peripheral API는 backend에만 구현되어 있으며 각각 #118과 #115에서 web에 연결한다. 인사이트 목록·상세 endpoint와 현재 화면은 아직 없고 #68이 소유한다.
 
-중심 node 변경 요청은 동작하지만 선택 node를 시각 중심으로 옮기고 이웃을 연속해서 재배치하는 전환은 #114의 회귀 복구 대상이다. node·label 가독성은 #106에서 사용자가 반복 검토하고, 빈 map의 primary drag는 pan에 연결하고 회전과 node drag는 비활성화한다. 실제 화면 회귀 검증은 #107에서 추적한다. 첫 진입의 0~99% loading 연출은 #134가 복구하고, 일반 Relation 색·panel 제목과 control의 최소 조작 영역은 기존 디자인 token에 맞춘다. 실제 화면 검증은 #135에서 추적한다. 여러 peripheral page가 누적된 뒤 장면 정리와 세션 위치 cache가 실제로 필요한지는 #136에서 관찰 후 결정한다. 아래 시각·상호작용 절은 구현 완료 보고가 아니라 유지해야 할 제품 계약이며 현재 차이는 해당 Issue로 추적한다.
+중심 node 변경 요청은 동작하지만 선택 node를 시각 중심으로 옮기고 이웃을 연속해서 재배치하는 전환은 #114의 회귀 복구 대상이다. node·label 가독성은 #106에서 사용자가 반복 검토하고, 빈 map의 primary drag는 pan에 연결하고 회전과 node drag는 비활성화한다. 실제 화면 회귀 검증은 #107에서 추적한다. 첫 진입의 0~99% loading은 API 응답과 graph 준비를 기다린 뒤 intro로 이어지고, 일반 Relation 색·panel 제목과 control의 최소 조작 영역은 기존 디자인 token에 맞춘다. 실제 화면 검증은 #135에서 추적한다. 여러 peripheral page가 누적된 뒤 장면 정리와 세션 위치 cache가 실제로 필요한지는 #136에서 관찰 후 결정한다. 아래 시각·상호작용 절은 구현 완료 보고가 아니라 유지해야 할 제품 계약이며 현재 차이는 해당 Issue로 추적한다.
 
 ## 현재 HTTP 읽기 계약
 
@@ -244,7 +244,7 @@ Relation 방향 표현과 Evidence Trace 상호작용은 #118의 승인된 후�
 
 제품은 임의의 공개 node 1,000개를 먼저 불러와 전체 graph처럼 보이게 만들지 않는다. server가 발급한 opaque cursor를 사용한 주변부 증분 조회는 backend에 구현되어 있고 #115가 cursor 없는 첫 page, 후속 `next_cursor`, 중복 요청 방지와 page 병합을 web에 연결한다. 여러 page가 누적됐을 때 멀어진 주변부를 장면과 force 계산에서 제외하거나 세션 위치를 cache해야 하는지는 현재 필수 구현 계약으로 확정하지 않는다. #115 구현 뒤 실제 여러-page 탐색에서 문제가 재현될 때 #136이 제거·보호·유예·cache 초기화의 최소 경계를 정하며, 문제가 없으면 해당 정리와 cache를 구현하지 않는다. 이 증분 로드는 서버에 저장된 지도 좌표나 기준 DB를 전제하지 않는다.
 
-홈페이지 첫 진입의 제품 계약은 graph를 준비하는 동안 viewport 전체에 단색 dark loading 화면을 표시하고 중앙에 `Loading`, `-- 42% --` 형식의 진행률과 2px progress bar만 두는 것이다. 진행률은 1.4초 동안 0%에서 89%까지 이동하고 graph 준비가 끝날 때까지 89%를 유지한다. 준비가 끝나면 90%, 95%, 99%를 짧게 표시한 뒤 200ms 동안 loading 화면을 숨기며 100%는 표시하지 않는다. 현재 API 연동 web은 첫 요청 중 `탐색 데이터를 불러오는 중입니다.` 문구만 표시하는 회귀가 있으며 #134가 이 진행률, reduced-motion 처리와 graph-ready 연결을 복구한다.
+홈페이지 첫 진입의 제품 계약은 graph를 준비하는 동안 viewport 전체에 단색 dark loading 화면을 표시하고 중앙에 `Loading`, `-- 42% --` 형식의 진행률과 2px progress bar만 두는 것이다. 진행률은 1.4초 동안 0%에서 89%까지 이동하고 graph 준비가 끝날 때까지 89%를 유지한다. 준비가 끝나면 90%, 95%, 99%를 짧게 표시한 뒤 200ms 동안 loading 화면을 숨기며 100%는 표시하지 않는다. API 응답이 빨라도 1.4초 ramp를 마치며 graph 준비가 늦으면 89%에서 기다린다. 초기 오류에서는 loading을 닫고 오류·retry를 제공한다. reduced motion에서는 ramp와 fade를 생략하고 준비 후 즉시 intro로 이어진다. 재시도와 이후 탐색에서 전체 loading을 다시 시작하지 않는다.
 
 loading 화면이 사라지면 첫 exploration 응답의 부분 graph를 화면에 맞춰 한 번 조망하고 720ms 동안 유지한 다음 기본 중심 node로 1200ms 동안 확대한다. 중심 node는 전체 조망부터 화면 중앙에 고정하고 확대 중에는 camera target과 node 위치를 바꾸지 않은 채 camera 거리만 줄인다. BISTelligence node가 fixture에 없는 검증 예시에서는 SK하이닉스를 기본 중심으로 사용한다. 이 조망은 저장 좌표나 기준 DB를 뜻하지 않는 일시적인 intro 상태이며, intro가 끝나면 같은 동적 부분 graph 탐색을 유지한다. #134는 loading 종료 뒤 현재 GraphCanvas의 이 intro가 정확히 한 번 시작되는지도 함께 검증한다.
 
@@ -278,7 +278,7 @@ Issue #67의 POC에서 직접 이웃의 관계선 core는 전환 감쇠 전 불�
 
 ### 상태
 
-일반적인 부분 loading은 어느 영역을 준비하는지 문구로 알리고 map 전체를 불필요하게 가리지 않는다. 첫 진입 graph 준비는 사용자가 조작할 수 있는 화면이 아직 없으므로 앞에서 정의한 viewport 전체 loading을 예외로 사용한다. 현재 첫 진입 loading 회귀와 복구 범위는 #134가 소유한다. empty 상태는 시간 범위 변경이나 새 검색처럼 가능한 다음 행동을 하나 제시한다.
+일반적인 부분 loading은 어느 영역을 준비하는지 문구로 알리고 map 전체를 불필요하게 가리지 않는다. 첫 진입 graph 준비는 사용자가 조작할 수 있는 화면이 아직 없으므로 앞에서 정의한 viewport 전체 loading을 예외로 사용한다. 첫 진입 loading과 graph-ready 연결은 #134에서 검증한다. empty 상태는 시간 범위 변경이나 새 검색처럼 가능한 다음 행동을 하나 제시한다.
 
 error 상태는 실패한 영역과 다시 시도할 수 있는지 설명한다. publication 준비 실패 중에는 이전 READY 결과를 계속 보여주고 최신 기준 지식이 사라진 것처럼 빈 화면으로 바꾸지 않는다.
 
