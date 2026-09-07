@@ -37,6 +37,11 @@ interface GraphCanvasProps {
 }
 
 interface GraphControls {
+  mouseButtons: {
+    LEFT?: THREE.MOUSE;
+    MIDDLE?: THREE.MOUSE;
+    RIGHT?: THREE.MOUSE;
+  };
   enableRotate: boolean;
   enablePan: boolean;
   enableZoom: boolean;
@@ -573,6 +578,7 @@ export function GraphCanvas({
     const controls = graph.controls() as GraphControls;
     controls.enableRotate = false;
     controls.enablePan = true;
+    controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
     controls.enableZoom = true;
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
