@@ -115,7 +115,7 @@ const nodeStyles: Record<NodeTier, NodeStyle> = {
     haloOpacity: 0.19,
     haloFactor: 4.6,
     shellOpacity: 0,
-    labelOpacity: 0.3,
+    labelOpacity: 0.66,
     colorScale: 0.86,
   },
   ambient: {
@@ -133,9 +133,8 @@ const relationOpacity = { direct: 0.9, twoHop: 0.56, ambient: 0.3 } as const;
 
 function radiusFor(node: RuntimeNode): number {
   const activity = node.activityEvidenceGroupCount;
-  if (activity >= 6) return 3.5;
-  if (activity >= 3) return 2.35;
-  return 1.6;
+  const radius = activity >= 6 ? 3.5 : activity >= 3 ? 2.35 : 1.6;
+  return radius * 1.25;
 }
 
 function makeGlowTexture(): THREE.CanvasTexture {
@@ -188,7 +187,7 @@ function makeLabel(node: RuntimeNode): THREE.Sprite {
       toneMapped: false,
     }),
   );
-  sprite.scale.set(32, 6.5, 1);
+  sprite.scale.set(48, 9.75, 1);
   sprite.renderOrder = 14;
   return sprite;
 }
@@ -222,7 +221,7 @@ function applyNodeVisual(
   visual.userData.shell.scale.setScalar(radius * 1.42);
   (visual.userData.label.material as THREE.SpriteMaterial).opacity =
     style.labelOpacity;
-  visual.userData.label.position.y = radius + 7;
+  visual.userData.label.position.y = radius + 9;
   visual.userData.radius = radius;
   visual.userData.style = { ...style };
 }
