@@ -1138,3 +1138,59 @@
     transition: none;
   }
 }
+
+.evidenceDialog {
+  width: min(720px, calc(100vw - 96px));
+  max-height: calc(100vh - 96px);
+  padding: 24px;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.evidenceDialog::backdrop {
+  background: rgba(7, 10, 16, 0.6);
+}
+.evidenceDialog header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.evidenceDialog h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.35;
+}
+.evidenceDialog button,
+.followupSection > button {
+  color: var(--text-primary);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.evidenceEntry {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+.evidenceEntry h3 {
+  font-size: 14px;
+  line-height: 1.55;
+}
+.evidenceEntry blockquote {
+  margin: 12px 0;
+  padding: 12px;
+  background: var(--background);
+  border-left: 2px solid var(--interactive);
+  white-space: pre-wrap;
+}
+.evidenceEntry p {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.evidenceEntry a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--interactive);
+}

@@ -1,11 +1,13 @@
 import styles from "./App.module.css";
 import type { ExplorationView } from "./data";
+import { type EvidenceSelection, RelationList } from "./RelationPanel";
 
 interface DetailPanelProps {
   view: ExplorationView;
   onClose: () => void;
   onFollowup: (targetNodeId: string) => void;
   onSelect: (nodeId: string) => void;
+  onEvidence: (selection: EvidenceSelection) => void;
 }
 
 const recommendationStatusLabel = {
@@ -19,15 +21,10 @@ export function DetailPanel({
   onClose,
   onFollowup,
   onSelect,
+  onEvidence,
 }: DetailPanelProps) {
   const center = view.nodes.find((node) => node.id === view.centerId);
   if (!center) return null;
-
-  const nodesById = new Map(view.nodes.map((node) => [node.id, node]));
-  const related = view.relations.filter(
-    (relation) =>
-      relation.source === view.centerId || relation.target === view.centerId,
-  );
 
   return (
     <aside
@@ -112,43 +109,12 @@ export function DetailPanel({
           )}
         </section>
 
-        <section className={styles.followupSection}>
-          <div className={styles.sectionHeading}>
-            <h2>확인된 관계</h2>
-            <span>{related.length}</span>
-          </div>
-          {related.length ? (
-            <div className={styles.relationAccordion}>
-              {related.map((relation) => {
-                const targetId =
-                  relation.source === view.centerId
-                    ? relation.target
-                    : relation.source;
-                const target = nodesById.get(targetId);
-                return (
-                  <article
-                    key={relation.id}
-                    className={styles.relationCard}
-                    data-conflict={relation.conflict || undefined}
-                  >
-                    <div className={styles.relationToggle}>
-                      <span>
-                        <strong>{target?.name ?? targetId}</strong>
-                        <small>
-                          {relation.label} · 독립 근거{" "}
-                          {relation.evidenceGroupCount}개
-                          {relation.conflict ? " · 충돌 있음" : ""}
-                        </small>
-                      </span>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : (
-            <p className={styles.empty}>현재 공개된 관계가 없습니다.</p>
-          )}
-        </section>
+        <RelationList
+          key={center.id}
+          nodeId={center.id}
+          nodeName={center.name}
+          onEvidence={onEvidence}
+        />
       </div>
     </aside>
   );

@@ -101,7 +101,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 
 브라우저와 PostgreSQL 사이의 유일한 제품 경계는 FastAPI HTTP API다. web은 DB table이나 SQLAlchemy model을 알지 않으며 API 응답을 `web/src/data.ts`에서 화면 모델로 검증·변환한다.
 
-현재 web은 exploration aggregate와 node search를 사용한다. Relation·Evidence Trace와 peripheral API는 backend에만 구현되어 있으며 각각 #118과 #115에서 web에 연결한다. 인사이트 목록·상세 endpoint와 현재 화면은 아직 없고 #68이 소유한다.
+현재 web은 exploration aggregate, node search, Relation 목록과 Evidence Trace를 사용한다. peripheral API는 backend에 구현되어 있고 #115에서 web에 연결한다. 인사이트 목록·상세 endpoint와 현재 화면은 아직 없고 #68이 소유한다.
 
 중심 전환에서는 선택 node의 현재 위치로 camera target을 이동하고, 새 응답의 이웃을 그 node 기준으로 재배치한다. 새 응답에 없는 node·Relation은 전환 후 장면에서 제거한다. #114의 이전 데모 비교와 사용자 시각 승인은 별도로 추적한다. node·label 가독성은 #106에서 사용자가 반복 검토하고, 빈 map의 primary drag는 pan에 연결하고 회전과 node drag는 비활성화한다. 실제 화면 회귀 검증은 #107에서 추적한다. 첫 진입의 0~99% loading은 API 응답과 graph 준비를 기다린 뒤 intro로 이어지고, 일반 Relation 색·panel 제목과 control의 최소 조작 영역은 기존 디자인 token에 맞춘다. 실제 화면 검증은 #135에서 추적한다. 여러 peripheral page가 누적된 뒤 장면 정리와 세션 위치 cache가 실제로 필요한지는 #136에서 관찰 후 결정한다. 아래 시각·상호작용 절은 구현 완료 보고가 아니라 유지해야 할 제품 계약이며 현재 차이는 해당 Issue로 추적한다.
 
@@ -111,8 +111,8 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 | --- | --- | --- | --- | --- | --- |
 | 초기 탐색·중심 이동·시간 범위 변경 | `GET /api/v1/exploration/{center_node_id}?time_window=...` | 중심 맥락, 활성 graph, 구조화 추천, 후속 질문 2개 | `get_exploration` | 최신 node별 READY → 검색 문서·basis·context·질문 → 공개 relation·Claim·Evidence Trace 집계 | 연동 완료 |
 | node 검색 | `GET /api/v1/nodes/search?q=...&limit=5` | node 이름·유형과 `EXACT_ALIAS | FULL_TEXT` 이유 | `search_nodes` | 활성 merge 해소 → 최신 READY 검색 문서 → alias 또는 `simple` expression GIN | 연동 완료 |
-| node의 공개 Relation | `GET /api/v1/nodes/{node_id}/relations?cursor=...&limit=20` | 상대 node, relation 유형, 지지 근거 묶음 수, 충돌 여부 | `list_node_relations` | 최신 READY 검색 문서·basis → relation → 지지 Claim → Observation → Source Document | backend만 구현 |
-| Relation 근거 | `GET /api/v1/relations/{relation_id}/evidence?cursor=...&limit=10` | Claim stance, source metadata, quote와 locator | `list_relation_evidence` | Claim Relation → Claim Observation → Observation → Source Document | backend만 구현 |
+| node의 공개 Relation | `GET /api/v1/nodes/{node_id}/relations?cursor=...&limit=20` | 상대 node, relation 유형, 지지 근거 묶음 수, 충돌 여부 | `list_node_relations` | 최신 READY 검색 문서·basis → relation → 지지 Claim → Observation → Source Document | web 연동 구현 |
+| Relation 근거 | `GET /api/v1/relations/{relation_id}/evidence?cursor=...&limit=10` | Claim stance, source metadata, quote와 locator | `list_relation_evidence` | Claim Relation → Claim Observation → Observation → Source Document | web 연동 구현 |
 | 주변부 추가 조회 | `GET /api/v1/exploration/{center_node_id}/peripheral?time_window=...&cursor=...&limit=20` | `AMBIENT` node, 활성 graph와의 실제 Relation, 다음 cursor | `list_peripheral_nodes` | exploration 활성 graph → 최신 READY 공개 node의 다음 page → 활성 graph와의 relation | backend만 구현 |
 
 응답 DTO는 DB table 모양을 그대로 노출하지 않는다.
@@ -121,7 +121,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 | --- | --- |
 | exploration | `center_node_id`, `context_text`, `graph.nodes[]`, `graph.relations[]`, `recommendations[]`, `followup_questions[]` |
 | graph node | `node_id`, `name`, `node_type { code, display_name }`, `tier`, `activity_evidence_group_count` |
-| graph Relation | `relation_id`, `source_node_id`, `target_node_id`, `relation_type_display_name`, `supporting_evidence_group_count`, `has_conflict` |
+| graph Relation | `relation_id`, `source_node_id`, `target_node_id`, `relation_type_display_name`, `directionality: DIRECTED | SYMMETRIC`, `supporting_evidence_group_count`, `has_conflict` |
 | recommendation | `target_node`, `reason_code`, nullable `via_node_id`, 직접 근거가 있을 때만 `supporting_evidence_group_count` |
 | follow-up question | `slot`, `question_text`, `target_node_id` |
 | search | `items[] { node_id, name, node_type, match_reasons[] }` |
@@ -238,7 +238,7 @@ header는 56px 높이의 단색 분석 도구 bar로 유지한다. 작은 별자
 
 모든 공개 node는 pointer와 keyboard로 선택할 수 있고 선택하면 새 중심이 된다. 선택한 node의 현재 world position을 유지한 채 카메라 중심과 부분 graph가 함께 전환되며, 새 중심 기준의 직접 이웃과 중요한 2단계 이웃을 다시 계산한다. accessible name에는 node 이름과 유형을 포함한다.
 
-Relation 방향 표현과 Evidence Trace 상호작용은 #118의 승인된 후속 계약을 따른다. `DIRECTED` Relation만 target 방향 화살표를 표시하고 `SYMMETRIC` Relation에는 화살표를 표시하지 않는다. Relation 선을 hover하거나 focus하면 선과 양쪽 node를 함께 강조하고 관계명과 근거 수를 보여준다. graph Relation과 상세 panel의 Relation 행은 같은 Evidence Trace dialog를 열며 중심 node는 바꾸지 않는다. keyboard 사용자는 접근 가능한 Relation button 목록에서 같은 정보와 dialog에 접근한다. 현재 main에는 Relation·Evidence Trace backend endpoint만 있고 이 web 상호작용과 graph `directionality` 응답 확장은 아직 #118의 구현 범위다.
+Relation 방향 표현과 Evidence Trace 상호작용은 #118의 승인된 후속 계약을 따른다. `DIRECTED` Relation만 target 방향 화살표를 표시하고 `SYMMETRIC` Relation에는 화살표를 표시하지 않는다. Relation 선을 hover하거나 focus하면 선과 양쪽 node를 함께 강조하고 관계명과 근거 수를 보여준다. graph Relation과 상세 panel의 Relation 행은 같은 Evidence Trace dialog를 열며 중심 node는 바꾸지 않는다. keyboard 사용자는 접근 가능한 Relation button 목록에서 같은 정보와 dialog에 접근한다. exploration과 peripheral의 graph 응답은 frozen Relation type revision의 `directionality`를 전달한다. Node Relation 목록은 기존 응답을 유지하며 panel을 열 때 조회한다. Evidence Trace는 Relation 선택 때 조회하고 두 목록은 server cursor가 있을 때 더 보기를 제공한다. 오류와 재시도, 실제 연동 검증은 #118에서 추적한다.
 
 주변부 공개 node는 중심과 1·2단계 이웃보다 작고 어둡게 보이되 선택 가능성을 잃지 않는다. 주변부 node와 활성 graph 사이에 실제 Relation이 있으면 낮은 불투명도의 관계선을 이어서 2단계 이웃 바깥의 탐색 경로를 보여준다. Relation이 없는 node나 검색으로만 정한 대상에는 관계선을 만들지 않는다. 주변부 node를 선택하면 현재 위치에서 같은 중심 이동을 시작하고, 해당 node 기준의 활성 graph와 주변부를 다시 계산한다.
 
@@ -268,7 +268,7 @@ Issue #67의 POC에서 직접 이웃의 관계선 core는 전환 감쇠 전 불�
 
 `탐색` tab은 확인된 직접 관계 2개, 2단계 연결 경로 1개와 주변부 공개 node 1개를 기본 추천으로 표시한다. 부족한 범주는 다른 공개 후보로 채워 추천을 4개로 유지한다. 각 카드에는 node 이름과 유형, 추천 이유, `확인된 관계`, `연결 경로 있음` 또는 `관계 미확인` 상태를 표시하고 실제 직접 Relation에만 정확한 독립 근거 수를 붙인다. 추천은 선택 시간 범위의 관측 활동량과 독립 근거 수를 사용해 결정적으로 정렬하지만 의미가 섞인 추천 점수는 표시하지 않는다. 후속 질문 2개는 추천 카드 다음의 tab 하단에 두며 #113에서 정한 `DIRECT` 우선, `TWO_HOP` 보완, 중심 node fallback target으로 이동한다. `AMBIENT`는 후속 질문 target이 아니다.
 
-`근거` tab은 중심 node의 확인된 Relation 목록과 각 Relation의 근거 진입점을 제공한다. #118이 구현되면 상세 Relation 행과 graph Relation이 같은 Evidence Trace dialog를 열고, dialog는 Claim, publisher, publication time, 인용문과 원문 위치를 구분해 표시하며 backend cursor로 같은 Relation의 근거를 이어서 조회한다. 실제 원문 URL이 있을 때만 `원문 열기`를 제공한다. dialog는 focus 이동·복귀, Escape 닫기와 접근 가능한 이름을 제공하고 Relation 선택으로 중심 node를 바꾸지 않는다. 현재 main에는 Relation 목록과 Evidence Trace backend만 구현되어 있으며 이전의 같은-panel trace 전환은 유지할 계약이 아니다. 관계에 속하지 않는 node Claim을 별도 `확인된 사실`로 보여주는 데 필요한 조회·표시 경계는 현재 구현에 없으며 실제 필요성이 확인되면 별도 범위로 다룬다.
+`근거` tab은 중심 node의 확인된 Relation 목록과 각 Relation의 근거 진입점을 제공한다. 상세 Relation 행과 graph Relation은 같은 Evidence Trace dialog를 열고, dialog는 Claim, publisher, publication time, 인용문과 원문 위치를 구분해 표시하며 backend cursor로 같은 Relation의 근거를 이어서 조회한다. 실제 원문 URL이 있을 때만 `원문 열기`를 제공한다. dialog는 focus 이동·복귀, Escape 닫기와 접근 가능한 이름을 제공하고 Relation 선택으로 중심 node를 바꾸지 않는다. 현재 화면은 상세 panel의 `확인된 관계` 영역에서 목록을 제공하고 같은-panel trace 전환은 사용하지 않는다. 관계에 속하지 않는 node Claim을 별도 `확인된 사실`로 보여주는 데 필요한 조회·표시 경계는 현재 구현에 없으며 실제 필요성이 확인되면 별도 범위로 다룬다.
 
 `인사이트` tab에는 사전 생성된 종합 분석의 제목과 연결된 근거 수만 표시한다. 제목을 선택하면 viewport 중앙에 modal dialog를 열고 확인된 사실, 종합 해석, 연결 근거와 해석 시 유의점을 분리해 표시한다. 연결 근거는 dialog 안에서 여러 건을 동시에 펼쳐 인용문, 출처와 원문 위치를 비교할 수 있으며 두 건 이상 펼치면 `모두 접기`를 제공한다. 이 동작은 상세 panel의 tab이나 scroll 상태를 바꾸지 않는다. dialog surface는 0.88 불투명도, backdrop은 0.12 불투명도를 사용하고 blur와 gradient를 적용하지 않아 뒤의 지식맵을 계속 볼 수 있게 한다. dialog가 열린 동안 배경 조작을 막고 닫기 button과 Escape를 지원하며 닫은 뒤 선택한 제목으로 focus를 돌려준다. 중심 node가 바뀌면 `탐색` tab으로 돌아가고 열린 분석 dialog를 닫는다.
 

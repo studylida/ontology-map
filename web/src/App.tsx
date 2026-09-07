@@ -10,6 +10,7 @@ import {
 } from "./data";
 import { GraphCanvas } from "./GraphCanvas";
 import { NodeSearch } from "./NodeSearch";
+import { EvidenceDialog, type EvidenceSelection } from "./RelationPanel";
 import { useInitialLoading } from "./useInitialLoading";
 
 interface LocationState {
@@ -261,6 +262,7 @@ export function App() {
     initial.centerId ? [initial.centerId] : [],
   );
   const [panelOpen, setPanelOpen] = useState(true);
+  const [evidence, setEvidence] = useState<EvidenceSelection | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
   const [graphReady, setGraphReady] = useState(false);
   const [status, setStatus] = useState<LoadStatus>("loading");
@@ -318,6 +320,7 @@ export function App() {
 
   const loadExploration = useCallback(
     async (request: ExplorationRequest) => {
+      setEvidence(null);
       abortRef.current?.abort();
       pendingTransitionRef.current = null;
       if (currentViewRef.current) setGraphView(currentViewRef.current);
@@ -451,6 +454,7 @@ export function App() {
               introStarted={graphReady && !initialLoading}
               onReady={() => setGraphReady(true)}
               onSelect={selectNode}
+              onEvidence={setEvidence}
               onTransitionComplete={finishNodeTransition}
             />
           )}
@@ -497,6 +501,7 @@ export function App() {
                 <DetailPanel
                   view={currentView}
                   onClose={() => setPanelOpen(false)}
+                  onEvidence={setEvidence}
                   onFollowup={selectNode}
                   onSelect={selectNode}
                 />
@@ -523,6 +528,14 @@ export function App() {
           {announcement}
         </div>
       </main>
+
+      {evidence && (
+        <EvidenceDialog
+          key={evidence.id}
+          selection={evidence}
+          onClose={() => setEvidence(null)}
+        />
+      )}
 
       {initialLoading && (
         <div

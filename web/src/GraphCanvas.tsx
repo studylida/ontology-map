@@ -1,5 +1,5 @@
 import ForceGraph3D, { type ForceGraph3DInstance } from "3d-force-graph";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import {
@@ -17,6 +17,7 @@ import {
   type Position,
   retainGraphItems,
 } from "./graphLayout";
+import type { EvidenceSelection } from "./RelationPanel";
 
 interface RuntimeNode extends KnowledgeViewNode {
   x?: number;
@@ -41,6 +42,7 @@ interface GraphCanvasProps {
   onSelect: (nodeId: string) => void;
   onTransitionComplete: (nodeId: string) => void;
   onReady: () => void;
+  onEvidence: (selection: EvidenceSelection) => void;
 }
 
 interface GraphControls {
@@ -406,6 +408,7 @@ export function GraphCanvas({
   onSelect,
   onTransitionComplete,
   onReady,
+  onEvidence,
 }: GraphCanvasProps) {
   const centerId = view.centerId;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -433,6 +436,34 @@ export function GraphCanvas({
   const hoverAnimationRef = useRef<number | null>(null);
   const introTimeoutRef = useRef<number | null>(null);
   const [busy, setBusy] = useState(true);
+  const [hoveredRelation, setHoveredRelation] = useState<string | null>(null);
+  const focusRelationRef = useRef<(id: string | null) => void>(() => {});
+  const onEvidenceRef = useRef(onEvidence);
+  const relationButtonsRef = useRef(new Map<string, HTMLButtonElement>());
+  useEffect(() => {
+    onEvidenceRef.current = onEvidence;
+  }, [onEvidence]);
+  const relationName = useCallback(
+    (relation: KnowledgeViewRelation) => {
+      const source =
+        view.nodes.find((node) => node.id === relation.source)?.name ?? "노드";
+      const target =
+        view.nodes.find((node) => node.id === relation.target)?.name ?? "노드";
+      const direction = relation.directionality === "DIRECTED" ? "→" : "↔";
+      return `${source} ${direction} ${target} · ${relation.label} · 독립 근거 ${relation.evidenceGroupCount}개`;
+    },
+    [view.nodes],
+  );
+  const relationActionsRef = useRef(new Map<string, EvidenceSelection>());
+  useEffect(() => {
+    relationActionsRef.current = new Map(
+      view.relations.map((relation) => [
+        relation.id,
+        { id: relation.id, label: relationName(relation) },
+      ]),
+    );
+    setHoveredRelation(null);
+  }, [view, relationName]);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -476,6 +507,19 @@ export function GraphCanvas({
         linkVisualsRef.current.set(link.id, visual);
         return visual;
       })
+      .linkDirectionalArrowLength((link) =>
+        link.directionality === "DIRECTED" ? 4 : 0,
+      )
+      .linkDirectionalArrowRelPos(0.85)
+      .linkHoverPrecision(6)
+      .onLinkHover((link) => focusRelationRef.current(link?.id ?? null))
+      .onLinkClick((link) => {
+        const selection = relationActionsRef.current.get(link.id);
+        if (selection) {
+          relationButtonsRef.current.get(link.id)?.focus();
+          onEvidenceRef.current(selection);
+        }
+      })
       .linkPositionUpdate((object, coordinates) =>
         updateLinkPosition(object, coordinates.start, coordinates.end),
       )
@@ -497,7 +541,7 @@ export function GraphCanvas({
       })
       .cooldownTicks(180);
 
-    focusPathRef.current = (nodeId) => {
+    const highlight = (nodeIds: Set<string>, relationId: string | null) => {
       if (hoverAnimationRef.current !== null)
         cancelAnimationFrame(hoverAnimationRef.current);
       const nodeTargets = [...nodesRef.current.values()].map((item) => {
@@ -509,17 +553,21 @@ export function GraphCanvas({
             ? (visual.userData.halo.material as THREE.SpriteMaterial).opacity
             : 0,
           to:
-            nodeId === item.id
-              ? Math.min(0.52, nodeStyles[item.tier].haloOpacity + 0.14)
+            nodeIds.has(item.id) && item.tier !== "center"
+              ? Math.min(
+                  nodeStyles.center.haloOpacity - 0.01,
+                  nodeStyles[item.tier].haloOpacity + 0.14,
+                )
               : nodeStyles[item.tier].haloOpacity,
         };
       });
       const linkTargets = [...linksRef.current.values()].map((link) => {
         const visual = linkVisualsRef.current.get(link.id);
         const focused =
-          nodeId !== null &&
-          (endpointId(link.source) === nodeId ||
-            endpointId(link.target) === nodeId);
+          relationId !== null
+            ? link.id === relationId
+            : nodeIds.has(endpointId(link.source)) ||
+              nodeIds.has(endpointId(link.target));
         return {
           visual,
           from: visual?.userData.opacity ?? 0,
@@ -552,6 +600,16 @@ export function GraphCanvas({
         else hoverAnimationRef.current = null;
       };
       hoverAnimationRef.current = requestAnimationFrame(animate);
+    };
+
+    focusPathRef.current = (id) => highlight(new Set(id ? [id] : []), null);
+    focusRelationRef.current = (id) => {
+      const relation = id ? linksRef.current.get(id) : undefined;
+      setHoveredRelation(id);
+      const nodeIds = relation
+        ? [endpointId(relation.source), endpointId(relation.target)]
+        : [];
+      highlight(new Set(nodeIds), id);
     };
 
     graph
@@ -670,6 +728,7 @@ export function GraphCanvas({
       nodeVisualsRef.current.clear();
       linkVisualsRef.current.clear();
       focusPathRef.current = () => {};
+      focusRelationRef.current = () => {};
     };
   }, []);
 
@@ -744,6 +803,7 @@ export function GraphCanvas({
           if (target) {
             link.tier = target.tier;
             link.label = target.label;
+            link.directionality = target.directionality;
             link.evidenceGroupCount = target.evidenceGroupCount;
             if (target.conflict === undefined) delete link.conflict;
             else link.conflict = target.conflict;
@@ -955,6 +1015,30 @@ export function GraphCanvas({
   return (
     <section className={styles.map} aria-label="동적 지식맵" aria-busy={busy}>
       <div ref={containerRef} className={styles.canvas} />
+      {hoveredRelation && (
+        <div className={styles.relationHint} role="status">
+          {relationActionsRef.current.get(hoveredRelation)?.label}
+        </div>
+      )}
+      <nav className={styles.accessibleNodes} aria-label="지도 관계 목록">
+        {view.relations.map((relation) => (
+          <button
+            key={relation.id}
+            ref={(element) => {
+              if (element) relationButtonsRef.current.set(relation.id, element);
+              else relationButtonsRef.current.delete(relation.id);
+            }}
+            type="button"
+            onFocus={() => focusRelationRef.current(relation.id)}
+            onBlur={() => focusRelationRef.current(null)}
+            onClick={() =>
+              onEvidence({ id: relation.id, label: relationName(relation) })
+            }
+          >
+            {relationName(relation)}
+          </button>
+        ))}
+      </nav>
       <div className={styles.depthNote}>얕은 2.5D · z ±32 · 회전 없음</div>
       <nav
         className={styles.accessibleNodes}
