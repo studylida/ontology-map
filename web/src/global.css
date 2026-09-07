@@ -14,6 +14,7 @@
   --text-muted: #6f7c8e;
   --interactive: #72a7ff;
   --focus-ring: #b9d3ff;
+  --relation: #7b8797;
   --conflict: #e6a23c;
   --ready: #4fd1a1;
   --node-person: #6ea8fe;
@@ -44,6 +45,8 @@ input {
 }
 
 button {
+  min-width: 44px;
+  min-height: 44px;
   cursor: pointer;
 }
 

@@ -103,7 +103,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 
 현재 web은 exploration aggregate와 node search를 사용한다. Relation·Evidence Trace와 peripheral API는 backend에만 구현되어 있으며 각각 #118과 #115에서 web에 연결한다. 인사이트 목록·상세 endpoint와 현재 화면은 아직 없고 #68이 소유한다.
 
-중심 node 변경 요청은 동작하지만 선택 node를 시각 중심으로 옮기고 이웃을 연속해서 재배치하는 전환은 #114의 회귀 복구 대상이다. node·label 가독성은 #106에서 사용자가 반복 검토하고, 빈 map의 primary drag는 pan에 연결하고 회전과 node drag는 비활성화한다. 실제 화면 회귀 검증은 #107에서 추적한다. 첫 진입의 0~99% loading 연출은 #134가 복구하고, 현재 token과 다른 Relation 색·panel 제목 및 일부 40px 조작 영역은 #135가 기존 디자인 계약에 맞춘다. 여러 peripheral page가 누적된 뒤 장면 정리와 세션 위치 cache가 실제로 필요한지는 #136에서 관찰 후 결정한다. 아래 시각·상호작용 절은 구현 완료 보고가 아니라 유지해야 할 제품 계약이며 현재 차이는 해당 Issue로 추적한다.
+중심 node 변경 요청은 동작하지만 선택 node를 시각 중심으로 옮기고 이웃을 연속해서 재배치하는 전환은 #114의 회귀 복구 대상이다. node·label 가독성은 #106에서 사용자가 반복 검토하고, 빈 map의 primary drag는 pan에 연결하고 회전과 node drag는 비활성화한다. 실제 화면 회귀 검증은 #107에서 추적한다. 첫 진입의 0~99% loading 연출은 #134가 복구하고, 일반 Relation 색·panel 제목과 control의 최소 조작 영역은 기존 디자인 token에 맞춘다. 실제 화면 검증은 #135에서 추적한다. 여러 peripheral page가 누적된 뒤 장면 정리와 세션 위치 cache가 실제로 필요한지는 #136에서 관찰 후 결정한다. 아래 시각·상호작용 절은 구현 완료 보고가 아니라 유지해야 할 제품 계약이며 현재 차이는 해당 Issue로 추적한다.
 
 ## 현재 HTTP 읽기 계약
 
@@ -220,7 +220,7 @@ UI panel의 깊이는 `surface`, `surface-elevated`와 1px `border`로 구분한
 
 일반 control과 입력은 `rounded.md`, tooltip과 작은 label은 `rounded.sm`, 큰 panel과 sheet는 `rounded.lg`를 사용한다. `rounded.full`은 status badge처럼 짧고 독립된 상태 표시에만 사용한다.
 
-모든 클릭·터치 target은 최소 44px을 확보한다. 작은 icon 자체가 44px일 필요는 없지만 icon을 포함한 button의 hit area는 이 기준을 충족해야 한다. 현재 기간 선택과 일부 retry button처럼 40px인 조작 영역, 일반 Relation 색과 상세 panel 제목의 token 차이는 #135에서 기존 계약으로 복구한다.
+모든 클릭·터치 target은 최소 44px을 확보한다. 작은 icon 자체가 44px일 필요는 없지만 icon을 포함한 button의 hit area는 이 기준을 충족해야 한다. 기간 선택·retry·검색 입력·탐색 경로도 최소 44×44px 조작 영역을 적용한다. 일반 Relation과 범례는 `relation` token을, 상세 panel 제목은 `panel-title` typography를 사용한다.
 
 관계선은 독립 근거 묶음마다 1px core 필라멘트 하나를 같은 경로 주변에 겹쳐 하나의 관계 묶음으로 표현한다. 기본 관계의 필라멘트는 실선이고 충돌 관계의 모든 필라멘트만 `conflict` 색의 점선을 사용한다. 모든 필라멘트는 source node의 정확한 중심에서 시작해 target node의 정확한 중심으로 들어가며 곡선의 중간 control point만 벌린다. z축 위치와 node의 불투명도에 관계없이 관계선 묶음은 node 원형 안에서 완전히 가려져야 한다. node 표면 아래에 배경색의 불투명 가림 glyph를 먼저 그리고, 가림 glyph와 node 표면 및 label을 관계선과 같은 투명 렌더 단계의 더 높은 순서로 그린다. 외곽 halo는 필라멘트 수를 알아보기 어렵게 만들지 않으며 선택 경로에서도 node와 label을 가리지 않는 범위에서만 밝아진다. 단순한 시각적 다양성을 위해 선 모양이나 node geometry를 늘리지 않는다.
 
