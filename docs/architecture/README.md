@@ -63,12 +63,12 @@ flowchart LR
 ```mermaid
 flowchart LR
     User[사용자 동작]
-    App[App과 화면 컴포넌트<br/>화면 상태와 사용자 상호작용]
+    App[App과 화면 컴포넌트<br/>화면 상태·사용자 상호작용 관리]
     Adapter[web/src/data.ts<br/>HTTP 호출·응답 검증·화면 모델 변환]
     Route[FastAPI route와 DTO<br/>HTTP parsing·Pydantic DTO·오류 변환]
-    Service[exploration·search·relations service<br/>use case 조합과 조회 규칙]
-    Query[db query 함수<br/>명시적 SQLAlchemy 조회]
-    DB[(PostgreSQL<br/>공개 가능한 지식과 근거 조회)]
+    Service[exploration·search·relations service<br/>use case 조합·조회 규칙 적용]
+    Query[db query 함수<br/>명시적 SQLAlchemy 조회 실행]
+    DB[(PostgreSQL<br/>공개 가능한 지식·근거 제공)]
     User -->|선택·검색·기간 변경| App --> Adapter -->|/api/v1 HTTP| Route --> Service --> Query -->|SQLAlchemy SQL| DB
 ```
 
@@ -80,11 +80,11 @@ flowchart LR
 flowchart LR
     Developer[개발자]
     Metadata[SQLAlchemy metadata<br/>db/schema.py<br/>Python-side schema 표현]
-    Alembic[Alembic env와 CLI<br/>metadata 비교와 revision 실행]
+    Alembic[Alembic env와 CLI<br/>metadata 비교·revision 실행]
     Migration[0001 frozen migration<br/>현재 물리 schema baseline]
     Fixture[db/fixture.py<br/>개발용 고정 시연 데이터 구성]
-    Connection[SQLAlchemy Connection<br/>transaction과 SQL 실행]
-    DB[(PostgreSQL<br/>migration 결과와 fixture 데이터 저장)]
+    Connection[SQLAlchemy Connection<br/>transaction·SQL 실행]
+    DB[(PostgreSQL<br/>migration 결과·fixture 데이터 저장)]
     Developer -->|schema 적용| Alembic -->|revision 실행| Migration -->|DDL 적용| DB
     Metadata -->|비교 기준| Alembic
     Developer -->|fixture 실행| Fixture -->|table 객체로 작업| Connection -->|INSERT·조회| DB
