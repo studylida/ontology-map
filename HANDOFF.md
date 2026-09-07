@@ -36,7 +36,7 @@
 | `GET /api/v1/exploration/{center_node_id}/peripheral` | 구현 | 미연동, #115 |
 | node 인사이트 목록·상세 | 미구현, #68 | 미구현, #68 |
 
-search의 Qwen cosine exact vector branch와 `k = 60` RRF는 #117에 남아 있다. 현재 web은 API가 구현된 exploration과 alias·FTS 검색만 사용한다. 브라우저는 PostgreSQL에 직접 접근하지 않는다.
+현재 search는 exact alias와 PostgreSQL `simple` FTS만 실행한다. frozen schema에 남아 있지만 실행 경로에서 사용하지 않는 node embedding·pgvector와 READY embedding 의존성은 #121에서 제거하고, 그 뒤 #117이 exact alias → identity FTS → knowledge FTS 순위와 `match_reasons` 제거를 구현한다. 실제 한국어 FTS 누락이 재현될 때만 #80에서 확장 방식을 검토한다. 현재 web은 API가 구현된 exploration과 alias·FTS 검색만 사용하며 브라우저는 PostgreSQL에 직접 접근하지 않는다.
 
 ## 문서 정리 결과
 
@@ -48,8 +48,7 @@ search의 Qwen cosine exact vector branch와 `k = 60` RRF는 #117에 남아 있�
 
 - #64: 준비 문서의 독립 근거 묶음 판정 전략
 - #68: 사전 생성 인사이트의 품질, 읽기 API와 화면 구현
-- #80: 한국어 검색 품질 benchmark와 확장 방식 결정
-- #81: 필요할 때만 exact search 성능과 ANN 전환 검증
+- #80: 실제 한국어 FTS 누락이 확인될 때 확장 방식 결정
 - #106: node와 label 가독성 개선. 사용자가 반복 검토하고 조언한다.
 - #107: 빈 map drag pan 회귀 복구
 - #110: lint 적용 대상과 적재 정책 확정
@@ -59,8 +58,10 @@ search의 Qwen cosine exact vector branch와 `k = 60` RRF는 #117에 남아 있�
 - #114: 중심 node 전환 시 graph 재배치 회귀 복구
 - #115: 주변부 cursor paging web 연동
 - #116: frontend·backend와 frozen schema의 필드별 drift 감사
-- #117: Qwen exact vector branch와 RRF 기준선 구현
+- #117: exact alias → identity FTS → knowledge FTS 우선순위와 검색 응답 단순화
 - #118: Relation과 Evidence Trace web 연동
+- #120: 공통 READY 조회의 selected search-document basis 재검증 gap 수정
+- #121: node embedding·pgvector와 READY embedding 의존성 제거
 
 ## 권장 다음 순서
 
@@ -69,7 +70,7 @@ search의 Qwen cosine exact vector branch와 `k = 60` RRF는 #117에 남아 있�
 3. #116의 read-only 감사를 수행해 현재 응답 필드와 frozen schema를 정확히 대응하고 실제 계약 위반만 별도 수정 Issue로 연결한다.
 4. 화면 회귀는 #107, #114와 #106의 관계를 확인하고 사용자의 반복 검토를 받는다.
 5. 이미 구현된 backend를 활용하는 #118과 #115를 진행한다.
-6. #117의 검색 기준선을 구현한 뒤 #80을 수행하고, 실제 성능 문제가 확인될 때만 #81을 시작한다.
+6. #121에서 사용하지 않는 node embedding·pgvector 계약을 제거한 뒤 #117에서 검색 bucket과 응답을 단순화한다. 그 결과에서도 실제 한국어 FTS 누락이 확인될 때만 #80을 시작한다.
 7. #64와 #110의 정책을 확정한 뒤 #111을 설계하고 #112의 작은 표본 조사를 진행한다.
 8. #113의 질문 계약과 #68의 인사이트 계약을 확정한 뒤 같은 Python 코드와 image를 사용하는 worker 흐름을 구현한다.
 
@@ -81,7 +82,7 @@ search의 Qwen cosine exact vector branch와 `k = 60` RRF는 #117에 남아 있�
 - 진행 흐름을 요약할 때 완료된 작업, 뒤의 결정으로 대체된 작업, 아직 열려 있는 작업을 구분한다. 과거 Issue의 설명이 현재 정식 문서와 다르면 frozen schema, 병합된 코드와 최신 GitHub 결정 순으로 확인한다.
 - 현재 디렉터리 구조는 POC 범위에 적절하다고 판단했다. 파일 길이만으로 구조 개편 Issue를 만들지 않으며 #68, #106, #107 또는 #114에서 실제 책임 충돌이 확인될 때 가장 가까운 기능만 분리한다.
 - #99의 확정 범위는 현재 page의 주변부 node와 활성 graph 사이의 실제 공개 Relation만 반환하는 것이다. Relation 60개 제한은 활성 graph에만 적용하고 주변부 응답에는 별도 Relation 상한을 두지 않는다.
-- 사용자는 현재 단계에서 성능 검증이 필요하지 않다고 결정했다. #81은 #117의 exact vector·RRF 구현과 실제 측정 데이터가 준비된 뒤에도 성능 문제가 확인될 때만 시작한다.
+- 사용자는 현재 단계에서 선행 성능 검증이 필요하지 않다고 결정했다. #80은 #117 병합 뒤에도 실제 사용자 검색에서 재현 가능한 단어 FTS 누락이 확인될 때만 시작한다.
 - 다음 권장 작업인 #116은 read-only 계약 감사다. 감사 중 코드·schema·정식 문서를 수정하지 않고 각 항목을 `일치 | HTTP 표현 | 미구현 | 계약 위반 | 결정 필요`로 판정한 뒤, 수정이 필요하면 기존 Issue에 연결하거나 별도 Issue 제안으로 끝낸다.
 
 ## 차단 사항과 결정 항목
