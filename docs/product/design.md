@@ -113,7 +113,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 | node 검색 | `GET /api/v1/nodes/search?q=...&limit=5` | node 이름·유형과 `EXACT_ALIAS | FULL_TEXT` 이유 | `search_nodes` | 활성 merge 해소 → 최신 READY 검색 문서 → alias 또는 `simple` expression GIN | 연동 완료 |
 | node의 공개 Relation | `GET /api/v1/nodes/{node_id}/relations?cursor=...&limit=20` | 상대 node, relation 유형, 지지 근거 묶음 수, 충돌 여부 | `list_node_relations` | 최신 READY 검색 문서·basis → relation → 지지 Claim → Observation → Source Document | web 연동 구현 |
 | Relation 근거 | `GET /api/v1/relations/{relation_id}/evidence?cursor=...&limit=10` | Claim stance, source metadata, quote와 locator | `list_relation_evidence` | Claim Relation → Claim Observation → Observation → Source Document | web 연동 구현 |
-| 주변부 추가 조회 | `GET /api/v1/exploration/{center_node_id}/peripheral?time_window=...&cursor=...&limit=20` | `AMBIENT` node, 활성 graph와의 실제 Relation, 다음 cursor | `list_peripheral_nodes` | exploration 활성 graph → 최신 READY 공개 node의 다음 page → 활성 graph와의 relation | backend만 구현 |
+| 주변부 추가 조회 | `GET /api/v1/exploration/{center_node_id}/peripheral?time_window=...&cursor=...&limit=20` | `AMBIENT` node, 활성 graph와의 실제 Relation, 다음 cursor | `list_peripheral_nodes` | exploration 활성 graph → 최신 READY 공개 node의 다음 page → 활성 graph와의 relation | web 연결, 실제 연동 검증 대기 |
 
 응답 DTO는 DB table 모양을 그대로 노출하지 않는다.
 
@@ -242,7 +242,7 @@ Relation 방향 표현과 Evidence Trace 상호작용은 #118의 승인된 후�
 
 주변부 공개 node는 중심과 1·2단계 이웃보다 작고 어둡게 보이되 선택 가능성을 잃지 않는다. 주변부 node와 활성 graph 사이에 실제 Relation이 있으면 낮은 불투명도의 관계선을 이어서 2단계 이웃 바깥의 탐색 경로를 보여준다. Relation이 없는 node나 검색으로만 정한 대상에는 관계선을 만들지 않는다. 주변부 node를 선택하면 현재 위치에서 같은 중심 이동을 시작하고, 해당 node 기준의 활성 graph와 주변부를 다시 계산한다.
 
-제품은 임의의 공개 node 1,000개를 먼저 불러와 전체 graph처럼 보이게 만들지 않는다. server가 발급한 opaque cursor를 사용한 주변부 증분 조회는 backend에 구현되어 있고 #115가 cursor 없는 첫 page, 후속 `next_cursor`, 중복 요청 방지와 page 병합을 web에 연결한다. 여러 page가 누적됐을 때 멀어진 주변부를 장면과 force 계산에서 제외하거나 세션 위치를 cache해야 하는지는 현재 필수 구현 계약으로 확정하지 않는다. #115 구현 뒤 실제 여러-page 탐색에서 문제가 재현될 때 #136이 제거·보호·유예·cache 초기화의 최소 경계를 정하며, 문제가 없으면 해당 정리와 cache를 구현하지 않는다. 이 증분 로드는 서버에 저장된 지도 좌표나 기준 DB를 전제하지 않는다.
+제품은 임의의 공개 node 1,000개를 먼저 불러와 전체 graph처럼 보이게 만들지 않는다. server가 발급한 opaque cursor를 사용한 주변부 증분 조회는 backend에 구현되어 있고 #115에서 cursor 없는 첫 page와 후속 `next_cursor`를 web에 연결했다. 사용자가 graph 바깥쪽으로 pan하여 camera target이 현재 graph 경계의 바깥 20%에 들어가고 이동이 200ms 동안 멈추면 한 page를 조회한다. zoom·프로그램 camera 이동·page 완료 자체는 추가 조회를 시작하지 않는다. 요청은 한 번에 하나만 진행하고 ID로 병합하며 실제 응답의 Relation만 표시한다. 오류 뒤에는 같은 cursor를 명시적으로 재시도하고, 중심이나 기간을 바꾸면 이전 요청과 누적 주변부를 초기화한다. 실제 API·DB·화면 검증은 아직 대기 중이다. 여러 page가 누적됐을 때 멀어진 주변부를 장면과 force 계산에서 제외하거나 세션 위치를 cache해야 하는지는 현재 필수 구현 계약으로 확정하지 않는다. #115 구현 뒤 실제 여러-page 탐색에서 문제가 재현될 때 #136이 제거·보호·유예·cache 초기화의 최소 경계를 정하며, 문제가 없으면 해당 정리와 cache를 구현하지 않는다. 이 증분 로드는 서버에 저장된 지도 좌표나 기준 DB를 전제하지 않는다.
 
 홈페이지 첫 진입의 제품 계약은 graph를 준비하는 동안 viewport 전체에 단색 dark loading 화면을 표시하고 중앙에 `Loading`, `-- 42% --` 형식의 진행률과 2px progress bar만 두는 것이다. 진행률은 1.4초 동안 0%에서 89%까지 이동하고 graph 준비가 끝날 때까지 89%를 유지한다. 준비가 끝나면 90%, 95%, 99%를 짧게 표시한 뒤 200ms 동안 loading 화면을 숨기며 100%는 표시하지 않는다. API 응답이 빨라도 1.4초 ramp를 마치며 graph 준비가 늦으면 89%에서 기다린다. 초기 오류에서는 loading을 닫고 오류·retry를 제공한다. reduced motion에서는 ramp와 fade를 생략하고 준비 후 즉시 intro로 이어진다. 재시도와 이후 탐색에서 전체 loading을 다시 시작하지 않는다.
 

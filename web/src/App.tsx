@@ -10,8 +10,13 @@ import {
 } from "./data";
 import { GraphCanvas } from "./GraphCanvas";
 import { NodeSearch } from "./NodeSearch";
-import { EvidenceDialog, type EvidenceSelection } from "./RelationPanel";
+import {
+  EvidenceDialog,
+  type EvidenceSelection,
+  PageNotice,
+} from "./RelationPanel";
 import { useInitialLoading } from "./useInitialLoading";
+import { usePeripheral } from "./usePeripheral";
 
 interface LocationState {
   centerId: string | null;
@@ -436,6 +441,11 @@ export function App() {
     status === "error" || status === "empty",
   );
   const initialLoading = loading.phase !== "hidden";
+  const peripheral = usePeripheral(
+    graphView,
+    timeRange,
+    status === "idle" && !pendingTransitionRef.current && !initialLoading,
+  );
 
   return (
     <>
@@ -448,9 +458,10 @@ export function App() {
         />
 
         <section className={styles.workspace}>
-          {graphView && (
+          {peripheral.graphView && (
             <GraphCanvas
-              view={graphView}
+              view={peripheral.graphView}
+              onPanBoundary={peripheral.trigger}
               introStarted={graphReady && !initialLoading}
               onReady={() => setGraphReady(true)}
               onSelect={selectNode}
@@ -467,7 +478,10 @@ export function App() {
                 <div className={styles.scopeSummary}>
                   <span>현재 지도</span>
                   <strong>
-                    {currentNode.name} 주변 · 노드 {currentView.nodes.length}개
+                    {currentNode.name} 주변 · 노드{" "}
+                    {peripheral.graphView?.nodes.length ??
+                      currentView.nodes.length}
+                    개
                   </strong>
                 </div>
                 <fieldset
@@ -517,6 +531,22 @@ export function App() {
             </>
           )}
 
+          {(peripheral.loading || peripheral.error || peripheral.exhausted) && (
+            <aside
+              className={styles.peripheralStatus}
+              aria-label="주변부 조회 상태"
+            >
+              <PageNotice
+                loading={peripheral.loading}
+                error={peripheral.error}
+                empty={false}
+                onRetry={peripheral.retry}
+              />
+              {peripheral.exhausted && !peripheral.error && (
+                <span role="status">추가 주변부 결과가 없습니다.</span>
+              )}
+            </aside>
+          )}
           <LoadNotice
             status={status}
             hasView={Boolean(currentView)}

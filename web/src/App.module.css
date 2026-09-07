@@ -1194,3 +1194,17 @@
   min-height: 44px;
   color: var(--interactive);
 }
+
+.peripheralStatus {
+  position: absolute;
+  bottom: 24px;
+  left: 340px;
+  z-index: 8;
+  max-width: 240px;
+  padding: 12px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+}
