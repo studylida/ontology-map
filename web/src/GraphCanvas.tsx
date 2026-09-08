@@ -682,18 +682,38 @@ export function GraphCanvas({
             );
           const close =
             introRevealRef.current === null ? reveal < 1 : reveal <= 0.001;
+          const secondHopLabel = easeInOutCubic(
+            Math.min(
+              1,
+              Math.max(
+                0,
+                (1.8 -
+                  camera.position.distanceTo(controls.target) / near.distance) /
+                  0.5,
+              ),
+            ),
+          );
           for (const [id, visual] of nodeVisualsRef.current) {
             const tier = nodesRef.current.get(id)?.tier;
             const opacity = tier === "center" || tier === "direct" ? 1 : reveal;
+            const focused =
+              visual.userData.label.element.dataset.focused === "true";
+            const labelOpacity =
+              focused || tier === "center" || tier === "direct"
+                ? 1
+                : tier === "twoHop"
+                  ? secondHopLabel
+                  : 0;
             visual.visible = opacity > 0.001;
-            visual.userData.label.visible = visual.visible;
+            visual.userData.label.visible =
+              visual.visible && labelOpacity > 0.001;
             visual.userData.surface.material.opacity =
               visual.userData.style.opacity * opacity;
             visual.userData.occluder.material.opacity = opacity;
             visual.userData.label.element.style.opacity = String(
-              (visual.userData.label.element.dataset.focused === "true"
-                ? 0.98
-                : visual.userData.style.labelOpacity) * opacity,
+              (focused ? 0.98 : visual.userData.style.labelOpacity) *
+                opacity *
+                labelOpacity,
             );
           }
           if (close !== closeView) {
@@ -1385,7 +1405,9 @@ export function GraphCanvas({
               .position.set(endTarget.x, endTarget.y, endTarget.z + distance);
             if (labelLayer)
               labelLayer.style.opacity = String(
-                Math.min(1, Math.max(0, (elapsed - 600) / 600)),
+                easeInOutCubic(
+                  Math.min(1, Math.max(0, (elapsed - 1200) / 400)),
+                ),
               );
           }
           controls.target.lerpVectors(startTarget, endTarget, eased);
