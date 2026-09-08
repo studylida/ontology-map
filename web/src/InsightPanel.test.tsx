@@ -129,6 +129,17 @@ it("키보드 tab 이동 뒤 저장 분석을 열고 근거를 함께 펼치며 
     screen.getByRole("tab", { name: "인사이트" }).getAttribute("aria-selected"),
   ).toBe("true");
   expect(request).toHaveBeenCalledTimes(2);
+  fireEvent.click(opener);
+  await screen.findByText("근거를 종합한 해석");
+  const dialog = screen.getByRole("dialog");
+  vi.spyOn(dialog, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(100, 100, 400, 300),
+  );
+  fireEvent.click(dialog, { clientX: 150, clientY: 150 });
+  expect(screen.getByRole("dialog")).toBe(dialog);
+  fireEvent.click(dialog, { clientX: 90, clientY: 150 });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(document.activeElement).toBe(opener);
 });
 
 it("준비 실패를 재시도하고 기간 변경 시 이전 상세를 닫는다", async () => {
