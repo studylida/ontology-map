@@ -4,6 +4,10 @@ import * as THREE from "three";
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import {
+  CSS2DObject,
+  CSS2DRenderer,
+} from "three/examples/jsm/renderers/CSS2DRenderer.js";
+import {
   type ExplorationView,
   getFilamentOffsets,
   type KnowledgeViewNode,
@@ -44,6 +48,7 @@ interface GraphCanvasProps {
   onTransitionComplete: (nodeId: string) => void;
   onReady: () => void;
   onPanBoundary: () => void;
+  panelOpen: boolean;
   onEvidence: (selection: EvidenceSelection) => void;
 }
 
@@ -67,7 +72,7 @@ type NodeVisual = THREE.Group & {
     core: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
     halo: THREE.Sprite;
     shell: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
-    label: THREE.Sprite;
+    label: CSS2DObject;
     radius: number;
     style: NodeStyle;
   };
@@ -134,7 +139,7 @@ const relationOpacity = { direct: 0.9, twoHop: 0.56, ambient: 0.3 } as const;
 function radiusFor(node: RuntimeNode): number {
   const activity = node.activityEvidenceGroupCount;
   const radius = activity >= 6 ? 3.5 : activity >= 3 ? 2.35 : 1.6;
-  return radius * 1.25;
+  return radius * 2.5;
 }
 
 function makeGlowTexture(): THREE.CanvasTexture {
@@ -156,40 +161,13 @@ function makeGlowTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-function makeLabel(node: RuntimeNode): THREE.Sprite {
-  const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 104;
-  const context = canvas.getContext("2d");
-  if (context) {
-    context.fillStyle = "rgba(9, 13, 20, 0.82)";
-    context.beginPath();
-    context.roundRect(8, 8, 496, 88, 18);
-    context.fill();
-    context.strokeStyle = "rgba(154, 177, 208, 0.42)";
-    context.lineWidth = 2;
-    context.stroke();
-    context.fillStyle = "#f3f6fa";
-    context.font = "600 30px system-ui, sans-serif";
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.fillText(node.name, 256, 52, 448);
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true,
-      opacity: 0,
-      depthTest: false,
-      depthWrite: false,
-      toneMapped: false,
-    }),
-  );
-  sprite.scale.set(48, 9.75, 1);
-  sprite.renderOrder = 14;
-  return sprite;
+function makeLabel(node: RuntimeNode): CSS2DObject {
+  const element = document.createElement("span");
+  element.className = styles.nodeLabel ?? "";
+  element.textContent = node.name;
+  element.dataset.nodeId = node.id;
+  element.dataset.tier = node.tier;
+  return new CSS2DObject(element);
 }
 
 function applyNodeVisual(
@@ -219,8 +197,8 @@ function applyNodeVisual(
   visual.userData.halo.scale.setScalar(radius * style.haloFactor);
   visual.userData.shell.material.opacity = style.shellOpacity;
   visual.userData.shell.scale.setScalar(radius * 1.42);
-  (visual.userData.label.material as THREE.SpriteMaterial).opacity =
-    style.labelOpacity;
+  visual.userData.label.element.style.opacity = String(style.labelOpacity);
+  visual.userData.label.element.dataset.tier = node.tier;
   visual.userData.label.position.y = radius + 9;
   visual.userData.radius = radius;
   visual.userData.style = { ...style };
@@ -401,6 +379,7 @@ export function GraphCanvas({
   onReady,
   onEvidence,
   onPanBoundary,
+  panelOpen,
 }: GraphCanvasProps) {
   const centerId = view.centerId;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -476,7 +455,10 @@ export function GraphCanvas({
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    const labels = new CSS2DRenderer();
+    labels.domElement.style.pointerEvents = "none";
     const graph = new ForceGraph3D(container, {
+      extraRenderers: [labels],
       controlType: "orbit",
       rendererConfig: {
         antialias: true,
@@ -492,7 +474,7 @@ export function GraphCanvas({
       .enableNodeDrag(false)
       .enableNavigationControls(true)
       .nodeId("id")
-      .nodeLabel((node) => `${node.name} · ${node.kind}`)
+      .nodeLabel(() => "")
       .nodeThreeObject((node) => {
         const visual = makeNodeVisual(node);
         nodeVisualsRef.current.set(node.id, visual);
@@ -534,6 +516,14 @@ export function GraphCanvas({
         cancelAnimationFrame(hoverAnimationRef.current);
       const nodeTargets = [...nodesRef.current.values()].map((item) => {
         const visual = nodeVisualsRef.current.get(item.id);
+        if (visual) {
+          visual.userData.label.element.dataset.focused = String(
+            nodeIds.has(item.id),
+          );
+          visual.userData.label.element.style.opacity = String(
+            nodeIds.has(item.id) ? 0.98 : nodeStyles[item.tier].labelOpacity,
+          );
+        }
         return {
           item,
           visual,
@@ -901,7 +891,12 @@ export function GraphCanvas({
   }, [centerId, introStarted, view]);
 
   return (
-    <section className={styles.map} aria-label="동적 지식맵" aria-busy={busy}>
+    <section
+      className={styles.map}
+      data-panel-open={panelOpen}
+      aria-label="동적 지식맵"
+      aria-busy={busy}
+    >
       <div ref={containerRef} className={styles.canvas} />
       {hoveredRelation && (
         <div className={styles.relationHint} role="status">

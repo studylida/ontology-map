@@ -460,6 +460,7 @@ export function App() {
         <section className={styles.workspace}>
           {peripheral.graphView && (
             <GraphCanvas
+              panelOpen={panelOpen}
               view={peripheral.graphView}
               onPanBoundary={peripheral.trigger}
               introStarted={graphReady && !initialLoading}
