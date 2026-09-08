@@ -266,7 +266,7 @@ function LoadNotice({
   return null;
 }
 
-export function App({ designPreview = false }: { designPreview?: boolean }) {
+export function App({ designPreview = true }: { designPreview?: boolean }) {
   const initial = useMemo(readLocation, []);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [loadingTip] = useState(() => {
@@ -500,7 +500,6 @@ export function App({ designPreview = false }: { designPreview?: boolean }) {
             >
               {theme === "dark" ? "☀ 라이트 모드" : "☾ 다크 모드"}
             </button>
-            디자인 미리보기 <a href={`/${window.location.search}`}>기존 화면</a>
           </div>
         )}
         <section className={styles.workspace}>

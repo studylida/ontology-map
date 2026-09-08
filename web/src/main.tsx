@@ -8,6 +8,4 @@ if (!root) {
   throw new Error("ontology-map root element를 찾지 못했습니다.");
 }
 
-createRoot(root).render(
-  <App designPreview={window.location.pathname === "/design-preview"} />,
-);
+createRoot(root).render(<App />);
