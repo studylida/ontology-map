@@ -37,7 +37,7 @@ const page: PeripheralPage = {
   nextCursor: "next",
 };
 
-it("이동 전에는 요청하지 않고 한 요청씩 병합하며 실패한 cursor만 명시적으로 재시도한다", async () => {
+it("첫 페이지를 자동 요청하고 한 요청씩 병합하며 실패한 cursor만 명시적으로 재시도한다", async () => {
   let resolve!: (value: PeripheralPage) => void;
   vi.mocked(fetchPeripheral).mockReturnValueOnce(
     new Promise((done) => {
@@ -45,7 +45,7 @@ it("이동 전에는 요청하지 않고 한 요청씩 병합하며 실패한 cu
     }),
   );
   const { result } = renderHook(() => usePeripheral(view, "90d", true));
-  expect(fetchPeripheral).not.toHaveBeenCalled();
+  expect(fetchPeripheral).toHaveBeenCalledTimes(1);
   act(() => {
     result.current.trigger();
     result.current.trigger();
@@ -92,19 +92,28 @@ it("기간 변경은 이전 요청을 취소하고 늦은 응답을 버린 뒤 �
   );
   act(() => result.current.trigger());
   const signal = vi.mocked(fetchPeripheral).mock.calls[0]?.[3];
+  vi.mocked(fetchPeripheral).mockReturnValueOnce(new Promise(() => {}));
   rerender({ range: "1y" });
   expect(signal?.aborted).toBe(true);
   await act(async () => resolve(page));
   expect(result.current.graphView).toBe(view);
-  vi.mocked(fetchPeripheral).mockResolvedValueOnce({
-    ...page,
-    nextCursor: null,
-  });
-  await act(async () => result.current.trigger());
   expect(fetchPeripheral).toHaveBeenLastCalledWith(
     view,
     "1y",
     null,
     expect.any(AbortSignal),
   );
+});
+
+it("intro 중 도착한 page는 완료 후 병합한다", async () => {
+  vi.mocked(fetchPeripheral).mockResolvedValueOnce(page);
+  const { result, rerender } = renderHook(
+    ({ present }) => usePeripheral(view, "90d", true, present),
+    { initialProps: { present: false } },
+  );
+  await act(async () => {});
+  expect(result.current.graphView).toBe(view);
+  rerender({ present: true });
+  expect(result.current.graphView?.nodes).toHaveLength(2);
+  expect(fetchPeripheral).toHaveBeenCalledTimes(1);
 });

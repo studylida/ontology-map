@@ -48,10 +48,22 @@ NOW = datetime(2026, 9, 3, 0, 0, tzinfo=UTC)
 
 @contextmanager
 def rollback_session() -> Iterator[Session]:
+    _, base_ids = load_hbf_fixture()
     with get_engine().connect() as connection:
         transaction = connection.begin()
         try:
             with Session(bind=connection) as session:
+                # 개발 검토 자료와 독립된 공개 범위를 transaction 안에서만 구성한다.
+                session.execute(
+                    knowledge_item.update()
+                    .where(
+                        knowledge_item.c.item_kind == "NODE",
+                        knowledge_item.c.knowledge_item_id.not_in(
+                            list(base_ids.values())
+                        ),
+                    )
+                    .values(current_state="ON_HOLD")
+                )
                 yield session
         finally:
             transaction.rollback()
@@ -254,7 +266,7 @@ def insert_public_relation(
 
 
 @pytest.mark.parametrize("directionality", ["DIRECTED", "SYMMETRIC"])
-def test_repository_pages_nodes_and_returns_only_active_graph_relations(
+def test_repository_pages_nodes_and_returns_actual_page_relations(
     directionality: str,
 ) -> None:
     _created, node_ids = load_hbf_fixture()
@@ -264,7 +276,7 @@ def test_repository_pages_nodes_and_returns_only_active_graph_relations(
         )
         first_id, first_document_id = insert_public_node(session, "주변부 1")
         second_id, second_document_id = insert_public_node(session, "주변부 2")
-        third_id, _third_document_id = insert_public_node(session, "주변부 3")
+        third_id, third_document_id = insert_public_node(session, "주변부 3")
         first_relation_id = insert_public_relation(
             session,
             first_document_id,
@@ -284,6 +296,9 @@ def test_repository_pages_nodes_and_returns_only_active_graph_relations(
             second_id,
         )
 
+        cross_page_relation_id = insert_public_relation(
+            session, third_document_id, first_id, third_id
+        )
         first = list_peripheral_nodes(
             session,
             node_ids["sk_hynix"],
@@ -332,10 +347,12 @@ def test_repository_pages_nodes_and_returns_only_active_graph_relations(
     assert [item.relation_id for item in first.graph.relations] == [
         first_relation_id,
         second_relation_id,
+        page_relation_id,
     ]
-    assert page_relation_id not in {item.relation_id for item in first.graph.relations}
     assert [item.node_id for item in second.graph.nodes] == [third_id]
-    assert second.graph.relations == []
+    assert [item.relation_id for item in second.graph.relations] == [
+        cross_page_relation_id
+    ]
     assert second.next_cursor is None
     assert empty == PeripheralPage(
         graph=Graph(nodes=[], relations=[]), next_cursor=None

@@ -270,6 +270,7 @@ export function App() {
   const [evidence, setEvidence] = useState<EvidenceSelection | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
   const [graphReady, setGraphReady] = useState(false);
+  const [introComplete, setIntroComplete] = useState(false);
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [requestError, setRequestError] = useState<APIRequestError | null>(
     null,
@@ -444,7 +445,8 @@ export function App() {
   const peripheral = usePeripheral(
     graphView,
     timeRange,
-    status === "idle" && !pendingTransitionRef.current && !initialLoading,
+    status === "idle" && !pendingTransitionRef.current,
+    initialLoading || introComplete,
   );
 
   return (
@@ -461,6 +463,7 @@ export function App() {
           {peripheral.graphView && (
             <GraphCanvas
               panelOpen={panelOpen}
+              onIntroComplete={() => setIntroComplete(true)}
               view={peripheral.graphView}
               onPanBoundary={peripheral.trigger}
               introStarted={graphReady && !initialLoading}

@@ -28,6 +28,20 @@ def test_review_fixture_preserves_existing_data_and_real_evidence() -> None:
             r.supporting_evidence_group_count for r in view.graph.relations
         }
         assert any(r.has_conflict for r in view.graph.relations)
+        tiers = {n.node_id: n.tier for n in view.graph.nodes}
+        assert "THREE_HOP" in tiers.values()
+        distances = {view.center_node_id: 0}
+        for depth in range(1, 4):
+            for relation in view.graph.relations:
+                a, b = relation.source_node_id, relation.target_node_id
+                if distances.get(a) == depth - 1:
+                    distances.setdefault(b, depth)
+                if distances.get(b) == depth - 1:
+                    distances.setdefault(a, depth)
+        expected = {"CENTER": 0, "DIRECT": 1, "TWO_HOP": 2, "THREE_HOP": 3}
+        assert all(
+            distances[node_id] == expected[tier] for node_id, tier in tiers.items()
+        )
         first = list_peripheral_nodes(
             session, ids["sk"], TimeWindow.RECENT_90_DAYS, cursor=None, limit=20
         )

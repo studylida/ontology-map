@@ -17,8 +17,10 @@ export function usePeripheral(
   view: ExplorationView | null,
   range: TimeRange,
   enabled: boolean,
+  canPresent = true,
 ) {
   const [result, setResult] = useState<Accumulated | null>(null);
+  const [displayed, setDisplayed] = useState<Accumulated | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<APIRequestError | null>(null);
   const nextRef = useRef<string | null | undefined>(undefined);
@@ -30,6 +32,7 @@ export function usePeripheral(
   // biome-ignore lint/correctness/useExhaustiveDependencies: 탐색 응답과 기간이 바뀌면 cursor 소유 범위를 초기화한다.
   useEffect(() => {
     setResult(null);
+    setDisplayed(null);
     setError(null);
     setLoading(false);
     nextRef.current = undefined;
@@ -63,7 +66,15 @@ export function usePeripheral(
       controllerRef.current = controller;
       try {
         const page = await fetchPeripheral(
-          view,
+          {
+            ...view,
+            nodes: mergeById(
+              result?.view === view && result.range === range
+                ? result.nodes
+                : [],
+              view.nodes,
+            ),
+          },
           range,
           cursor,
           controller.signal,
@@ -93,17 +104,25 @@ export function usePeripheral(
         }
       }
     },
-    [view, range, enabled],
+    [view, range, enabled, result],
   );
 
+  useEffect(() => {
+    if (enabled && nextRef.current === undefined) void load();
+  }, [enabled, load]);
+  useEffect(() => {
+    if (canPresent) setDisplayed(result);
+  }, [canPresent, result]);
+
   const graphView = useMemo(() => {
-    if (!view || result?.view !== view || result.range !== range) return view;
+    if (!view || displayed?.view !== view || displayed.range !== range)
+      return view;
     return {
       ...view,
-      nodes: mergeById(result.nodes, view.nodes),
-      relations: mergeById(result.relations, view.relations),
+      nodes: mergeById(displayed.nodes, view.nodes),
+      relations: mergeById(displayed.relations, view.relations),
     };
-  }, [view, range, result]);
+  }, [view, range, displayed]);
   return {
     graphView,
     loading,

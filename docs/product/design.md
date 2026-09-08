@@ -101,7 +101,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 
 브라우저와 PostgreSQL 사이의 유일한 제품 경계는 FastAPI HTTP API다. web은 DB table이나 SQLAlchemy model을 알지 않으며 API 응답을 `web/src/data.ts`에서 화면 모델로 검증·변환한다.
 
-현재 web은 exploration aggregate, node search, Relation 목록과 Evidence Trace를 사용한다. peripheral API는 backend에 구현되어 있고 #115에서 web에 연결한다. 인사이트 목록·상세 endpoint와 현재 화면은 아직 없고 #68이 소유한다.
+현재 web은 exploration aggregate, node search, Relation 목록과 Evidence Trace를 사용한다. peripheral API도 web에 연결되어 초기 주변부와 추가 page를 조회한다. 인사이트 목록·상세 endpoint와 현재 화면은 아직 없고 #68이 소유한다.
 
 중심 전환에서는 선택 node의 현재 위치로 camera target을 이동하고, 새 응답의 이웃을 그 node 기준의 조밀한 목표 좌표로 한 번 재배치한다. 전환 종료 후 좌표 고정을 풀거나 force simulation을 다시 시작하지 않는다. 추가 page에서는 기존 좌표를 유지하고 새 node만 배치하며 새 응답에 없는 node·Relation은 전환 후 장면에서 제거한다. #114의 이전 데모 비교와 사용자 시각 승인은 별도로 추적한다. node·label 가독성은 #106에서 사용자가 반복 검토한다. 현재 검토 후보는 기존 활동량별 반지름 비율을 유지하고 이전 후보의 core를 2배로 키운다. label은 HTML/CSS로 표시하며 중심16px·직접/2단계14px를 기준으로 한다. 지도 배치 영역은 desktop panel 바깥의 공간으로 제한하고 graph 간격과 camera 거리를 함께 조정한다. 사용자 승인 전까지 최종 시각 값으로 확정하지 않는다. 빈 map의 primary drag는 pan에 연결하고 회전과 node drag는 비활성화한다. 실제 화면 회귀 검증은 #107에서 추적한다. 첫 진입의 0~99% loading은 API 응답과 graph 준비를 기다린 뒤 intro로 이어지고, 일반 Relation 색·panel 제목과 control의 최소 조작 영역은 기존 디자인 token에 맞춘다. 실제 화면 검증은 #135에서 추적한다. 여러 peripheral page가 누적된 뒤 장면 정리와 세션 위치 cache가 실제로 필요한지는 #136에서 관찰 후 결정한다. 아래 시각·상호작용 절은 구현 완료 보고가 아니라 유지해야 할 제품 계약이며 현재 차이는 해당 Issue로 추적한다.
 
@@ -113,7 +113,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 | node 검색 | `GET /api/v1/nodes/search?q=...&limit=5` | node 이름·유형과 `EXACT_ALIAS | FULL_TEXT` 이유 | `search_nodes` | 활성 merge 해소 → 최신 READY 검색 문서 → alias 또는 `simple` expression GIN | 연동 완료 |
 | node의 공개 Relation | `GET /api/v1/nodes/{node_id}/relations?cursor=...&limit=20` | 상대 node, relation 유형, 지지 근거 묶음 수, 충돌 여부 | `list_node_relations` | 최신 READY 검색 문서·basis → relation → 지지 Claim → Observation → Source Document | web 연동 구현 |
 | Relation 근거 | `GET /api/v1/relations/{relation_id}/evidence?cursor=...&limit=10` | Claim stance, source metadata, quote와 locator | `list_relation_evidence` | Claim Relation → Claim Observation → Observation → Source Document | web 연동 구현 |
-| 주변부 추가 조회 | `GET /api/v1/exploration/{center_node_id}/peripheral?time_window=...&cursor=...&limit=20` | `AMBIENT` node, 활성 graph와의 실제 Relation, 다음 cursor | `list_peripheral_nodes` | exploration 활성 graph → 최신 READY 공개 node의 다음 page → 활성 graph와의 relation | web 연결, 실제 연동 검증 대기 |
+| 주변부 추가 조회 | `GET /api/v1/exploration/{center_node_id}/peripheral?time_window=...&cursor=...&limit=20` | `AMBIENT` node, 활성 graph·현재/이전 page 사이의 실제 Relation, 다음 cursor | `list_peripheral_nodes` | exploration 활성 graph → 최신 READY 공개 node의 다음 page → 활성 graph와의 relation | web 연결, 실제 연동 검증 대기 |
 
 응답 DTO는 DB table 모양을 그대로 노출하지 않는다.
 
@@ -130,7 +130,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 | Evidence source·locator | `source { title, publisher_name, published_at, published_precision, canonical_url }`, `locator { paragraph_number, start_char, end_char }` |
 | peripheral | `graph.nodes[]`, `graph.relations[]`, `next_cursor`; 모든 node의 `tier`는 `AMBIENT` |
 
-`time_window`는 필수이며 `RECENT_90_DAYS | RECENT_1_YEAR`만 허용한다. exploration은 중심 1개, 직접 이웃 최대 12개, 중요한 2단계 이웃 최대 18개와 활성 graph Relation 최대 60개를 반환한다. 후보는 지지 독립 근거 묶음 수 내림차순, 선택 기간 활동량 내림차순, 내부 ID 오름차순으로 정렬한다.
+`time_window`는 필수이며 `RECENT_90_DAYS | RECENT_1_YEAR`만 허용한다. exploration은 중심 1개, 직접 이웃 최대 12개, 중요한 2단계 이웃 최대 18개, 실제 3단계 이웃 최대 20개와 활성 graph Relation 최대 60개를 반환한다. 후보는 지지 독립 근거 묶음 수 내림차순, 선택 기간 활동량 내림차순, 내부 ID 오름차순으로 정렬한다.
 
 추천은 backend가 `DIRECT | TWO_HOP | AMBIENT`, 대상 node, 선택적 경유 node와 적용 가능한 근거 수를 반환한다. 사용자에게 보이는 한국어 추천 문장은 frontend가 작성한다. 후속 질문 문장은 사전 생성해 저장한 결과이며 항상 slot 1과 2가 있고 `target_node_id`가 필수다. #113의 계약에 따라 질문 target은 애플리케이션이 공개 graph의 `DIRECT`를 먼저, 부족하면 `TWO_HOP`을 사용해 결정하고 `AMBIENT`는 제외한다. graph 후보가 부족한 slot은 현재 중심 node를 target으로 채울 수 있으며 모델은 애플리케이션이 확정한 target마다 질문 문장만 생성한다. 질문 선택이나 node 클릭으로 모델을 호출하지 않는다.
 
@@ -190,7 +190,7 @@ node type은 색만으로 구분하지 않는다. tooltip, 상세 panel과 keybo
 
 간격은 front matter의 4·8·12·16·24·32px 단계만 사용한다. map 위 overlay 사이에는 최소 12px, panel section 사이에는 24px, 관련된 label과 값 사이에는 8px을 둔다.
 
-지도의 활성 graph에는 중심 node의 직접 이웃과 중요한 2단계 이웃을 우선 표시한다. 활성 graph 바깥의 공개 node는 3단계 이후의 주변부로 제한해 더 낮은 밝기로 함께 표시할 수 있다. 전체 graph를 한 화면에 축소해 보여주거나 고정 좌표·전체 지도 version이 존재하는 것처럼 표현하지 않는다.
+지도의 활성 graph에는 중심 node와 직접·중요한 2단계·실제 3단계 이웃을 처음부터 표시한다. 3단계는 한층 낮은 밝기로 구분하고, 그 밖의 공개 node는 더 어두운 형체로 표시한다. 주변부는 독립 node도 포함하며 실제 경로가 없는 node에 hop 수나 관계선을 붙이지 않는다. 초기 주변부 20개를 자동 조회하고, 사용자가 축소하거나 표시 범위 바깥 20%를 향해 pan한 뒤 200ms 동안 조작이 멈추면 다음 page를 요청한다. 확대·프로그램 camera 이동·page 완료만으로 추가 요청하지 않는다. cursor는 한 번에 하나씩 요청하고 실패는 명시적으로 재시도한다. 중심·기간 변경 시 이전 요청과 cursor를 버린다. 초기 연출 중 도착한 page는 연출 종료까지 표시를 미루며, 같은 중심의 추가 page는 기존 좌표와 camera를 유지한다. 초기 조망은 현재 확보한 graph의 조망이며 전체 DB의 고정 지도나 전체 지도 version을 뜻하지 않는다.
 
 지식맵은 x·y 평면의 군집 배치를 주된 구조로 사용하는 얕은 2.5D 장면이다. 초기 깊이 범위는 중심 기준 약 ±32로 제한하고 z축은 node 겹침과 앞뒤 구분에만 사용한다. 회전은 제공하지 않으며 빈 map 영역을 drag하면 평행 이동하고 wheel이나 trackpad로 확대·축소한다.
 
@@ -200,7 +200,7 @@ node type은 색만으로 구분하지 않는다. tooltip, 상세 panel과 keybo
 
 control의 hover·focus 강조와 panel의 짧은 상태 전환은 160ms, 시간 범위처럼 관측 활동량이 바뀔 때의 node 크기 전환은 320ms, 새 중심 node로 이동하는 전체 전환은 1200ms를 기본으로 한다. 1200ms 전환은 천천히 출발해 중간 구간에서 가속하고 도착 전에 다시 감속하는 ease-in-out 하나를 사용한다.
 
-node를 선택하면 카메라는 선택한 node의 현재 위치를 새 중심으로 바라보며 이동한다. 같은 1200ms 동안 이전 중심의 고정을 풀고 선택한 node를 그 위치에 고정하며, 새 직접 이웃과 중요한 2단계 이웃의 force 재배치를 연속해서 진행한다. 카메라 위치, node 위치, core 밝기, halo와 외곽선, node와 label의 불투명도, 관계선 색과 불투명도는 하나의 진행률로 보간한다. 기존 graph와 새 graph에 함께 속한 node와 관계선은 같은 객체와 위치를 이어서 사용하고, 진입 요소는 불투명도 0에서 시작하며 이탈 요소는 정확히 0까지 낮춘다. 전체 canvas나 panel을 다시 그리는 fade는 적용하지 않는다.
+node를 선택하면 카메라는 선택한 node의 현재 위치를 새 중심으로 바라보며 이동한다. 같은 1200ms 동안 선택한 node를 그 위치에 고정하고 새 이웃을 한 번 계산한 목표 좌표로 보간한다. 종료 후 force simulation을 다시 시작하지 않는다. 카메라 위치, node 위치, core 밝기, halo와 외곽선, node와 label의 불투명도, 관계선 색과 불투명도는 하나의 진행률로 보간한다. 기존 graph와 새 graph에 함께 속한 node와 관계선은 같은 객체와 위치를 이어서 사용하고, 진입 요소는 불투명도 0에서 시작하며 이탈 요소는 정확히 0까지 낮춘다. 전체 canvas나 panel을 다시 그리는 fade는 적용하지 않는다.
 
 전환 중에는 기존 중심을 확정 상태로 유지하고 새 중심은 pending 상태로만 다룬다. header, URL, 탐색 경로와 상세 panel의 동적 내용은 전환이 끝난 뒤 새 중심으로 함께 갱신한다. `재배치 중` 같은 별도 문구로 내용을 바꾸지 않으며 graph 영역은 전환 시작부터 종료까지 busy 상태를 알린다.
 

@@ -46,7 +46,7 @@ class GraphNodeResponse(BaseModel):
     node_id: str
     name: str
     node_type: NodeTypeResponse
-    tier: Literal["CENTER", "DIRECT", "TWO_HOP"]
+    tier: Literal["CENTER", "DIRECT", "TWO_HOP", "THREE_HOP"]
     activity_evidence_group_count: int = Field(ge=0)
 
 

@@ -507,3 +507,25 @@ def list_peripheral_node_rows(
         )
         for row in rows
     ]
+
+
+def list_previous_peripheral_ids(
+    session: Session, excluded_node_ids: list[int], through_id: int
+) -> list[int]:
+    """동일 scope에서 처음부터 순차 조회한 page의 ID 경계를 재사용한다."""
+    statement = sa.text(
+        _PUBLIC_NODES_CTE
+        + """
+        SELECT node_id FROM public_nodes
+        WHERE node_id <= :through_id
+          AND NOT (node_id = ANY(CAST(:excluded_node_ids AS bigint[])))
+        ORDER BY node_id
+    """
+    )
+    return [
+        int(value)
+        for value in session.scalars(
+            statement,
+            {"through_id": through_id, "excluded_node_ids": excluded_node_ids},
+        )
+    ]
