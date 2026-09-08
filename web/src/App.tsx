@@ -278,6 +278,7 @@ function LoadNotice({
 
 export function App({ designPreview = true }: { designPreview?: boolean }) {
   const initial = useMemo(readLocation, []);
+  const [hiddenKinds, setHiddenKinds] = useState<string[]>([]);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [loadingTip] = useState(() => {
     const tips = [
@@ -484,6 +485,20 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
     initialLoading || introComplete,
   );
 
+  const loadedNodes = peripheral.graphView?.nodes ?? [];
+  const filteredNodeCount = loadedNodes.filter(
+    (node) => !hiddenKinds.includes(node.kindCode),
+  ).length;
+  const nodeTypes = new Map([
+    ["PERSON", "사람"],
+    ["COMPANY", "회사"],
+    ["TECHNOLOGY", "기술"],
+    ["TOPIC", "주제"],
+    ["EVENT", "사건"],
+  ]);
+  for (const node of peripheral.graphView?.nodes ?? [])
+    nodeTypes.set(node.kindCode, node.kind);
+
   return (
     <>
       <main
@@ -517,6 +532,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
             <GraphCanvas
               designPreview={designPreview}
               theme={theme}
+              hiddenKinds={hiddenKinds}
               pendingNodeId={
                 status === "loading" && lastRequestRef.current?.navigation
                   ? lastRequestRef.current.centerId
@@ -542,10 +558,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                 <NodeSearch onSelect={selectNode} />
                 <div className={styles.scopeSummary}>
                   <strong>
-                    {currentNode.name} 주변 · 노드{" "}
-                    {peripheral.graphView?.nodes.length ??
-                      currentView.nodes.length}
-                    개
+                    {currentNode.name} 주변 · 노드 {filteredNodeCount}개
                   </strong>
                 </div>
                 <fieldset
@@ -568,6 +581,41 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                     최근 1년
                   </button>
                 </fieldset>
+                <details className={styles.typeFilter}>
+                  <summary>
+                    노드 유형 ·{" "}
+                    {hiddenKinds.length ? "필터 적용 중" : "전체 표시"}
+                  </summary>
+                  <fieldset>
+                    <legend>표시할 유형 (여러 개 선택 가능)</legend>
+                    {[...nodeTypes].map(([code, name]) => (
+                      <label key={code}>
+                        <input
+                          type="checkbox"
+                          checked={!hiddenKinds.includes(code)}
+                          onChange={(event) =>
+                            setHiddenKinds((previous) =>
+                              event.target.checked
+                                ? previous.filter((kind) => kind !== code)
+                                : [...previous, code],
+                            )
+                          }
+                        />
+                        {name}
+                      </label>
+                    ))}
+                    <button type="button" onClick={() => setHiddenKinds([])}>
+                      전체 표시
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHiddenKinds([...nodeTypes.keys()])}
+                    >
+                      전체 해제
+                    </button>
+                  </fieldset>
+                  <p>위치와 확대배율을 유지한 채 선택한 유형만 표시합니다.</p>
+                </details>
               </div>
 
               <MapLegend
