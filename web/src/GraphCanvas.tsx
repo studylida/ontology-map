@@ -853,14 +853,16 @@ export function GraphCanvas({
       const linkTargets = [...linksRef.current.values()].map((link) => {
         const visual = linkVisualsRef.current.get(link.id);
         const focused = isFocused(link);
-        if (designPreview && visual)
-          for (const line of visual.userData.lines)
-            (line.material as THREE.LineBasicMaterial).color.set(
-              previewLinkColor(link, focused, themeRef.current === "light"),
-            );
         return {
           visual,
           focused,
+          colors:
+            visual?.userData.lines.map((line) =>
+              (line.material as THREE.LineBasicMaterial).color.clone(),
+            ) ?? [],
+          color: new THREE.Color(
+            previewLinkColor(link, focused, themeRef.current === "light"),
+          ),
           from: visual?.userData.opacity ?? 0,
           to: focused
             ? link.tier === "ambient"
@@ -869,17 +871,18 @@ export function GraphCanvas({
             : relationOpacity[link.tier],
         };
       });
-      const startedAt = performance.now();
+      let startedAt: number | null = null;
       const animate = (now: number) => {
+        startedAt ??= now;
         const progress = reducedMotion
           ? 1
-          : Math.min(1, (now - startedAt) / 160);
+          : Math.min(1, (now - startedAt) / 400);
         const pulse = reducedMotion
           ? 1
           : 0.78 +
             0.22 *
-              Math.cos((Math.max(0, now - startedAt - 160) * Math.PI) / 650);
-        const eased = 1 - (1 - progress) ** 3;
+              Math.cos((Math.max(0, now - startedAt - 400) * Math.PI) / 650);
+        const eased = progress * progress * (3 - 2 * progress);
         for (const target of nodeTargets) {
           if (!target.visual) continue;
           if (designPreview && nodeIds.has(target.item.id)) {
@@ -899,8 +902,16 @@ export function GraphCanvas({
             designPreview && target.focused
               ? target.from + (pulse - target.from) * eased
               : target.from + (target.to - target.from) * eased;
-          for (const line of target.visual.userData.lines)
+          for (const [index, line] of target.visual.userData.lines.entries()) {
             (line.material as THREE.Material).opacity = opacity;
+            const from = target.colors[index];
+            if (designPreview && from)
+              (line.material as THREE.LineBasicMaterial).color.lerpColors(
+                from,
+                target.color,
+                eased,
+              );
+          }
           target.visual.userData.opacity = opacity;
         }
         if (

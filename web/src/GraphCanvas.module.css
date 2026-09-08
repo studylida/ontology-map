@@ -150,6 +150,11 @@
   display: none;
 }
 .map[data-design-preview="true"] .nodeLabel {
+  outline: 1px solid transparent;
+  outline-offset: 3px;
+  transition:
+    outline-color 400ms ease-in-out,
+    background-color 400ms ease-in-out;
   max-width: 144px;
   padding: 1px 3px;
   color: var(--text-primary);
@@ -170,6 +175,12 @@
   font-weight: 600;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map[data-design-preview="true"] .nodeLabel {
+    transition: none;
+  }
 }
 .map[data-design-preview="true"] .depthNote {
   right: 0;

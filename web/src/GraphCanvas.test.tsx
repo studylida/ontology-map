@@ -413,7 +413,7 @@ it("미리보기는 중심·초점 연결을 파란색으로, 충돌을 우선 �
   rerender(
     <GraphCanvas {...callbacks} view={data} designPreview introStarted />,
   );
-  act(() => vi.advanceTimersByTime(2000));
+  act(() => vi.advanceTimersByTime(4000));
   const color = (id: string) =>
     harness.links.get(id)?.userData.lines[0].material.color.getHexString();
   expect(color("direct")).toBe("72a7ff");
@@ -431,6 +431,8 @@ it("미리보기는 중심·초점 연결을 파란색으로, 충돌을 우선 �
   act(() => getByRole("button", { name: "3 · 기술" }).focus());
   expect(isVisible()?.(remote as never)).toBe(true);
   expect(isVisible()?.(conflict as never)).toBe(true);
+  expect(color("remote")).toBe("7b8797");
+  act(() => vi.advanceTimersByTime(450));
   const recreate = harness.options.get("linkThreeObject");
   if (!recreate) throw new Error("간선 생성기가 없습니다.");
   const revealed = recreate(remote as never) as THREE.Group;
@@ -442,6 +444,7 @@ it("미리보기는 중심·초점 연결을 파란색으로, 충돌을 우선 �
   expect(color("remote")).toBe("72a7ff");
   expect(color("conflict")).toBe("f26d78");
   act(() => getByRole("button", { name: "3 · 기술" }).blur());
+  act(() => vi.advanceTimersByTime(450));
   expect(isVisible()?.(remote as never)).toBe(false);
   expect(revealedColor()).toBe("7b8797");
   expect(color("direct")).toBe("72a7ff");
@@ -739,9 +742,11 @@ it("hover 대상은 맥동하고 테마 변경은 graph와 배율을 보존한�
   if (!visual || !camera) throw new Error("graph가 없습니다.");
   act(() => harness.options.get("onNodeHover")?.({ id: "2" } as never));
   act(() => vi.advanceTimersByTime(16));
+  expect(visual.userData.shell.material.opacity).toBe(0);
+  act(() => vi.advanceTimersByTime(80));
   const opacity = visual.userData.shell.material.opacity;
   expect(opacity).toBeGreaterThan(0);
-  expect(opacity).toBeLessThan(0.5);
+  expect(opacity).toBeLessThan(0.2);
   expect(visual.userData.shell.visible).toBe(true);
   act(() => vi.advanceTimersByTime(300));
   expect(visual.userData.shell.material.opacity).not.toBe(opacity);
