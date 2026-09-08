@@ -438,6 +438,24 @@ def test_http_contract_returns_string_ids_and_only_approved_fields() -> None:
     assert all(
         isinstance(item["relation_id"], str) for item in body["graph"]["relations"]
     )
+    names = {n["node_id"]: n["name"] for n in body["graph"]["nodes"]}
+    edges = {r["relation_id"]: r for r in body["graph"]["relations"]}
+    for recommendation in body["recommendations"]:
+        path = recommendation["path"]
+        assert (
+            len(path)
+            == {"DIRECT": 1, "TWO_HOP": 2, "AMBIENT": 0}[recommendation["reason_code"]]
+        )
+        current = body["center_node_id"]
+        for edge in path:
+            assert edge["relation_id"] in edges
+            assert edge["source_node_name"] == names[edge["source_node_id"]]
+            assert edge["target_node_name"] == names[edge["target_node_id"]]
+            endpoints = {edge["source_node_id"], edge["target_node_id"]}
+            assert current in endpoints
+            current = (endpoints - {current}).pop()
+        if path:
+            assert current == recommendation["target_node"]["node_id"]
     assert len(body["followup_questions"]) == 2
 
     target_id = body["graph"]["nodes"][1]["node_id"]

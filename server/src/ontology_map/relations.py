@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
 
 from sqlalchemy.orm import Session
 
@@ -29,6 +30,9 @@ class RelatedNode:
 
 @dataclass(frozen=True)
 class NodeRelation:
+    source_node_id: int
+    target_node_id: int
+    directionality: Literal["DIRECTED", "SYMMETRIC"]
     relation_id: int
     other_node: RelatedNode
     relation_type_display_name: str
@@ -132,6 +136,9 @@ def list_node_relations(
         items=[
             NodeRelation(
                 relation_id=row.relation_id,
+                source_node_id=row.source_node_id,
+                target_node_id=row.target_node_id,
+                directionality=row.directionality,
                 other_node=RelatedNode(
                     node_id=row.other_node_id,
                     name=row.other_name,

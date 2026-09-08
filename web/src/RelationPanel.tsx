@@ -5,6 +5,7 @@ import {
   type EvidenceTrace,
   fetchNodeRelations,
   fetchRelationEvidence,
+  relationPathLabel,
 } from "./data";
 import { useCursorPage } from "./useCursorPage";
 
@@ -87,7 +88,19 @@ export function RelationList({
                   {relation.otherName} · {relation.otherKind}
                 </strong>
                 <small>
-                  {relation.label} · 독립 근거 {relation.evidenceGroupCount}개
+                  {relationPathLabel(
+                    relation.sourceId === nodeId
+                      ? nodeName
+                      : relation.otherName,
+                    relation.label,
+                    relation.targetId === nodeId
+                      ? nodeName
+                      : relation.otherName,
+                    relation.directionality,
+                  )}
+                </small>
+                <small>
+                  독립 근거 {relation.evidenceGroupCount}개
                   {relation.conflict ? " · 충돌 있음" : ""}
                 </small>
               </span>

@@ -71,7 +71,14 @@ class RecommendationNodeResponse(BaseModel):
     node_type: NodeTypeResponse
 
 
+class RelationPathResponse(GraphRelationResponse):
+    source_node_name: str
+    target_node_name: str
+
+
 class RecommendationResponse(BaseModel):
+    path: list[RelationPathResponse]
+
     target_node: RecommendationNodeResponse
     reason_code: Literal["DIRECT", "TWO_HOP", "AMBIENT"]
     via_node_id: str | None
@@ -128,6 +135,10 @@ class RelatedNodeResponse(BaseModel):
 
 
 class NodeRelationResponse(BaseModel):
+    source_node_id: str
+    target_node_id: str
+    directionality: Literal["DIRECTED", "SYMMETRIC"]
+
     relation_id: str
     other_node: RelatedNodeResponse
     relation_type_display_name: str
@@ -270,6 +281,28 @@ def read_exploration(
                         display_name=recommendation.target_node.node_type.display_name,
                     ),
                 ),
+                path=[
+                    RelationPathResponse(
+                        relation_id=str(edge.relation_id),
+                        source_node_id=str(edge.source_node_id),
+                        target_node_id=str(edge.target_node_id),
+                        source_node_name=next(
+                            n.name
+                            for n in result.graph.nodes
+                            if n.node_id == edge.source_node_id
+                        ),
+                        target_node_name=next(
+                            n.name
+                            for n in result.graph.nodes
+                            if n.node_id == edge.target_node_id
+                        ),
+                        relation_type_display_name=edge.relation_type_display_name,
+                        directionality=edge.directionality,
+                        supporting_evidence_group_count=edge.supporting_evidence_group_count,
+                        has_conflict=edge.has_conflict,
+                    )
+                    for edge in recommendation.path
+                ],
                 reason_code=recommendation.reason_code,
                 via_node_id=(
                     str(recommendation.via_node_id)
@@ -425,6 +458,9 @@ def read_node_relations(
         items=[
             NodeRelationResponse(
                 relation_id=str(item.relation_id),
+                source_node_id=str(item.source_node_id),
+                target_node_id=str(item.target_node_id),
+                directionality=item.directionality,
                 other_node=RelatedNodeResponse(
                     node_id=str(item.other_node.node_id),
                     name=item.other_node.name,

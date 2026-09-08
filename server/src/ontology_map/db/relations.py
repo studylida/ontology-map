@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal, cast
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -9,6 +10,9 @@ from ontology_map.db.exploration import _PUBLIC_NODES_CTE
 
 @dataclass(frozen=True)
 class NodeRelationRow:
+    source_node_id: int
+    target_node_id: int
+    directionality: Literal["DIRECTED", "SYMMETRIC"]
     relation_id: int
     other_node_id: int
     other_name: str
@@ -70,6 +74,7 @@ def list_node_relations(
         + """
         SELECT
             r.relation_id,
+            r.source_node_id, r.target_node_id, rtr.directionality,
             other.node_id AS other_node_id,
             other.name AS other_name,
             other.node_type_code,
@@ -154,6 +159,7 @@ def list_node_relations(
           )
         GROUP BY
             r.relation_id,
+            r.source_node_id, r.target_node_id, rtr.directionality,
             other.node_id,
             other.name,
             other.node_type_code,
@@ -184,6 +190,11 @@ def list_node_relations(
     return [
         NodeRelationRow(
             relation_id=int(row["relation_id"]),
+            source_node_id=int(row["source_node_id"]),
+            target_node_id=int(row["target_node_id"]),
+            directionality=cast(
+                Literal["DIRECTED", "SYMMETRIC"], row["directionality"]
+            ),
             other_node_id=int(row["other_node_id"]),
             other_name=str(row["other_name"]),
             other_node_type_code=str(row["node_type_code"]),
