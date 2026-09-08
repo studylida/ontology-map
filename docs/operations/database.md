@@ -54,7 +54,7 @@ uv run --env-file ../.env alembic upgrade head
 uv run --env-file ../.env alembic current
 ```
 
-현재 기준 revision은 `0001_create_frozen_schema.py` 한 개다. PostgreSQL 객체는 `public` schema에 만들며 migration과 SQLAlchemy metadata는 같은 frozen schema를 표현한다.
+현재 기준 revision은 `0001_create_frozen_schema.py` 이후 패널 읽기 계약을 추가한 `0002_add_panel_reading_contracts.py`다. PostgreSQL 객체는 `public` schema에 만들며 migration과 SQLAlchemy metadata는 같은 frozen schema를 표현한다.
 
 ## 3. 개발용 HBF fixture
 
@@ -172,3 +172,11 @@ docker compose down --volumes
 ```
 
 초기화한 뒤에는 PostgreSQL 시작, migration과 fixture 단계를 다시 수행한다.
+
+## 패널 질문·보고서 검토 자료와 전환
+
+`server/`에서 `PYTHONPATH=src uv run --env-file ../.env python -m ontology_map.db.panel_fixture`로 별도 개발 자료를 추가한다. 출력의 gaon은 충분·충돌 사례, empty는 유효한 질문 0개·보고서 0개 사례다. URL `/?center=<gaon ID>&range=90d`에서 검토한다. 기존 자료를 보존하고 development에서만 동작하며 재실행 시 중복 적재하지 않는다. `[패널 검토]` 이름과 개발 출처를 유지한다. 손으로 작성한 가상 예시는 읽기 UX 검증용이며 실제 기업 정보나 모델 출력 품질의 증거가 아니다.
+
+공유 개발 DB에 migration을 적용하기 전 `docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc'`의 출력을 저장소 밖의 접근 제한된 백업 파일에 보관한다. `pg_restore -l`로 archive를 확인하고 백업을 외부 게시하지 않는다. 복구가 필요하면 별도 빈 복구 DB에 `pg_restore --exit-on-error`로 복원해 확인한 뒤 사용자가 승인한 전환 절차를 따른다. 실행 중인 DB를 drop하거나 기존 자료를 덮어쓰지 않는다.
+
+0002는 추가 구조만 생성하므로 앱을 이전 버전으로 되돌려도 기존 API는 유지된다. 새 결과가 들어 있으면 downgrade는 중단하며 추가 구조와 결과를 보존한다. 운영 배포·모델 실행은 이 검토 명령에 포함되지 않는다.

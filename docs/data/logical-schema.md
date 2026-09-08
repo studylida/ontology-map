@@ -358,9 +358,9 @@ Claim이 노드의 구조화 속성을 주장하는 tagged union이다. 공통 �
 - `search_document_basis`: 검색 문서가 사용한 공개 `knowledge_item`
 - `node_embedding`: 정확한 검색 문서와 성공한 embedding 작업에서 만든 불변 벡터
 - `node_context`: 검색 문서에서 만든 한국어 설명
-- `followup_question`: context마다 slot 1·2의 질문과 필수 `target_node_id`
+- `followup_question`: 전환 호환용 이동 질문. 기존 context의 slot 1·2와 `target_node_id`를 보존하며 새 화면의 질문 계약에는 사용하지 않는다.
 
-모든 영향 노드의 필수 결과, 질문 두 개와 성공한 `NODE_INSIGHT` 작업이 준비되고 공개 조건을 통과해야 batch를 `READY`로 바꿀 수 있다. 한 인사이트 작업은 같은 node와 검색 문서를 대상으로 90일과 1년 범위를 함께 처리한다.
+새 공개 계약은 모든 영향 node의 필수 결과와 같은 context의 두 기간별 질문 묶음, 성공한 `NODE_INSIGHT` 작업의 두 기간별 준비 결과가 완결되고 공개 조건을 통과해야 READY로 전환한다. 성공한 0개 질문·0개 보고서는 정상이며 묶음 부재·실패와 구분한다. 기존 READY를 새 형식으로 자동 변환하거나 재검증 실패 때문에 기준 지식을 되돌리지 않는다. 생성·publication worker는 아직 보류이므로 읽기에서 준비·근거 검사를 수행한다.
 
 ### 5.11 node 인사이트
 
@@ -396,6 +396,23 @@ node_insight
 목록의 근거 수는 저장하지 않고 선택 시간 범위의 `COUNT(DISTINCT source_document.evidence_group_id)`로 계산한다. 근거가 부족한 범위는 `SUCCESS` 작업과 0개 행으로 표현하며 빈 문자열이나 `NO_RESULT` 가짜 인사이트를 만들지 않는다.
 
 basis Claim 하나가 보류·거절되거나 열린 `BLOCKING` lint finding을 가지면 해당 Claim만 빼고 기존 모델 문장을 계속 사용하지 않는다. 관련 인사이트 전체를 read-time에서 숨기고 새 검색 문서와 작업으로 재생성한다. 실패한 새 작업은 기준 지식을 되돌리지 않으며 이전 READY 인사이트를 계속 제공한다.
+
+### 5.12 기간별 질문·답변과 종합보고서
+
+#162/#163의 새 읽기 계약은 기존 파생 결과를 보존하면서 다음 관계를 추가한다. Fact와 원문은 기존 Claim과 Observation을 참조하며 복사하지 않는다.
+
+| 구조 | 의미와 연결 |
+| --- | --- |
+| `node_question_set` | 공개 선택된 node_context의 기간별 불변 묶음. context·기간은 유일하며 성공한 FOLLOWUP_QUESTIONS 작업과 as_of_at을 가진다. 같은 작업·context·기준 시각의 90일·1년 묶음이 모두 있어야 읽을 수 있다. |
+| `node_question` | 묶음에 속하는 질문·짧은 답변·선택적 한계와 표시 순서. 이동 대상은 필수가 아니며 현재 유효한 보고서 section_id를 선택적으로 참조한다. |
+| `node_question_claim` | 질문이 사용하는 기존 Claim과 KEY_CLAIM·SUPPORTING_CLAIM·CONTRASTING_CLAIM 역할·순서. KEY_CLAIM과 기간 내 근거가 필요하다. |
+| `node_insight_window` | 공개 선택된 NODE_INSIGHT 작업·검색 문서·node·기간·as_of_at의 준비 결과. node_insight_id가 NULL이면 정상 0개 보고서이며, 값이 있으면 같은 작업·문서·기간·기준 시각의 보고서 한 개를 가리킨다. |
+| `node_insight_section` | 기존 node_insight의 발견별 제목·종합 해석·선택적 한계와 순서. |
+| `node_insight_section_claim` | 발견별 기존 Claim과 역할·순서. 해당 보고서 node_insight_claim에도 포함되어야 하며 각 절에는 KEY_CLAIM이 필요하다. |
+
+기존 node_insight의 slot 1–3은 호환 데이터에 남는다. 새 화면은 node_insight_window가 선택한 한 보고서만 읽으며, 여러 기존 보고서를 합쳐 새로운 요약을 만들지 않는다. 표제·요약·전체 한계는 기존 보고서가, 절별 해석·한계는 section이 소유한다. 표시 순서는 양의 정수이고 부모 안에서 유일하다. 선택적 한계는 NULL이면 별도의 한계 문구가 없다는 뜻이며 빈 문자열은 허용하지 않는다.
+
+질문·보고서가 사용한 Claim은 같은 공개 입력 basis에 있어야 하고 원문까지 연결되어야 한다. 전체 입력 basis의 비공개·열린 BLOCKING, 잘못된 참조나 불완전한 결과는 읽기에서 거부한다. 참조된 보고서만 무효화됐으면 독립적으로 유효한 질문의 답변은 유지하되 분석 연결을 숨긴다. Claim 목록도 같은 공개 basis 검사를 수행한다. 관계·속성·사건 시간·충돌의 기존 의미 연결만 사용하며 단순 문자열 언급으로 Claim을 연결하지 않는다.
 
 ## 6. 수명주기
 
