@@ -359,3 +359,127 @@ it("대기 중 재선택·오류 종료는 떠 움직임을 정리하고 reduced
   expect(visual("2").position).toEqual(stopped);
   expect(callbacks.onTransitionComplete).not.toHaveBeenCalled();
 });
+
+it("미리보기는 중심·초점 연결을 파란색으로, 충돌을 우선 빨간 점선으로 표시하고 발광을 숨긴다", () => {
+  const callbacks = props();
+  const direct = {
+    id: "direct",
+    source: "1",
+    target: "2",
+    label: "연결",
+    directionality: "DIRECTED" as const,
+    evidenceGroupCount: 3,
+    conflict: false,
+    tier: "direct" as const,
+  };
+  const remote = {
+    ...direct,
+    id: "remote",
+    source: "2",
+    target: "3",
+    tier: "twoHop" as const,
+  };
+  const conflict = { ...remote, id: "conflict", conflict: true };
+  const data = {
+    ...view,
+    nodes: [...view.nodes, node("3", "ambient")],
+    relations: [direct, remote, conflict],
+  };
+  const { rerender, getByRole } = render(
+    <GraphCanvas {...callbacks} view={data} designPreview />,
+  );
+  act(() => vi.advanceTimersByTime(16));
+  rerender(
+    <GraphCanvas {...callbacks} view={data} designPreview introStarted />,
+  );
+  act(() => vi.advanceTimersByTime(2000));
+  const color = (id: string) =>
+    harness.links.get(id)?.userData.lines[0].material.color.getHexString();
+  expect(color("direct")).toBe("72a7ff");
+  expect(color("remote")).toBe("7b8797");
+  expect(color("conflict")).toBe("f26d78");
+  expect(harness.links.get("direct")?.userData.lines).toHaveLength(3);
+  expect(
+    harness.links.get("conflict")?.userData.lines[0].material,
+  ).toBeInstanceOf(THREE.LineDashedMaterial);
+  expect(visual("1").userData.halo.visible).toBe(false);
+  expect(visual("1").userData.core.visible).toBe(false);
+  expect(visual("1").userData.shell.visible).toBe(false);
+  act(() => getByRole("button", { name: "3 · 기술" }).focus());
+  expect(color("remote")).toBe("72a7ff");
+  expect(color("conflict")).toBe("f26d78");
+  act(() => getByRole("button", { name: "3 · 기술" }).blur());
+  expect(color("remote")).toBe("7b8797");
+  expect(color("direct")).toBe("72a7ff");
+});
+
+it("미리보기 준비 이동은 2단위 이내에서 멈추고 응답 순간 위치·속도를 이어받으며 오류 때 복귀한다", () => {
+  const callbacks = props();
+  const { rerender } = render(<GraphCanvas {...callbacks} designPreview />);
+  act(() => vi.advanceTimersByTime(16));
+  rerender(<GraphCanvas {...callbacks} designPreview introStarted />);
+  act(() => vi.advanceTimersByTime(2000));
+  const selected = visual("2").position.clone();
+  const origin = visual("1").position.clone();
+  const camera = harness.camera?.position.clone();
+  rerender(
+    <GraphCanvas {...callbacks} designPreview introStarted pendingNodeId="2" />,
+  );
+  act(() => vi.advanceTimersByTime(80));
+  const position = visual("1").position.clone();
+  const velocity = visual("1").userData.velocity.clone();
+  expect(position.distanceTo(origin)).toBeGreaterThan(0);
+  expect(position.distanceTo(origin)).toBeLessThanOrEqual(2);
+  const next = {
+    ...view,
+    centerId: "2",
+    nodes: [node("2", "center"), node("1", "direct")],
+  };
+  rerender(
+    <GraphCanvas {...callbacks} designPreview introStarted view={next} />,
+  );
+  expect(visual("1").position).toEqual(position);
+  expect(visual("1").userData.velocity).toEqual(velocity);
+  expect(visual("2").position).toEqual(selected);
+  expect(harness.camera?.position).toEqual(camera);
+  act(() => vi.advanceTimersByTime(1300));
+  const settled = visual("2").position.clone();
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      designPreview
+      introStarted
+      view={next}
+      pendingNodeId="1"
+    />,
+  );
+  act(() => vi.advanceTimersByTime(400));
+  const waiting = visual("2").position.clone();
+  expect(waiting.distanceTo(settled)).toBeCloseTo(2);
+  act(() => vi.advanceTimersByTime(3000));
+  expect(visual("2").position).toEqual(waiting);
+  expect(visual("2").userData.velocity.length()).toBe(0);
+  rerender(
+    <GraphCanvas {...callbacks} designPreview introStarted view={next} />,
+  );
+  expect(visual("2").position).toEqual(waiting);
+  act(() => vi.advanceTimersByTime(400));
+  expect(visual("2").position).toEqual(settled);
+  expect(callbacks.onTransitionComplete).toHaveBeenCalledTimes(1);
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      designPreview
+      introStarted
+      view={next}
+      pendingNodeId="1"
+    />,
+  );
+  act(() => vi.advanceTimersByTime(1000));
+  expect(visual("2").position).toEqual(settled);
+  rerender(
+    <GraphCanvas {...callbacks} designPreview introStarted view={next} />,
+  );
+  expect(visual("2").position).toEqual(settled);
+});

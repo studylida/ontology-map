@@ -22,6 +22,8 @@ import {
   retainGraphItems,
 } from "./graphLayout";
 import { watchBoundaryPan } from "./peripheralPan";
+import { placePreviewLabels } from "./previewLabels";
+import { preparationDuration, samplePreviewMotion } from "./previewMotion";
 import type { EvidenceSelection } from "./RelationPanel";
 
 interface RuntimeNode extends KnowledgeViewNode {
@@ -42,6 +44,7 @@ interface RuntimeLink extends Omit<KnowledgeViewRelation, "source" | "target"> {
 }
 
 interface GraphCanvasProps {
+  designPreview?: boolean;
   view: ExplorationView;
   introStarted: boolean;
   pendingNodeId: string | null;
@@ -69,6 +72,8 @@ interface NodeStyle {
 type NodeVisual = THREE.Group & {
   userData: {
     nodeId: string;
+    designPreview: boolean;
+    velocity: THREE.Vector3;
     surface: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
     occluder: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
     core: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
@@ -216,11 +221,17 @@ function applyNodeVisual(
   visual.userData.label.element.style.opacity = String(style.labelOpacity);
   visual.userData.label.element.dataset.tier = node.tier;
   visual.userData.label.position.y = radius + 9;
+  if (visual.userData.designPreview) {
+    visual.userData.surface.material.color.set(0x000000);
+    visual.userData.surface.material.emissiveIntensity = 1;
+    visual.userData.label.center.set(0, 0.5);
+    visual.userData.label.position.set(radius + 2, 0, 0);
+  }
   visual.userData.radius = radius;
   visual.userData.style = { ...style };
 }
 
-function makeNodeVisual(node: RuntimeNode): NodeVisual {
+function makeNodeVisual(node: RuntimeNode, designPreview: boolean): NodeVisual {
   const group = new THREE.Group() as NodeVisual;
   // three-forcegraph의 link group(10) 뒤에 node 전체를 그린다.
   group.renderOrder = 20;
@@ -266,7 +277,7 @@ function makeNodeVisual(node: RuntimeNode): NodeVisual {
   core.renderOrder = 12;
   const halo = new THREE.Sprite(
     new THREE.SpriteMaterial({
-      map: makeGlowTexture(),
+      map: designPreview ? null : makeGlowTexture(),
       color,
       transparent: true,
       blending: THREE.AdditiveBlending,
@@ -293,10 +304,20 @@ function makeNodeVisual(node: RuntimeNode): NodeVisual {
   for (const decoration of [halo, shell, core, occluder])
     decoration.raycast = () => {};
   const label = makeLabel(node);
+  if (designPreview) {
+    halo.visible = false;
+    shell.visible = false;
+    core.visible = false;
+    surface.material.toneMapped = false;
+    surface.material.fog = false;
+    occluder.material.color.set("#111416");
+  }
   group.add(halo, occluder, surface, core, shell, label);
   group.addEventListener("removed", () => label.element.remove());
   group.userData = {
     nodeId: node.id,
+    designPreview,
+    velocity: new THREE.Vector3(),
     surface,
     occluder,
     core,
@@ -304,13 +325,13 @@ function makeNodeVisual(node: RuntimeNode): NodeVisual {
     shell,
     label,
     radius: radiusFor(node),
-    style: { ...nodeStyles[node.tier] },
+    style: { ...styleFor(node.tier, designPreview) },
   };
   applyNodeVisual(group, node, group.userData.radius, group.userData.style);
   return group;
 }
 
-function makeLinkVisual(link: RuntimeLink): LinkVisual {
+function makeLinkVisual(link: RuntimeLink, designPreview: boolean): LinkVisual {
   const group = new THREE.Group() as LinkVisual;
   const opacity = relationOpacity[link.tier];
   const lines = Array.from(
@@ -318,7 +339,7 @@ function makeLinkVisual(link: RuntimeLink): LinkVisual {
     () => {
       const material = link.conflict
         ? new THREE.LineDashedMaterial({
-            color: "#e6a23c",
+            color: designPreview ? "#F26D78" : "#e6a23c",
             transparent: true,
             opacity,
             dashSize: 3,
@@ -408,6 +429,67 @@ function alignLinks(
   }
 }
 
+function previewLinkColor(link: RuntimeLink, focused = false) {
+  if (link.conflict) return "#F26D78";
+  return link.tier === "direct" || focused ? "#72A7FF" : "#7B8797";
+}
+
+const previewNodeStyles = Object.fromEntries(
+  Object.entries(nodeStyles).map(([tier, style]) => [
+    tier,
+    {
+      ...style,
+      labelOpacity: {
+        center: 1,
+        direct: 0.98,
+        twoHop: 0.9,
+        threeHop: 0.55,
+        ambient: 0,
+      }[tier],
+    },
+  ]),
+) as Record<NodeTier, NodeStyle>;
+
+function styleFor(tier: NodeTier, preview: boolean): NodeStyle {
+  return preview ? previewNodeStyles[tier] : nodeStyles[tier];
+}
+
+function prepareWhileWaiting(
+  nodes: Map<string, NodeVisual>,
+  links: Map<string, RuntimeLink>,
+  visuals: Map<string, LinkVisual>,
+  selectedId: string,
+) {
+  const selected =
+    nodes.get(selectedId)?.position.clone() ?? new THREE.Vector3();
+  const starts = [...nodes].map(([id, visual]) => {
+    const direction = visual.position.clone().sub(selected).setZ(0).normalize();
+    if (id === selectedId) visual.userData.velocity.set(0, 0, 0);
+    return {
+      visual,
+      start: visual.position.clone(),
+      target: visual.position.clone().addScaledVector(direction, 2),
+    };
+  });
+  const begun = performance.now();
+  let frameId: number;
+  const frame = (now: number) => {
+    const t = Math.min(1, (now - begun) / preparationDuration);
+    const eased = 1 - (1 - t) ** 3;
+    for (const { visual, start, target } of starts) {
+      visual.position.lerpVectors(start, target, eased);
+      visual.userData.velocity
+        .copy(target)
+        .sub(start)
+        .multiplyScalar((3 * (1 - t) ** 2) / preparationDuration);
+    }
+    alignLinks(links, visuals, nodes);
+    if (t < 1) frameId = requestAnimationFrame(frame);
+  };
+  frameId = requestAnimationFrame(frame);
+  return () => cancelAnimationFrame(frameId);
+}
+
 function floatWhileWaiting(
   nodes: Map<string, NodeVisual>,
   links: Map<string, RuntimeLink>,
@@ -441,6 +523,7 @@ function floatWhileWaiting(
 }
 
 export function GraphCanvas({
+  designPreview = false,
   view,
   introStarted,
   pendingNodeId,
@@ -462,6 +545,7 @@ export function GraphCanvas({
   const linksRef = useRef(new Map<string, RuntimeLink>());
   const nodeVisualsRef = useRef(new Map<string, NodeVisual>());
   const linkVisualsRef = useRef(new Map<string, LinkVisual>());
+  const linkFocusRef = useRef<(link: RuntimeLink) => boolean>(() => false);
   const previousCenterRef = useRef(centerId);
   const viewNodesRef = useRef(new Set(view.nodes.map((node) => node.id)));
   useEffect(() => {
@@ -475,6 +559,7 @@ export function GraphCanvas({
   const readyRef = useRef(false);
   const introCompletedRef = useRef(false);
   const animationRef = useRef<number | null>(null);
+  const preparingRef = useRef(false);
   const resizeDeadlineRef = useRef<number | null>(null);
   const hoverAnimationRef = useRef<number | null>(null);
   const introTimeoutRef = useRef<number | null>(null);
@@ -501,7 +586,7 @@ export function GraphCanvas({
       const target =
         view.nodes.find((node) => node.id === relation.target)?.name ?? "노드";
       const direction = relation.directionality === "DIRECTED" ? "→" : "↔";
-      return `${source} ${direction} ${target} · ${relation.label} · 독립 근거 ${relation.evidenceGroupCount}개`;
+      return `${source} ${direction} ${target} · ${relation.label} · 독립 근거 ${relation.evidenceGroupCount}개${relation.conflict ? " · 충돌 관계" : ""}`;
     },
     [view.nodes],
   );
@@ -533,6 +618,13 @@ export function GraphCanvas({
     if (!container) return;
     const labels = new CSS2DRenderer();
     labels.domElement.style.pointerEvents = "none";
+    if (designPreview) {
+      const renderLabels = labels.render.bind(labels);
+      labels.render = (scene, camera) => {
+        renderLabels(scene, camera);
+        placePreviewLabels(container);
+      };
+    }
     const graph = new ForceGraph3D(container, {
       extraRenderers: [labels],
       controlType: "orbit",
@@ -545,7 +637,7 @@ export function GraphCanvas({
     }) as unknown as ForceGraph3DInstance<RuntimeNode, RuntimeLink>;
     graphRef.current = graph;
     graph
-      .backgroundColor("#070a10")
+      .backgroundColor(designPreview ? "#111416" : "#070a10")
       .showNavInfo(false)
       .enableNodeDrag(false)
       .enableNavigationControls(true)
@@ -553,12 +645,20 @@ export function GraphCanvas({
       .nodeLabel(() => "")
       .nodeThreeObject((node) => {
         const visual =
-          nodeVisualsRef.current.get(node.id) ?? makeNodeVisual(node);
+          nodeVisualsRef.current.get(node.id) ??
+          makeNodeVisual(node, designPreview);
         nodeVisualsRef.current.set(node.id, visual);
         return visual;
       })
       .linkThreeObject((link) => {
-        const visual = makeLinkVisual(link);
+        const visual = makeLinkVisual(link, designPreview);
+        if (designPreview)
+          for (const line of visual.userData.lines) {
+            (line.material as THREE.LineBasicMaterial).color.set(
+              previewLinkColor(link),
+            );
+            (line.material as THREE.LineBasicMaterial).toneMapped = false;
+          }
         linkVisualsRef.current.set(link.id, visual);
         return visual;
       })
@@ -588,7 +688,19 @@ export function GraphCanvas({
       .warmupTicks(0)
       .cooldownTicks(0);
 
+    if (designPreview)
+      graph.linkDirectionalArrowColor((link) => previewLinkColor(link));
     const highlight = (nodeIds: Set<string>, relationId: string | null) => {
+      const isFocused = (link: RuntimeLink) =>
+        relationId !== null
+          ? link.id === relationId
+          : nodeIds.has(endpointId(link.source)) ||
+            nodeIds.has(endpointId(link.target));
+      linkFocusRef.current = isFocused;
+      if (designPreview)
+        graph.linkDirectionalArrowColor((link) =>
+          previewLinkColor(link, isFocused(link)),
+        );
       if (hoverAnimationRef.current !== null)
         cancelAnimationFrame(hoverAnimationRef.current);
       const nodeTargets = [...nodesRef.current.values()].map((item) => {
@@ -598,7 +710,9 @@ export function GraphCanvas({
             nodeIds.has(item.id),
           );
           visual.userData.label.element.style.opacity = String(
-            nodeIds.has(item.id) ? 0.98 : nodeStyles[item.tier].labelOpacity,
+            nodeIds.has(item.id)
+              ? 0.98
+              : styleFor(item.tier, designPreview).labelOpacity,
           );
         }
         return {
@@ -618,11 +732,12 @@ export function GraphCanvas({
       });
       const linkTargets = [...linksRef.current.values()].map((link) => {
         const visual = linkVisualsRef.current.get(link.id);
-        const focused =
-          relationId !== null
-            ? link.id === relationId
-            : nodeIds.has(endpointId(link.source)) ||
-              nodeIds.has(endpointId(link.target));
+        const focused = isFocused(link);
+        if (designPreview && visual)
+          for (const line of visual.userData.lines)
+            (line.material as THREE.LineBasicMaterial).color.set(
+              previewLinkColor(link, focused),
+            );
         return {
           visual,
           from: visual?.userData.opacity ?? 0,
@@ -699,55 +814,57 @@ export function GraphCanvas({
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
-    graph.scene().fog = new THREE.FogExp2(0x070a10, 0.0017);
-    const hemisphere = new THREE.HemisphereLight("#b9d3ff", "#070a10", 0.72);
-    const key = new THREE.DirectionalLight("#e8f1ff", 1.4);
-    key.position.set(90, 120, 170);
-    const rim = new THREE.DirectionalLight("#5a7bff", 0.8);
-    rim.position.set(-120, 10, -90);
-    graph.lights([hemisphere, key, rim]);
-    const bloom = new UnrealBloomPass(
-      new THREE.Vector2(container.clientWidth, container.clientHeight),
-      0.44,
-      0.2,
-      0.7,
-    );
-    graph.postProcessingComposer().addPass(bloom);
+    let bloom: UnrealBloomPass | undefined;
+    if (!designPreview) {
+      graph.scene().fog = new THREE.FogExp2(0x070a10, 0.0017);
+      const hemisphere = new THREE.HemisphereLight("#b9d3ff", "#070a10", 0.72);
+      const key = new THREE.DirectionalLight("#e8f1ff", 1.4);
+      key.position.set(90, 120, 170);
+      const rim = new THREE.DirectionalLight("#5a7bff", 0.8);
+      rim.position.set(-120, 10, -90);
+      graph.lights([hemisphere, key, rim]);
+      bloom = new UnrealBloomPass(
+        new THREE.Vector2(container.clientWidth, container.clientHeight),
+        0.44,
+        0.2,
+        0.7,
+      );
+      graph.postProcessingComposer().addPass(bloom);
 
-    const dustPositions: number[] = [];
-    for (let index = 0; index < 260; index += 1) {
-      const angle = index * 2.399963229728653;
-      const radius = 250 + (index % 43) * 6.5;
-      const height = ((index * 37) % 180) - 90;
-      dustPositions.push(
-        Math.cos(angle) * radius,
-        height,
-        Math.sin(angle) * radius - 120,
+      const dustPositions: number[] = [];
+      for (let index = 0; index < 260; index += 1) {
+        const angle = index * 2.399963229728653;
+        const radius = 250 + (index % 43) * 6.5;
+        const height = ((index * 37) % 180) - 90;
+        dustPositions.push(
+          Math.cos(angle) * radius,
+          height,
+          Math.sin(angle) * radius - 120,
+        );
+      }
+      const dustGeometry = new THREE.BufferGeometry();
+      dustGeometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(dustPositions, 3),
+      );
+      graph.scene().add(
+        new THREE.Points(
+          dustGeometry,
+          new THREE.PointsMaterial({
+            color: "#7892b7",
+            size: 0.62,
+            transparent: true,
+            opacity: 0.18,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            toneMapped: false,
+          }),
+        ),
       );
     }
-    const dustGeometry = new THREE.BufferGeometry();
-    dustGeometry.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(dustPositions, 3),
-    );
-    graph.scene().add(
-      new THREE.Points(
-        dustGeometry,
-        new THREE.PointsMaterial({
-          color: "#7892b7",
-          size: 0.62,
-          transparent: true,
-          opacity: 0.18,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-          toneMapped: false,
-        }),
-      ),
-    );
-
     const resize = () => {
       graph.width(container.clientWidth).height(container.clientHeight);
-      bloom.resolution.set(container.clientWidth, container.clientHeight);
+      bloom?.resolution.set(container.clientWidth, container.clientHeight);
     };
     resize();
     const observer = new ResizeObserver(resize);
@@ -777,7 +894,7 @@ export function GraphCanvas({
       focusPathRef.current = () => {};
       focusRelationRef.current = () => {};
     };
-  }, []);
+  }, [designPreview]);
 
   useEffect(() => {
     const graph = graphRef.current;
@@ -789,7 +906,9 @@ export function GraphCanvas({
     if (pendingNodeId && introCompletedRef.current) {
       setBusy(true);
       if (reducedMotion) return;
-      return floatWhileWaiting(
+      preparingRef.current = designPreview;
+      const prepare = designPreview ? prepareWhileWaiting : floatWhileWaiting;
+      return prepare(
         nodeVisualsRef.current,
         linksRef.current,
         linkVisualsRef.current,
@@ -798,9 +917,18 @@ export function GraphCanvas({
     }
     const initial = !dataInitializedRef.current;
     const changed = previousCenterRef.current !== centerId;
-    const center =
-      nodeVisualsRef.current.get(centerId)?.position ??
-      nodesRef.current.get(centerId);
+    const restoring = designPreview && preparingRef.current && !changed;
+    preparingRef.current = false;
+    const startVelocities = new Map(
+      [...nodeVisualsRef.current].map(([id, visual]) => [
+        id,
+        visual.userData.velocity.clone(),
+      ]),
+    );
+    const center = restoring
+      ? nodesRef.current.get(centerId)
+      : (nodeVisualsRef.current.get(centerId)?.position ??
+        nodesRef.current.get(centerId));
     const anchor = { x: center?.x ?? 0, y: center?.y ?? 0, z: center?.z ?? 0 };
     const resizeTargetChanged = view.nodes.some((node) => {
       const previous = nodesRef.current.get(node.id);
@@ -859,7 +987,8 @@ export function GraphCanvas({
       Object.assign(node, target);
       pinPosition(
         node as RuntimeNode & Position,
-        (changed ? starts : currentPositions).get(target.id) ?? position,
+        (changed || restoring ? starts : currentPositions).get(target.id) ??
+          position,
       );
       nodesRef.current.set(target.id, node);
       starts.set(target.id, { x: node.x ?? 0, y: node.y ?? 0, z: node.z ?? 0 });
@@ -908,19 +1037,44 @@ export function GraphCanvas({
       retainGraphItems(linkVisualsRef.current, linkIds);
       publishData();
     };
-    const paint = (progress: number, move: boolean) => {
+    const paint = (
+      progress: number,
+      move: boolean,
+      time = progress,
+      duration = 1200,
+    ) => {
       for (const [id, node] of nodesRef.current) {
         const target = targets.get(id);
         const start = starts.get(id);
-        if (target && start && move && changed)
+        if (target && start && move && (changed || restoring)) {
           pinPosition(node as RuntimeNode & Position, {
             x: start.x + (target.x - start.x) * progress,
             y: start.y + (target.y - start.y) * progress,
             z: start.z + (target.z - start.z) * progress,
           });
+          if (designPreview) {
+            const sample = samplePreviewMotion(
+              start,
+              target,
+              id === centerId
+                ? { x: 0, y: 0, z: 0 }
+                : (startVelocities.get(id) ?? { x: 0, y: 0, z: 0 }),
+              time,
+              duration || 1,
+            );
+            pinPosition(node as RuntimeNode & Position, sample.position);
+            nodeVisualsRef.current
+              .get(id)
+              ?.userData.velocity.set(
+                sample.velocity.x,
+                sample.velocity.y,
+                sample.velocity.z,
+              );
+          }
+        }
         const visual = nodeVisualsRef.current.get(id);
         if (!visual) continue;
-        const style = { ...nodeStyles[node.tier] };
+        const style = { ...styleFor(node.tier, designPreview) };
         if (!viewNodesRef.current.has(id)) {
           style.opacity = 0;
           style.haloOpacity = 0;
@@ -938,7 +1092,7 @@ export function GraphCanvas({
           };
           for (const key of Object.keys(style) as (keyof NodeStyle)[]) {
             const end = viewNodesRef.current.has(id)
-              ? nodeStyles[node.tier][key]
+              ? styleFor(node.tier, designPreview)[key]
               : style[key];
             style[key] = from[key] + (end - from[key]) * progress;
           }
@@ -962,14 +1116,19 @@ export function GraphCanvas({
         const opacity = move
           ? oldOpacity + (targetOpacity - oldOpacity) * progress
           : targetOpacity;
-        for (const line of visual.userData.lines)
+        for (const line of visual.userData.lines) {
           (line.material as THREE.Material).opacity = opacity;
+          if (designPreview)
+            (line.material as THREE.LineBasicMaterial).color.set(
+              previewLinkColor(link, linkFocusRef.current(link)),
+            );
+        }
         visual.userData.opacity = opacity;
       }
     };
-    const animate = (mode: "intro" | "center" | "resize") => {
+    const animate = (mode: "intro" | "center" | "resize" | "restore") => {
       const intro = mode === "intro";
-      const moveCamera = mode !== "resize";
+      const moveCamera = mode === "intro" || mode === "center";
       const startCamera = graph.camera().position.clone();
       const startTarget = controls.target.clone();
       const endTarget = new THREE.Vector3(anchor.x, anchor.y, anchor.z);
@@ -986,13 +1145,15 @@ export function GraphCanvas({
         ? 0
         : moveCamera
           ? 1200
-          : Math.max(0, (resizeDeadlineRef.current ?? begun) - begun);
+          : mode === "restore"
+            ? preparationDuration
+            : Math.max(0, (resizeDeadlineRef.current ?? begun) - begun);
       paint(0, !intro);
       setBusy(true);
       const frame = (now: number) => {
         const progress = duration ? Math.min(1, (now - begun) / duration) : 1;
         const eased = easeInOutCubic(progress);
-        paint(eased, !intro);
+        paint(eased, !intro, progress, duration);
         if (moveCamera) {
           graph.camera().position.lerpVectors(startCamera, endCamera, eased);
           controls.target.lerpVectors(startTarget, endTarget, eased);
@@ -1036,6 +1197,8 @@ export function GraphCanvas({
       );
     } else if (introStarted && changed) {
       animate("center");
+    } else if (introStarted && restoring) {
+      animate("restore");
     } else if (introStarted && resizing) {
       animate("resize");
     } else {
@@ -1068,12 +1231,13 @@ export function GraphCanvas({
         window.clearTimeout(introTimeoutRef.current);
       introTimeoutRef.current = null;
     };
-  }, [centerId, introStarted, pendingNodeId, view]);
+  }, [centerId, introStarted, pendingNodeId, view, designPreview]);
 
   return (
     <section
       className={styles.map}
       data-panel-open={panelOpen}
+      data-design-preview={designPreview || undefined}
       aria-label="동적 지식맵"
       aria-busy={busy}
     >
@@ -1102,7 +1266,11 @@ export function GraphCanvas({
           </button>
         ))}
       </nav>
-      <div className={styles.depthNote}>얕은 2.5D · z ±32 · 회전 없음</div>
+      <div className={styles.depthNote}>
+        {designPreview
+          ? "드래그로 이동 · 스크롤로 확대 · 관계선을 눌러 근거 확인"
+          : "얕은 2.5D · z ±32 · 회전 없음"}
+      </div>
       <nav
         className={styles.accessibleNodes}
         aria-label="탐색 가능한 node 목록"
