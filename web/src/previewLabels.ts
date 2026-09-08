@@ -24,7 +24,10 @@ function overlap(a: Box, b: Box) {
 // ponytail: 검토 자료 규모의 O(n²) label 배치다. 수백 개 label에서 비용이 확인되면 공간 색인을 검토한다.
 export function placePreviewLabels(container: HTMLElement) {
   const labels = [...container.querySelectorAll<HTMLElement>("[data-node-id]")]
-    .filter((label) => Number(label.style.opacity) > 0)
+    .filter(
+      (label) =>
+        label.style.display !== "none" && Number(label.style.opacity) > 0,
+    )
     .sort((a, b) => priority(a) - priority(b));
   const signature = `${container.clientWidth}:${container.clientHeight}:${labels.map((label) => `${label.style.transform}:${label.style.opacity}:${label.dataset.focused}:${label.dataset.tier}`).join("|")}`;
   if (layouts.get(container) === signature) return;

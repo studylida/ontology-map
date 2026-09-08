@@ -45,6 +45,7 @@ interface RuntimeLink extends Omit<KnowledgeViewRelation, "source" | "target"> {
 
 interface GraphCanvasProps {
   designPreview?: boolean;
+  theme?: "dark" | "light";
   view: ExplorationView;
   introStarted: boolean;
   introCompleted?: boolean;
@@ -74,6 +75,7 @@ type NodeVisual = THREE.Group & {
   userData: {
     nodeId: string;
     designPreview: boolean;
+    lightMode: boolean;
     velocity: THREE.Vector3;
     surface: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
     occluder: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
@@ -201,6 +203,7 @@ function applyNodeVisual(
   const color = new THREE.Color(
     colors[node.kind as keyof typeof colors] ?? "#8fa1b8",
   );
+  if (visual.userData.lightMode) color.multiplyScalar(0.4);
   visual.userData.surface.material.color
     .copy(color)
     .multiplyScalar(style.colorScale);
@@ -236,6 +239,7 @@ function makeNodeVisual(node: RuntimeNode, designPreview: boolean): NodeVisual {
   const group = new THREE.Group() as NodeVisual;
   // three-forcegraph의 link group(10) 뒤에 node 전체를 그린다.
   group.renderOrder = 20;
+  group.raycast = () => (group.visible ? undefined : false);
   const geometry = new THREE.SphereGeometry(1, 28, 18);
   const color = new THREE.Color(
     colors[node.kind as keyof typeof colors] ?? "#8fa1b8",
@@ -318,6 +322,7 @@ function makeNodeVisual(node: RuntimeNode, designPreview: boolean): NodeVisual {
   group.userData = {
     nodeId: node.id,
     designPreview,
+    lightMode: false,
     velocity: new THREE.Vector3(),
     surface,
     occluder,
@@ -430,9 +435,15 @@ function alignLinks(
   }
 }
 
-function previewLinkColor(link: RuntimeLink, focused = false) {
-  if (link.conflict) return "#F26D78";
-  return link.tier === "direct" || focused ? "#72A7FF" : "#7B8797";
+function previewLinkColor(link: RuntimeLink, focused = false, light = false) {
+  if (link.conflict) return light ? "#b52c42" : "#F26D78";
+  return link.tier === "direct" || focused
+    ? light
+      ? "#245ac1"
+      : "#72A7FF"
+    : light
+      ? "#657180"
+      : "#7B8797";
 }
 
 const previewNodeStyles = Object.fromEntries(
@@ -525,6 +536,7 @@ function floatWhileWaiting(
 
 export function GraphCanvas({
   designPreview = false,
+  theme = "dark",
   view,
   introStarted,
   introCompleted = false,
@@ -538,6 +550,11 @@ export function GraphCanvas({
   onIntroComplete,
 }: GraphCanvasProps) {
   const centerId = view.centerId;
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
+  const nearViewRef = useRef<{ distance: number; anchor: Position } | null>(
+    null,
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<ForceGraph3DInstance<
     RuntimeNode,
@@ -624,7 +641,36 @@ export function GraphCanvas({
     labels.domElement.style.pointerEvents = "none";
     if (designPreview) {
       const renderLabels = labels.render.bind(labels);
+      let wasClose = false;
       labels.render = (scene, camera) => {
+        const near = nearViewRef.current;
+        const controls = graphRef.current?.controls() as
+          | GraphControls
+          | undefined;
+        if (near && controls) {
+          const offset = controls.target.distanceTo(
+            new THREE.Vector3(near.anchor.x, near.anchor.y, near.anchor.z),
+          );
+          const close =
+            camera.position.distanceTo(controls.target) <=
+              near.distance * 1.08 && offset < near.distance * 0.25;
+          for (const [id, visual] of nodeVisualsRef.current) {
+            const tier = nodesRef.current.get(id)?.tier;
+            visual.visible = !close || tier === "center" || tier === "direct";
+            visual.userData.label.visible = visual.visible;
+          }
+          if (close !== wasClose) {
+            wasClose = close;
+            graphRef.current?.linkVisibility(
+              (link) =>
+                !close ||
+                [link.source, link.target].every((endpoint) => {
+                  const tier = nodesRef.current.get(endpointId(endpoint))?.tier;
+                  return tier === "center" || tier === "direct";
+                }),
+            );
+          }
+        }
         renderLabels(scene, camera);
         placePreviewLabels(container);
       };
@@ -659,7 +705,7 @@ export function GraphCanvas({
         if (designPreview)
           for (const line of visual.userData.lines) {
             (line.material as THREE.LineBasicMaterial).color.set(
-              previewLinkColor(link),
+              previewLinkColor(link, false, themeRef.current === "light"),
             );
             (line.material as THREE.LineBasicMaterial).toneMapped = false;
           }
@@ -693,8 +739,14 @@ export function GraphCanvas({
       .cooldownTicks(0);
 
     if (designPreview)
-      graph.linkDirectionalArrowColor((link) => previewLinkColor(link));
+      graph.linkDirectionalArrowColor((link) =>
+        previewLinkColor(link, false, themeRef.current === "light"),
+      );
     const highlight = (nodeIds: Set<string>, relationId: string | null) => {
+      container.style.cursor = nodeIds.size || relationId ? "pointer" : "grab";
+      const reducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
       const isFocused = (link: RuntimeLink) =>
         relationId !== null
           ? link.id === relationId
@@ -703,13 +755,20 @@ export function GraphCanvas({
       linkFocusRef.current = isFocused;
       if (designPreview)
         graph.linkDirectionalArrowColor((link) =>
-          previewLinkColor(link, isFocused(link)),
+          previewLinkColor(link, isFocused(link), themeRef.current === "light"),
         );
       if (hoverAnimationRef.current !== null)
         cancelAnimationFrame(hoverAnimationRef.current);
       const nodeTargets = [...nodesRef.current.values()].map((item) => {
         const visual = nodeVisualsRef.current.get(item.id);
         if (visual) {
+          if (designPreview) {
+            visual.userData.shell.visible = nodeIds.has(item.id);
+            visual.userData.shell.material.blending = THREE.NormalBlending;
+            visual.userData.shell.material.color.set(
+              themeRef.current === "light" ? "#245ac1" : "#e6f0ff",
+            );
+          }
           visual.userData.label.element.dataset.focused = String(
             nodeIds.has(item.id),
           );
@@ -740,10 +799,11 @@ export function GraphCanvas({
         if (designPreview && visual)
           for (const line of visual.userData.lines)
             (line.material as THREE.LineBasicMaterial).color.set(
-              previewLinkColor(link, focused),
+              previewLinkColor(link, focused, themeRef.current === "light"),
             );
         return {
           visual,
+          focused,
           from: visual?.userData.opacity ?? 0,
           to: focused
             ? link.tier === "ambient"
@@ -754,22 +814,39 @@ export function GraphCanvas({
       });
       const startedAt = performance.now();
       const animate = (now: number) => {
-        const progress = Math.min(1, (now - startedAt) / 160);
+        const progress = reducedMotion
+          ? 1
+          : Math.min(1, (now - startedAt) / 160);
+        const pulse = reducedMotion
+          ? 1
+          : 0.78 + 0.22 * Math.cos(((now - startedAt) * Math.PI) / 650);
         const eased = 1 - (1 - progress) ** 3;
         for (const target of nodeTargets) {
           if (!target.visual) continue;
+          if (designPreview && nodeIds.has(target.item.id)) {
+            target.visual.userData.shell.scale.setScalar(
+              target.visual.userData.radius * (1.2 + pulse * 0.1),
+            );
+            target.visual.userData.shell.material.opacity = pulse;
+          }
           (
             target.visual.userData.halo.material as THREE.SpriteMaterial
           ).opacity = target.from + (target.to - target.from) * eased;
         }
         for (const target of linkTargets) {
           if (!target.visual) continue;
-          const opacity = target.from + (target.to - target.from) * eased;
+          const opacity =
+            designPreview && target.focused
+              ? pulse
+              : target.from + (target.to - target.from) * eased;
           for (const line of target.visual.userData.lines)
             (line.material as THREE.Material).opacity = opacity;
           target.visual.userData.opacity = opacity;
         }
-        if (progress < 1)
+        if (
+          progress < 1 ||
+          (designPreview && !reducedMotion && nodeIds.size > 0)
+        )
           hoverAnimationRef.current = requestAnimationFrame(animate);
         else hoverAnimationRef.current = null;
       };
@@ -867,6 +944,7 @@ export function GraphCanvas({
       );
     }
     const resize = () => {
+      if (container.clientWidth <= 0 || container.clientHeight <= 0) return;
       graph.width(container.clientWidth).height(container.clientHeight);
       bloom?.resolution.set(container.clientWidth, container.clientHeight);
     };
@@ -1019,7 +1097,11 @@ export function GraphCanvas({
       const camera = graph.camera() as THREE.PerspectiveCamera;
       const visible = wide
         ? view.nodes
-        : view.nodes.filter((n) => n.tier !== "ambient");
+        : view.nodes.filter((n) =>
+            designPreview
+              ? n.tier === "center" || n.tier === "direct"
+              : n.tier !== "ambient",
+          );
       const tangent = Math.tan((camera.fov * Math.PI) / 360);
       const horizontal = (tangent * graph.width()) / graph.height();
       let distance = Math.max(150, 40 / horizontal, 40 / tangent);
@@ -1037,9 +1119,10 @@ export function GraphCanvas({
       }
       if (wide) return distance * (designPreview ? 100 : 1.55);
       return designPreview
-        ? Math.max(150, frontDepth + 80, distance * 0.76)
+        ? Math.max(95, frontDepth + 32, distance * 0.88)
         : distance;
     };
+    nearViewRef.current = { distance: fitDistance(false), anchor };
     const placeCamera = (distance: number) => {
       if (designPreview) {
         controls.maxDistance = Math.max(2400, distance);
@@ -1147,7 +1230,11 @@ export function GraphCanvas({
           (line.material as THREE.Material).opacity = opacity;
           if (designPreview)
             (line.material as THREE.LineBasicMaterial).color.set(
-              previewLinkColor(link, linkFocusRef.current(link)),
+              previewLinkColor(
+                link,
+                linkFocusRef.current(link),
+                themeRef.current === "light",
+              ),
             );
         }
         visual.userData.opacity = opacity;
@@ -1183,7 +1270,9 @@ export function GraphCanvas({
         const eased = easeInOutCubic(progress);
         paint(eased, !intro, progress, duration);
         if (moveCamera) {
-          graph.camera().position.lerpVectors(startCamera, endCamera, eased);
+          const offset = graph.camera().position.clone().sub(controls.target);
+          if (intro)
+            graph.camera().position.lerpVectors(startCamera, endCamera, eased);
           if (intro && designPreview) {
             const from = startCamera.distanceTo(startTarget);
             const to = endCamera.distanceTo(endTarget);
@@ -1199,6 +1288,7 @@ export function GraphCanvas({
               );
           }
           controls.target.lerpVectors(startTarget, endTarget, eased);
+          if (!intro) graph.camera().position.copy(controls.target).add(offset);
           controls.update();
         }
         if (progress < 1) {
@@ -1289,6 +1379,40 @@ export function GraphCanvas({
     view,
     designPreview,
   ]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 새 응답으로 생성된 시각 객체에도 현재 테마를 적용한다.
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!graph || !designPreview) return;
+    const light = theme === "light";
+    graph.backgroundColor(light ? "#f5f7fa" : "#111416");
+    for (const [id, visual] of nodeVisualsRef.current) {
+      visual.userData.lightMode = light;
+      const node = nodesRef.current.get(id);
+      if (node)
+        applyNodeVisual(
+          visual,
+          node,
+          visual.userData.radius,
+          visual.userData.style,
+        );
+      visual.userData.occluder.material.color.set(
+        light ? "#f5f7fa" : "#111416",
+      );
+      visual.userData.shell.material.color.set(light ? "#245ac1" : "#e6f0ff");
+    }
+    for (const [id, visual] of linkVisualsRef.current) {
+      const link = linksRef.current.get(id);
+      if (link)
+        for (const line of visual.userData.lines)
+          (line.material as THREE.LineBasicMaterial).color.set(
+            previewLinkColor(link, linkFocusRef.current(link), light),
+          );
+    }
+    graph.linkDirectionalArrowColor((link) =>
+      previewLinkColor(link, linkFocusRef.current(link), light),
+    );
+  }, [theme, designPreview, view]);
 
   return (
     <section

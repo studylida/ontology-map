@@ -1,5 +1,6 @@
 import { act, cleanup, render } from "@testing-library/react";
 import * as THREE from "three";
+import type { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ExplorationView, KnowledgeRelation } from "./data";
 import { GraphCanvas } from "./GraphCanvas";
@@ -8,6 +9,8 @@ const harness = vi.hoisted(() => ({
   camera: null as THREE.PerspectiveCamera | null,
   target: null as THREE.Vector3 | null,
   navigationEnabled: true,
+  labels: null as CSS2DRenderer | null,
+  scene: null as THREE.Scene | null,
   options: new Map<string, (...args: never[]) => unknown>(),
   nodes: new Map<string, THREE.Group>(),
   links: new Map<string, THREE.Group>(),
@@ -15,9 +18,14 @@ const harness = vi.hoisted(() => ({
 
 // WebGL 경계만 대체하고 실제 GraphCanvas의 effect·frame·DOM 수명주기를 실행한다.
 vi.mock("3d-force-graph", () => ({
-  default: function FakeGraph(container: HTMLElement) {
+  default: function FakeGraph(
+    container: HTMLElement,
+    config: { extraRenderers: CSS2DRenderer[] },
+  ) {
+    harness.labels = config.extraRenderers[0] ?? null;
     const camera = new THREE.PerspectiveCamera();
     const scene = new THREE.Scene();
+    harness.scene = scene;
     const controls = {
       object: camera,
       target: new THREE.Vector3(),
@@ -530,4 +538,108 @@ it("초기 연출을 이미 마친 지도는 재생성 시 확대를 반복하�
   expect(camera.position.distanceTo(initialPosition)).toBeLessThan(0.001);
   expect(callbacks.onReady).toHaveBeenCalledTimes(1);
   expect(callbacks.onIntroComplete).not.toHaveBeenCalled();
+});
+
+it("중심 재배치는 사용자의 배율과 전환 도중 바꾼 배율을 유지한다", () => {
+  const callbacks = props();
+  const { rerender } = render(
+    <GraphCanvas {...callbacks} designPreview introStarted introCompleted />,
+  );
+  act(() => vi.advanceTimersByTime(16));
+  const { camera, target } = harness;
+  if (!camera || !target) throw new Error("camera가 없습니다.");
+  camera.position.copy(target).add(new THREE.Vector3(0, 0, 450));
+  const next = {
+    ...view,
+    centerId: "2",
+    nodes: [node("2", "center"), node("1", "direct")],
+  };
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      view={next}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(400));
+  expect(camera.position.distanceTo(target)).toBeCloseTo(450);
+  camera.position.copy(target).add(new THREE.Vector3(0, 0, 290));
+  act(() => vi.advanceTimersByTime(1400));
+  expect(camera.position.distanceTo(target)).toBeCloseTo(290);
+  expect(callbacks.onTransitionComplete).toHaveBeenCalledWith("2");
+  expect(harness.navigationEnabled).toBe(true);
+});
+
+it("근접 조망에서 숨긴 2단계는 축소하면 같은 좌표로 나타나고 숨은 node는 클릭을 가로채지 않는다", () => {
+  const callbacks = props();
+  const page = {
+    ...view,
+    nodes: [
+      ...view.nodes,
+      { ...node("3", "ambient"), tier: "twoHop" as const },
+    ],
+  };
+  render(
+    <GraphCanvas
+      {...callbacks}
+      view={page}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(16));
+  const { camera, target, labels, scene } = harness;
+  if (!camera || !target || !labels || !scene)
+    throw new Error("graph가 없습니다.");
+  const second = harness.nodes.get("3");
+  if (!second) throw new Error("2단계가 없습니다.");
+  const position = second.position.clone();
+  labels.render(scene, camera);
+  expect(second.visible).toBe(false);
+  expect(
+    new THREE.Raycaster(
+      new THREE.Vector3(position.x, position.y, 1000),
+      new THREE.Vector3(0, 0, -1),
+    ).intersectObject(second, true),
+  ).toHaveLength(0);
+  camera.position.sub(target).multiplyScalar(2).add(target);
+  labels.render(scene, camera);
+  expect(second.visible).toBe(true);
+  expect(second.position).toEqual(position);
+});
+
+it("hover 대상은 맥동하고 테마 변경은 graph와 배율을 보존한다", () => {
+  const callbacks = props();
+  const { rerender } = render(
+    <GraphCanvas {...callbacks} designPreview introStarted introCompleted />,
+  );
+  act(() => vi.advanceTimersByTime(16));
+  const visual = harness.nodes.get("2");
+  const camera = harness.camera;
+  if (!visual || !camera) throw new Error("graph가 없습니다.");
+  act(() => harness.options.get("onNodeHover")?.({ id: "2" } as never));
+  act(() => vi.advanceTimersByTime(16));
+  const opacity = visual.userData.shell.material.opacity;
+  expect(visual.userData.shell.visible).toBe(true);
+  act(() => vi.advanceTimersByTime(300));
+  expect(visual.userData.shell.material.opacity).not.toBe(opacity);
+  const position = camera.position.clone();
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      designPreview
+      introStarted
+      introCompleted
+      theme="light"
+    />,
+  );
+  expect(harness.camera).toBe(camera);
+  expect(camera.position).toEqual(position);
+  expect(visual.userData.occluder.material.color.getHexString()).toBe("f5f7fa");
+  act(() => harness.options.get("onNodeHover")?.(null as never));
+  act(() => vi.advanceTimersByTime(200));
+  expect(visual.userData.shell.visible).toBe(false);
 });

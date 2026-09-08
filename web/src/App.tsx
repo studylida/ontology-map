@@ -268,6 +268,14 @@ function LoadNotice({
 
 export function App({ designPreview = false }: { designPreview?: boolean }) {
   const initial = useMemo(readLocation, []);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  useEffect(() => {
+    if (!designPreview) return;
+    document.documentElement.dataset.theme = theme;
+    return () => {
+      delete document.documentElement.dataset.theme;
+    };
+  }, [designPreview, theme]);
   const [currentView, setCurrentView] = useState<ExplorationView | null>(null);
   const [graphView, setGraphView] = useState<ExplorationView | null>(null);
   const [timeRange, setTimeRange] = useState(initial.range);
@@ -473,6 +481,16 @@ export function App({ designPreview = false }: { designPreview?: boolean }) {
 
         {designPreview && (
           <div className={styles.previewBadge}>
+            <button
+              type="button"
+              aria-label="라이트 모드"
+              aria-pressed={theme === "light"}
+              onClick={() =>
+                setTheme((current) => (current === "dark" ? "light" : "dark"))
+              }
+            >
+              {theme === "dark" ? "☀ 라이트 모드" : "☾ 다크 모드"}
+            </button>
             디자인 미리보기 <a href={`/${window.location.search}`}>기존 화면</a>
           </div>
         )}
@@ -480,6 +498,7 @@ export function App({ designPreview = false }: { designPreview?: boolean }) {
           {peripheral.graphView && (
             <GraphCanvas
               designPreview={designPreview}
+              theme={theme}
               pendingNodeId={
                 status === "loading" && lastRequestRef.current?.navigation
                   ? lastRequestRef.current.centerId
