@@ -647,7 +647,8 @@ export function GraphCanvas({
     let closeView = false;
     const linkIsVisible = (link: RuntimeLink) =>
       link.tier === "direct" ||
-      (!closeView && (link.tier === "twoHop" || linkFocusRef.current(link)));
+      linkFocusRef.current(link) ||
+      (!closeView && link.tier === "twoHop");
     if (designPreview) {
       const renderLabels = labels.render.bind(labels);
       labels.render = (scene, camera) => {
@@ -659,13 +660,37 @@ export function GraphCanvas({
           const offset = controls.target.distanceTo(
             new THREE.Vector3(near.anchor.x, near.anchor.y, near.anchor.z),
           );
-          const close =
-            camera.position.distanceTo(controls.target) <=
-              near.distance * 1.08 && offset < near.distance * 0.25;
+          const reveal = easeInOutCubic(
+            Math.min(
+              1,
+              Math.max(
+                0,
+                offset /
+                  (Math.min(
+                    near.distance,
+                    camera.position.distanceTo(controls.target),
+                  ) *
+                    0.25),
+                (camera.position.distanceTo(controls.target) / near.distance -
+                  1) /
+                  0.2,
+              ),
+            ),
+          );
+          const close = reveal < 1;
           for (const [id, visual] of nodeVisualsRef.current) {
             const tier = nodesRef.current.get(id)?.tier;
-            visual.visible = !close || tier === "center" || tier === "direct";
+            const opacity = tier === "center" || tier === "direct" ? 1 : reveal;
+            visual.visible = opacity > 0.001;
             visual.userData.label.visible = visual.visible;
+            visual.userData.surface.material.opacity =
+              visual.userData.style.opacity * opacity;
+            visual.userData.occluder.material.opacity = opacity;
+            visual.userData.label.element.style.opacity = String(
+              (visual.userData.label.element.dataset.focused === "true"
+                ? 0.98
+                : visual.userData.style.labelOpacity) * opacity,
+            );
           }
           if (close !== closeView) {
             closeView = close;
