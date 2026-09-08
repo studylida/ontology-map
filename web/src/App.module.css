@@ -1350,3 +1350,82 @@
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+
+.panelContext {
+  margin: 0 0 24px;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+.panelMeta {
+  font-size: 12px;
+  line-height: 1.6;
+  opacity: 0.72;
+  margin: 8px 0 16px;
+}
+.panelDisclosure {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  line-height: 1.65;
+  cursor: pointer;
+}
+.panelDisclosure > span:first-child {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.panelDisclosure small {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.questionCard,
+.panelClaim {
+  border-bottom: 1px solid var(--border);
+}
+.questionAnswer {
+  padding: 0 0 20px 12px;
+  border-left: 2px solid var(--border);
+  line-height: 1.75;
+}
+.panelCaveat {
+  padding: 12px 14px;
+  border-left: 2px solid var(--border);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.panelTraceList {
+  padding: 0 12px 12px;
+  overflow-wrap: anywhere;
+}
+.reportContents {
+  display: grid;
+  gap: 10px;
+  padding: 12px 0 24px;
+}
+.reportContents button,
+.reportContents a {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  line-height: 1.65;
+  cursor: pointer;
+  padding: 6px 0;
+}
+.reportSection {
+  scroll-margin-top: 24px;
+  padding: 24px 0;
+  border-top: 1px solid var(--border);
+}
+.reportSection h4 {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-top: 20px;
+}
