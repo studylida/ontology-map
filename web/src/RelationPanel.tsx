@@ -2,10 +2,10 @@ import { useEffect, useId, useRef } from "react";
 import styles from "./App.module.css";
 import {
   type APIRequestError,
-  type EvidenceTrace,
   fetchNodeRelations,
   fetchRelationEvidence,
   relationPathLabel,
+  type SourceTrace,
 } from "./data";
 import { useCursorPage } from "./useCursorPage";
 
@@ -123,7 +123,7 @@ export function RelationList({
   );
 }
 
-export function publicationLabel(trace: EvidenceTrace): string {
+export function publicationLabel(trace: SourceTrace): string {
   if (trace.publishedAt === null || trace.precision === "UNKNOWN")
     return "발행 시점 미상";
   if (trace.precision === "INSTANT")
@@ -139,18 +139,9 @@ export function EvidenceDialog({
   selection: EvidenceSelection;
   onClose: () => void;
 }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const dialogRef = useModalDialog();
   const titleId = useId();
   const page = useCursorPage(selection.id, fetchRelationEvidence);
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    const opener = document.activeElement;
-    dialog?.showModal();
-    return () => {
-      dialog?.close();
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
-    };
-  }, []);
   return (
     <dialog
       ref={dialogRef}
@@ -168,19 +159,7 @@ export function EvidenceDialog({
         <article key={trace.key} className={styles.evidenceEntry}>
           <span>{trace.stance === "SUPPORT" ? "지지 근거" : "반박 근거"}</span>
           <h3>{trace.claimText}</h3>
-          <blockquote>{trace.quote}</blockquote>
-          <p>
-            {trace.publisher} · {publicationLabel(trace)}
-          </p>
-          <p>
-            {trace.paragraph === null
-              ? "문단 번호 미상"
-              : `${trace.paragraph}번 문단`}{" "}
-            · 문자 범위 {trace.start}–{trace.end} (끝 제외)
-          </p>
-          <a href={trace.url} target="_blank" rel="noopener noreferrer">
-            {trace.title} 원문 열기
-          </a>
+          <TraceContent trace={trace} />
         </article>
       ))}
       <PageNotice {...page} empty={!page.items.length} onRetry={page.retry} />
@@ -194,5 +173,39 @@ export function EvidenceDialog({
         </button>
       )}
     </dialog>
+  );
+}
+
+export function useModalDialog() {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const opener = document.activeElement;
+    dialog?.showModal();
+    return () => {
+      dialog?.close();
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    };
+  }, []);
+  return dialogRef;
+}
+
+export function TraceContent({ trace }: { trace: SourceTrace }) {
+  return (
+    <>
+      <blockquote>{trace.quote}</blockquote>
+      <p>
+        {trace.publisher} · {publicationLabel(trace)}
+      </p>
+      <p>
+        {trace.paragraph === null
+          ? "문단 번호 미상"
+          : `${trace.paragraph}번 문단`}{" "}
+        · 문자 범위 {trace.start}–{trace.end} (끝 제외)
+      </p>
+      <a href={trace.url} target="_blank" rel="noopener noreferrer">
+        {trace.title} 원문 열기
+      </a>
+    </>
   );
 }

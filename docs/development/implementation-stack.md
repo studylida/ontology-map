@@ -51,7 +51,7 @@ web은 `fetch`로 상대 경로 `/api/v1`을 호출하고 Vite가 `ONTOLOGY_MAP_
 
 현재 `web/src/data.ts`는 exploration aggregate와 node search 응답을 화면 모델로 검증·변환한다. `App.tsx`는 기본 중심, 시간 범위, node·추천·후속 질문·검색 선택에 따른 새 exploration 요청과 loading·empty·error·retry를 소유한다. `GraphCanvas.tsx`는 런타임 layout과 2.5D 표시를, `DetailPanel.tsx`는 현재 탐색 정보 표시를 담당한다.
 
-Relation·Evidence Trace와 peripheral endpoint는 server에 구현되어 있지만 web adapter는 각각 #118과 #115에 남아 있다. 인사이트 endpoint와 화면은 #68에 남아 있다.
+Relation·Evidence Trace, peripheral과 저장 인사이트 목록·상세는 server와 web adapter에 연결되어 있다. 생성 worker와 인사이트 품질 후속 작업은 #68에 남아 있다.
 
 ## 백엔드
 

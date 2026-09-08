@@ -209,7 +209,7 @@ describe("exploration API 화면", () => {
     );
     expect(searchInput().disabled).toBe(false);
     expect(screen.queryByText("Evidence Trace")).toBeNull();
-    expect(screen.queryByText("인사이트")).toBeNull();
+    expect(screen.getByRole("tab", { name: "인사이트" })).toBeTruthy();
   });
 
   it("graph node를 선택하면 aggregate 한 번으로 새 중심을 전환한다", async () => {

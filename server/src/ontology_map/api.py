@@ -14,6 +14,7 @@ from ontology_map.exploration import (
     get_exploration,
     list_peripheral_nodes,
 )
+from ontology_map.insights import InsightNotFoundError, get_insight, list_node_insights
 from ontology_map.pagination import InvalidCursorError
 from ontology_map.relations import (
     NodeRelationsNotFoundError,
@@ -528,4 +529,127 @@ def read_relation_evidence(
         ],
         trace_count=result.trace_count,
         next_cursor=result.next_cursor,
+    )
+
+
+class InsightItemResponse(BaseModel):
+    insight_id: str
+    slot: int = Field(ge=1, le=3)
+    title: str
+    evidence_group_count: int = Field(ge=0)
+
+
+class InsightsResponse(BaseModel):
+    items: list[InsightItemResponse]
+
+
+class InsightTraceResponse(BaseModel):
+    source: EvidenceSourceResponse
+    quote_text: str
+    locator: EvidenceLocatorResponse
+
+
+class InsightClaimResponse(BaseModel):
+    claim_id: str
+    claim_text: str
+    role: Literal["KEY_CLAIM", "SUPPORTING_CLAIM", "CONTRASTING_CLAIM"]
+    traces: list[InsightTraceResponse]
+
+
+class InsightResponse(InsightItemResponse):
+    summary: str
+    synthesis: str
+    caveat: str
+    claims: list[InsightClaimResponse]
+
+
+@router.get(
+    "/nodes/{node_id}/insights",
+    response_model=InsightsResponse,
+    responses={
+        404: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
+def read_node_insights(
+    node_id: Annotated[str, Path(pattern=r"^[1-9][0-9]{0,18}$")],
+    time_window: TimeWindow,
+    session: Annotated[Session, Depends(open_read_session)],
+) -> InsightsResponse:
+    try:
+        items = list_node_insights(session, _resource_id(node_id), time_window)
+    except ExplorationNotFoundError as error:
+        raise APIError(404, "NODE_NOT_FOUND", retryable=False) from error
+    except PublicationNotReadyError as error:
+        raise APIError(503, "PUBLICATION_NOT_READY", retryable=True) from error
+    return InsightsResponse(
+        items=[
+            InsightItemResponse(
+                insight_id=str(item.node_insight_id),
+                slot=item.slot,
+                title=item.title,
+                evidence_group_count=item.evidence_group_count,
+            )
+            for item in items
+        ]
+    )
+
+
+@router.get(
+    "/insights/{insight_id}",
+    response_model=InsightResponse,
+    responses={
+        404: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
+def read_insight(
+    insight_id: Annotated[str, Path(pattern=r"^[1-9][0-9]{0,18}$")],
+    session: Annotated[Session, Depends(open_read_session)],
+) -> InsightResponse:
+    try:
+        item, rows = get_insight(session, _resource_id(insight_id))
+    except InsightNotFoundError as error:
+        raise APIError(404, "INSIGHT_NOT_FOUND", retryable=False) from error
+    except PublicationNotReadyError as error:
+        raise APIError(503, "PUBLICATION_NOT_READY", retryable=True) from error
+    claims: dict[int, InsightClaimResponse] = {}
+    for row in rows:
+        claim = claims.setdefault(
+            row.claim_id,
+            InsightClaimResponse(
+                claim_id=str(row.claim_id),
+                claim_text=row.claim_text,
+                role=row.role,
+                traces=[],
+            ),
+        )
+        claim.traces.append(
+            InsightTraceResponse(
+                source=EvidenceSourceResponse(
+                    title=row.title,
+                    publisher_name=row.publisher_name,
+                    published_at=row.published_at,
+                    published_precision=row.published_precision,
+                    canonical_url=row.canonical_url,
+                ),
+                quote_text=row.quote_text,
+                locator=EvidenceLocatorResponse(
+                    paragraph_number=row.paragraph_number,
+                    start_char=row.start_char,
+                    end_char=row.end_char,
+                ),
+            )
+        )
+    return InsightResponse(
+        insight_id=str(item.node_insight_id),
+        slot=item.slot,
+        title=item.title,
+        evidence_group_count=item.evidence_group_count,
+        summary=item.summary_text,
+        synthesis=item.synthesis_text,
+        caveat=item.caveat_text,
+        claims=list(claims.values()),
     )
