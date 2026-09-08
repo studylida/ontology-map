@@ -59,3 +59,21 @@ button {
   color: var(--background);
   background: var(--focus-ring);
 }
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: #f5f7fa;
+  --surface: #ffffff;
+  --surface-elevated: #edf1f6;
+  --border: #c8d1dc;
+  --text-primary: #172331;
+  --text-secondary: #45556a;
+  --text-muted: #58687b;
+  --interactive: #245ac1;
+  --focus-ring: #245ac1;
+  --relation: #657180;
+  --conflict: #b52c42;
+  --theme-surface: #ffffff;
+  --theme-selected: #e1ebfc;
+  --theme-loading: #f5f7fa;
+}

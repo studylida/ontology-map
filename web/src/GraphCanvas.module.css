@@ -141,7 +141,7 @@
 
 .map[data-design-preview="true"] {
   inset: 120px 408px 72px 24px;
-  background: #111416;
+  background: var(--background);
 }
 .map[data-design-preview="true"][data-panel-open="false"] {
   right: 24px;
@@ -152,21 +152,21 @@
 .map[data-design-preview="true"] .nodeLabel {
   max-width: 144px;
   padding: 1px 3px;
-  color: #f3f6fa;
+  color: var(--text-primary);
   background: none;
   border: 0;
   border-radius: 0;
   font-weight: 500;
   text-shadow:
-    0 1px 2px #111416,
-    1px 0 2px #111416;
+    0 1px 2px var(--background),
+    1px 0 2px var(--background);
 }
 .map[data-design-preview="true"] .nodeLabel[data-tier="center"],
 .map[data-design-preview="true"] .nodeLabel[data-focused="true"] {
   max-width: min(280px, 45vw);
   overflow: visible;
-  color: #fff;
-  background: #111416;
+  color: var(--text-primary);
+  background: var(--background);
   font-weight: 600;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -174,9 +174,15 @@
 .map[data-design-preview="true"] .depthNote {
   right: 0;
   bottom: 0;
-  color: #b8c1cb;
+  color: var(--text-secondary);
   font:
     12px / 1.5 system-ui,
     sans-serif;
   letter-spacing: 0;
+}
+
+.map[data-design-preview="true"] .nodeLabel[data-focused="true"] {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: 3px;
+  border-radius: 3px;
 }

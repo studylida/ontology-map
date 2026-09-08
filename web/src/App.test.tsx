@@ -525,3 +525,18 @@ it("중심에 닿은 간선만 직접 관계로 강조하고 직접 이웃끼리
     "direct",
   ]);
 });
+
+it("미리보기 헤더에서 라이트와 다크 모드를 전환한다", () => {
+  const { unmount } = render(<App designPreview />);
+  const toggle = screen.getByRole("button", {
+    name: "라이트 모드",
+    hidden: true,
+  });
+  fireEvent.click(toggle);
+  expect(toggle.getAttribute("aria-pressed")).toBe("true");
+  expect(document.documentElement.dataset.theme).toBe("light");
+  fireEvent.click(toggle);
+  expect(document.documentElement.dataset.theme).toBe("dark");
+  unmount();
+  expect(document.documentElement.dataset.theme).toBeUndefined();
+});
