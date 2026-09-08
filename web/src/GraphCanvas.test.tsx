@@ -627,9 +627,25 @@ it("근접 조망에서 숨긴 2단계는 축소하면 같은 좌표로 나타�
       new THREE.Vector3(0, 0, -1),
     ).intersectObject(second, true),
   ).toHaveLength(0);
+  const distance = camera.position.distanceTo(target);
+  target.x += distance * 0.1;
+  camera.position.x += distance * 0.1;
+  labels.render(scene, camera);
+  expect(second.visible).toBe(true);
+  const partial = second.userData.surface.material.opacity;
+  expect(partial).toBeGreaterThan(0);
+  expect(partial).toBeLessThan(second.userData.style.opacity);
+  expect(second.userData.occluder.material.opacity).toBeLessThan(1);
+  target.x -= distance * 0.1;
+  camera.position.x -= distance * 0.1;
+  labels.render(scene, camera);
+  expect(second.visible).toBe(false);
   camera.position.sub(target).multiplyScalar(2).add(target);
   labels.render(scene, camera);
   expect(second.visible).toBe(true);
+  expect(second.userData.surface.material.opacity).toBe(
+    second.userData.style.opacity,
+  );
   expect(second.position).toEqual(position);
 });
 
