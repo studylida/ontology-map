@@ -164,7 +164,7 @@ const nodeStyles: Record<NodeTier, NodeStyle> = {
 
 const relationOpacity = {
   direct: 0.9,
-  twoHop: 0.36,
+  twoHop: 0.18,
   threeHop: 0.22,
   ambient: 0.12,
 } as const;
@@ -242,6 +242,32 @@ function applyNodeVisual(
   }
   visual.userData.radius = radius;
   visual.userData.style = { ...style };
+}
+
+function paintPreviewNode(
+  visual: NodeVisual,
+  node: RuntimeNode,
+  reveal: number,
+  secondHopLabel: number,
+) {
+  const { style, hoverOpacity: focus } = visual.userData;
+  const base = styleFor(node.tier, true);
+  const presence = Math.min(1, style.opacity / base.opacity);
+  const near = node.tier === "center" || node.tier === "direct";
+  const distanceOpacity = near ? 1 : reveal;
+  const opacity = distanceOpacity + (1 - distanceOpacity) * focus;
+  const baseLabel = near ? 1 : node.tier === "twoHop" ? secondHopLabel : 0;
+  const labelOpacity = baseLabel + (1 - baseLabel) * focus;
+  visual.userData.reveal = opacity;
+  visual.userData.surface.material.opacity =
+    (style.opacity + (1 - base.opacity) * presence * focus) * opacity;
+  visual.userData.occluder.material.opacity = opacity * presence;
+  visual.userData.label.visible = opacity * labelOpacity * presence > 0.001;
+  visual.userData.label.element.style.opacity = String(
+    (style.labelOpacity + (1 - base.labelOpacity) * presence * focus) *
+      opacity *
+      labelOpacity,
+  );
 }
 
 function makeNodeVisual(node: RuntimeNode, designPreview: boolean): NodeVisual {
@@ -773,122 +799,103 @@ export function GraphCanvas({
         (!closeView && link.tier === "twoHop"));
     refreshVisibilityRef.current = () =>
       graphRef.current?.linkVisibility(linkIsVisible);
-    {
-      const renderLabels = labels.render.bind(labels);
-      labels.render = (scene, camera) => {
-        const near = nearViewRef.current;
-        const controls = graphRef.current?.controls() as
-          | GraphControls
-          | undefined;
-        if (designPreview && near && controls) {
-          const offset = controls.target.distanceTo(
-            new THREE.Vector3(near.anchor.x, near.anchor.y, near.anchor.z),
-          );
-          const reveal =
-            introRevealRef.current ??
-            easeInOutCubic(
-              Math.min(
-                1,
-                Math.max(
-                  0,
-                  offset /
-                    (Math.min(
-                      near.distance,
-                      camera.position.distanceTo(controls.target),
-                    ) *
-                      0.25),
-                  (camera.position.distanceTo(controls.target) / near.distance -
-                    1) /
-                    0.2,
-                ),
-              ),
-            );
-          neighborhoodReveal = reveal;
-          const close = reveal <= 0.001;
-          if (close !== closeView) {
-            closeView = close;
-            graphRef.current?.linkVisibility(linkIsVisible);
-          }
-          const secondHopLabel = easeInOutCubic(
+    const renderLabels = labels.render.bind(labels);
+    const updateDisplay = (camera: THREE.Camera) => {
+      const near = nearViewRef.current;
+      const controls = graphRef.current?.controls() as
+        | GraphControls
+        | undefined;
+      if (designPreview && near && controls) {
+        const offset = controls.target.distanceTo(
+          new THREE.Vector3(near.anchor.x, near.anchor.y, near.anchor.z),
+        );
+        const reveal =
+          introRevealRef.current ??
+          easeInOutCubic(
             Math.min(
               1,
               Math.max(
                 0,
-                (1.8 -
-                  camera.position.distanceTo(controls.target) / near.distance) /
-                  0.5,
+                offset /
+                  (Math.min(
+                    near.distance,
+                    camera.position.distanceTo(controls.target),
+                  ) *
+                    0.25),
+                (camera.position.distanceTo(controls.target) / near.distance -
+                  1) /
+                  0.2,
               ),
             ),
           );
-          for (const [id, visual] of nodeVisualsRef.current) {
-            const tier = nodesRef.current.get(id)?.tier;
-            const opacity = tier === "center" || tier === "direct" ? 1 : reveal;
-            const focused =
-              visual.userData.label.element.dataset.focused === "true";
-            const labelOpacity =
-              focused || tier === "center" || tier === "direct"
-                ? 1
-                : tier === "twoHop"
-                  ? secondHopLabel
-                  : 0;
-            visual.userData.reveal = opacity;
-            visual.visible = opacity > 0.001 && nodeIsVisible(id);
-            visual.userData.label.visible =
-              visual.visible && labelOpacity > 0.001;
-            visual.userData.surface.material.opacity =
-              visual.userData.style.opacity * opacity;
-            visual.userData.occluder.material.opacity = opacity;
-            visual.userData.label.element.style.opacity = String(
-              (focused ? 0.98 : visual.userData.style.labelOpacity) *
-                opacity *
-                labelOpacity,
-            );
-          }
+        neighborhoodReveal = reveal;
+        const close = reveal <= 0.001;
+        if (close !== closeView) {
+          closeView = close;
+          graphRef.current?.linkVisibility(linkIsVisible);
         }
-        const pulse = filterPulse(
-          performance.now() - filterChangedAtRef.current,
-          window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+        const secondHopLabel = easeInOutCubic(
+          Math.min(
+            1,
+            Math.max(
+              0,
+              (1.8 -
+                camera.position.distanceTo(controls.target) / near.distance) /
+                0.5,
+            ),
+          ),
         );
         for (const [id, visual] of nodeVisualsRef.current) {
-          visual.visible =
-            nodeIsVisible(id) &&
-            visual.userData.reveal > 0.001 &&
-            visual.userData.style.opacity > 0.001;
-          const shell = visual.userData.shell;
-          shell.material.opacity =
-            Math.max(
-              visual.userData.hoverOpacity,
-              pulse,
-              designPreview ? 0 : visual.userData.style.shellOpacity,
-            ) * visual.userData.reveal;
-          shell.visible = shell.material.opacity > 0;
-          shell.material.blending = THREE.NormalBlending;
-          shell.scale.setScalar(visual.userData.radius * 1.3);
+          const node = nodesRef.current.get(id);
+          if (node) paintPreviewNode(visual, node, reveal, secondHopLabel);
         }
-        for (const [id, visual] of linkVisualsRef.current) {
-          const link = linksRef.current.get(id);
-          if (!link) continue;
-          const source = nodeVisualsRef.current.get(endpointId(link.source));
-          const target = nodeVisualsRef.current.get(endpointId(link.target));
-          const reveal = Math.min(
-            source?.userData.reveal ?? 0,
-            target?.userData.reveal ?? 0,
-            link.tier === "direct" || linkFocusRef.current(link)
-              ? 1
-              : neighborhoodReveal,
-          );
-          paintLinkOpacity(
-            visual,
-            linkIsVisible(link) ? reveal : 0,
-            !designPreview ||
-              link.tier === "direct" ||
-              linkFocusRef.current(link),
-          );
-        }
-        renderLabels(scene, camera);
-        if (designPreview) placePreviewLabels(container);
-      };
-    }
+      }
+      const pulse = filterPulse(
+        performance.now() - filterChangedAtRef.current,
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      );
+      for (const [id, visual] of nodeVisualsRef.current) {
+        visual.visible =
+          nodeIsVisible(id) &&
+          visual.userData.reveal > 0.001 &&
+          visual.userData.style.opacity > 0.001;
+        const shell = visual.userData.shell;
+        shell.material.opacity =
+          Math.max(
+            visual.userData.hoverOpacity,
+            pulse,
+            designPreview ? 0 : visual.userData.style.shellOpacity,
+          ) * visual.userData.reveal;
+        shell.visible = shell.material.opacity > 0;
+        shell.material.blending = THREE.NormalBlending;
+        shell.scale.setScalar(visual.userData.radius * 1.3);
+      }
+      for (const [id, visual] of linkVisualsRef.current) {
+        const link = linksRef.current.get(id);
+        if (!link) continue;
+        const source = nodeVisualsRef.current.get(endpointId(link.source));
+        const target = nodeVisualsRef.current.get(endpointId(link.target));
+        const reveal = Math.min(
+          source?.userData.reveal ?? 0,
+          target?.userData.reveal ?? 0,
+          link.tier === "direct" || linkFocusRef.current(link)
+            ? 1
+            : neighborhoodReveal,
+        );
+        paintLinkOpacity(
+          visual,
+          linkIsVisible(link) ? reveal : 0,
+          !designPreview ||
+            link.tier === "direct" ||
+            linkFocusRef.current(link),
+        );
+      }
+    };
+    labels.render = (scene, camera) => {
+      updateDisplay(camera);
+      renderLabels(scene, camera);
+      if (designPreview) placePreviewLabels(container);
+    };
     const graph = new ForceGraph3D(container, {
       extraRenderers: [labels],
       controlType: "orbit",
@@ -900,6 +907,9 @@ export function GraphCanvas({
       },
     }) as unknown as ForceGraph3DInstance<RuntimeNode, RuntimeLink>;
     graphRef.current = graph;
+    // WebGL보다 늦게 실행되는 label renderer에만 맡기면 갱신 직후 기본 밝기가 한 프레임 노출된다.
+    graph.scene().onBeforeRender = (_renderer, _scene, camera) =>
+      updateDisplay(camera);
     graph
       .backgroundColor(designPreview ? "#111416" : "#070a10")
       .showNavInfo(false)

@@ -737,14 +737,17 @@ it("이름은 단계와 배율로 줄이되 node·간선 hover와 초점에서�
   expect(visual("3").userData.label.visible).toBe(false);
   expect(visual("2").userData.label.visible).toBe(true);
   act(() => getByRole("button", { name: "4 · 기술" }).focus());
+  act(() => vi.advanceTimersByTime(450));
   draw();
   expect(visual("4").userData.label.visible).toBe(true);
   act(() => getByRole("button", { name: "4 · 기술" }).blur());
   act(() => harness.options.get("onLinkHover")?.(page.relations[0] as never));
+  act(() => vi.advanceTimersByTime(450));
   draw();
   expect(visual("3").userData.label.visible).toBe(true);
   expect(visual("4").userData.label.visible).toBe(true);
   act(() => harness.options.get("onLinkHover")?.(null as never));
+  act(() => vi.advanceTimersByTime(450));
   draw();
   expect(visual("3").userData.label.visible).toBe(false);
 });
@@ -1079,8 +1082,8 @@ it("2단계 간선과 화살표는 이동·확대 중 노드와 같은 진행률
   draw(1.1);
   const partial = opacity();
   expect(partial).toBeGreaterThan(0);
-  expect(partial).toBeLessThan(0.36);
-  expect(partial / 0.36).toBeCloseTo(
+  expect(partial).toBeLessThan(0.18);
+  expect(partial / 0.18).toBeCloseTo(
     visual("3").userData.surface.material.opacity /
       visual("3").userData.style.opacity,
   );
@@ -1088,7 +1091,7 @@ it("2단계 간선과 화살표는 이동·확대 중 노드와 같은 진행률
     partial,
   );
   draw(1.3);
-  expect(opacity()).toBeCloseTo(0.36);
+  expect(opacity()).toBeCloseTo(0.18);
   draw(1.1);
   expect(opacity()).toBeCloseTo(partial);
   draw(1);
@@ -1203,4 +1206,124 @@ it("대표 가닥을 고정하고 hover·중심 관계 변화에서 추가 가�
   );
   draw();
   expect(opacities("6").every((value) => value === 0)).toBe(true);
+});
+
+it("추가 page가 기본 밝기를 갱신해도 WebGL 프레임 전에 거리별 표시를 복원한다", () => {
+  const callbacks = props();
+  const data = {
+    ...view,
+    nodes: [
+      ...view.nodes,
+      { ...node("3", "ambient"), tier: "twoHop" as const },
+    ],
+  };
+  const { rerender } = render(
+    <GraphCanvas
+      {...callbacks}
+      view={data}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(32));
+  const { camera, target, scene } = harness;
+  if (!camera || !target || !scene) throw new Error("graph가 없습니다.");
+  // 실제 Three.js처럼 label renderer보다 앞에서 호출한다.
+  const drawWebGL = () =>
+    Reflect.apply(scene.onBeforeRender, scene, [null, scene, camera, null]);
+  drawWebGL();
+  expect(visual("3").visible).toBe(false);
+  const near = camera.position.clone();
+  camera.position.sub(target).multiplyScalar(1.1).add(target);
+  drawWebGL();
+  const partial = visual("3").userData.surface.material.opacity;
+  expect(partial).toBeGreaterThan(0);
+  expect(partial).toBeLessThan(0.9);
+  const page = { ...data, nodes: [...data.nodes, node("4", "ambient")] };
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      view={page}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  drawWebGL();
+  expect(visual("3").userData.surface.material.opacity).toBeCloseTo(partial);
+  camera.position.copy(near);
+  drawWebGL();
+  expect(visual("3").visible).toBe(false);
+  expect(visual("4").visible).toBe(false);
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      view={{ ...page, nodes: [...page.nodes, node("5", "ambient")] }}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  drawWebGL();
+  expect(visual("3").visible).toBe(false);
+  expect(visual("5").visible).toBe(false);
+});
+
+it("먼 노드는 hover에서 본체와 이름도 서서히 선명해지고 해제·필터 적용 시 복귀한다", () => {
+  const callbacks = props();
+  const data = { ...view, nodes: [...view.nodes, node("3", "ambient")] };
+  const { rerender } = render(
+    <GraphCanvas
+      {...callbacks}
+      view={data}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(32));
+  const { camera, target, scene } = harness;
+  if (!camera || !target || !scene) throw new Error("graph가 없습니다.");
+  camera.position.sub(target).multiplyScalar(2).add(target);
+  const draw = () =>
+    Reflect.apply(scene.onBeforeRender, scene, [null, scene, camera, null]);
+  const opacity = () => visual("3").userData.surface.material.opacity as number;
+  draw();
+  const baseline = opacity();
+  act(() => harness.options.get("onNodeHover")?.(data.nodes[2] as never));
+  draw();
+  expect(opacity()).toBe(baseline);
+  act(() => vi.advanceTimersByTime(200));
+  draw();
+  expect(opacity()).toBeGreaterThan(baseline);
+  expect(opacity()).toBeLessThan(1);
+  act(() => vi.advanceTimersByTime(250));
+  draw();
+  expect(opacity()).toBeCloseTo(1);
+  expect(Number(visual("3").userData.label.element.style.opacity)).toBeCloseTo(
+    1,
+  );
+  act(() => harness.options.get("onNodeHover")?.(null as never));
+  act(() => vi.advanceTimersByTime(450));
+  draw();
+  expect(opacity()).toBeCloseTo(baseline);
+  expect(visual("3").userData.label.visible).toBe(false);
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  act(() => harness.options.get("onNodeHover")?.(data.nodes[2] as never));
+  act(() => vi.advanceTimersByTime(16));
+  draw();
+  expect(opacity()).toBeCloseTo(1);
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      view={data}
+      hiddenKinds={["TECHNOLOGY"]}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  draw();
+  expect(visual("3").visible).toBe(false);
 });
