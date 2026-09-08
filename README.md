@@ -22,6 +22,8 @@ ontology-map은 공개 자료에서 확인한 근거와 시간축을 지식그�
 
 PostgreSQL, migration, 개발용 HBF fixture, FastAPI, web과 종료·초기화 절차는 [DB 운영 문서](docs/operations/database.md)에 모아 두었다. Agent와 worker는 아직 실행 가능한 구현과 명령이 없으며, 현재 상태와 후속 Issue는 [HANDOFF.md](HANDOFF.md)에서 확인한다.
 
+디자인 검토용 화면은 web 실행 후 `/design-preview?center=<node ID>&range=90d`에서 연다. 기존 화면과 같은 DB/API를 사용하며 기본 화면 적용 전 검토 후보의 범위는 [제품 설계](docs/product/design.md#가독성-디자인-미리보기)에서 확인한다.
+
 ## 문서 역할
 
 - [아키텍처](docs/architecture/README.md): 현재 시스템의 경계, 구성 요소, 실행 구조와 중요한 결정

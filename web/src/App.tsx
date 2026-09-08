@@ -151,9 +151,11 @@ function TrailHeader({
 }
 
 function MapLegend({
+  designPreview,
   open,
   onToggle,
 }: {
+  designPreview: boolean;
   open: boolean;
   onToggle: () => void;
 }) {
@@ -186,6 +188,12 @@ function MapLegend({
             ))}
           </div>
           <div className={styles.legendLine}>
+            {designPreview && (
+              <span>
+                <i className={styles.connectedLine} />
+                중심·선택 연결
+              </span>
+            )}
             <span>
               <i className={styles.line1} />
               근거 1개
@@ -258,7 +266,7 @@ function LoadNotice({
   return null;
 }
 
-export function App() {
+export function App({ designPreview = false }: { designPreview?: boolean }) {
   const initial = useMemo(readLocation, []);
   const [currentView, setCurrentView] = useState<ExplorationView | null>(null);
   const [graphView, setGraphView] = useState<ExplorationView | null>(null);
@@ -451,7 +459,11 @@ export function App() {
 
   return (
     <>
-      <main className={styles.app} inert={initialLoading ? true : undefined}>
+      <main
+        className={styles.app}
+        data-design-preview={designPreview || undefined}
+        inert={initialLoading ? true : undefined}
+      >
         <TrailHeader
           trail={trail}
           currentId={currentView?.centerId}
@@ -459,9 +471,15 @@ export function App() {
           onSelect={selectNode}
         />
 
+        {designPreview && (
+          <div className={styles.previewBadge}>
+            디자인 미리보기 <a href={`/${window.location.search}`}>기존 화면</a>
+          </div>
+        )}
         <section className={styles.workspace}>
           {peripheral.graphView && (
             <GraphCanvas
+              designPreview={designPreview}
               pendingNodeId={
                 status === "loading" && lastRequestRef.current?.navigation
                   ? lastRequestRef.current.centerId
@@ -516,6 +534,7 @@ export function App() {
               </div>
 
               <MapLegend
+                designPreview={designPreview}
                 open={legendOpen}
                 onToggle={() => setLegendOpen((open) => !open)}
               />

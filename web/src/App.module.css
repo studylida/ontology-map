@@ -1208,3 +1208,100 @@
   border-radius: 8px;
   font-size: 12px;
 }
+
+/* #156: 기본 화면 적용 전 사용자 검토용 스타일이다. */
+:global(:root:has([data-design-preview="true"])) {
+  --conflict: #f26d78;
+}
+.app[data-design-preview="true"] {
+  --background: #111416;
+  --surface: #1a1e22;
+  --surface-elevated: #22282e;
+  --border: #343c44;
+  --text-secondary: #b8c1cb;
+}
+.previewBadge {
+  position: absolute;
+  top: 6px;
+  right: 24px;
+  z-index: 21;
+  display: flex;
+  align-items: center;
+  height: 44px;
+  gap: 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.previewBadge a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--interactive);
+}
+.app[data-design-preview="true"] .header {
+  padding-right: 250px;
+  background: #1a1e22;
+}
+.app[data-design-preview="true"] .brand svg {
+  filter: none;
+}
+.app[data-design-preview="true"] .controls {
+  top: 16px;
+  left: 24px;
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) 188px;
+  width: min(540px, calc(100% - 432px));
+  padding: 12px;
+  gap: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+}
+.app[data-design-preview="true"] .controls > label {
+  display: none;
+}
+.app[data-design-preview="true"] .scopeSummary {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: flex;
+  align-items: baseline;
+  padding: 0;
+  gap: 8px;
+}
+.app[data-design-preview="true"] .rangeControl {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+}
+.app[data-design-preview="true"] .rangeControl legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.app[data-design-preview="true"] .detailPanel {
+  top: 16px;
+  bottom: 16px;
+  background: var(--surface);
+  border-radius: 8px;
+}
+.app[data-design-preview="true"] .panelHeader {
+  padding: 20px;
+}
+.app[data-design-preview="true"] .legend {
+  bottom: 16px;
+  width: 280px;
+  background: var(--surface);
+  border-radius: 8px;
+}
+.legendLine .connectedLine {
+  height: 2px;
+  background: var(--interactive);
+}
+.app[data-design-preview="true"] .peripheralStatus {
+  bottom: 72px;
+  left: 24px;
+}
+:global(:root:has([data-design-preview="true"])) .loadingTrack i {
+  box-shadow: none;
+}
