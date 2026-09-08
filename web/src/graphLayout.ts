@@ -20,6 +20,7 @@ export function layoutTargets(
   anchor: Position,
   relations: KnowledgeRelation[] = [],
   retained = new Map<string, Position>(),
+  depthScale = 0.15,
 ): Map<string, Position> {
   const positions = new Map(retained);
   positions.set(centerId, { ...anchor });
@@ -60,7 +61,7 @@ export function layoutTargets(
         y:
           slot.y +
           (depthTargetForNode({ id: `${node.id}:y` }) / depthLimit) * 7,
-        z: anchor.z + depthTargetForNode(node) * 0.15,
+        z: anchor.z + depthTargetForNode(node) * depthScale,
       });
   }
   return positions;

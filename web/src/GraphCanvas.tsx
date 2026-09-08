@@ -971,6 +971,7 @@ export function GraphCanvas({
       anchor,
       view.relations,
       changed || initial ? new Map() : currentPositions,
+      designPreview ? 2 : 0.15,
     );
     const starts = new Map(currentPositions);
     for (const [id, visual] of nodeVisualsRef.current)
@@ -1009,22 +1010,20 @@ export function GraphCanvas({
       const visible = wide
         ? view.nodes
         : view.nodes.filter((n) => n.tier !== "ambient");
-      let x = 40,
-        y = 40;
+      const tangent = Math.tan((camera.fov * Math.PI) / 360);
+      const horizontal = (tangent * graph.width()) / graph.height();
+      let distance = Math.max(150, 40 / horizontal, 40 / tangent);
       for (const node of visible) {
         const position = targets.get(node.id);
         if (!position) continue;
-        x = Math.max(x, Math.abs(position.x - anchor.x) + 24);
-        y = Math.max(y, Math.abs(position.y - anchor.y) + 24);
+        const depth = designPreview ? position.z - anchor.z : 0;
+        distance = Math.max(
+          distance,
+          depth + (Math.abs(position.x - anchor.x) + 24) / horizontal,
+          depth + (Math.abs(position.y - anchor.y) + 24) / tangent,
+        );
       }
-      const tangent = Math.tan((camera.fov * Math.PI) / 360);
-      return (
-        Math.max(
-          150,
-          x / ((tangent * graph.width()) / graph.height()),
-          y / tangent,
-        ) * (wide ? 1.55 : 1)
-      );
+      return distance * (wide ? 1.55 : 1);
     };
     const removeOutgoing = () => {
       const nodeIds = new Set(view.nodes.map((n) => n.id));
