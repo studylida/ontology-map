@@ -128,7 +128,14 @@ it("Relation 선택 때만 공용 근거 창을 열고 cursor를 그대로 전�
       "cursor",
     ),
   ).toBe("opaque +/?");
-  fireEvent.click(screen.getByRole("button", { name: "근거 창 닫기" }));
+  const dialog = screen.getByRole("dialog");
+  vi.spyOn(dialog, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(100, 100, 400, 300),
+  );
+  fireEvent.click(dialog, { clientX: 120, clientY: 120 });
+  fireEvent.click(screen.getByText("원문 인용"), { clientX: 0, clientY: 0 });
+  expect(screen.getByRole("dialog")).toBe(dialog);
+  fireEvent.click(dialog, { clientX: 50, clientY: 120 });
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(document.activeElement).toBe(opener);
 });

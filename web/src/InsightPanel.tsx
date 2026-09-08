@@ -22,7 +22,7 @@ function InsightDialog({
   selected: InsightItem;
   onClose: () => void;
 }) {
-  const dialogRef = useModalDialog();
+  const dialogRef = useModalDialog(onClose);
   const titleId = useId();
   const page = useCursorPage(selected.id, fetchInsight);
   const insight = page.items[0];

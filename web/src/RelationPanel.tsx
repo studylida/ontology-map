@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useEffectEvent, useId, useRef } from "react";
 import styles from "./App.module.css";
 import {
   type APIRequestError,
@@ -139,7 +139,7 @@ export function EvidenceDialog({
   selection: EvidenceSelection;
   onClose: () => void;
 }) {
-  const dialogRef = useModalDialog();
+  const dialogRef = useModalDialog(onClose);
   const titleId = useId();
   const page = useCursorPage(selection.id, fetchRelationEvidence);
   return (
@@ -176,13 +176,27 @@ export function EvidenceDialog({
   );
 }
 
-export function useModalDialog() {
+export function useModalDialog(onClose: () => void) {
+  const close = useEffectEvent(onClose);
   const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = dialogRef.current;
     const opener = document.activeElement;
     dialog?.showModal();
+    const onClick = (event: MouseEvent) => {
+      if (!dialog || event.target !== dialog) return;
+      const rect = dialog.getBoundingClientRect();
+      if (
+        event.clientX < rect.left ||
+        event.clientX > rect.right ||
+        event.clientY < rect.top ||
+        event.clientY > rect.bottom
+      )
+        close();
+    };
+    dialog?.addEventListener("click", onClick);
     return () => {
+      dialog?.removeEventListener("click", onClick);
       dialog?.close();
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
     };
