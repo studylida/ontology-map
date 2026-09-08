@@ -475,6 +475,9 @@ def test_http_contract_returns_string_ids_and_hides_internal_ids() -> None:
     assert set(relations_body) == {"items", "next_cursor"}
     relation_item = relations_body["items"][0]
     assert set(relation_item) == {
+        "source_node_id",
+        "target_node_id",
+        "directionality",
         "relation_id",
         "other_node",
         "relation_type_display_name",

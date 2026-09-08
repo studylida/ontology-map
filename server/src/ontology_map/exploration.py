@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Literal
@@ -88,6 +88,7 @@ class Recommendation:
     reason_code: str
     via_node_id: int | None
     supporting_evidence_group_count: int | None
+    path: list[GraphRelation] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -333,6 +334,38 @@ def _recommendations(
     return results
 
 
+def _recommendation_paths(
+    items: list[Recommendation], center_id: int, relations: list[GraphRelation]
+) -> list[Recommendation]:
+    results = []
+    for item in items:
+        nodes = [center_id]
+        if item.via_node_id is not None:
+            nodes.append(item.via_node_id)
+        nodes.append(item.target_node.node_id)
+        path = []
+        if item.reason_code != "AMBIENT":
+            for first, second in zip(nodes, nodes[1:], strict=False):
+                matches = [
+                    r
+                    for r in relations
+                    if {r.source_node_id, r.target_node_id} == {first, second}
+                ]
+                if not matches:
+                    raise PublicationNotReadyError
+                path.append(
+                    min(
+                        matches,
+                        key=lambda r: (
+                            -r.supporting_evidence_group_count,
+                            r.relation_id,
+                        ),
+                    )
+                )
+        results.append(replace(item, path=path))
+    return results
+
+
 def get_exploration(
     session: Session,
     center_node_id: int,
@@ -466,7 +499,11 @@ def get_exploration(
         center_node_id=center_node_id,
         context_text=center.context_text,
         graph=Graph(nodes=graph_nodes, relations=graph_relations),
-        recommendations=_recommendations(direct, two_hop, ambient, all_activity_counts),
+        recommendations=_recommendation_paths(
+            _recommendations(direct, two_hop, ambient, all_activity_counts),
+            center_node_id,
+            graph_relations,
+        ),
         followup_questions=[
             FollowupQuestion(
                 slot=followup.slot,

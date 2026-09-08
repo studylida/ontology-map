@@ -23,6 +23,9 @@ const response = (body: unknown, status = 200) => ({
   json: async () => body,
 });
 const relation = {
+  source_node_id: "1",
+  target_node_id: "2",
+  directionality: "DIRECTED",
   relation_id: "9223372036854775807",
   relation_type_display_name: "관련 기술",
   other_node: {

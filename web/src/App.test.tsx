@@ -94,6 +94,17 @@ function exploration(centerId = "9223372036854775807") {
           name: names[neighborId],
           node_type: { code: "TECHNOLOGY", display_name: "기술" },
         },
+        path: [
+          {
+            relation_id: `relation-${centerId}`,
+            source_node_id: centerId,
+            target_node_id: neighborId,
+            source_node_name: names[centerId],
+            target_node_name: names[neighborId],
+            relation_type_display_name: "관련 기술",
+            directionality: "SYMMETRIC",
+          },
+        ],
         reason_code: "DIRECT",
         via_node_id: null,
         supporting_evidence_group_count: 3,

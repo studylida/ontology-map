@@ -128,21 +128,40 @@ function relationTier(
   return "twoHop";
 }
 
-function recommendationReason(
-  code: string,
-  targetName: string,
-  viaNodeName?: string,
+export function relationPathLabel(
+  source: string,
+  label: string,
+  target: string,
+  direction: KnowledgeRelation["directionality"],
 ): string {
-  if (code === "DIRECT") {
-    return `${targetName}와 직접 연결된 공개 관계를 살펴봅니다.`;
-  }
-  if (code === "TWO_HOP") {
-    return `${viaNodeName ?? "연결 node"}에서 이어지는 공개 경로를 살펴봅니다.`;
-  }
-  if (code === "AMBIENT") {
-    return "현재 지도 밖의 공개 node를 새 탐색 출발점으로 살펴봅니다.";
-  }
-  throw new APIRequestError("INVALID_RESPONSE", 0, true);
+  return `${source} — ${label} ${direction === "DIRECTED" ? "→" : "—"} ${target}`;
+}
+
+function recommendationReason(item: JsonObject): string {
+  const code = member(item.reason_code, [
+    "DIRECT",
+    "TWO_HOP",
+    "AMBIENT",
+  ] as const);
+  const path = array(item.path);
+  if (path.length !== { DIRECT: 1, TWO_HOP: 2, AMBIENT: 0 }[code])
+    throw new APIRequestError("INVALID_RESPONSE", 0, true);
+  if (code === "AMBIENT")
+    return "현재 중심과의 관계가 확인되지 않은 새 탐색 출발점입니다.";
+  return path
+    .map((value) => {
+      const edge = object(value);
+      string(edge.relation_id);
+      string(edge.source_node_id);
+      string(edge.target_node_id);
+      return relationPathLabel(
+        string(edge.source_node_name),
+        string(edge.relation_type_display_name),
+        string(edge.target_node_name),
+        directionality(edge.directionality),
+      );
+    })
+    .join(" · ");
 }
 
 export function toExplorationView(payload: unknown): ExplorationView {
@@ -185,8 +204,6 @@ export function toExplorationView(payload: unknown): ExplorationView {
     const targetType = object(target.node_type);
     const id = string(target.node_id);
     const reasonCode = string(item.reason_code);
-    const viaId =
-      item.via_node_id === null ? undefined : string(item.via_node_id);
     const graphNode = nodesById.get(id);
     const recommendationNode: KnowledgeNode = graphNode ?? {
       id,
@@ -202,11 +219,7 @@ export function toExplorationView(payload: unknown): ExplorationView {
         : number(item.supporting_evidence_group_count);
     return {
       node: recommendationNode,
-      reason: recommendationReason(
-        reasonCode,
-        recommendationNode.name,
-        viaId ? nodesById.get(viaId)?.name : undefined,
-      ),
+      reason: recommendationReason(item),
       status:
         reasonCode === "DIRECT"
           ? "confirmedRelation"
@@ -335,6 +348,9 @@ export interface CursorPage<T> {
   nextCursor: string | null;
 }
 export interface NodeRelation {
+  sourceId: string;
+  targetId: string;
+  directionality: KnowledgeRelation["directionality"];
   id: string;
   label: string;
   otherName: string;
@@ -384,6 +400,9 @@ export async function fetchNodeRelations(
       const other = object(item.other_node);
       return {
         id: string(item.relation_id),
+        sourceId: string(item.source_node_id),
+        targetId: string(item.target_node_id),
+        directionality: directionality(item.directionality),
         label: string(item.relation_type_display_name),
         otherName: string(other.name),
         otherKind: string(object(other.node_type).display_name),
