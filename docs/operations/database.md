@@ -117,6 +117,8 @@ ONTOLOGY_MAP_API_PROXY_TARGET=http://127.0.0.1:8000
 npm run dev
 ```
 
+WSL에서 `/mnt/c` 파일을 편집했는데 새로고침 후에도 이전 모듈이 제공되면 개발 서버를 종료하고 `CHOKIDAR_USEPOLLING=true CHOKIDAR_INTERVAL=500 npm run dev`로 다시 실행한다. 이 환경에서 실제 변경 감지 누락을 확인했으며 polling은 해당 개발 실행에만 적용한다.
+
 브라우저에서 Vite가 출력한 주소를 열면 web은 `/api/v1` 요청을 FastAPI로 전달한다. `VITE_DEFAULT_CENTER_NODE_ID`가 없거나 공개할 수 없는 ID이면 초기 화면에 설정 또는 API 오류가 표시된다.
 
 ## 6. 최소 smoke check

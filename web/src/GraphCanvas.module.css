@@ -1,6 +1,6 @@
 .map {
   position: absolute;
-  inset: 0;
+  inset: 0 408px 0 344px;
   overflow: hidden;
   background:
     radial-gradient(circle at 46% 42%, rgba(46, 74, 111, 0.2), transparent 36%),
@@ -36,7 +36,7 @@
 
 .depthNote {
   position: absolute;
-  right: 436px;
+  right: 12px;
   bottom: 18px;
   z-index: 2;
   color: var(--text-muted);
@@ -102,4 +102,37 @@
   border-radius: 8px;
   pointer-events: none;
   transform: translateX(-50%);
+}
+
+.map[data-panel-open="false"] {
+  right: 24px;
+}
+.nodeLabel {
+  max-width: 120px;
+  overflow: hidden;
+  padding: 3px 6px;
+  color: var(--text-primary);
+  background: rgba(9, 13, 20, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font:
+    600 14px / 1.35 system-ui,
+    sans-serif;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.nodeLabel[data-tier="center"] {
+  font-size: 16px;
+}
+@media (max-width: 1100px) {
+  .map {
+    left: 24px;
+    right: 24px;
+  }
+}
+
+.nodeLabel[data-tier="center"],
+.nodeLabel[data-focused="true"] {
+  max-width: 240px;
 }
