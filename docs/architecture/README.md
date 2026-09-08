@@ -72,7 +72,7 @@ flowchart LR
     User -->|선택·검색·기간 변경| App --> Adapter -->|/api/v1 HTTP| Route --> Service --> Query -->|SQLAlchemy SQL| DB
 ```
 
-현재 web은 exploration aggregate와 node search를 사용한다. server에는 peripheral, Node Relation 목록과 Relation Evidence Trace endpoint도 구현되어 있으나 해당 web adapter는 아직 없다. route는 ORM row를 그대로 반환하지 않고 응답 DTO로 변환한다.
+현재 web은 exploration aggregate, node search, peripheral, Node Relation 목록, Relation Evidence Trace와 저장 인사이트 목록·상세 endpoint를 사용한다. route는 ORM row를 그대로 반환하지 않고 응답 DTO로 변환한다.
 
 ### migration·metadata·개발 fixture 경로
 

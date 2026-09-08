@@ -101,7 +101,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 
 브라우저와 PostgreSQL 사이의 유일한 제품 경계는 FastAPI HTTP API다. web은 DB table이나 SQLAlchemy model을 알지 않으며 API 응답을 `web/src/data.ts`에서 화면 모델로 검증·변환한다.
 
-현재 web은 exploration aggregate, node search, Relation 목록과 Evidence Trace를 사용한다. peripheral API도 web에 연결되어 초기 주변부와 추가 page를 조회한다. 인사이트 목록·상세 endpoint와 현재 화면은 아직 없고 #68이 소유한다.
+현재 web은 exploration aggregate, node search, Relation 목록과 Evidence Trace를 사용한다. peripheral API도 web에 연결되어 초기 주변부와 추가 page를 조회한다. 저장 인사이트 목록·상세도 API와 web에 연결되어 있고 생성·품질 후속 작업은 #68이 소유한다.
 
 중심 전환에서는 선택 node의 현재 위치로 camera target을 이동하고, 새 응답의 이웃을 그 node 기준의 조밀한 목표 좌표로 한 번 재배치한다. 전환 종료 후 좌표 고정을 풀거나 force simulation을 다시 시작하지 않는다. 추가 page에서는 기존 좌표를 유지하고 새 node만 배치하며 새 응답에 없는 node·Relation은 전환 후 장면에서 제거한다. #114의 이전 데모 비교와 사용자 시각 승인은 별도로 추적한다. node·label 가독성은 #106에서 사용자가 반복 검토한다. 현재 검토 후보는 기존 활동량별 반지름 비율을 유지하고 이전 후보의 core를 2배로 키운다. label은 HTML/CSS로 표시하며 중심16px·직접/2단계14px를 기준으로 한다. 지도 배치 영역은 desktop panel 바깥의 공간으로 제한하고 graph 간격과 camera 거리를 함께 조정한다. 사용자 승인 전까지 최종 시각 값으로 확정하지 않는다. 빈 map의 primary drag는 pan에 연결하고 회전과 node drag는 비활성화한다. 실제 화면 회귀 검증은 #107에서 추적한다. 첫 진입의 0~99% loading은 API 응답과 graph 준비를 기다린 뒤 intro로 이어지고, 일반 Relation 색·panel 제목과 control의 최소 조작 영역은 기존 디자인 token에 맞춘다. 실제 화면 검증은 #135에서 추적한다. 여러 peripheral page가 누적된 뒤 장면 정리와 세션 위치 cache가 실제로 필요한지는 #136에서 관찰 후 결정한다. 아래 시각·상호작용 절은 구현 완료 보고가 아니라 유지해야 할 제품 계약이며 현재 차이는 해당 Issue로 추적한다.
 
@@ -113,7 +113,10 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 | node 검색 | `GET /api/v1/nodes/search?q=...&limit=5` | node 이름·유형과 `EXACT_ALIAS | FULL_TEXT` 이유 | `search_nodes` | 활성 merge 해소 → 최신 READY 검색 문서 → alias 또는 `simple` expression GIN | 연동 완료 |
 | node의 공개 Relation | `GET /api/v1/nodes/{node_id}/relations?cursor=...&limit=20` | 상대 node, relation 유형, 지지 근거 묶음 수, 충돌 여부 | `list_node_relations` | 최신 READY 검색 문서·basis → relation → 지지 Claim → Observation → Source Document | web 연동 구현 |
 | Relation 근거 | `GET /api/v1/relations/{relation_id}/evidence?cursor=...&limit=10` | Claim stance, source metadata, quote와 locator | `list_relation_evidence` | Claim Relation → Claim Observation → Observation → Source Document | web 연동 구현 |
-| 주변부 추가 조회 | `GET /api/v1/exploration/{center_node_id}/peripheral?time_window=...&cursor=...&limit=20` | `AMBIENT` node, 활성 graph·현재/이전 page 사이의 실제 Relation, 다음 cursor | `list_peripheral_nodes` | exploration 활성 graph → 최신 READY 공개 node의 다음 page → 활성 graph와의 relation | web 연결, 실제 연동 검증 대기 |
+| 주변부 추가 조회 | `GET /api/v1/exploration/{center_node_id}/peripheral?time_window=...&cursor=...&limit=20` | `AMBIENT` node, 활성 graph·현재/이전 page 사이의 실제 Relation, 다음 cursor | `list_peripheral_nodes` | exploration 활성 graph → 최신 READY 공개 node의 다음 page → 활성 graph와의 relation | web 연동 구현 |
+
+| 저장 인사이트 목록 | `GET /api/v1/nodes/{node_id}/insights?time_window=...` | slot·제목·독립 근거 수 | `list_node_insights` | 최신 READY의 NODE_INSIGHT SUCCESS → 전체 basis 공개 재검증 → window별 결과 | web 연동 구현 |
+| 저장 인사이트 상세 | `GET /api/v1/insights/{insight_id}` | summary·synthesis·caveat·역할별 Claim과 Trace | `get_insight` | 현재 목록과 같은 공개 검사 → Claim Observation → Observation → Source Document | web 연동 구현 |
 
 응답 DTO는 DB table 모양을 그대로 노출하지 않는다.
 
@@ -122,13 +125,15 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 | exploration | `center_node_id`, `context_text`, `graph.nodes[]`, `graph.relations[]`, `recommendations[]`, `followup_questions[]` |
 | graph node | `node_id`, `name`, `node_type { code, display_name }`, `tier`, `activity_evidence_group_count` |
 | graph Relation | `relation_id`, `source_node_id`, `target_node_id`, `relation_type_display_name`, `directionality: DIRECTED | SYMMETRIC`, `supporting_evidence_group_count`, `has_conflict` |
-| recommendation | `target_node`, `reason_code`, nullable `via_node_id`, 직접 근거가 있을 때만 `supporting_evidence_group_count` |
+| recommendation | `target_node`, `reason_code`, nullable `via_node_id`, 직접 근거가 있을 때만 `supporting_evidence_group_count`, 실제 연결의 `path[]` |
 | follow-up question | `slot`, `question_text`, `target_node_id` |
 | search | `items[] { node_id, name, node_type, match_reasons[] }` |
-| node Relations | `items[] { relation_id, other_node, relation_type_display_name, supporting_evidence_group_count, has_conflict }`, `next_cursor` |
+| node Relations | `items[] { relation_id, other_node, source_node_id, target_node_id, directionality, relation_type_display_name, supporting_evidence_group_count, has_conflict }`, `next_cursor` |
 | Relation Evidence | `items[] { claim_text, stance, source, quote_text, locator }`, 전체 공개 trace의 `trace_count`, `next_cursor` |
 | Evidence source·locator | `source { title, publisher_name, published_at, published_precision, canonical_url }`, `locator { paragraph_number, start_char, end_char }` |
 | peripheral | `graph.nodes[]`, `graph.relations[]`, `next_cursor`; 모든 node의 `tier`는 `AMBIENT` |
+
+인사이트 목록은 `items[] { insight_id, slot, title, evidence_group_count }`, 상세는 같은 필드와 `summary`, `synthesis`, `caveat`, `claims[] { claim_id, claim_text, role, traces[] { source, quote_text, locator } }`를 반환한다. role은 `KEY_CLAIM | SUPPORTING_CLAIM | CONTRASTING_CLAIM`이며 source와 locator는 기존 Evidence Trace 계약을 재사용한다. 목록은 slot 순서로 최대3개이고 근거 수는 저장 결과의 `as_of_at`을 기준으로 선택한 90일·365일 범위 `[as_of_at - 기간, as_of_at)`에 게시된 연결 Claim 근거의 `COUNT(DISTINCT evidence_group_id)`다. 원문 Trace는 연결 Claim의 전체 출처를 보여주므로 기간 밖 출처가 포함되면 표시 근거 수와 Trace 수는 다를 수 있다. 상세의 Claim ID는 화면 항목 식별에만 사용하고 사용자 문구로 표시하지 않는다.
 
 `time_window`는 필수이며 `RECENT_90_DAYS | RECENT_1_YEAR`만 허용한다. exploration은 중심 1개, 직접 이웃 최대 12개, 중요한 2단계 이웃 최대 18개, 실제 3단계 이웃 최대 20개와 활성 graph Relation 최대 60개를 반환한다. 후보는 지지 독립 근거 묶음 수 내림차순, 선택 기간 활동량 내림차순, 내부 ID 오름차순으로 정렬한다.
 
@@ -146,7 +151,7 @@ PostgreSQL의 `bigint` ID는 JavaScript 정밀도 손실을 막기 위해 모든
 
 공통 오류 본문은 `{"error":{"code":"...","retryable":false}}`다. 잘못된 ID, query, limit, time window와 cursor는 `422 INVALID_REQUEST`다. 공개 node가 없으면 exploration·peripheral·Relation 목록은 `404 NODE_NOT_FOUND`, 공개 Relation 근거가 없으면 Evidence Trace는 `404 RELATION_NOT_FOUND`를 반환한다. node는 공개 가능하지만 필요한 READY 결과가 없으면 exploration·peripheral·Relation 목록은 `503 PUBLICATION_NOT_READY`와 `retryable: true`를 반환한다.
 
-일반 사용자 조회에는 현재 공개 가능한 최신 READY 결과만 포함한다. `promotion_status = COMMITTED`, `publication_status = READY`, 지식 상태 `EVIDENCE_VERIFIED | HUMAN_VERIFIED`와 열린 `BLOCKING` lint 부재를 다시 확인한다. selected 검색 문서의 모든 `search_document_basis`가 계속 공개 가능한지 재검증하는 것은 제품 불변성이다. 현재 search 경로는 이 basis 재검증을 수행하지만 exploration, peripheral, node Relation과 Relation Evidence Trace가 사용하는 공통 공개 경로에는 아직 같은 검사가 없으며 이 구현 gap은 #120이 소유한다. 새 publication이 실패해도 이전 READY 결과가 있으면 계속 제공한다.
+일반 사용자 조회에는 현재 공개 가능한 최신 READY 결과만 포함한다. `promotion_status = COMMITTED`, `publication_status = READY`, 지식 상태 `EVIDENCE_VERIFIED | HUMAN_VERIFIED`와 열린 `BLOCKING` lint 부재를 다시 확인한다. selected 검색 문서의 모든 `search_document_basis`가 계속 공개 가능한지 재검증하는 것은 제품 불변성이다. 현재 search와 저장 인사이트 경로는 이 basis 재검증을 수행하지만 exploration, peripheral, node Relation과 Relation Evidence Trace가 사용하는 공통 공개 경로에는 아직 같은 검사가 없으며 이 구현 gap은 #120이 소유한다. 새 publication이 실패해도 이전 READY 결과가 있으면 계속 제공한다.
 
 현재 search는 alias 정확 일치를 첫 bucket으로 반환한 뒤 `identity_text`와 `knowledge_text`를 함께 사용한 PostgreSQL `simple` FTS 결과를 이어서 반환하고 HTTP 응답과 web에 `match_reasons`를 노출한다. 아직 구현되지 않은 frozen node embedding 저장 계약과 pgvector·READY embedding 의존성은 #121에서 제거한다. 그 뒤 #117은 exact alias → identity FTS → knowledge FTS의 세 bucket을 고정하고 `match_reasons`와 검색 이유 표시를 제거한다. 실제 한국어 단어 FTS 누락 사례가 확인될 때만 #80에서 tokenizer, `pg_trgm` 또는 BM25 같은 확장을 다시 검토한다.
 
@@ -268,11 +273,11 @@ Issue #67의 POC에서 직접 이웃의 관계선 core는 전환 감쇠 전 불�
 
 `탐색` tab은 확인된 직접 관계 2개, 2단계 연결 경로 1개와 주변부 공개 node 1개를 기본 추천으로 표시한다. 부족한 범주는 다른 공개 후보로 채워 추천을 4개로 유지한다. 각 카드에는 node 이름과 유형, 실제 Relation 이름과 양 끝 node를 연결한 경로, `확인된 관계`, `연결 경로 있음` 또는 `관계 미확인` 상태를 표시하고 실제 직접 Relation에만 정확한 독립 근거 수를 붙인다. 추천은 선택 시간 범위의 관측 활동량과 독립 근거 수를 사용해 결정적으로 정렬하지만 의미가 섞인 추천 점수는 표시하지 않는다. 추천 응답의 `path[]`는 실제 Relation ID·양 끝 ID와 이름·관계명·directionality·근거 수·충돌 여부를 담고 직접 추천은 1개, 2단계는 2개, 주변부는 빈 배열이다. Claim 요약을 카드에 추가하지 않는다. 후속 질문 2개는 추천 카드 다음의 tab 하단에 두며 #113에서 정한 `DIRECT` 우선, `TWO_HOP` 보완, 중심 node fallback target으로 이동한다. `AMBIENT`는 후속 질문 target이 아니다.
 
-`근거` tab은 중심 node의 확인된 Relation 목록과 각 Relation의 근거 진입점을 제공한다. 상세 Relation 행과 graph Relation은 같은 Evidence Trace dialog를 열고, dialog는 Claim, publisher, publication time, 인용문과 원문 위치를 구분해 표시하며 backend cursor로 같은 Relation의 근거를 이어서 조회한다. 실제 원문 URL이 있을 때만 `원문 열기`를 제공한다. dialog는 focus 이동·복귀, Escape 닫기와 접근 가능한 이름을 제공하고 Relation 선택으로 중심 node를 바꾸지 않는다. 확인된 관계 행에도 실제 방향을 반영한 양 끝 node와 관계명을 표시한다. 현재 화면은 상세 panel의 `확인된 관계` 영역에서 목록을 제공하고 같은-panel trace 전환은 사용하지 않는다. 관계에 속하지 않는 node Claim을 별도 `확인된 사실`로 보여주는 데 필요한 조회·표시 경계는 현재 구현에 없으며 실제 필요성이 확인되면 별도 범위로 다룬다.
+`근거` tab은 중심 node의 확인된 Relation 목록과 각 Relation의 근거 진입점을 제공한다. 상세 Relation 행과 graph Relation은 같은 Evidence Trace dialog를 열고, dialog는 Claim, publisher, publication time, 인용문과 원문 위치를 구분해 표시하며 backend cursor로 같은 Relation의 근거를 이어서 조회한다. 실제 원문 URL이 있을 때만 `원문 열기`를 제공한다. dialog는 focus 이동·복귀, Escape 닫기와 접근 가능한 이름을 제공하고 Relation 선택으로 중심 node를 바꾸지 않는다. 확인된 관계 행에도 실제 방향을 반영한 양 끝 node와 관계명을 표시한다. 현재 화면은 `근거` tab의 `확인된 관계` 목록에서 공용 dialog로 연결한다. 관계에 속하지 않는 node Claim을 별도 `확인된 사실`로 보여주는 데 필요한 조회·표시 경계는 현재 구현에 없으며 실제 필요성이 확인되면 별도 범위로 다룬다.
 
 `인사이트` tab에는 사전 생성된 종합 분석의 제목과 연결된 근거 수만 표시한다. 제목을 선택하면 viewport 중앙에 modal dialog를 열고 확인된 사실, 종합 해석, 연결 근거와 해석 시 유의점을 분리해 표시한다. 연결 근거는 dialog 안에서 여러 건을 동시에 펼쳐 인용문, 출처와 원문 위치를 비교할 수 있으며 두 건 이상 펼치면 `모두 접기`를 제공한다. 이 동작은 상세 panel의 tab이나 scroll 상태를 바꾸지 않는다. dialog surface는 0.88 불투명도, backdrop은 0.12 불투명도를 사용하고 blur와 gradient를 적용하지 않아 뒤의 지식맵을 계속 볼 수 있게 한다. dialog가 열린 동안 배경 조작을 막고 닫기 button과 Escape를 지원하며 닫은 뒤 선택한 제목으로 focus를 돌려준다. 중심 node가 바뀌면 `탐색` tab으로 돌아가고 열린 분석 dialog를 닫는다.
 
-과거 정적 POC는 SK하이닉스, SanDisk와 HBF의 인사이트 fixture로 화면 모양을 검증했지만 현재 API 연동 web에는 인사이트 tab이 없다. 제품의 인사이트는 관련 지식이 변경될 때 사전 생성해 저장하고 node나 인사이트 제목을 선택할 때 모델을 호출하지 않는다. 생성·저장·API, 품질, empty와 실패 처리는 #68에서 구현한다.
+현재 인사이트 tab은 DB에 저장된 최신 READY 결과를 읽는다. `NODE_INSIGHT + SUCCESS` 작업에 해당 window의 결과가 0행이면 정상 빈 목록이고, legacy READY나 필요한 bundle이 없으면 `503 PUBLICATION_NOT_READY`와 재시도를 제공한다. basis Claim 또는 같은 검색 문서의 다른 basis가 비공개·열린 BLOCKING lint 상태가 되면 인사이트 전체를 목록에서 숨기고 해당 상세는 `404 INSIGHT_NOT_FOUND`로 처리한다. 과거 READY 인사이트 ID도 현재 선택 결과가 아니면 숨긴다. 새 publication이 실패해도 이전 READY 선택은 유지한다. 읽기 요청은 동일한 REPEATABLE READ snapshot에서 공개 검사와 근거 조회를 수행한다. 생성 worker와 품질 검증은 별도 후속 작업으로 남으며 node나 인사이트 제목을 선택할 때 모델을 호출하지 않는다.
 
 후속 질문은 공개 가능한 target node로 이동하는 action이다. 일반 본문처럼 보이게 만들지 않고 명확한 button 또는 link로 표시한다. target은 #113에 따라 애플리케이션이 결정하며 모델은 target을 다시 고르지 않는다. 클릭 중 모델 호출이 일어나는 것처럼 loading animation을 보여주지 않는다.
 

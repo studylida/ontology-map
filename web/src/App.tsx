@@ -517,6 +517,8 @@ export function App() {
 
               {panelOpen ? (
                 <DetailPanel
+                  key={currentView.centerId}
+                  timeRange={timeRange}
                   view={currentView}
                   onClose={() => setPanelOpen(false)}
                   onEvidence={setEvidence}

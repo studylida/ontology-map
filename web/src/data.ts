@@ -358,10 +358,12 @@ export interface NodeRelation {
   evidenceGroupCount: number;
   conflict: boolean;
 }
-export interface EvidenceTrace {
-  key: string;
+export interface EvidenceTrace extends SourceTrace {
   claimText: string;
   stance: "SUPPORT" | "DISPUTE";
+}
+export interface SourceTrace {
+  key: string;
   title: string;
   publisher: string;
   publishedAt: string | null;
@@ -414,11 +416,10 @@ export async function fetchNodeRelations(
   };
 }
 
-function toEvidenceTrace(value: unknown): EvidenceTrace {
+function toSourceTrace(value: unknown): SourceTrace {
   const item = object(value);
   const source = object(item.source);
   const locator = object(item.locator);
-  const stance = member(item.stance, ["SUPPORT", "DISPUTE"] as const);
   const precision = member(source.published_precision, [
     "INSTANT",
     "DAY",
@@ -429,9 +430,7 @@ function toEvidenceTrace(value: unknown): EvidenceTrace {
   const url = string(source.canonical_url);
   if (!/^https?:\/\//i.test(url))
     throw new APIRequestError("INVALID_RESPONSE", 0, true);
-  const trace: Omit<EvidenceTrace, "key"> = {
-    claimText: string(item.claim_text),
-    stance,
+  const trace: Omit<SourceTrace, "key"> = {
     title: string(source.title),
     publisher: string(source.publisher_name),
     publishedAt: nullableString(source.published_at),
@@ -446,6 +445,15 @@ function toEvidenceTrace(value: unknown): EvidenceTrace {
     end: number(locator.end_char),
   };
   return { ...trace, key: JSON.stringify(trace) };
+}
+
+function toEvidenceTrace(value: unknown): EvidenceTrace {
+  const item = object(value);
+  return {
+    ...toSourceTrace(item),
+    claimText: string(item.claim_text),
+    stance: member(item.stance, ["SUPPORT", "DISPUTE"] as const),
+  };
 }
 
 export async function fetchRelationEvidence(
@@ -532,4 +540,78 @@ export async function fetchPeripheral(
     };
   });
   return { nodes, relations, nextCursor: nullableString(payload.next_cursor) };
+}
+
+export interface InsightItem {
+  id: string;
+  title: string;
+  evidenceGroupCount: number;
+}
+export interface InsightReport extends InsightItem {
+  summary: string;
+  synthesis: string;
+  caveat: string;
+  claims: {
+    id: string;
+    text: string;
+    role: "KEY_CLAIM" | "SUPPORTING_CLAIM" | "CONTRASTING_CLAIM";
+    traces: SourceTrace[];
+  }[];
+}
+function toInsightItem(value: unknown): InsightItem {
+  const item = object(value);
+  return {
+    id: string(item.insight_id),
+    title: string(item.title),
+    evidenceGroupCount: number(item.evidence_group_count),
+  };
+}
+export async function fetchNodeInsights(
+  nodeId: string,
+  range: TimeRange,
+  signal: AbortSignal,
+): Promise<CursorPage<InsightItem>> {
+  const params = new URLSearchParams({
+    time_window: range === "90d" ? "RECENT_90_DAYS" : "RECENT_1_YEAR",
+  });
+  const payload = object(
+    await fetchAPI(
+      `/api/v1/nodes/${encodeURIComponent(nodeId)}/insights?${params}`,
+      signal,
+    ),
+  );
+  return { items: array(payload.items).map(toInsightItem), nextCursor: null };
+}
+export async function fetchInsight(
+  id: string,
+  _cursor: string | null,
+  signal: AbortSignal,
+): Promise<CursorPage<InsightReport>> {
+  const item = object(
+    await fetchAPI(`/api/v1/insights/${encodeURIComponent(id)}`, signal),
+  );
+  return {
+    items: [
+      {
+        ...toInsightItem(item),
+        summary: string(item.summary),
+        synthesis: string(item.synthesis),
+        caveat: string(item.caveat),
+        claims: array(item.claims).map((value) => {
+          const claim = object(value);
+          return {
+            id: string(claim.claim_id),
+            text: string(claim.claim_text),
+            role: member(claim.role, [
+              "KEY_CLAIM",
+              "SUPPORTING_CLAIM",
+              "CONTRASTING_CLAIM",
+            ] as const),
+            traces: array(claim.traces).map(toSourceTrace),
+          };
+        }),
+      },
+    ],
+    nextCursor: null,
+  };
 }

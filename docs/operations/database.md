@@ -131,7 +131,7 @@ curl --fail "http://127.0.0.1:8000/api/v1/exploration/${ONTOLOGY_MAP_CENTER_ID}?
 curl --fail --get 'http://127.0.0.1:8000/api/v1/nodes/search' --data-urlencode 'q=SK하이닉스' --data 'limit=5'
 ```
 
-브라우저에서는 기본 중심 graph가 열리고, node 선택과 `RECENT_90_DAYS`·`RECENT_1_YEAR` 변경 및 검색 결과 선택이 새 exploration 요청으로 이어지는지 확인한다. Relation 목록과 Evidence Trace는 상세 panel과 graph에서 실제 API로 조회한다. peripheral endpoint는 backend에 있으며 web 연동은 #115에서 진행한다. 인사이트 endpoint와 worker는 아직 구현되지 않았다.
+브라우저에서는 기본 중심 graph가 열리고, node 선택과 `RECENT_90_DAYS`·`RECENT_1_YEAR` 변경 및 검색 결과 선택이 새 exploration 요청으로 이어지는지 확인한다. Relation 목록과 Evidence Trace는 상세 panel과 graph에서 실제 API로 조회한다. peripheral 첫 page는 자동으로 표시되며 사용자 축소와 바깥 경계 pan으로 다음 page를 조회한다. 인사이트 tab은 저장 목록·상세를 읽고 연결 근거를 펼친다. 생성 worker는 아직 구현되지 않았다.
 
 ## 7. 검사
 
