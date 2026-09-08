@@ -806,6 +806,8 @@ export function GraphCanvas({
         const visual = nodeVisualsRef.current.get(item.id);
         if (visual) {
           if (designPreview) {
+            if (!visual.userData.shell.visible)
+              visual.userData.shell.material.opacity = 0;
             visual.userData.shell.visible = nodeIds.has(item.id);
             visual.userData.shell.material.blending = THREE.NormalBlending;
             visual.userData.shell.material.color.set(
@@ -824,6 +826,7 @@ export function GraphCanvas({
         return {
           item,
           visual,
+          shellFrom: visual?.userData.shell.material.opacity ?? 0,
           from: visual
             ? (visual.userData.halo.material as THREE.SpriteMaterial).opacity
             : 0,
@@ -862,7 +865,9 @@ export function GraphCanvas({
           : Math.min(1, (now - startedAt) / 160);
         const pulse = reducedMotion
           ? 1
-          : 0.78 + 0.22 * Math.cos(((now - startedAt) * Math.PI) / 650);
+          : 0.78 +
+            0.22 *
+              Math.cos((Math.max(0, now - startedAt - 160) * Math.PI) / 650);
         const eased = 1 - (1 - progress) ** 3;
         for (const target of nodeTargets) {
           if (!target.visual) continue;
@@ -870,7 +875,8 @@ export function GraphCanvas({
             target.visual.userData.shell.scale.setScalar(
               target.visual.userData.radius * (1.2 + pulse * 0.1),
             );
-            target.visual.userData.shell.material.opacity = pulse;
+            target.visual.userData.shell.material.opacity =
+              target.shellFrom + (pulse - target.shellFrom) * eased;
           }
           (
             target.visual.userData.halo.material as THREE.SpriteMaterial
@@ -880,7 +886,7 @@ export function GraphCanvas({
           if (!target.visual) continue;
           const opacity =
             designPreview && target.focused
-              ? pulse
+              ? target.from + (pulse - target.from) * eased
               : target.from + (target.to - target.from) * eased;
           for (const line of target.visual.userData.lines)
             (line.material as THREE.Material).opacity = opacity;
@@ -1306,7 +1312,7 @@ export function GraphCanvas({
         reducedMotion || (intro && introCompleted)
           ? 0
           : intro && designPreview
-            ? 2380
+            ? 3100
             : moveCamera
               ? 1200
               : mode === "restore"
@@ -1325,11 +1331,11 @@ export function GraphCanvas({
           if (intro && designPreview) {
             const from = startCamera.distanceTo(startTarget);
             const to = endCamera.distanceTo(endTarget);
-            const elapsed = progress * 2380;
-            const arriving = elapsed < 900;
+            const elapsed = progress * 3100;
+            const arriving = elapsed < 1200;
             const stage = arriving
-              ? elapsed / 900
-              : Math.max(0, (elapsed - 1180) / 1200);
+              ? elapsed / 1200
+              : Math.max(0, (elapsed - 1600) / 1500);
             const stageFrom = arriving ? from : overviewDistance;
             const stageTo = arriving ? overviewDistance : to;
             const distance = Math.exp(
@@ -1342,7 +1348,7 @@ export function GraphCanvas({
               .position.set(endTarget.x, endTarget.y, endTarget.z + distance);
             if (labelLayer)
               labelLayer.style.opacity = String(
-                Math.min(1, Math.max(0, (elapsed - 450) / 450)),
+                Math.min(1, Math.max(0, (elapsed - 600) / 600)),
               );
           }
           controls.target.lerpVectors(startTarget, endTarget, eased);

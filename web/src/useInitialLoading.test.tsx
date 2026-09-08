@@ -53,6 +53,20 @@ it("느린 준비는 89에서 기다리고 실패·retry에서 loading을 다시
   expect(vi.getTimerCount()).toBe(0);
 });
 
+it("진행률은 초반에 가속하고 끝에서는 감속한다", () => {
+  const { result } = renderHook(() => useInitialLoading(false, false));
+  advance(350);
+  const first = result.current.progress;
+  advance(350);
+  const middle = result.current.progress;
+  advance(350);
+  const last = result.current.progress;
+  advance(400);
+  expect(middle - first).toBeGreaterThan(first);
+  expect(last - middle).toBeGreaterThan(89 - last);
+  expect(result.current.progress).toBe(89);
+});
+
 it("늦은 graph-ready 이후 종료하고 unmount에서 예약된 frame과 timer를 정리한다", () => {
   const { result, rerender, unmount } = renderHook(
     ({ ready }) => useInitialLoading(ready, false),

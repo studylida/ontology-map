@@ -269,6 +269,15 @@ function LoadNotice({
 export function App({ designPreview = false }: { designPreview?: boolean }) {
   const initial = useMemo(readLocation, []);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [loadingTip] = useState(() => {
+    const tips = [
+      "노드를 누르면 그 주제를 중심으로 지도를 탐색할 수 있어요.",
+      "빈 공간을 끌어 지도를 움직이고, 휠로 확대하거나 축소해 보세요.",
+      "간선을 누르면 두 노드가 연결된 이유와 근거를 볼 수 있어요.",
+      "노드에 마우스를 올리면 연결된 관계가 강조돼요.",
+    ];
+    return tips[Math.floor(Math.random() * tips.length)];
+  });
   useEffect(() => {
     if (!designPreview) return;
     document.documentElement.dataset.theme = theme;
@@ -637,6 +646,7 @@ export function App({ designPreview = false }: { designPreview?: boolean }) {
             >
               <i style={{ width: `${loading.progress}%` }} />
             </div>
+            {designPreview && <p className={styles.loadingTip}>{loadingTip}</p>}
           </div>
         </div>
       )}
