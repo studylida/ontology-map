@@ -1,32 +1,44 @@
-import { useCallback, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import styles from "./App.module.css";
-import {
-  fetchInsight,
-  fetchNodeInsights,
-  type InsightItem,
-  type TimeRange,
-} from "./data";
-import { PageNotice, TraceContent, useModalDialog } from "./RelationPanel";
+import { fetchPanelReport, type TimeRange } from "./data";
+import { ClaimCard, PeriodNote } from "./PanelEvidence";
+import { PageNotice, useModalDialog } from "./RelationPanel";
 import { useCursorPage } from "./useCursorPage";
 
-const roles = {
-  KEY_CLAIM: "확인된 사실",
-  SUPPORTING_CLAIM: "보조 근거",
-  CONTRASTING_CLAIM: "엇갈리는 근거",
-};
-
-function InsightDialog({
-  selected,
+export function ReportDialog({
+  nodeId,
+  timeRange,
+  sectionId,
   onClose,
 }: {
-  selected: InsightItem;
+  nodeId: string;
+  timeRange: TimeRange;
+  sectionId: string;
   onClose: () => void;
 }) {
+  const [expanded, setExpanded] = useState(new Set<string>());
+  const updateExpanded = (key: string, open: boolean) =>
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (open) next.add(key);
+      else next.delete(key);
+      return next;
+    });
   const dialogRef = useModalDialog(onClose);
   const titleId = useId();
-  const page = useCursorPage(selected.id, fetchInsight);
-  const insight = page.items[0];
-  const [expanded, setExpanded] = useState(new Set<string>());
+  const fetchPage = useCallback(
+    (id: string, _cursor: string | null, signal: AbortSignal) =>
+      fetchPanelReport(id, timeRange, true, signal),
+    [timeRange],
+  );
+  const page = useCursorPage(nodeId, fetchPage);
+  const report = page.items[0];
+  useEffect(() => {
+    if (!report || !sectionId) return;
+    const section = document.getElementById(`${titleId}-section-${sectionId}`);
+    section?.scrollIntoView?.({ block: "start" });
+    section?.focus({ preventScroll: true });
+  }, [report, sectionId, titleId]);
   return (
     <dialog
       ref={dialogRef}
@@ -43,77 +55,65 @@ function InsightDialog({
         >
           ×
         </button>
-        <span className={styles.dialogEyebrow}>인사이트</span>
-        <h2 id={titleId}>{selected.title}</h2>
-        <PageNotice {...page} empty={!insight} onRetry={page.retry} />
-        {insight && (
+        <span className={styles.dialogEyebrow}>종합보고서</span>
+        <h2 id={titleId}>{report?.title ?? "분석 불러오기"}</h2>
+        <PageNotice {...page} empty={!report} onRetry={page.retry} />
+        {report && (
           <>
-            <span className={styles.insightEvidenceCount}>
-              독립 근거 {insight.evidenceGroupCount}개
-            </span>
-            <p className={styles.dialogSummary}>{insight.summary}</p>
-            <section>
-              <h3>확인된 사실</h3>
-              {insight.claims
-                .filter((c) => c.role === "KEY_CLAIM")
-                .map((c) => (
-                  <p key={c.id}>{c.text}</p>
+            <PeriodNote range={timeRange} asOf={report.asOf} />
+            <p className={styles.dialogSummary}>{report.summary}</p>
+            <p className={styles.panelMeta}>
+              기간 내 독립 근거 {report.evidenceGroupCount}개
+            </p>
+            <nav aria-label="보고서 목차" className={styles.reportContents}>
+              {report.sections.map((section) => (
+                <a key={section.id} href={`#${titleId}-section-${section.id}`}>
+                  {section.title}
+                </a>
+              ))}
+            </nav>
+            {expanded.size >= 2 && (
+              <button type="button" onClick={() => setExpanded(new Set())}>
+                모두 접기
+              </button>
+            )}
+            {report.sections.map((section) => (
+              <section
+                key={section.id}
+                id={`${titleId}-section-${section.id}`}
+                tabIndex={-1}
+                className={styles.reportSection}
+              >
+                <h3>{section.title}</h3>
+                <h4>근거가 되는 주장</h4>
+                {section.claims.map((claim) => (
+                  <ClaimCard
+                    key={claim.id}
+                    nodeId={nodeId}
+                    claim={claim}
+                    expanded={expanded.has(`${section.id}:${claim.id}`)}
+                    onExpanded={(open) =>
+                      updateExpanded(`${section.id}:${claim.id}`, open)
+                    }
+                    range={timeRange}
+                  />
                 ))}
-            </section>
-            <section>
-              <h3>종합 해석</h3>
-              <p>{insight.synthesis}</p>
-            </section>
-            <section>
-              <div className={styles.dialogSectionHeading}>
-                <h3>연결 근거</h3>
-                {expanded.size >= 2 && (
-                  <button type="button" onClick={() => setExpanded(new Set())}>
-                    모두 접기
-                  </button>
+                <h4>종합 해석</h4>
+                <p>{section.synthesis}</p>
+                {section.caveat && (
+                  <p className={styles.panelCaveat}>{section.caveat}</p>
                 )}
-              </div>
-              <div className={styles.dialogEvidenceList}>
-                {insight.claims.map((claim) => (
-                  <article key={claim.id}>
-                    <button
-                      type="button"
-                      aria-expanded={expanded.has(claim.id)}
-                      aria-controls={`${titleId}-${claim.id}`}
-                      onClick={() =>
-                        setExpanded((current) => {
-                          const next = new Set(current);
-                          if (next.has(claim.id)) next.delete(claim.id);
-                          else next.add(claim.id);
-                          return next;
-                        })
-                      }
-                    >
-                      <span>
-                        <small>{roles[claim.role]}</small>
-                        {claim.text}
-                      </span>
-                      <span>{expanded.has(claim.id) ? "접기" : "펼치기"}</span>
-                    </button>
-                    <div
-                      id={`${titleId}-${claim.id}`}
-                      hidden={!expanded.has(claim.id)}
-                      className={styles.dialogEvidenceTrace}
-                    >
-                      {claim.traces.map((trace) => (
-                        <div key={trace.key}>
-                          <TraceContent trace={trace} />
-                        </div>
-                      ))}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-            <section>
-              <h3>해석 시 유의점</h3>
-              <p>{insight.caveat}</p>
-            </section>
+              </section>
+            ))}
+            {report.conclusion && (
+              <section>
+                <h3>종합</h3>
+                <p>{report.conclusion}</p>
+              </section>
+            )}
+            {report.caveat && (
+              <p className={styles.panelCaveat}>{report.caveat}</p>
+            )}
           </>
         )}
       </article>
@@ -124,42 +124,48 @@ function InsightDialog({
 export function InsightPanel({
   nodeId,
   timeRange,
+  onReport,
 }: {
   nodeId: string;
   timeRange: TimeRange;
+  onReport: (sectionId: string) => void;
 }) {
   const fetchPage = useCallback(
     (id: string, _cursor: string | null, signal: AbortSignal) =>
-      fetchNodeInsights(id, timeRange, signal),
+      fetchPanelReport(id, timeRange, false, signal),
     [timeRange],
   );
   const page = useCursorPage(nodeId, fetchPage);
-  const [selected, setSelected] = useState<InsightItem | null>(null);
+  const report = page.items[0];
   return (
-    <>
-      <div className={styles.sectionHeading}>
-        <h2>인사이트</h2>
-        <span>{page.items.length}</span>
-      </div>
-      <PageNotice {...page} empty={!page.items.length} onRetry={page.retry} />
-      <div className={styles.insightList}>
-        {page.items.map((item) => (
-          <button type="button" key={item.id} onClick={() => setSelected(item)}>
-            <span>
-              {item.title}
-              <small>독립 근거 {item.evidenceGroupCount}개</small>
-            </span>
-            <span aria-hidden="true">›</span>
+    <section aria-label="인사이트 보고서">
+      <h2>인사이트</h2>
+      <PageNotice {...page} empty={!report} onRetry={page.retry} />
+      {report && (
+        <>
+          <PeriodNote range={timeRange} asOf={report.asOf} />
+          <h3>{report.title}</h3>
+          <p>{report.summary}</p>
+          <p className={styles.panelMeta}>
+            기간 내 독립 근거 {report.evidenceGroupCount}개
+          </p>
+          <div className={styles.reportContents}>
+            {report.sections.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => onReport(section.id)}
+              >
+                {section.title}
+                <span aria-hidden="true"> ›</span>
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={() => onReport("")}>
+            보고서 처음부터 읽기
           </button>
-        ))}
-      </div>
-      {selected && (
-        <InsightDialog
-          key={selected.id}
-          selected={selected}
-          onClose={() => setSelected(null)}
-        />
+        </>
       )}
-    </>
+    </section>
   );
 }

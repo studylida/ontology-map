@@ -1,16 +1,15 @@
 import { useId, useState } from "react";
 import styles from "./App.module.css";
 import type { ExplorationView, TimeRange } from "./data";
-import { InsightPanel } from "./InsightPanel";
-import { type EvidenceSelection, RelationList } from "./RelationPanel";
+import { InsightPanel, ReportDialog } from "./InsightPanel";
+import { PanelEvidence } from "./PanelEvidence";
+import { QuestionPanel } from "./QuestionPanel";
 
 interface DetailPanelProps {
   view: ExplorationView;
   timeRange: TimeRange;
   onClose: () => void;
-  onFollowup: (targetNodeId: string) => void;
   onSelect: (nodeId: string) => void;
-  onEvidence: (selection: EvidenceSelection) => void;
 }
 
 const recommendationStatusLabel = {
@@ -19,15 +18,14 @@ const recommendationStatusLabel = {
   ambient: "새 탐색 출발점",
 } as const;
 
-export function DetailPanel({
+function DetailPanelContent({
   view,
   timeRange,
   onClose,
-  onFollowup,
   onSelect,
-  onEvidence,
 }: DetailPanelProps) {
   const [tab, setTab] = useState(0);
+  const [reportSection, setReportSection] = useState<string | null>(null);
   const tabsId = useId();
   const center = view.nodes.find((node) => node.id === view.centerId);
   if (!center) return null;
@@ -51,7 +49,6 @@ export function DetailPanel({
           {center.kind}
         </span>
         <h1>{center.name}</h1>
-        <p>{view.context}</p>
       </header>
 
       <div
@@ -90,6 +87,12 @@ export function DetailPanel({
       >
         {tab === 0 && (
           <>
+            <p className={styles.panelContext}>{view.context}</p>
+            <QuestionPanel
+              nodeId={center.id}
+              range={timeRange}
+              onReport={setReportSection}
+            />
             <div className={styles.sectionHeading}>
               <h2>이어서 탐색</h2>
               <span>{view.recommendations.length}</span>
@@ -129,44 +132,35 @@ export function DetailPanel({
             ) : (
               <p className={styles.empty}>추천할 탐색 대상이 없습니다.</p>
             )}
-
-            <section className={styles.followupSection}>
-              <h2>후속 질문</h2>
-              {view.followups.length ? (
-                <div className={styles.followups}>
-                  {view.followups.map((followup) => (
-                    <button
-                      type="button"
-                      key={followup.id}
-                      onClick={() => onFollowup(followup.targetNodeId)}
-                    >
-                      <span>{followup.text}</span>
-                      <span aria-hidden="true">›</span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className={styles.empty}>표시할 후속 질문이 없습니다.</p>
-              )}
-            </section>
           </>
         )}
-        {tab === 1 && (
-          <RelationList
-            key={center.id}
-            nodeId={center.id}
-            nodeName={center.name}
-            onEvidence={onEvidence}
-          />
-        )}
+        {tab === 1 && <PanelEvidence nodeId={center.id} range={timeRange} />}
         {tab === 2 && (
           <InsightPanel
             key={`${center.id}:${timeRange}`}
             nodeId={center.id}
             timeRange={timeRange}
+            onReport={setReportSection}
           />
         )}
       </div>
+      {reportSection !== null && (
+        <ReportDialog
+          nodeId={center.id}
+          timeRange={timeRange}
+          sectionId={reportSection}
+          onClose={() => setReportSection(null)}
+        />
+      )}
     </aside>
+  );
+}
+
+export function DetailPanel(props: DetailPanelProps) {
+  return (
+    <DetailPanelContent
+      key={`${props.view.centerId}:${props.timeRange}`}
+      {...props}
+    />
   );
 }
