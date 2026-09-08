@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { KnowledgeNode } from "./data";
-import { layoutTargets, retainGraphItems } from "./graphLayout";
+import { layoutTargets, pinPosition, retainGraphItems } from "./graphLayout";
 
 it("새 중심의 현재 위치를 유지하고 이웃을 새 중심 주위에 결정적으로 배치한다", () => {
   const nodes = ["new", "neighbor", "two-hop"].map(
@@ -9,7 +9,7 @@ it("새 중심의 현재 위치를 유지하고 이웃을 새 중심 주위에 �
   const anchor = { x: 80, y: -50, z: 12 };
   const positions = layoutTargets(nodes, "new", anchor);
   expect(positions.get("new")).toEqual(anchor);
-  expect(positions.get("neighbor")).toMatchObject({ x: 108, y: -50 });
+  expect(positions.get("neighbor")).not.toEqual(anchor);
   expect(Math.abs(positions.get("two-hop")?.z ?? 100)).toBeLessThanOrEqual(32);
   expect(layoutTargets(nodes, "new", anchor)).toEqual(positions);
   expect(anchor).toEqual({ x: 80, y: -50, z: 12 });
@@ -26,4 +26,15 @@ it("전환 완료 뒤 새 응답에 없는 node와 Relation이 남지 않는다"
   retainGraphItems(links, new Set());
   expect([...nodes.values()]).toEqual([retained]);
   expect(links.size).toBe(0);
+});
+
+it("추가 page는 기존 좌표를 유지하고 최종 위치와 속도를 함께 고정한다", () => {
+  const nodes = ["a", "b", "c"].map((id) => ({ id }) as KnowledgeNode);
+  const anchor = { x: 0, y: 0, z: 0 };
+  const first = layoutTargets(nodes.slice(0, 2), "a", anchor);
+  const next = layoutTargets(nodes, "a", anchor, [], first);
+  expect(next.get("b")).toEqual(first.get("b"));
+  const node = { x: 50, y: 60, z: 0, vx: 12, vy: -6, vz: 3 };
+  pinPosition(node, anchor);
+  expect(node).toEqual({ ...anchor, fx: 0, fy: 0, fz: 0, vx: 0, vy: 0, vz: 0 });
 });

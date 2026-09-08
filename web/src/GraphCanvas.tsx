@@ -12,10 +12,9 @@ import {
 } from "./data";
 import styles from "./GraphCanvas.module.css";
 import {
-  depthLimit,
-  depthTargetForNode,
   layoutTargets,
   type Position,
+  pinPosition,
   retainGraphItems,
 } from "./graphLayout";
 import { watchBoundaryPan } from "./peripheralPan";
@@ -79,6 +78,7 @@ type LinkVisual = THREE.Group & {
     linkId: string;
     lines: THREE.Line[];
     opacity: number;
+    endpoints?: number[];
   };
 };
 
@@ -352,6 +352,10 @@ function updateLinkPosition(
   end: { x: number; y: number; z: number },
 ): boolean {
   const group = object as LinkVisual;
+  const endpoints = [start.x, start.y, start.z, end.x, end.y, end.z];
+  if (group.userData.endpoints?.every((value, i) => value === endpoints[i]))
+    return true;
+  group.userData.endpoints = endpoints;
   const startPoint = new THREE.Vector3(start.x, start.y, start.z);
   const endPoint = new THREE.Vector3(end.x, end.y, end.z);
   const direction = endPoint.clone().sub(startPoint);
@@ -522,16 +526,8 @@ export function GraphCanvas({
         focusPathRef.current(node?.id ?? null);
         container.style.cursor = node ? "pointer" : "grab";
       })
-      .d3AlphaDecay(0.035)
-      .d3VelocityDecay(0.4)
-      .warmupTicks(180)
-      .onEngineStop(() => {
-        if (!dataInitializedRef.current || readyRef.current) return;
-        readyRef.current = true;
-        graph.zoomToFit(0, 72);
-        onReadyRef.current();
-      })
-      .cooldownTicks(180);
+      .warmupTicks(0)
+      .cooldownTicks(0);
 
     const highlight = (nodeIds: Set<string>, relationId: string | null) => {
       if (hoverAnimationRef.current !== null)
@@ -604,34 +600,9 @@ export function GraphCanvas({
       highlight(new Set(nodeIds), id);
     };
 
-    graph
-      .d3Force("charge")
-      ?.strength((node: unknown) =>
-        (node as RuntimeNode).tier === "ambient" ? -4 : -64,
-      );
-    graph
-      .d3Force("link")
-      ?.distance((link: unknown) =>
-        (link as RuntimeLink).tier === "twoHop" ? 46 : 56,
-      )
-      .strength((link: unknown) =>
-        (link as RuntimeLink).tier === "ambient" ? 0.06 : 0.4,
-      );
-
-    let forceNodes: RuntimeNode[] = [];
-    const shallowDepth = (alpha: number) => {
-      for (const node of forceNodes) {
-        if (node.fz !== undefined) continue;
-        const z = Number.isFinite(node.z) ? Number(node.z) : 0;
-        node.vz = (node.vz ?? 0) + (depthTargetForNode(node) - z) * 0.1 * alpha;
-        node.z = Math.max(-depthLimit, Math.min(depthLimit, z));
-        node.vz *= 0.72;
-      }
-    };
-    shallowDepth.initialize = (nodes: RuntimeNode[]) => {
-      forceNodes = nodes;
-    };
-    graph.d3Force("shallow-depth", shallowDepth);
+    graph.d3Force("charge", null);
+    graph.d3Force("link", null);
+    graph.d3Force("center", null);
 
     const controls = graph.controls() as GraphControls;
     controls.enableRotate = false;
@@ -641,7 +612,7 @@ export function GraphCanvas({
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
     controls.minDistance = 95;
-    controls.maxDistance = 620;
+    controls.maxDistance = 2400;
     const stopWatchingPan = watchBoundaryPan(
       controls,
       () =>
@@ -745,277 +716,187 @@ export function GraphCanvas({
     const reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
-
-    const animateToView = (intro = false) => {
-      if (animationRef.current !== null)
-        cancelAnimationFrame(animationRef.current);
-      if (hoverAnimationRef.current !== null)
-        cancelAnimationFrame(hoverAnimationRef.current);
-      const targetNodes = new Map(view.nodes.map((node) => [node.id, node]));
-      const targetLinks = new Map(
-        view.relations.map((relation) => [relation.id, relation]),
+    const controls = graph.controls() as GraphControls;
+    const initial = !dataInitializedRef.current;
+    const changed = previousCenterRef.current !== centerId;
+    const center = nodesRef.current.get(centerId);
+    const anchor = { x: center?.x ?? 0, y: center?.y ?? 0, z: center?.z ?? 0 };
+    const currentPositions = new Map(
+      [...nodesRef.current].map(([id, n]) => [
+        id,
+        { x: n.x ?? 0, y: n.y ?? 0, z: n.z ?? 0 },
+      ]),
+    );
+    const targets = layoutTargets(
+      view.nodes,
+      centerId,
+      anchor,
+      view.relations,
+      changed || initial ? new Map() : currentPositions,
+    );
+    const starts = new Map(currentPositions);
+    for (const target of view.nodes) {
+      const position = targets.get(target.id);
+      if (!position) continue;
+      const existing = nodesRef.current.get(target.id);
+      const node = existing ?? { ...target, ...position };
+      Object.assign(node, target);
+      pinPosition(
+        node as RuntimeNode & Position,
+        starts.get(target.id) ?? position,
       );
-      let surroundingIndex = nodesRef.current.size;
-      const anchor =
-        nodesRef.current.get(centerId) ??
-        nodesRef.current.get(previousCenterRef.current);
-      for (const target of view.nodes) {
-        if (nodesRef.current.has(target.id)) continue;
-        const angle = surroundingIndex * 2.399963229728653;
-        const distance = 28 * Math.sqrt(surroundingIndex + 1);
-        surroundingIndex += 1;
-        nodesRef.current.set(target.id, {
-          ...target,
-          tier: "ambient",
-          x: (anchor?.x ?? 0) + Math.cos(angle) * distance,
-          y: (anchor?.y ?? 0) + Math.sin(angle) * distance,
-          z: depthTargetForNode(target),
-        });
-      }
-      for (const target of view.relations) {
-        if (linksRef.current.has(target.id)) continue;
-        linksRef.current.set(target.id, {
-          ...target,
-          tier: "ambient",
-          source: target.source,
-          target: target.target,
-        });
-      }
+      nodesRef.current.set(target.id, node);
+      starts.set(target.id, { x: node.x ?? 0, y: node.y ?? 0, z: node.z ?? 0 });
+    }
+    for (const target of view.relations) {
+      const existing = linksRef.current.get(target.id);
+      if (existing) Object.assign(existing, target);
+      else linksRef.current.set(target.id, { ...target });
+    }
+    const publishData = () =>
       graph.graphData({
         nodes: [...nodesRef.current.values()],
         links: [...linksRef.current.values()],
       });
-
-      const nodeStarts = new Map(
-        [...nodesRef.current].map(([id, node]) => {
-          const visual = nodeVisualsRef.current.get(id);
-          const target = targetNodes.get(id);
-          if (target) Object.assign(node, target);
-          else node.tier = "ambient";
-          return [
-            id,
-            {
-              x: node.x ?? 0,
-              y: node.y ?? 0,
-              z: node.z ?? 0,
-              radius: visual?.userData.radius ?? radiusFor(node),
-              style: visual?.userData.style ?? nodeStyles[node.tier],
-            },
-          ];
-        }),
-      );
-      const linkStarts = new Map(
-        [...linksRef.current].map(([id, link]) => {
-          const target = targetLinks.get(id);
-          if (target) {
-            link.tier = target.tier;
-            link.label = target.label;
-            link.directionality = target.directionality;
-            link.evidenceGroupCount = target.evidenceGroupCount;
-            if (target.conflict === undefined) delete link.conflict;
-            else link.conflict = target.conflict;
-          } else link.tier = "ambient";
-          return [id, linkVisualsRef.current.get(id)?.userData.opacity ?? 0];
-        }),
-      );
-
-      const oldCenter = nodesRef.current.get(previousCenterRef.current);
-      if (oldCenter && oldCenter.id !== centerId) {
-        delete oldCenter.fx;
-        delete oldCenter.fy;
-        delete oldCenter.fz;
+    publishData();
+    const fitDistance = (wide: boolean) => {
+      const camera = graph.camera() as THREE.PerspectiveCamera;
+      const visible = view.nodes.filter((n) => n.tier !== "ambient");
+      let x = 40,
+        y = 40;
+      for (const node of visible) {
+        const position = targets.get(node.id);
+        if (!position) continue;
+        x = Math.max(x, Math.abs(position.x - anchor.x) + 24);
+        y = Math.max(y, Math.abs(position.y - anchor.y) + 24);
       }
-      const center = nodesRef.current.get(centerId);
-      if (!center) return;
-      center.fx = center.x ?? 0;
-      center.fy = center.y ?? 0;
-      center.fz = Math.max(-depthLimit, Math.min(depthLimit, center.z ?? 0));
-      if (!intro) graph.d3ReheatSimulation();
-
-      const centerChanged = intro || previousCenterRef.current !== centerId;
-      const positions =
-        !intro && centerChanged
-          ? layoutTargets(view.nodes, centerId, {
-              x: center.fx,
-              y: center.fy,
-              z: center.fz,
-            })
-          : new Map<string, Position>();
-      const duration = reducedMotion ? 0 : centerChanged ? 1200 : 320;
-      const startCameraPosition = graph.camera().position.clone();
-      const controls = graph.controls() as GraphControls;
-      const startCameraTarget = controls.target.clone();
-      const endCameraTarget = intro
-        ? startCameraTarget.clone()
-        : new THREE.Vector3(center.x ?? 0, center.y ?? 0, center.z ?? 0);
-      const offset = startCameraPosition.clone().sub(startCameraTarget);
-      if (offset.lengthSq() < 1) offset.set(0, 0, 260);
-      offset.setLength(
-        intro
-          ? Math.max(150, offset.length() * 0.52)
-          : Math.max(150, Math.min(360, offset.length())),
+      const tangent = Math.tan((camera.fov * Math.PI) / 360);
+      return (
+        Math.max(
+          150,
+          x / ((tangent * graph.width()) / graph.height()),
+          y / tangent,
+        ) * (wide ? 1.55 : 1)
       );
-      const endCameraPosition = endCameraTarget.clone().add(offset);
-      const startedAt = performance.now();
-      setBusy(true);
-
-      const animateNode = (id: string, node: RuntimeNode, eased: number) => {
+    };
+    const removeOutgoing = () => {
+      const nodeIds = new Set(view.nodes.map((n) => n.id));
+      const linkIds = new Set(view.relations.map((r) => r.id));
+      retainGraphItems(nodesRef.current, nodeIds);
+      retainGraphItems(linksRef.current, linkIds);
+      retainGraphItems(nodeVisualsRef.current, nodeIds);
+      retainGraphItems(linkVisualsRef.current, linkIds);
+      publishData();
+    };
+    const paint = (progress: number, move: boolean) => {
+      for (const [id, node] of nodesRef.current) {
+        const target = targets.get(id);
+        const start = starts.get(id);
+        if (target && start && move)
+          pinPosition(node as RuntimeNode & Position, {
+            x: start.x + (target.x - start.x) * progress,
+            y: start.y + (target.y - start.y) * progress,
+            z: start.z + (target.z - start.z) * progress,
+          });
         const visual = nodeVisualsRef.current.get(id);
-        const start = nodeStarts.get(id);
-        if (!visual || !start) return;
-        const targetRadius = radiusFor(node);
-        const targetStyle = { ...nodeStyles[node.tier] };
-        if (!targetNodes.has(id)) {
-          targetStyle.opacity = 0;
-          targetStyle.haloOpacity = 0;
-          targetStyle.shellOpacity = 0;
-          targetStyle.labelOpacity = 0;
+        if (!visual) continue;
+        const style = { ...nodeStyles[node.tier] };
+        if (!viewNodesRef.current.has(id)) {
+          style.opacity *= 1 - progress;
+          style.haloOpacity *= 1 - progress;
+          style.labelOpacity *= 1 - progress;
+          style.shellOpacity *= 1 - progress;
         }
-        const position = positions.get(id);
-        if (position) {
-          node.x = node.fx = start.x + (position.x - start.x) * eased;
-          node.y = node.fy = start.y + (position.y - start.y) * eased;
-          node.z = node.fz = start.z + (position.z - start.z) * eased;
+        visual.position.set(node.x ?? 0, node.y ?? 0, node.z ?? 0);
+        applyNodeVisual(visual, node, radiusFor(node), style);
+      }
+      const ids = new Set(view.relations.map((r) => r.id));
+      for (const [id, link] of linksRef.current) {
+        const visual = linkVisualsRef.current.get(id);
+        if (!visual) continue;
+        const source = nodesRef.current.get(endpointId(link.source));
+        const target = nodesRef.current.get(endpointId(link.target));
+        if (source && target)
+          updateLinkPosition(
+            visual,
+            { x: source.x ?? 0, y: source.y ?? 0, z: source.z ?? 0 },
+            { x: target.x ?? 0, y: target.y ?? 0, z: target.z ?? 0 },
+          );
+        const opacity =
+          relationOpacity[link.tier] * (ids.has(id) ? 1 : 1 - progress);
+        for (const line of visual.userData.lines)
+          (line.material as THREE.Material).opacity = opacity;
+        visual.userData.opacity = opacity;
+      }
+    };
+    const animate = (intro: boolean) => {
+      const startCamera = graph.camera().position.clone();
+      const startTarget = controls.target.clone();
+      const endTarget = new THREE.Vector3(anchor.x, anchor.y, anchor.z);
+      const endCamera = endTarget
+        .clone()
+        .add(new THREE.Vector3(0, 0, fitDistance(false)));
+      const duration = reducedMotion ? 0 : 1200;
+      const begun = performance.now();
+      setBusy(true);
+      const frame = (now: number) => {
+        const progress = duration ? Math.min(1, (now - begun) / duration) : 1;
+        const eased = easeInOutCubic(progress);
+        paint(eased, !intro);
+        graph.camera().position.lerpVectors(startCamera, endCamera, eased);
+        controls.target.lerpVectors(startTarget, endTarget, eased);
+        controls.update();
+        if (progress < 1) {
+          animationRef.current = requestAnimationFrame(frame);
+          return;
         }
-        const style = Object.fromEntries(
-          Object.keys(targetStyle).map((key) => {
-            const name = key as keyof NodeStyle;
-            return [
-              name,
-              start.style[name] +
-                (targetStyle[name] - start.style[name]) * eased,
-            ];
-          }),
-        ) as unknown as NodeStyle;
-        applyNodeVisual(
-          visual,
-          node,
-          start.radius + (targetRadius - start.radius) * eased,
-          style,
-        );
-      };
-
-      const finish = () => {
         animationRef.current = null;
         previousCenterRef.current = centerId;
-        const nodeIds = new Set(targetNodes.keys());
-        const linkIds = new Set(targetLinks.keys());
-        retainGraphItems(nodesRef.current, nodeIds);
-        retainGraphItems(linksRef.current, linkIds);
-        retainGraphItems(nodeVisualsRef.current, nodeIds);
-        retainGraphItems(linkVisualsRef.current, linkIds);
-        for (const node of nodesRef.current.values()) {
-          if (node.id === centerId) continue;
-          delete node.fx;
-          delete node.fy;
-          delete node.fz;
+        introCompletedRef.current = true;
+        if (!intro) {
+          removeOutgoing();
+          onTransitionCompleteRef.current(centerId);
         }
-        graph.graphData({
-          nodes: [...nodesRef.current.values()],
-          links: [...linksRef.current.values()],
-        });
-        if (!intro) graph.d3ReheatSimulation();
-        if (centerChanged && !intro) onTransitionCompleteRef.current(centerId);
+        graph.enableNavigationControls(true).enablePointerInteraction(true);
         setBusy(false);
       };
-
-      const animate = (now: number) => {
-        const progress =
-          duration === 0 ? 1 : Math.min(1, (now - startedAt) / duration);
-        const eased = easeInOutCubic(progress);
-        for (const [id, node] of nodesRef.current) animateNode(id, node, eased);
-        for (const [id, link] of linksRef.current) {
-          const visual = linkVisualsRef.current.get(id);
-          if (!visual) continue;
-          const start = linkStarts.get(id) ?? 0;
-          const target = targetLinks.has(id) ? relationOpacity[link.tier] : 0;
-          const opacity = start + (target - start) * eased;
-          for (const line of visual.userData.lines)
-            (line.material as THREE.LineBasicMaterial).opacity = opacity;
-          visual.userData.opacity = opacity;
-        }
-        if (centerChanged) {
-          graph
-            .camera()
-            .position.lerpVectors(
-              startCameraPosition,
-              endCameraPosition,
-              eased,
-            );
-          controls.target.lerpVectors(
-            startCameraTarget,
-            endCameraTarget,
-            eased,
-          );
-          controls.update();
-        }
-        if (progress < 1) animationRef.current = requestAnimationFrame(animate);
-        else {
-          finish();
-        }
-      };
-      animationRef.current = requestAnimationFrame(animate);
+      animationRef.current = requestAnimationFrame(frame);
     };
-
-    if (!dataInitializedRef.current) {
+    if (initial) {
       dataInitializedRef.current = true;
-      let surroundingIndex = 0;
-      const runtimeNodes = view.nodes.map((node) => {
-        const isCenter = node.id === centerId;
-        const index = isCenter ? 0 : surroundingIndex++;
-        const angle = index * 2.399963229728653;
-        const distance = isCenter ? 0 : 28 * Math.sqrt(index + 1);
-        const runtimeNode: RuntimeNode = {
-          ...node,
-          tier: "twoHop",
-          x: Math.cos(angle) * distance,
-          y: Math.sin(angle) * distance,
-          z: isCenter ? 0 : depthTargetForNode(node),
-        };
-        if (isCenter) {
-          runtimeNode.fx = 0;
-          runtimeNode.fy = 0;
-          runtimeNode.fz = 0;
-        }
-        nodesRef.current.set(node.id, runtimeNode);
-        return runtimeNode;
+      paint(1, false);
+      graph.cameraPosition(
+        { x: anchor.x, y: anchor.y, z: anchor.z + fitDistance(true) },
+        anchor,
+        0,
+      );
+      graph.enableNavigationControls(false).enablePointerInteraction(false);
+      animationRef.current = requestAnimationFrame(() => {
+        animationRef.current = null;
+        readyRef.current = true;
+        onReadyRef.current();
       });
-      const runtimeLinks = view.relations.map((relation) => {
-        const runtimeLink: RuntimeLink = {
-          ...relation,
-          tier: "ambient",
-          source: relation.source,
-          target: relation.target,
-        };
-        linksRef.current.set(relation.id, runtimeLink);
-        return runtimeLink;
-      });
-      graph.graphData({ nodes: runtimeNodes, links: runtimeLinks });
-      return;
-    }
-
-    if (!introStarted) return;
-
-    if (!introCompletedRef.current) {
-      introCompletedRef.current = true;
+    } else if (introStarted && !introCompletedRef.current) {
       introTimeoutRef.current = window.setTimeout(
         () => {
           introTimeoutRef.current = null;
-          animateToView(true);
+          animate(true);
         },
         reducedMotion ? 0 : 720,
       );
-      return;
+    } else if (introStarted && changed) {
+      animate(false);
+    } else {
+      paint(1, false);
+      removeOutgoing();
     }
-
-    if (introTimeoutRef.current !== null) {
-      window.clearTimeout(introTimeoutRef.current);
-      introTimeoutRef.current = null;
-    }
-    animateToView();
     return () => {
       if (animationRef.current !== null)
         cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+      if (introTimeoutRef.current !== null)
+        window.clearTimeout(introTimeoutRef.current);
+      introTimeoutRef.current = null;
     };
   }, [centerId, introStarted, view]);
 
