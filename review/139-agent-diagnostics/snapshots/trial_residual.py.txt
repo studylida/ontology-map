@@ -1,0 +1,223 @@
+"""Local #139 scope-isolation trial; no product modules or database access."""
+
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import stat
+import sys
+
+ROOT = Path(__file__).resolve().parent
+PRIOR = ROOT.parent / "model-studio-reassessment"
+sys.path.insert(0, str(PRIOR))
+import run as previous
+import amend as previous_amendment
+import contracts
+
+base = previous.base
+
+
+def initialize():
+    previous.verify()
+    previous_amendment.verify_amendment()
+    base.ROOT = ROOT
+
+
+def dependencies():
+    paths = [Path(__file__), ROOT / "contracts.py", ROOT / "evaluation.json", ROOT / "policy-change.json",
+             PRIOR / "results.jsonl", PRIOR / "ledger.json", PRIOR / "frozen.json", PRIOR / "amendment-frozen.json"]
+    return {str(path): base.digest(path) for path in paths}
+
+
+def prepare():
+    initialize()
+    state = base.read(PRIOR / "ledger.json")
+    if state["pending"] or state["calls"] != len((PRIOR / "results.jsonl").read_text().splitlines()):
+        raise ValueError("UNRESOLVED_PRIOR_LEDGER")
+    if not base.read(ROOT / "evaluation.json")["status"].startswith("FROZEN"):
+        raise ValueError("EVALUATION_NOT_REVIEWED")
+    inherited = base.initial_ledger()
+    for key in ("development_reserved_or_actual_usd", "heldout_reserved_or_actual_usd"):
+        inherited[key] = state[key]
+    inherited["inherited_calls"] = state["calls"] + state["inherited_calls"]
+    base.save_once(ROOT / "ledger.json", inherited)
+    base.save_once(ROOT / "frozen.json", {"hashes": dependencies(), "policy": "speaker-attributed evaluation"})
+
+
+def verify():
+    initialize()
+    if base.read(ROOT / "frozen.json")["hashes"] != dependencies():
+        raise ValueError("FROZEN_DEPENDENCY_CHANGED")
+    base.reconcile_pending()
+
+
+def cases():
+    for index, axis in enumerate(base.read(ROOT / "evaluation.json")["axes"]):
+        variants = axis["variants"] if index % 2 else list(reversed(axis["variants"]))
+        for variant in variants:
+            yield axis, variant
+
+
+def article_for(axis):
+    return axis.get("article_override") or base.axis_input(axis)["article"]
+
+
+def claim_input(axis, claim, scope):
+    article = article_for(axis)
+    selected = set(claim["main_source_ids"] + claim["context_source_ids"])
+    if scope == "selected":
+        article = [source for source in article if source["source_id"] in selected]
+    elif scope != "full":
+        raise ValueError("INVALID_EVIDENCE_SCOPE")
+    return {"article": article, "claim": {**claim, "claim_id": "c1"}}
+
+
+def evidence_jobs(stage):
+    pilot = {"A1", "A5"}
+    selected_axes = {"pilot": pilot, "expand": {"A2", "A3", "A4", "A6", "A7"},
+                     "repeat": {f"A{i}" for i in range(1, 8)}}[stage]
+    repeat = 2 if stage == "repeat" else 1
+    scopes = ("full", "selected") if stage == "pilot" else ("selected",)
+    jobs = []
+    for axis, variant in cases():
+        if axis["axis_id"] not in selected_axes:
+            continue
+        for number, claim in enumerate(variant["claims"], 1):
+            for scope in scopes:
+                identity = f"evidence-{scope}-{axis['axis_id']}-{variant['kind'].lower()}-c{number}-{repeat}"
+                jobs.append((identity, base.PLUS, contracts.EvidenceOutput, contracts.EVIDENCE_PROMPT,
+                             claim_input(axis, claim, scope), 2200, False, contracts.validate_evidence))
+    return jobs
+
+
+def atomic_jobs(method, stage):
+    pilot = {"A4", "A6"}
+    selected_axes = {"pilot": pilot, "expand": {"A1", "A2", "A3", "A5", "A7"},
+                     "repeat": {f"A{i}" for i in range(1, 8)}}[stage]
+    repeat = 2 if stage == "repeat" else 1
+    variants = ("verdict", "units") if method == "both" else (method,)
+    jobs = []
+    for axis, variant in cases():
+        if axis["axis_id"] not in selected_axes:
+            continue
+        inputs = {"article": article_for(axis), "claims": [
+            {**claim, "claim_id": f"c{index}"} for index, claim in enumerate(variant["claims"], 1)]}
+        for output_method in variants:
+            shape, validator, prompt = atomic_contract(output_method)
+            identity = f"atomic-{output_method}-{axis['axis_id']}-{variant['kind'].lower()}-{repeat}"
+            jobs.append((identity, base.PLUS, shape, prompt, inputs, 2200, False, validator))
+    return jobs
+
+
+def atomic_contract(method):
+    if method == "units":
+        return (contracts.DecomposedOutput, contracts.validate_decomposed,
+                contracts.ATOMIC_PROMPT + contracts.DECOMPOSITION_ADDENDUM)
+    if method == "verdict":
+        return contracts.AtomicOutput, contracts.validate_atomic, contracts.ATOMIC_PROMPT
+    raise ValueError("UNKNOWN_ATOMIC_METHOD")
+
+
+def basis_cases():
+    axes = {axis["axis_id"]: axis for axis in base.read(ROOT / "evaluation.json")["axes"]}
+    rows = [json.loads(line) for line in (PRIOR / "results.jsonl").read_text().splitlines()]
+    for row in rows:
+        if not row["identity"].startswith("amended-preservation-"):
+            continue
+        axis = axes[row["identity"].split("-")[2]]
+        facts = [fact for source in row["output"]["sources"] for fact in source["facts"]]
+        for number, fact in enumerate(facts, 1):
+            claim = {"statement": fact["statement"], "main_source_ids": fact["basis_source_ids"],
+                     "context_source_ids": []}
+            inputs = claim_input(axis, claim, "selected")
+            digest = hashlib.sha256(json.dumps(inputs, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+            yield {"origin": row["identity"], "fact_no": number, "identity": "basis-" + digest[:24], "inputs": inputs}
+
+
+def basis_jobs():
+    # Identical fact/evidence requests reuse one result; these are not independent repetitions.
+    return list({item["identity"]: (item["identity"], base.PLUS, contracts.EvidenceOutput,
+                 contracts.EVIDENCE_PROMPT, item["inputs"], 2200, False, contracts.validate_evidence)
+                 for item in basis_cases()}.values())
+
+
+def jobs_for(phase):
+    if phase == "preservation-basis":
+        return basis_jobs()
+    if phase == "atomic-pilot":
+        return atomic_jobs("both", "pilot")
+    parts = phase.split("-")
+    if len(parts) == 2 and parts[0] == "evidence":
+        return evidence_jobs(parts[1])
+    if len(parts) == 3 and parts[0] == "atomic":
+        return atomic_jobs(parts[1], parts[2])
+    raise ValueError("UNKNOWN_PHASE")
+
+
+def manifest(phase):
+    verify()
+    jobs = jobs_for(phase)
+    for job in jobs:
+        shape = contracts.EvidenceInput if job[2] is contracts.EvidenceOutput else contracts.AtomicInput
+        shape.model_validate(job[4])
+    plan = base.manifest_for(phase, jobs)
+    base.save_once(ROOT / f"manifest-{phase}.json", plan)
+    return plan
+
+
+def run_phase(phase, comment_id):
+    # Same lock as previous generations: only one paid trial may use the shared budget.
+    with (previous.PRIOR / "paid-run.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        verify()
+        jobs = jobs_for(phase)
+        path = ROOT / f"manifest-{phase}.json"
+        if base.read(path) != base.manifest_for(phase, jobs):
+            raise ValueError("CHANGED_MANIFEST")
+        base.save_once(ROOT / f"authorization-{phase}.json", {
+            "issue_comment_id": comment_id, "manifest_sha256": base.digest(path)})
+        directory = base.credentials.CONFIG.parent.stat()
+        if stat.S_IMODE(directory.st_mode) != 0o700 or directory.st_uid != os.getuid():
+            raise ValueError("CREDENTIAL_DIRECTORY_PERMISSIONS")
+        base.complete_call = previous.complete_call
+        try:
+            base.credentials.load_key()
+            for job, expected in zip(jobs, base.read(path)["calls"], strict=True):
+                payload = base.build_payload(*job[1:7])
+                digest = hashlib.sha256(json.dumps(payload, ensure_ascii=False).encode()).hexdigest()
+                if digest != expected["request_sha256"]:
+                    raise ValueError("OUTGOING_PAYLOAD_CHANGED")
+                base.call(*job)
+        finally:
+            os.environ.pop("DASHSCOPE_API_KEY", None)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", choices=["prepare", "plan", "run"])
+    parser.add_argument("phase", nargs="?", default="evidence-pilot")
+    parser.add_argument("--paid", action="store_true")
+    parser.add_argument("--comment-id", type=int)
+    args = parser.parse_args()
+    if args.command == "prepare":
+        prepare()
+        print("OFFLINE_PREPARED")
+    elif args.command == "plan":
+        print(json.dumps(manifest(args.phase), indent=2))
+    elif args.paid and args.comment_id and args.comment_id > 0:
+        run_phase(args.phase, args.comment_id)
+    else:
+        raise ValueError("EXPLICIT_PAID_FLAG_AND_COMMENT_REQUIRED")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as error:  # noqa: BLE001 - keep secret-bearing tracebacks out of output
+        print(json.dumps({"status": "STOPPED", "error_type": type(error).__name__,
+                          "reason": str(error) if isinstance(error, ValueError) else "details suppressed"}))
+        raise SystemExit(1) from None
+    finally:
+        os.environ.pop("DASHSCOPE_API_KEY", None)
