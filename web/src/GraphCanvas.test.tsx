@@ -612,6 +612,54 @@ it("근접 조망에서 숨긴 2단계는 축소하면 같은 좌표로 나타�
   expect(second.position).toEqual(position);
 });
 
+it("근접 조망은 1단계 간선만, 축소 뒤에는 2단계 간선까지만 표시한다", () => {
+  const callbacks = props();
+  const relations = (["direct", "twoHop", "threeHop", "ambient"] as const).map(
+    (tier) => ({
+      id: tier,
+      source: "1",
+      target: "2",
+      label: tier,
+      tier,
+      directionality: "DIRECTED" as const,
+      evidenceGroupCount: 1,
+      conflict: false,
+    }),
+  );
+  render(
+    <GraphCanvas
+      {...callbacks}
+      view={{ ...view, relations }}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(16));
+  const { camera, target, labels, scene } = harness;
+  if (!camera || !target || !labels || !scene)
+    throw new Error("graph가 없습니다.");
+  labels.render(scene, camera);
+  const nearVisibility = harness.options.get("linkVisibility");
+  if (!nearVisibility) throw new Error("간선 표시 규칙이 없습니다.");
+  expect(relations.map((link) => nearVisibility(link as never))).toEqual([
+    true,
+    false,
+    false,
+    false,
+  ]);
+  camera.position.sub(target).multiplyScalar(2).add(target);
+  labels.render(scene, camera);
+  const farVisibility = harness.options.get("linkVisibility");
+  if (!farVisibility) throw new Error("간선 표시 규칙이 없습니다.");
+  expect(relations.map((link) => farVisibility(link as never))).toEqual([
+    true,
+    true,
+    false,
+    false,
+  ]);
+});
+
 it("hover 대상은 맥동하고 테마 변경은 graph와 배율을 보존한다", () => {
   const callbacks = props();
   const { rerender } = render(
