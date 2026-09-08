@@ -60,3 +60,31 @@ it("불규칙한 배치에서도 페이지 추가가 기존 자리를 재사용�
   );
   expect(layoutTargets(nodes, "0", anchor, [], first)).toEqual(next);
 });
+
+it("깊이를 늘려도 평면 배치·중심 기준점과 추가 page의 기존 좌표를 유지한다", () => {
+  const nodes = Array.from(
+    { length: 100 },
+    (_, id) => ({ id: String(id) }) as KnowledgeNode,
+  );
+  const anchor = { x: 80, y: -40, z: 25 };
+  const shallow = layoutTargets(nodes, "0", anchor);
+  const deep = layoutTargets(nodes, "0", anchor, [], new Map(), 2);
+  expect(deep.get("0")).toEqual(anchor);
+  for (const [id, position] of deep) {
+    expect(position.x).toBe(shallow.get(id)?.x);
+    expect(position.y).toBe(shallow.get(id)?.y);
+    expect(Math.abs(position.z - anchor.z)).toBeLessThanOrEqual(64);
+  }
+  expect([...deep.values()].some((p) => p.z - anchor.z > 50)).toBe(true);
+  expect([...deep.values()].some((p) => p.z - anchor.z < -50)).toBe(true);
+  const first = layoutTargets(
+    nodes.slice(0, 60),
+    "0",
+    anchor,
+    [],
+    new Map(),
+    2,
+  );
+  const paged = layoutTargets(nodes, "0", anchor, [], first, 2);
+  for (const [id, position] of first) expect(paged.get(id)).toEqual(position);
+});
