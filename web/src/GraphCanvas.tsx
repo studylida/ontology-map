@@ -839,7 +839,7 @@ export function GraphCanvas({
           if (designPreview) {
             if (!visual.userData.shell.visible)
               visual.userData.shell.material.opacity = 0;
-            visual.userData.shell.visible = nodeIds.has(item.id);
+            visual.userData.shell.visible ||= nodeIds.has(item.id);
             visual.userData.shell.material.blending = THREE.NormalBlending;
             visual.userData.shell.material.color.set(
               themeRef.current === "light" ? "#245ac1" : "#e6f0ff",
@@ -855,9 +855,9 @@ export function GraphCanvas({
           );
         }
         return {
-          item,
           visual,
           shellFrom: visual?.userData.shell.material.opacity ?? 0,
+          shellTo: nodeIds.has(item.id) ? 1 : 0,
           from: visual
             ? (visual.userData.halo.material as THREE.SpriteMaterial).opacity
             : 0,
@@ -897,20 +897,17 @@ export function GraphCanvas({
         const progress = reducedMotion
           ? 1
           : Math.min(1, (now - startedAt) / 400);
-        const pulse = reducedMotion
-          ? 1
-          : 0.78 +
-            0.22 *
-              Math.cos((Math.max(0, now - startedAt - 400) * Math.PI) / 650);
         const eased = progress * progress * (3 - 2 * progress);
         for (const target of nodeTargets) {
           if (!target.visual) continue;
-          if (designPreview && nodeIds.has(target.item.id)) {
+          if (designPreview) {
             target.visual.userData.shell.scale.setScalar(
-              target.visual.userData.radius * (1.2 + pulse * 0.1),
+              target.visual.userData.radius * 1.3,
             );
             target.visual.userData.shell.material.opacity =
-              target.shellFrom + (pulse - target.shellFrom) * eased;
+              target.shellFrom + (target.shellTo - target.shellFrom) * eased;
+            if (progress === 1)
+              target.visual.userData.shell.visible = target.shellTo > 0;
           }
           (
             target.visual.userData.halo.material as THREE.SpriteMaterial
@@ -920,7 +917,7 @@ export function GraphCanvas({
           if (!target.visual) continue;
           const opacity =
             designPreview && target.focused
-              ? target.from + (pulse - target.from) * eased
+              ? target.from + (1 - target.from) * eased
               : target.from + (target.to - target.from) * eased;
           for (const [index, line] of target.visual.userData.lines.entries()) {
             (line.material as THREE.Material).opacity = opacity;
@@ -934,10 +931,7 @@ export function GraphCanvas({
           }
           target.visual.userData.opacity = opacity;
         }
-        if (
-          progress < 1 ||
-          (designPreview && !reducedMotion && nodeIds.size > 0)
-        )
+        if (progress < 1)
           hoverAnimationRef.current = requestAnimationFrame(animate);
         else hoverAnimationRef.current = null;
       };
@@ -1515,6 +1509,8 @@ export function GraphCanvas({
     for (const [id, visual] of nodeVisualsRef.current) {
       visual.userData.lightMode = light;
       const node = nodesRef.current.get(id);
+      const shellOpacity = visual.userData.shell.material.opacity;
+      const shellScale = visual.userData.shell.scale.clone();
       if (node)
         applyNodeVisual(
           visual,
@@ -1522,6 +1518,8 @@ export function GraphCanvas({
           visual.userData.radius,
           visual.userData.style,
         );
+      visual.userData.shell.material.opacity = shellOpacity;
+      visual.userData.shell.scale.copy(shellScale);
       visual.userData.occluder.material.color.set(
         light ? "#f5f7fa" : "#111416",
       );

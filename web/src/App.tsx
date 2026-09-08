@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import styles from "./App.module.css";
 import { DetailPanel } from "./DetailPanel";
 import {
@@ -105,11 +112,13 @@ function TrailHeader({
   currentId,
   nodes,
   onSelect,
+  children,
 }: {
   trail: string[];
   currentId: string | undefined;
   nodes: Map<string, KnowledgeNode>;
   onSelect: (nodeId: string, trailIndex: number) => void;
+  children?: ReactNode;
 }) {
   return (
     <header className={styles.header}>
@@ -146,6 +155,7 @@ function TrailHeader({
           })}
         </ol>
       </nav>
+      {children}
     </header>
   );
 }
@@ -486,22 +496,22 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
           currentId={currentView?.centerId}
           nodes={nodeCacheRef.current}
           onSelect={selectNode}
-        />
-
-        {designPreview && (
-          <div className={styles.previewBadge}>
-            <button
-              type="button"
-              aria-label="라이트 모드"
-              aria-pressed={theme === "light"}
-              onClick={() =>
-                setTheme((current) => (current === "dark" ? "light" : "dark"))
-              }
-            >
-              {theme === "dark" ? "☀ 라이트 모드" : "☾ 다크 모드"}
-            </button>
-          </div>
-        )}
+        >
+          {designPreview && (
+            <div className={styles.themeControl}>
+              <button
+                type="button"
+                aria-label="라이트 모드"
+                aria-pressed={theme === "light"}
+                onClick={() =>
+                  setTheme((current) => (current === "dark" ? "light" : "dark"))
+                }
+              >
+                {theme === "dark" ? "☀ 라이트 모드" : "☾ 다크 모드"}
+              </button>
+            </div>
+          )}
+        </TrailHeader>
         <section className={styles.workspace}>
           {peripheral.graphView && (
             <GraphCanvas
@@ -531,7 +541,6 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                 <label htmlFor="node-search">노드 검색</label>
                 <NodeSearch onSelect={selectNode} />
                 <div className={styles.scopeSummary}>
-                  <span>현재 지도</span>
                   <strong>
                     {currentNode.name} 주변 · 노드{" "}
                     {peripheral.graphView?.nodes.length ??

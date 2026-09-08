@@ -165,7 +165,7 @@ export function NodeSearch({
   };
 
   return (
-    <>
+    <div className={styles.search}>
       <div className={styles.searchBox}>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="10.5" cy="10.5" r="6.5" />
@@ -175,6 +175,7 @@ export function NodeSearch({
           id="node-search"
           type="search"
           role="combobox"
+          aria-label="노드 검색"
           aria-autocomplete="list"
           aria-controls={listId}
           aria-expanded={open}
@@ -231,6 +232,6 @@ export function NodeSearch({
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }

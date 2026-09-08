@@ -23,13 +23,26 @@ function overlap(a: Box, b: Box) {
 
 // ponytail: 검토 자료 규모의 O(n²) label 배치다. 수백 개 label에서 비용이 확인되면 공간 색인을 검토한다.
 export function placePreviewLabels(container: HTMLElement) {
-  const labels = [...container.querySelectorAll<HTMLElement>("[data-node-id]")]
+  const allLabels = [
+    ...container.querySelectorAll<HTMLElement>("[data-node-id]"),
+  ];
+  const labels = allLabels
     .filter(
       (label) =>
         label.style.display !== "none" && Number(label.style.opacity) > 0,
     )
-    .sort((a, b) => priority(a) - priority(b));
-  const signature = `${container.clientWidth}:${container.clientHeight}:${labels.map((label) => `${label.style.transform}:${label.style.opacity}:${label.dataset.focused}:${label.dataset.tier}`).join("|")}`;
+    .sort(
+      (a, b) =>
+        priority(a) - priority(b) ||
+        (a.dataset.nodeId ?? "").localeCompare(b.dataset.nodeId ?? "", "en", {
+          numeric: true,
+        }),
+    );
+  const signature = `${container.clientWidth}:${container.clientHeight}:${labels.map((label) => `${label.dataset.nodeId}:${label.textContent}:${label.style.transform}:${label.style.opacity}:${label.dataset.focused}:${label.dataset.tier}`).join("|")}`;
+  // CSS2DRenderer가 매 frame 설정하는 깊이 순서보다 중심·초점 이름을 앞에 둔다.
+  for (const label of labels)
+    if (priority(label) <= 0)
+      label.style.zIndex = String(allLabels.length + 1 - priority(label));
   if (layouts.get(container) === signature) return;
   layouts.set(container, signature);
   const bounds = container.getBoundingClientRect();
@@ -48,10 +61,6 @@ export function placePreviewLabels(container: HTMLElement) {
       [-box.width / 2 - 8, 24],
       [-box.width - 16, -24],
       [-box.width - 16, 24],
-      [0, -48],
-      [0, 48],
-      [-box.width / 2 - 8, -48],
-      [-box.width / 2 - 8, 48],
     ];
     const candidates = offsets.map(([dx = 0, dy = 0]) => ({
       x: box.x + dx,
@@ -74,6 +83,10 @@ export function placePreviewLabels(container: HTMLElement) {
       candidates[0] ?? box,
     );
     label.style.translate = `${best.x - box.x}px ${best.y - box.y}px`;
+    const protectedLabel = priority(label) <= 0;
+    const hidden = !protectedLabel && cost(best) > 0;
+    label.style.visibility = hidden ? "hidden" : "visible";
+    if (hidden) return;
     placed.push({ ...best, width: best.width + 4, height: best.height + 3 });
   });
 }
