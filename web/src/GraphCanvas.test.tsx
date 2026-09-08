@@ -71,6 +71,7 @@ vi.mock("3d-force-graph", () => ({
         if (key === "linkThreeObject")
           return (factory: typeof linkFactory) => {
             linkFactory = factory;
+            harness.options.set(key, factory);
             return proxy;
           };
         if (key === "graphData")
@@ -642,4 +643,43 @@ it("hover 대상은 맥동하고 테마 변경은 graph와 배율을 보존한�
   act(() => harness.options.get("onNodeHover")?.(null as never));
   act(() => vi.advanceTimersByTime(200));
   expect(visual.userData.shell.visible).toBe(false);
+});
+
+it("배치 완료 뒤 다시 생성된 간선도 첫 hover 전에 좌표를 갖는다", () => {
+  const relation: KnowledgeRelation = {
+    id: "late-link",
+    source: "1",
+    target: "2",
+    label: "관계",
+    tier: "direct",
+    directionality: "DIRECTED",
+    evidenceGroupCount: 1,
+    conflict: false,
+  };
+  render(
+    <GraphCanvas
+      {...props()}
+      view={{ ...view, relations: [relation] }}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(16));
+  const recreate = harness.options.get("linkThreeObject");
+  if (!recreate) throw new Error("간선 생성기가 없습니다.");
+  const group = recreate(relation as never) as THREE.Group;
+  const line = group.children[0] as THREE.Line;
+  const raycaster = new THREE.Raycaster(
+    new THREE.Vector3(0, 0, 100),
+    new THREE.Vector3(0, 0, -1),
+  );
+  expect(() => raycaster.intersectObject(group, true)).not.toThrow();
+  const position = line.geometry.getAttribute("position");
+  const source = harness.nodes.get("1")?.position;
+  const target = harness.nodes.get("2")?.position;
+  if (!source || !target) throw new Error("간선의 양 끝이 없습니다.");
+  expect(position.count).toBeGreaterThan(1);
+  expect(position.getX(0)).toBeCloseTo(source.x);
+  expect(position.getY(position.count - 1)).toBeCloseTo(target.y);
 });
