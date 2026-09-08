@@ -4,7 +4,7 @@
 
 이 문서는 [SQLAlchemy metadata](../../server/src/ontology_map/db/schema.py)의 실제 table, column, constraint와 index를 이름순으로 보여 주는 생성 결과다. 데이터 의미와 수명주기는 [논리 스키마](logical-schema.md), PostgreSQL 공통 표현 규칙은 [물리 스키마](physical-schema.md)가 소유한다.
 
-- table 수: 43
+- table 수: 49
 - 생성 명령: `uv run --project server --frozen python scripts/check_docs.py --write`
 - 검사 명령: `uv run --project server --frozen python scripts/check_docs.py --check`
 
@@ -40,7 +40,13 @@
 - [`node_embedding`](#node_embedding)
 - [`node_insight`](#node_insight)
 - [`node_insight_claim`](#node_insight_claim)
+- [`node_insight_section`](#node_insight_section)
+- [`node_insight_section_claim`](#node_insight_section_claim)
+- [`node_insight_window`](#node_insight_window)
 - [`node_merge`](#node_merge)
+- [`node_question`](#node_question)
+- [`node_question_claim`](#node_question_claim)
+- [`node_question_set`](#node_question_set)
 - [`node_search_document`](#node_search_document)
 - [`node_type`](#node_type)
 - [`observation`](#observation)
@@ -1049,6 +1055,103 @@ alias가 확인된 원문 위치를 다대다로 연결한다.
 | --- | --- | --- | --- |
 | `ix_node_insight_claim__claim` | 아니요 | `claim_id, node_insight_id` | — |
 
+## `node_insight_section`
+
+종합보고서의 주요 발견과 해석. 사실은 기존 Claim을 참조한다.
+
+### Columns
+
+| 이름 | PostgreSQL type | nullable | default | identity | 설명 |
+| --- | --- | --- | --- | --- | --- |
+| `section_id` | `BIGINT` | 아니요 | — | `GENERATED ALWAYS AS IDENTITY` | — |
+| `node_insight_id` | `BIGINT` | 아니요 | — | — | — |
+| `display_order` | `INTEGER` | 아니요 | — | — | — |
+| `title` | `TEXT` | 아니요 | — | — | — |
+| `synthesis_text` | `TEXT` | 아니요 | — | — | — |
+| `caveat_text` | `TEXT` | 예 | — | — | — |
+
+### Constraints
+
+| 종류 | 이름 | 정의 |
+| --- | --- | --- |
+| CHECK | `ck_node_insight_section__caveat` | `CHECK (caveat_text IS NULL OR btrim(caveat_text) <> '')` |
+| CHECK | `ck_node_insight_section__order` | `CHECK (display_order > 0)` |
+| CHECK | `ck_node_insight_section__text` | `CHECK (btrim(title) <> '' AND btrim(synthesis_text) <> '')` |
+| FOREIGN KEY | `fk_node_insight_section__node_insight` | `FOREIGN KEY (node_insight_id) REFERENCES node_insight (node_insight_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| PRIMARY KEY | `pk_node_insight_section` | `PRIMARY KEY (section_id)` |
+| UNIQUE | `uq_node_insight_section__order` | `UNIQUE (node_insight_id, display_order)` |
+
+### Indexes
+
+| 이름 | unique | column 또는 expression | 조건 |
+| --- | --- | --- | --- |
+| — | — | — | — |
+
+## `node_insight_section_claim`
+
+생성물이 사용하는 기존 Claim과 역할·순서. 원문과 사실의 사본을 만들지 않는다.
+
+### Columns
+
+| 이름 | PostgreSQL type | nullable | default | identity | 설명 |
+| --- | --- | --- | --- | --- | --- |
+| `section_id` | `BIGINT` | 아니요 | — | — | — |
+| `claim_id` | `BIGINT` | 아니요 | — | — | — |
+| `role` | `TEXT` | 아니요 | — | — | — |
+| `display_order` | `INTEGER` | 아니요 | — | — | — |
+
+### Constraints
+
+| 종류 | 이름 | 정의 |
+| --- | --- | --- |
+| CHECK | `ck_node_insight_section_claim__order` | `CHECK (display_order > 0)` |
+| CHECK | `ck_node_insight_section_claim__role` | `CHECK (role IN ('KEY_CLAIM', 'SUPPORTING_CLAIM', 'CONTRASTING_CLAIM'))` |
+| FOREIGN KEY | `fk_node_insight_section_claim__claim` | `FOREIGN KEY (claim_id) REFERENCES claim (claim_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| FOREIGN KEY | `fk_node_insight_section_claim__node_insight_section` | `FOREIGN KEY (section_id) REFERENCES node_insight_section (section_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| PRIMARY KEY | `pk_node_insight_section_claim` | `PRIMARY KEY (section_id, claim_id)` |
+| UNIQUE | `uq_node_insight_section_claim__order` | `UNIQUE (section_id, display_order)` |
+
+### Indexes
+
+| 이름 | unique | column 또는 expression | 조건 |
+| --- | --- | --- | --- |
+| — | — | — | — |
+
+## `node_insight_window`
+
+선택된 작업의 기간별 종합보고서 준비 결과. NULL 보고서는 정상 0개이며 빈 분석을 저장하지 않는다.
+
+### Columns
+
+| 이름 | PostgreSQL type | nullable | default | identity | 설명 |
+| --- | --- | --- | --- | --- | --- |
+| `insight_window_id` | `BIGINT` | 아니요 | — | `GENERATED ALWAYS AS IDENTITY` | — |
+| `node_id` | `BIGINT` | 아니요 | — | — | — |
+| `node_search_document_id` | `BIGINT` | 아니요 | — | — | — |
+| `model_task_id` | `BIGINT` | 아니요 | — | — | — |
+| `time_window` | `TEXT` | 아니요 | — | — | — |
+| `as_of_at` | `TIMESTAMP WITH TIME ZONE` | 아니요 | — | — | — |
+| `node_insight_id` | `BIGINT` | 예 | — | — | — |
+
+### Constraints
+
+| 종류 | 이름 | 정의 |
+| --- | --- | --- |
+| CHECK | `ck_node_insight_window__as_of` | `CHECK (isfinite(as_of_at))` |
+| CHECK | `ck_node_insight_window__window` | `CHECK (time_window IN ('RECENT_90_DAYS', 'RECENT_1_YEAR'))` |
+| FOREIGN KEY | `fk_node_insight_window__model_task` | `FOREIGN KEY (model_task_id) REFERENCES model_task (model_task_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| FOREIGN KEY | `fk_node_insight_window__node` | `FOREIGN KEY (node_id) REFERENCES node (node_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| FOREIGN KEY | `fk_node_insight_window__node_insight` | `FOREIGN KEY (node_insight_id) REFERENCES node_insight (node_insight_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| FOREIGN KEY | `fk_node_insight_window__node_search_document` | `FOREIGN KEY (node_search_document_id) REFERENCES node_search_document (node_search_document_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| PRIMARY KEY | `pk_node_insight_window` | `PRIMARY KEY (insight_window_id)` |
+| UNIQUE | `uq_node_insight_window__task_window` | `UNIQUE (model_task_id, time_window)` |
+
+### Indexes
+
+| 이름 | unique | column 또는 expression | 조건 |
+| --- | --- | --- | --- |
+| — | — | — | — |
+
 ## `node_merge`
 
 동일 대상으로 확인된 source node ID를 canonical node ID로 해석하는 리디렉션 이력. alias 변경이나 기존 근거의 물리 이동이 아니다.
@@ -1084,6 +1187,101 @@ alias가 확인된 원문 위치를 다대다로 연결한다.
 | `ix_node_merge__active_canonical` | 아니요 | `canonical_node_id, source_node_id` | `node_merge.reversed_at IS NULL` |
 | `ix_node_merge__source_history` | 아니요 | `source_node_id, node_merge.merged_at DESC` | — |
 | `uq_node_merge__active_source` | 예 | `source_node_id` | `node_merge.reversed_at IS NULL` |
+
+## `node_question`
+
+현재 노드를 이해하는 질문과 저장 답변. 클릭으로 지도의 중심을 바꾸지 않는다.
+
+### Columns
+
+| 이름 | PostgreSQL type | nullable | default | identity | 설명 |
+| --- | --- | --- | --- | --- | --- |
+| `question_id` | `BIGINT` | 아니요 | — | `GENERATED ALWAYS AS IDENTITY` | — |
+| `question_set_id` | `BIGINT` | 아니요 | — | — | — |
+| `display_order` | `INTEGER` | 아니요 | — | — | — |
+| `question_text` | `TEXT` | 아니요 | — | — | — |
+| `answer_text` | `TEXT` | 아니요 | — | — | — |
+| `caveat_text` | `TEXT` | 예 | — | — | — |
+| `section_id` | `BIGINT` | 예 | — | — | — |
+
+### Constraints
+
+| 종류 | 이름 | 정의 |
+| --- | --- | --- |
+| CHECK | `ck_node_question__caveat` | `CHECK (caveat_text IS NULL OR btrim(caveat_text) <> '')` |
+| CHECK | `ck_node_question__order` | `CHECK (display_order > 0)` |
+| CHECK | `ck_node_question__text` | `CHECK (btrim(question_text) <> '' AND btrim(answer_text) <> '')` |
+| FOREIGN KEY | `fk_node_question__node_insight_section` | `FOREIGN KEY (section_id) REFERENCES node_insight_section (section_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| FOREIGN KEY | `fk_node_question__node_question_set` | `FOREIGN KEY (question_set_id) REFERENCES node_question_set (question_set_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| PRIMARY KEY | `pk_node_question` | `PRIMARY KEY (question_id)` |
+| UNIQUE | `uq_node_question__order` | `UNIQUE (question_set_id, display_order)` |
+
+### Indexes
+
+| 이름 | unique | column 또는 expression | 조건 |
+| --- | --- | --- | --- |
+| — | — | — | — |
+
+## `node_question_claim`
+
+생성물이 사용하는 기존 Claim과 역할·순서. 원문과 사실의 사본을 만들지 않는다.
+
+### Columns
+
+| 이름 | PostgreSQL type | nullable | default | identity | 설명 |
+| --- | --- | --- | --- | --- | --- |
+| `question_id` | `BIGINT` | 아니요 | — | — | — |
+| `claim_id` | `BIGINT` | 아니요 | — | — | — |
+| `role` | `TEXT` | 아니요 | — | — | — |
+| `display_order` | `INTEGER` | 아니요 | — | — | — |
+
+### Constraints
+
+| 종류 | 이름 | 정의 |
+| --- | --- | --- |
+| CHECK | `ck_node_question_claim__order` | `CHECK (display_order > 0)` |
+| CHECK | `ck_node_question_claim__role` | `CHECK (role IN ('KEY_CLAIM', 'SUPPORTING_CLAIM', 'CONTRASTING_CLAIM'))` |
+| FOREIGN KEY | `fk_node_question_claim__claim` | `FOREIGN KEY (claim_id) REFERENCES claim (claim_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| FOREIGN KEY | `fk_node_question_claim__node_question` | `FOREIGN KEY (question_id) REFERENCES node_question (question_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| PRIMARY KEY | `pk_node_question_claim` | `PRIMARY KEY (question_id, claim_id)` |
+| UNIQUE | `uq_node_question_claim__order` | `UNIQUE (question_id, display_order)` |
+
+### Indexes
+
+| 이름 | unique | column 또는 expression | 조건 |
+| --- | --- | --- | --- |
+| — | — | — | — |
+
+## `node_question_set`
+
+공개 context의 기간별 불변 질문 묶음. 성공한 빈 묶음과 미준비를 구분한다.
+
+### Columns
+
+| 이름 | PostgreSQL type | nullable | default | identity | 설명 |
+| --- | --- | --- | --- | --- | --- |
+| `question_set_id` | `BIGINT` | 아니요 | — | `GENERATED ALWAYS AS IDENTITY` | — |
+| `node_context_id` | `BIGINT` | 아니요 | — | — | — |
+| `model_task_id` | `BIGINT` | 아니요 | — | — | — |
+| `time_window` | `TEXT` | 아니요 | — | — | — |
+| `as_of_at` | `TIMESTAMP WITH TIME ZONE` | 아니요 | — | — | — |
+
+### Constraints
+
+| 종류 | 이름 | 정의 |
+| --- | --- | --- |
+| CHECK | `ck_node_question_set__as_of` | `CHECK (isfinite(as_of_at))` |
+| CHECK | `ck_node_question_set__window` | `CHECK (time_window IN ('RECENT_90_DAYS', 'RECENT_1_YEAR'))` |
+| FOREIGN KEY | `fk_node_question_set__model_task` | `FOREIGN KEY (model_task_id) REFERENCES model_task (model_task_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| FOREIGN KEY | `fk_node_question_set__node_context` | `FOREIGN KEY (node_context_id) REFERENCES node_context (node_context_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| PRIMARY KEY | `pk_node_question_set` | `PRIMARY KEY (question_set_id)` |
+| UNIQUE | `uq_node_question_set__context_window` | `UNIQUE (node_context_id, time_window)` |
+
+### Indexes
+
+| 이름 | unique | column 또는 expression | 조건 |
+| --- | --- | --- | --- |
+| — | — | — | — |
 
 ## `node_search_document`
 

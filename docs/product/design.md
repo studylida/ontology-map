@@ -301,17 +301,22 @@ Issue #67의 POC에서 직접 이웃의 관계선 core는 전환 감쇠 전 불�
 
 ### Detail panel
 
-상세 panel은 node 이름, 유형과 두 줄 이내의 맥락 설명 아래에 `탐색`, `근거`와 `인사이트` tab을 둔다. 새 중심 node로 이동하면 `탐색` tab을 기본으로 연다. tab bar는 panel을 scroll해도 상단에 남으며 `ArrowLeft`와 `ArrowRight`로 이동할 수 있다.
+상세 panel의 공통 header는 node 이름과 유형을 표시하고 `탐색`, `근거`, `인사이트` tab을 제공한다. tab bar는 scroll 중에도 상단에 남고 ArrowLeft·ArrowRight로 이동한다. 중심 또는 기간 변경 시 탐색 tab으로 돌아가며 펼친 답변과 보고서를 닫고 이전 요청을 취소한다. 패널의 읽기 요청은 지도 exploration과 분리하여 카메라 이동을 기다리게 하지 않는다.
 
-`탐색` tab은 확인된 직접 관계 2개, 2단계 연결 경로 1개와 주변부 공개 node 1개를 기본 추천으로 표시한다. 부족한 범주는 다른 공개 후보로 채워 추천을 4개로 유지한다. 각 카드에는 node 이름과 유형, 실제 Relation 이름과 양 끝 node를 연결한 경로, `확인된 관계`, `연결 경로 있음` 또는 `관계 미확인` 상태를 표시하고 실제 직접 Relation에만 정확한 독립 근거 수를 붙인다. 추천은 선택 시간 범위의 관측 활동량과 독립 근거 수를 사용해 결정적으로 정렬하지만 의미가 섞인 추천 점수는 표시하지 않는다. 추천 응답의 `path[]`는 실제 Relation ID·양 끝 ID와 이름·관계명·directionality·근거 수·충돌 여부를 담고 직접 추천은 1개, 2단계는 2개, 주변부는 빈 배열이다. Claim 요약을 카드에 추가하지 않는다. 후속 질문 2개는 추천 카드 다음의 tab 하단에 두며 #113에서 정한 `DIRECT` 우선, `TWO_HOP` 보완, 중심 node fallback target으로 이동한다. `AMBIENT`는 후속 질문 target이 아니다.
+`탐색`은 현재 node의 맥락 설명 → 후속 질문 → 이어서 탐색 순서다. 후속 질문은 현재 공개 근거로 답할 수 있는 질문과 사전 저장한 짧은 답변이며 node 이동 action이 아니다. 처음 4개와 추가 4개를 server cursor로 표시한다. 총개수를 맞추거나 상한 때문에 유용한 질문을 버리지 않으며 답이 같은 질문은 생성 품질 검토에서 합친다. 답변은 panel 안에서 펼쳐 읽고 사용한 Claim과 구체적인 한계를 확인한다. 연결된 인사이트 절이 현재 유효할 때만 `관련 분석 읽기`를 제공하며 답변 자체는 보고서 없이도 읽을 수 있다. 생성 worker·prompt·실제 모델 품질은 #129에 보류 상태로 남는다.
 
-`근거` tab은 중심 node의 확인된 Relation 목록과 각 Relation의 근거 진입점을 제공한다. 상세 Relation 행과 graph Relation은 같은 Evidence Trace dialog를 열고, dialog는 Claim, publisher, publication time, 인용문과 원문 위치를 구분해 표시하며 backend cursor로 같은 Relation의 근거를 이어서 조회한다. 실제 원문 URL이 있을 때만 `원문 열기`를 제공한다. dialog는 focus 이동·복귀, Escape·바깥 영역 클릭 닫기와 접근 가능한 이름을 제공하고 Relation 선택으로 중심 node를 바꾸지 않는다. 확인된 관계 행에도 실제 방향을 반영한 양 끝 node와 관계명을 표시한다. 현재 화면은 `근거` tab의 `확인된 관계` 목록에서 공용 dialog로 연결한다. 관계에 속하지 않는 node Claim을 별도 `확인된 사실`로 보여주는 데 필요한 조회·표시 경계는 현재 구현에 없으며 실제 필요성이 확인되면 별도 범위로 다룬다.
+이어서 탐색은 기존 추천의 실제 경로, 관계 방향, 독립 근거 수와 상태를 유지한다. 기본 추천은 직접 관계 2개, 2단계 1개와 주변부 1개이며 부족한 범주는 공개 후보로 보완한다. 실제 Relation이 없는 주변부에 관계가 있는 것처럼 표시하지 않는다. 선택한 추천만 중심 node 이동을 수행한다.
 
-`인사이트` tab에는 사전 생성된 종합 분석의 제목과 연결된 근거 수만 표시한다. 제목을 선택하면 viewport 중앙에 modal dialog를 열고 확인된 사실, 종합 해석, 연결 근거와 해석 시 유의점을 분리해 표시한다. 연결 근거는 dialog 안에서 여러 건을 동시에 펼쳐 인용문, 출처와 원문 위치를 비교할 수 있으며 두 건 이상 펼치면 `모두 접기`를 제공한다. 이 동작은 상세 panel의 tab이나 scroll 상태를 바꾸지 않는다. dialog surface는 0.88 불투명도, backdrop은 0.12 불투명도를 사용하고 blur와 gradient를 적용하지 않아 뒤의 지식맵을 계속 볼 수 있게 한다. dialog가 열린 동안 배경 조작을 막고 닫기 button, Escape와 바깥 영역 클릭을 지원하며 닫은 뒤 선택한 제목으로 focus를 돌려준다. 중심 node가 바뀌면 `탐색` tab으로 돌아가고 열린 분석 dialog를 닫는다.
+`근거`는 선택 node의 속성 Claim, 사건 시간 근거, 관계의 지지·반박 Claim과 해당 대상의 공개 충돌 구성원을 Claim 단위로 제공한다. 같은 Claim이 여러 경로로 연결돼도 한 번 표시하고 연결 대상들을 함께 표시한다. 목록을 펼치면 원문 인용·출처·게시 시점·문단과 문자 범위를 조회한다. 독립 근거 수는 기간 내 원문 계보 묶음 수이며 확신 점수가 아니다. 그래프 Relation 선택은 기존 공용 Evidence Trace dialog를 계속 열며 중심을 바꾸지 않는다.
 
-현재 인사이트 tab은 DB에 저장된 최신 READY 결과를 읽는다. `NODE_INSIGHT + SUCCESS` 작업에 해당 window의 결과가 0행이면 정상 빈 목록이고, legacy READY나 필요한 bundle이 없으면 `503 PUBLICATION_NOT_READY`와 재시도를 제공한다. basis Claim 또는 같은 검색 문서의 다른 basis가 비공개·열린 BLOCKING lint 상태가 되면 인사이트 전체를 목록에서 숨기고 해당 상세는 `404 INSIGHT_NOT_FOUND`로 처리한다. 과거 READY 인사이트 ID도 현재 선택 결과가 아니면 숨긴다. 새 publication이 실패해도 이전 READY 선택은 유지한다. 읽기 요청은 동일한 REPEATABLE READ snapshot에서 공개 검사와 근거 조회를 수행한다. 생성 worker와 품질 검증은 별도 후속 작업으로 남으며 node나 인사이트 제목을 선택할 때 모델을 호출하지 않는다.
+`인사이트`는 선택 기간의 한 종합보고서에 대한 요약과 발견별 목차를 표시한다. 제목이나 목차에서 큰 modal dialog를 열며 선택한 절로 이동한다. 보고서는 핵심 요약, 발견별 근거가 되는 주장·종합 해석·한계, 필요한 종합으로 구성한다. Claim과 원문을 여러 건 함께 펼쳐 비교할 수 있고 두 건 이상 펼치면 모두 접기를 제공한다. 팝업은 배경 조작을 막고 닫기·Escape·바깥 클릭으로 닫히며 원래 opener로 focus를 돌려준다. 팝업을 여는 것은 지도 중심이나 배율을 바꾸지 않는다.
 
-후속 질문은 공개 가능한 target node로 이동하는 action이다. 일반 본문처럼 보이게 만들지 않고 명확한 button 또는 link로 표시한다. target은 #113에 따라 애플리케이션이 결정하며 모델은 target을 다시 고르지 않는다. 클릭 중 모델 호출이 일어나는 것처럼 loading animation을 보여주지 않는다.
+질문·근거·인사이트는 모두 90일·1년 선택을 따른다. 생성물의 기간 계산은 저장한 `as_of_at` 기준이고 목록에 기준일을 표시한다. Claim 목록의 첫 조회는 현재 시각을 기준으로 기간을 고정하고 cursor에 같은 시각을 이어간다. 출처 게시일이 선택 기간에 드는 Claim을 목록에 포함하며 Trace에서는 기간 밖 배경 자료와 게시 시점 미상을 구분해 보존한다. 게시일을 사건 발생일로 해석하지 않는다.
+
+새 패널 계약은 #162와 #163에서 기존 이동형 질문·개별 인사이트 목록 계약을 대체한다. 기존 `followup_question` 데이터와 exploration의 호환 필드, 기존 인사이트 API는 보존하지만 새 화면에서 이동형 질문을 사용하지 않는다. 기존 답변이나 통합 보고서가 없는 자료를 자동 재해석하지 않는다. 새 기간별 결과가 없으면 `503 PANEL_NOT_READY`, 유효한 빈 묶음 또는 0개 보고서는 정상 빈 목록이다. 선택된 최신 READY의 전체 basis와 사용 Claim을 목록·상세에서 재검증하고 비공개·열린 BLOCKING 근거가 있으면 생성물을 제공하지 않는다. 새 publication 실패는 여전히 유효한 이전 READY를 유지한다. 생성 worker 구현 완료나 실제 생성 품질을 개발 fixture로 증명하지 않는다.
+
+패널 읽기 API는 `GET /api/v1/nodes/{node_id}/questions`, `GET /api/v1/questions/{question_id}`, `GET /api/v1/nodes/{node_id}/claims`, `GET /api/v1/nodes/{node_id}/claims/{claim_id}/evidence`, `GET /api/v1/nodes/{node_id}/insight-report`다. node 목록과 report는 필수 `time_window`를 받는다. questions는 page당 4개, claims는 기본 10·최대 50개, Claim Trace는 20개를 제공하고 server cursor로 이어간다. Trace는 답변·Claim이 제공한 timezone 포함 `as_of_at`을 받는다. report는 `detail=false`에서 요약·목차, `detail=true`에서 절별 본문과 Claim 참조를 반환한다. 잘못된 입력·cursor는 `422 INVALID_REQUEST`, 공개 대상 부재는 `404 PANEL_NOT_FOUND`, 결과 미준비·무효화는 `503 PANEL_NOT_READY`다. 공개 쓰기·모델 실행 endpoint는 추가하지 않는다.
+
 
 ### 상태
 

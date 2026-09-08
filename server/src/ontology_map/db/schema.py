@@ -3050,3 +3050,287 @@ sa.Index(
     publication_affected_node.c.node_id,
     publication_affected_node.c.promotion_batch_id.desc(),
 )
+
+
+node_question_set = sa.Table(
+    "node_question_set",
+    metadata,
+    sa.Column(
+        "question_set_id", sa.BigInteger, sa.Identity(always=True), nullable=False
+    ),
+    sa.Column(
+        "node_context_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "node_context.node_context_id",
+            name="fk_node_question_set__node_context",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=False,
+    ),
+    sa.Column(
+        "model_task_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "model_task.model_task_id",
+            name="fk_node_question_set__model_task",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=False,
+    ),
+    sa.Column("time_window", sa.Text, nullable=False),
+    sa.Column("as_of_at", sa.DateTime(timezone=True), nullable=False),
+    sa.PrimaryKeyConstraint("question_set_id", name="pk_node_question_set"),
+    sa.UniqueConstraint(
+        "node_context_id", "time_window", name="uq_node_question_set__context_window"
+    ),
+    sa.CheckConstraint(
+        "time_window IN ('RECENT_90_DAYS', 'RECENT_1_YEAR')",
+        name="ck_node_question_set__window",
+    ),
+    sa.CheckConstraint("isfinite(as_of_at)", name="ck_node_question_set__as_of"),
+    comment="공개 context의 기간별 불변 질문 묶음. 성공한 빈 묶음과 미준비를 구분한다.",
+)
+
+
+node_insight_window = sa.Table(
+    "node_insight_window",
+    metadata,
+    sa.Column(
+        "insight_window_id", sa.BigInteger, sa.Identity(always=True), nullable=False
+    ),
+    sa.Column(
+        "node_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "node.node_id",
+            name="fk_node_insight_window__node",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=False,
+    ),
+    sa.Column(
+        "node_search_document_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "node_search_document.node_search_document_id",
+            name="fk_node_insight_window__node_search_document",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=False,
+    ),
+    sa.Column(
+        "model_task_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "model_task.model_task_id",
+            name="fk_node_insight_window__model_task",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=False,
+    ),
+    sa.Column("time_window", sa.Text, nullable=False),
+    sa.Column("as_of_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column(
+        "node_insight_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "node_insight.node_insight_id",
+            name="fk_node_insight_window__node_insight",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=True,
+    ),
+    sa.PrimaryKeyConstraint("insight_window_id", name="pk_node_insight_window"),
+    sa.UniqueConstraint(
+        "model_task_id", "time_window", name="uq_node_insight_window__task_window"
+    ),
+    sa.CheckConstraint(
+        "time_window IN ('RECENT_90_DAYS', 'RECENT_1_YEAR')",
+        name="ck_node_insight_window__window",
+    ),
+    sa.CheckConstraint("isfinite(as_of_at)", name="ck_node_insight_window__as_of"),
+    comment=(
+        "선택된 작업의 기간별 종합보고서 준비 결과. "
+        "NULL 보고서는 정상 0개이며 빈 분석을 저장하지 않는다."
+    ),
+)
+
+
+node_insight_section = sa.Table(
+    "node_insight_section",
+    metadata,
+    sa.Column("section_id", sa.BigInteger, sa.Identity(always=True), nullable=False),
+    sa.Column(
+        "node_insight_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "node_insight.node_insight_id",
+            name="fk_node_insight_section__node_insight",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=False,
+    ),
+    sa.Column("display_order", sa.Integer, nullable=False),
+    sa.Column("title", sa.Text, nullable=False),
+    sa.Column("synthesis_text", sa.Text, nullable=False),
+    sa.Column("caveat_text", sa.Text, nullable=True),
+    sa.PrimaryKeyConstraint("section_id", name="pk_node_insight_section"),
+    sa.UniqueConstraint(
+        "node_insight_id", "display_order", name="uq_node_insight_section__order"
+    ),
+    sa.CheckConstraint("display_order > 0", name="ck_node_insight_section__order"),
+    sa.CheckConstraint(
+        "btrim(title) <> '' AND btrim(synthesis_text) <> ''",
+        name="ck_node_insight_section__text",
+    ),
+    sa.CheckConstraint(
+        "caveat_text IS NULL OR btrim(caveat_text) <> ''",
+        name="ck_node_insight_section__caveat",
+    ),
+    comment="종합보고서의 주요 발견과 해석. 사실은 기존 Claim을 참조한다.",
+)
+
+
+node_question = sa.Table(
+    "node_question",
+    metadata,
+    sa.Column("question_id", sa.BigInteger, sa.Identity(always=True), nullable=False),
+    sa.Column(
+        "question_set_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "node_question_set.question_set_id",
+            name="fk_node_question__node_question_set",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=False,
+    ),
+    sa.Column("display_order", sa.Integer, nullable=False),
+    sa.Column("question_text", sa.Text, nullable=False),
+    sa.Column("answer_text", sa.Text, nullable=False),
+    sa.Column("caveat_text", sa.Text, nullable=True),
+    sa.Column(
+        "section_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "node_insight_section.section_id",
+            name="fk_node_question__node_insight_section",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=True,
+    ),
+    sa.PrimaryKeyConstraint("question_id", name="pk_node_question"),
+    sa.UniqueConstraint(
+        "question_set_id", "display_order", name="uq_node_question__order"
+    ),
+    sa.CheckConstraint("display_order > 0", name="ck_node_question__order"),
+    sa.CheckConstraint(
+        "btrim(question_text) <> '' AND btrim(answer_text) <> ''",
+        name="ck_node_question__text",
+    ),
+    sa.CheckConstraint(
+        "caveat_text IS NULL OR btrim(caveat_text) <> ''",
+        name="ck_node_question__caveat",
+    ),
+    comment=(
+        "현재 노드를 이해하는 질문과 저장 답변. 클릭으로 지도의 중심을 바꾸지 않는다."
+    ),
+)
+
+
+node_question_claim = sa.Table(
+    "node_question_claim",
+    metadata,
+    sa.Column(
+        "question_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "node_question.question_id",
+            name="fk_node_question_claim__node_question",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=False,
+    ),
+    sa.Column(
+        "claim_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "claim.claim_id",
+            name="fk_node_question_claim__claim",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=False,
+    ),
+    sa.Column("role", sa.Text, nullable=False),
+    sa.Column("display_order", sa.Integer, nullable=False),
+    sa.PrimaryKeyConstraint("question_id", "claim_id", name="pk_node_question_claim"),
+    sa.UniqueConstraint(
+        "question_id", "display_order", name="uq_node_question_claim__order"
+    ),
+    sa.CheckConstraint("display_order > 0", name="ck_node_question_claim__order"),
+    sa.CheckConstraint(
+        "role IN ('KEY_CLAIM', 'SUPPORTING_CLAIM', 'CONTRASTING_CLAIM')",
+        name="ck_node_question_claim__role",
+    ),
+    comment=(
+        "생성물이 사용하는 기존 Claim과 역할·순서. 원문과 사실의 사본을 만들지 않는다."
+    ),
+)
+
+
+node_insight_section_claim = sa.Table(
+    "node_insight_section_claim",
+    metadata,
+    sa.Column(
+        "section_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "node_insight_section.section_id",
+            name="fk_node_insight_section_claim__node_insight_section",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=False,
+    ),
+    sa.Column(
+        "claim_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "claim.claim_id",
+            name="fk_node_insight_section_claim__claim",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=False,
+    ),
+    sa.Column("role", sa.Text, nullable=False),
+    sa.Column("display_order", sa.Integer, nullable=False),
+    sa.PrimaryKeyConstraint(
+        "section_id", "claim_id", name="pk_node_insight_section_claim"
+    ),
+    sa.UniqueConstraint(
+        "section_id", "display_order", name="uq_node_insight_section_claim__order"
+    ),
+    sa.CheckConstraint(
+        "display_order > 0", name="ck_node_insight_section_claim__order"
+    ),
+    sa.CheckConstraint(
+        "role IN ('KEY_CLAIM', 'SUPPORTING_CLAIM', 'CONTRASTING_CLAIM')",
+        name="ck_node_insight_section_claim__role",
+    ),
+    comment=(
+        "생성물이 사용하는 기존 Claim과 역할·순서. 원문과 사실의 사본을 만들지 않는다."
+    ),
+)

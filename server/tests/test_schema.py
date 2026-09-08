@@ -64,7 +64,7 @@ def test_frozen_schema_inventory_and_named_objects() -> None:
     application_tables = set(inspector.get_table_names()) - {"alembic_version"}
 
     assert application_tables == set(metadata.tables)
-    assert len(application_tables) == 43
+    assert len(application_tables) == 49
     assert application_tables.isdisjoint(DEFERRED_TABLES)
     _assert_named_schema_objects(inspector)
 
