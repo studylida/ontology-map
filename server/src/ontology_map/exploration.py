@@ -15,11 +15,13 @@ from ontology_map.db.exploration import (
     list_ambient_nodes,
     list_followups,
     list_peripheral_node_rows,
+    list_previous_peripheral_ids,
 )
 from ontology_map.pagination import InvalidCursorError, decode_cursor, encode_cursor
 
 MAX_DIRECT_NODES = 12
 MAX_TWO_HOP_NODES = 18
+MAX_THREE_HOP_NODES = 20
 MAX_RELATIONS = 60
 MAX_RECOMMENDATIONS = 4
 
@@ -357,26 +359,41 @@ def get_exploration(
     direct_ids = {candidate.node.node_id for candidate in direct}
     two_hop_rows = list_adjacencies(session, sorted(direct_ids))
     two_hop_candidates = _collect_candidates(
-        two_hop_rows, {center_node_id, *direct_ids}
+        two_hop_rows, {center_node_id, *direct_candidates}
     )
     two_hop_activity = get_activity_counts(
         session, list(two_hop_candidates), start_at, end_at
     )
     two_hop = _rank_candidates(two_hop_candidates, two_hop_activity)[:MAX_TWO_HOP_NODES]
 
+    two_hop_ids = {candidate.node.node_id for candidate in two_hop}
+    # 표시 상한에서 제외된 가까운 node를 실제 3단계로 잘못 분류하지 않는다.
+    all_two_hop = _collect_candidates(
+        list_adjacencies(session, sorted(direct_candidates)),
+        {center_node_id, *direct_candidates},
+    )
+    three_candidates = _collect_candidates(
+        list_adjacencies(session, sorted(two_hop_ids)),
+        {center_node_id, *direct_candidates, *all_two_hop},
+    )
+    three_activity = get_activity_counts(
+        session, list(three_candidates), start_at, end_at
+    )
+    three_hop = _rank_candidates(three_candidates, three_activity)[:MAX_THREE_HOP_NODES]
     selected_ids = {
         center_node_id,
         *direct_ids,
-        *(candidate.node.node_id for candidate in two_hop),
+        *two_hop_ids,
+        *(candidate.node.node_id for candidate in three_hop),
     }
     activity_counts = get_activity_counts(
         session, sorted(selected_ids), start_at, end_at
     )
     relation_rows = list_adjacencies(session, sorted(selected_ids))
     relations = _collect_relations(relation_rows, selected_ids)
-    selected_relations = _select_relations(relations, center_node_id, direct, two_hop)[
-        :MAX_RELATIONS
-    ]
+    selected_relations = _select_relations(
+        relations, center_node_id, direct, two_hop + three_hop
+    )[:MAX_RELATIONS]
 
     ambient = list_ambient_nodes(
         session,
@@ -423,6 +440,16 @@ def get_exploration(
             for candidate in two_hop
         ),
     ]
+    graph_nodes.extend(
+        GraphNode(
+            node_id=c.node.node_id,
+            name=c.node.name,
+            node_type=_node_type(c.node),
+            tier="THREE_HOP",
+            activity_evidence_group_count=activity_counts.get(c.node.node_id, 0),
+        )
+        for c in three_hop
+    )
     graph_relations = [
         GraphRelation(
             relation_id=relation.relation_id,
@@ -517,7 +544,10 @@ def list_peripheral_nodes(
     )
     page_rows = rows[:limit]
     page_node_ids = {node.node_id for node, _activity_count in page_rows}
-    selected_node_ids = active_node_ids | page_node_ids
+    previous_ids = set(
+        list_previous_peripheral_ids(session, sorted(active_node_ids), after_node_id)
+    )
+    selected_node_ids = active_node_ids | page_node_ids | previous_ids
     relations = _collect_relations(
         list_adjacencies(session, sorted(selected_node_ids)),
         selected_node_ids,
@@ -529,7 +559,7 @@ def list_peripheral_nodes(
             if _connects_page_to_active(
                 relation,
                 page_node_ids,
-                active_node_ids,
+                selected_node_ids,
             )
         ),
         key=lambda relation: relation.relation_id,

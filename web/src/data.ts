@@ -1,5 +1,5 @@
 export type TimeRange = "90d" | "1y";
-export type NodeTier = "center" | "direct" | "twoHop" | "ambient";
+export type NodeTier = "center" | "direct" | "twoHop" | "threeHop" | "ambient";
 
 export interface KnowledgeNode {
   id: string;
@@ -107,6 +107,7 @@ function nodeTier(value: unknown): Exclude<NodeTier, "ambient"> {
   if (value === "CENTER") return "center";
   if (value === "DIRECT") return "direct";
   if (value === "TWO_HOP") return "twoHop";
+  if (value === "THREE_HOP") return "threeHop";
   throw new APIRequestError("INVALID_RESPONSE", 0, true);
 }
 
@@ -114,6 +115,8 @@ function relationTier(
   source: KnowledgeNode,
   target: KnowledgeNode,
 ): Exclude<NodeTier, "center"> {
+  if (source.tier === "threeHop" || target.tier === "threeHop")
+    return "threeHop";
   if (
     source.tier === "center" ||
     target.tier === "center" ||

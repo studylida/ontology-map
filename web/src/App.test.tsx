@@ -159,6 +159,10 @@ describe("exploration API 화면", () => {
     vi.stubGlobal("fetch", (input: string, init?: RequestInit) => {
       if (/\/nodes\/[^/]+\/relations/.test(input))
         return Promise.resolve(response({ items: [], next_cursor: null }));
+      if (input.includes("/peripheral?"))
+        return Promise.resolve(
+          response({ graph: { nodes: [], relations: [] }, next_cursor: null }),
+        );
       return fetchMock(input, init);
     });
     fetchMock.mockReset();

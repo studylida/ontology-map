@@ -48,3 +48,33 @@ it("바깥 20%를 향한 이동만 감지하고 이동 종료 후 200ms 동안 �
   controls.dispose();
   vi.useRealTimers();
 });
+
+it("사용자 축소만 다음 페이지를 요청하고 확대와 프로그램 이동은 무시한다", () => {
+  vi.useFakeTimers();
+  const camera = new PerspectiveCamera();
+  camera.position.z = 100;
+  const controls = new OrbitControls(camera, document.createElement("div"));
+  const load = vi.fn();
+  const stop = watchBoundaryPan(
+    controls,
+    () => [],
+    () => true,
+    load,
+  );
+  controls.dispatchEvent({ type: "start" });
+  camera.position.z = 80;
+  controls.dispatchEvent({ type: "end" });
+  vi.advanceTimersByTime(201);
+  camera.position.z = 120;
+  controls.dispatchEvent({ type: "change" });
+  vi.advanceTimersByTime(201);
+  expect(load).not.toHaveBeenCalled();
+  controls.dispatchEvent({ type: "start" });
+  camera.position.z = 150;
+  controls.dispatchEvent({ type: "end" });
+  vi.advanceTimersByTime(201);
+  expect(load).toHaveBeenCalledTimes(1);
+  stop();
+  controls.dispose();
+  vi.useRealTimers();
+});

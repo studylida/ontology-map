@@ -49,6 +49,7 @@ interface GraphCanvasProps {
   onReady: () => void;
   onPanBoundary: () => void;
   panelOpen: boolean;
+  onIntroComplete: () => void;
   onEvidence: (selection: EvidenceSelection) => void;
 }
 
@@ -123,8 +124,17 @@ const nodeStyles: Record<NodeTier, NodeStyle> = {
     labelOpacity: 0.66,
     colorScale: 0.86,
   },
+  threeHop: {
+    opacity: 0.6,
+    emission: 0.6,
+    haloOpacity: 0.08,
+    haloFactor: 3.8,
+    shellOpacity: 0,
+    labelOpacity: 0.35,
+    colorScale: 0.7,
+  },
   ambient: {
-    opacity: 0.48,
+    opacity: 0.28,
     emission: 0.46,
     haloOpacity: 0.055,
     haloFactor: 3.8,
@@ -134,7 +144,12 @@ const nodeStyles: Record<NodeTier, NodeStyle> = {
   },
 };
 
-const relationOpacity = { direct: 0.9, twoHop: 0.56, ambient: 0.3 } as const;
+const relationOpacity = {
+  direct: 0.9,
+  twoHop: 0.56,
+  threeHop: 0.3,
+  ambient: 0.18,
+} as const;
 
 function radiusFor(node: RuntimeNode): number {
   const activity = node.activityEvidenceGroupCount;
@@ -380,6 +395,7 @@ export function GraphCanvas({
   onEvidence,
   onPanBoundary,
   panelOpen,
+  onIntroComplete,
 }: GraphCanvasProps) {
   const centerId = view.centerId;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -410,6 +426,10 @@ export function GraphCanvas({
   const [hoveredRelation, setHoveredRelation] = useState<string | null>(null);
   const focusRelationRef = useRef<(id: string | null) => void>(() => {});
   const onEvidenceRef = useRef(onEvidence);
+  const onIntroRef = useRef(onIntroComplete);
+  useEffect(() => {
+    onIntroRef.current = onIntroComplete;
+  }, [onIntroComplete]);
   const onPanRef = useRef(onPanBoundary);
   useEffect(() => {
     onPanRef.current = onPanBoundary;
@@ -751,7 +771,9 @@ export function GraphCanvas({
     publishData();
     const fitDistance = (wide: boolean) => {
       const camera = graph.camera() as THREE.PerspectiveCamera;
-      const visible = view.nodes.filter((n) => n.tier !== "ambient");
+      const visible = wide
+        ? view.nodes
+        : view.nodes.filter((n) => n.tier !== "ambient");
       let x = 40,
         y = 40;
       for (const node of visible) {
@@ -843,6 +865,7 @@ export function GraphCanvas({
         animationRef.current = null;
         previousCenterRef.current = centerId;
         introCompletedRef.current = true;
+        if (intro) onIntroRef.current();
         if (!intro) {
           removeOutgoing();
           onTransitionCompleteRef.current(centerId);
@@ -879,6 +902,12 @@ export function GraphCanvas({
     } else {
       paint(1, false);
       removeOutgoing();
+      if (!introStarted)
+        graph.cameraPosition(
+          { x: anchor.x, y: anchor.y, z: anchor.z + fitDistance(true) },
+          anchor,
+          0,
+        );
     }
     return () => {
       if (animationRef.current !== null)

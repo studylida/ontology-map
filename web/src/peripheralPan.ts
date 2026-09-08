@@ -37,6 +37,7 @@ export function watchBoundaryPan(
 ): () => void {
   let start: Position | null = null;
   let waiting = false;
+  let startDistance = 0;
   let timer: number | undefined;
   const cancel = () => {
     window.clearTimeout(timer);
@@ -48,7 +49,9 @@ export function watchBoundaryPan(
       if (
         start &&
         canLoad() &&
-        approachesBoundary(getNodes(), start, controls.target)
+        (approachesBoundary(getNodes(), start, controls.target) ||
+          controls.object.position.distanceTo(controls.target) >
+            startDistance + 0.5)
       )
         onBoundary();
       start = null;
@@ -58,6 +61,7 @@ export function watchBoundaryPan(
     cancel();
     waiting = false;
     start = controls.target.clone();
+    startDistance = controls.object.position.distanceTo(controls.target);
   };
   const onEnd = () => {
     if (canLoad()) {
