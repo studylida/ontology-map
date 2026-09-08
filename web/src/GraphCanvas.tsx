@@ -1267,6 +1267,10 @@ export function GraphCanvas({
       const endCamera = endTarget
         .clone()
         .add(new THREE.Vector3(0, 0, fitDistance(false)));
+      const overviewDistance = Math.max(
+        fitDistance(false),
+        (fitDistance(true) / 100) * 1.15,
+      );
       const begun = performance.now();
       if (
         mode === "resize" &&
@@ -1276,11 +1280,13 @@ export function GraphCanvas({
       const duration =
         reducedMotion || (intro && introCompleted)
           ? 0
-          : moveCamera
-            ? 1200
-            : mode === "restore"
-              ? preparationDuration
-              : Math.max(0, (resizeDeadlineRef.current ?? begun) - begun);
+          : intro && designPreview
+            ? 2380
+            : moveCamera
+              ? 1200
+              : mode === "restore"
+                ? preparationDuration
+                : Math.max(0, (resizeDeadlineRef.current ?? begun) - begun);
       paint(0, !intro);
       setBusy(true);
       const frame = (now: number) => {
@@ -1294,15 +1300,24 @@ export function GraphCanvas({
           if (intro && designPreview) {
             const from = startCamera.distanceTo(startTarget);
             const to = endCamera.distanceTo(endTarget);
+            const elapsed = progress * 2380;
+            const arriving = elapsed < 900;
+            const stage = arriving
+              ? elapsed / 900
+              : Math.max(0, (elapsed - 1180) / 1200);
+            const stageFrom = arriving ? from : overviewDistance;
+            const stageTo = arriving ? overviewDistance : to;
             const distance = Math.exp(
-              Math.log(from) + (Math.log(to) - Math.log(from)) * eased,
+              Math.log(stageFrom) +
+                (Math.log(stageTo) - Math.log(stageFrom)) *
+                  easeInOutCubic(stage),
             );
             graph
               .camera()
               .position.set(endTarget.x, endTarget.y, endTarget.z + distance);
             if (labelLayer)
               labelLayer.style.opacity = String(
-                Math.max(0, (progress - 0.45) / 0.55),
+                Math.min(1, Math.max(0, (elapsed - 450) / 450)),
               );
           }
           controls.target.lerpVectors(startTarget, endTarget, eased);
