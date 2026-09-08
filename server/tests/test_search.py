@@ -192,6 +192,15 @@ def test_repository_prioritizes_exact_alias_then_fts_with_stable_ties() -> None:
                 is_preferred=False,
             )
         )
+        # 검토 자료를 함께 적재해도 정렬 검사는 같은 공개 후보 집합을 사용한다.
+        session.execute(
+            knowledge_item.update()
+            .where(
+                knowledge_item.c.item_kind == "NODE",
+                knowledge_item.c.knowledge_item_id.not_in(list(node_ids.values())),
+            )
+            .values(current_state="ON_HOLD")
+        )
         results = search_nodes(session, "공개", 3)
 
     assert [result.node.node_id for result in results] == [
