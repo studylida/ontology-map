@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { toExplorationView } from "./data";
 
 vi.mock("./GraphCanvas", () => ({
   GraphCanvas: ({
@@ -482,4 +483,33 @@ describe("exploration API 화면", () => {
     expect(screen.queryByRole("option", { name: /HBF/ })).toBeNull();
     expect(screen.getByRole("option", { name: /UCIe/ })).toBeTruthy();
   });
+});
+
+it("중심에 닿은 간선만 직접 관계로 강조하고 직접 이웃끼리의 선은 구분한다", () => {
+  const payload = exploration();
+  const center = payload.graph.nodes[0];
+  const neighbor = payload.graph.nodes[1];
+  const edge = payload.graph.relations[0];
+  if (!center || !neighbor || !edge)
+    throw new Error("검토 graph가 비었습니다.");
+  payload.graph.nodes.push({ ...neighbor, node_id: "3" });
+  payload.graph.relations.push(
+    {
+      ...edge,
+      relation_id: "neighbors",
+      source_node_id: neighbor.node_id,
+      target_node_id: "3",
+    },
+    {
+      ...edge,
+      relation_id: "incoming",
+      source_node_id: "3",
+      target_node_id: center.node_id,
+    },
+  );
+  expect(toExplorationView(payload).relations.map((r) => r.tier)).toEqual([
+    "direct",
+    "twoHop",
+    "direct",
+  ]);
 });

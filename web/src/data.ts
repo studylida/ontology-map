@@ -115,16 +115,10 @@ function relationTier(
   source: KnowledgeNode,
   target: KnowledgeNode,
 ): Exclude<NodeTier, "center"> {
+  if (source.tier === "center" || target.tier === "center") return "direct";
+  if (source.tier === "ambient" || target.tier === "ambient") return "ambient";
   if (source.tier === "threeHop" || target.tier === "threeHop")
     return "threeHop";
-  if (
-    source.tier === "center" ||
-    target.tier === "center" ||
-    source.tier === "direct" ||
-    target.tier === "direct"
-  ) {
-    return "direct";
-  }
   return "twoHop";
 }
 
@@ -536,7 +530,10 @@ export async function fetchPeripheral(
       directionality: directionality(item.directionality),
       evidenceGroupCount: number(item.supporting_evidence_group_count),
       conflict: boolean(item.has_conflict),
-      tier: "ambient" as const,
+      tier:
+        source === view.centerId || target === view.centerId
+          ? ("direct" as const)
+          : ("ambient" as const),
     };
   });
   return { nodes, relations, nextCursor: nullableString(payload.next_cursor) };

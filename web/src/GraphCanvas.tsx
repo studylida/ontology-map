@@ -146,15 +146,15 @@ const nodeStyles: Record<NodeTier, NodeStyle> = {
 
 const relationOpacity = {
   direct: 0.9,
-  twoHop: 0.56,
-  threeHop: 0.3,
-  ambient: 0.18,
+  twoHop: 0.36,
+  threeHop: 0.22,
+  ambient: 0.12,
 } as const;
 
 function radiusFor(node: RuntimeNode): number {
   const activity = node.activityEvidenceGroupCount;
   const radius = activity >= 6 ? 3.5 : activity >= 3 ? 2.35 : 1.6;
-  return radius * 2.5;
+  return radius * 1.75;
 }
 
 function makeGlowTexture(): THREE.CanvasTexture {
@@ -202,7 +202,7 @@ function applyNodeVisual(
   visual.userData.surface.material.opacity = style.opacity;
   visual.userData.surface.scale.setScalar(radius);
   visual.userData.occluder.scale.setScalar(radius * 1.04);
-  visual.userData.occluder.material.opacity = style.opacity;
+  visual.userData.occluder.visible = style.opacity > 0;
   visual.userData.core.material.color.copy(color);
   visual.userData.core.material.opacity = style.opacity;
   visual.userData.core.scale.setScalar(radius * 0.22);
@@ -221,6 +221,8 @@ function applyNodeVisual(
 
 function makeNodeVisual(node: RuntimeNode): NodeVisual {
   const group = new THREE.Group() as NodeVisual;
+  // three-forcegraph의 link group(10) 뒤에 node 전체를 그린다.
+  group.renderOrder = 20;
   const geometry = new THREE.SphereGeometry(1, 28, 18);
   const color = new THREE.Color(
     colors[node.kind as keyof typeof colors] ?? "#8fa1b8",
@@ -286,8 +288,12 @@ function makeNodeVisual(node: RuntimeNode): NodeVisual {
     }),
   );
   shell.renderOrder = 13;
+  // 발광과 장식 영역은 주변 간선의 클릭을 가로채지 않는다.
+  for (const decoration of [halo, shell, core, occluder])
+    decoration.raycast = () => {};
   const label = makeLabel(node);
   group.add(halo, occluder, surface, core, shell, label);
+  group.addEventListener("removed", () => label.element.remove());
   group.userData = {
     nodeId: node.id,
     surface,
@@ -370,6 +376,7 @@ function updateLinkPosition(
       endPoint,
     );
     line.geometry.setFromPoints(curve.getPoints(14));
+    line.geometry.computeBoundingSphere();
     if (line.material instanceof THREE.LineDashedMaterial)
       line.computeLineDistances();
   });
@@ -734,6 +741,24 @@ export function GraphCanvas({
     const changed = previousCenterRef.current !== centerId;
     const center = nodesRef.current.get(centerId);
     const anchor = { x: center?.x ?? 0, y: center?.y ?? 0, z: center?.z ?? 0 };
+    const previousStyles = new Map(
+      [...nodeVisualsRef.current].map(([id, visual]) => [
+        id,
+        { ...visual.userData.style },
+      ]),
+    );
+    const previousRadii = new Map(
+      [...nodeVisualsRef.current].map(([id, visual]) => [
+        id,
+        visual.userData.radius,
+      ]),
+    );
+    const previousOpacities = new Map(
+      [...linkVisualsRef.current].map(([id, visual]) => [
+        id,
+        visual.userData.opacity,
+      ]),
+    );
     const currentPositions = new Map(
       [...nodesRef.current].map(([id, n]) => [
         id,
@@ -819,13 +844,31 @@ export function GraphCanvas({
         if (!visual) continue;
         const style = { ...nodeStyles[node.tier] };
         if (!viewNodesRef.current.has(id)) {
-          style.opacity *= 1 - progress;
-          style.haloOpacity *= 1 - progress;
-          style.labelOpacity *= 1 - progress;
-          style.shellOpacity *= 1 - progress;
+          style.opacity = 0;
+          style.haloOpacity = 0;
+          style.labelOpacity = 0;
+          style.shellOpacity = 0;
+        }
+        let radius = radiusFor(node);
+        if (move) {
+          const from = previousStyles.get(id) ?? {
+            ...style,
+            opacity: 0,
+            haloOpacity: 0,
+            shellOpacity: 0,
+            labelOpacity: 0,
+          };
+          for (const key of Object.keys(style) as (keyof NodeStyle)[]) {
+            const end = viewNodesRef.current.has(id)
+              ? nodeStyles[node.tier][key]
+              : style[key];
+            style[key] = from[key] + (end - from[key]) * progress;
+          }
+          const oldRadius = previousRadii.get(id) ?? radius;
+          radius = oldRadius + (radius - oldRadius) * progress;
         }
         visual.position.set(node.x ?? 0, node.y ?? 0, node.z ?? 0);
-        applyNodeVisual(visual, node, radiusFor(node), style);
+        applyNodeVisual(visual, node, radius, style);
       }
       const ids = new Set(view.relations.map((r) => r.id));
       for (const [id, link] of linksRef.current) {
@@ -839,8 +882,11 @@ export function GraphCanvas({
             { x: source.x ?? 0, y: source.y ?? 0, z: source.z ?? 0 },
             { x: target.x ?? 0, y: target.y ?? 0, z: target.z ?? 0 },
           );
-        const opacity =
-          relationOpacity[link.tier] * (ids.has(id) ? 1 : 1 - progress);
+        const targetOpacity = ids.has(id) ? relationOpacity[link.tier] : 0;
+        const oldOpacity = previousOpacities.get(id) ?? 0;
+        const opacity = move
+          ? oldOpacity + (targetOpacity - oldOpacity) * progress
+          : targetOpacity;
         for (const line of visual.userData.lines)
           (line.material as THREE.Material).opacity = opacity;
         visual.userData.opacity = opacity;
@@ -855,6 +901,7 @@ export function GraphCanvas({
         .add(new THREE.Vector3(0, 0, fitDistance(false)));
       const duration = reducedMotion ? 0 : 1200;
       const begun = performance.now();
+      paint(0, !intro);
       setBusy(true);
       const frame = (now: number) => {
         const progress = duration ? Math.min(1, (now - begun) / duration) : 1;
@@ -889,11 +936,6 @@ export function GraphCanvas({
         0,
       );
       graph.enableNavigationControls(false).enablePointerInteraction(false);
-      animationRef.current = requestAnimationFrame(() => {
-        animationRef.current = null;
-        readyRef.current = true;
-        onReadyRef.current();
-      });
     } else if (introStarted && !introCompletedRef.current) {
       introTimeoutRef.current = window.setTimeout(
         () => {
@@ -913,6 +955,18 @@ export function GraphCanvas({
           anchor,
           0,
         );
+      if (introStarted && introCompletedRef.current) {
+        graph.enableNavigationControls(true).enablePointerInteraction(true);
+        setBusy(false);
+      }
+    }
+    // 초기 page가 첫 frame보다 먼저 도착해 effect를 교체해도 준비 신호를 잃지 않는다.
+    if (!readyRef.current) {
+      animationRef.current = requestAnimationFrame(() => {
+        animationRef.current = null;
+        readyRef.current = true;
+        onReadyRef.current();
+      });
     }
     return () => {
       if (animationRef.current !== null)

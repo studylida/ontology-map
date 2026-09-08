@@ -10,6 +10,7 @@ export function depthTargetForNode(node: { id: string }): number {
   let hash = 0;
   for (const character of node.id)
     hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  hash = Math.imul(hash ^ (hash >>> 16), 0x45d9f3b) >>> 0;
   return ((hash % 2001) / 1000 - 1) * depthLimit;
 }
 
@@ -29,8 +30,10 @@ export function layoutTargets(
       slots.push({ x: anchor.x + x * 48, y: anchor.y + y * 28, z: anchor.z });
     }
   }
-  const occupied = new Set([...positions.values()].map((p) => `${p.x}:${p.y}`));
-  const available = slots.filter((p) => !occupied.has(`${p.x}:${p.y}`));
+  const slotKey = (p: Position) =>
+    `${Math.round((p.x - anchor.x) / 48)}:${Math.round((p.y - anchor.y) / 28)}`;
+  const occupied = new Set([...positions.values()].map(slotKey));
+  const available = slots.filter((p) => !occupied.has(slotKey(p)));
   for (const node of nodes) {
     if (positions.has(node.id)) continue;
     const edge = relations.find(
@@ -51,6 +54,12 @@ export function layoutTargets(
     if (slot)
       positions.set(node.id, {
         ...slot,
+        x:
+          slot.x +
+          (depthTargetForNode({ id: `${node.id}:x` }) / depthLimit) * 12,
+        y:
+          slot.y +
+          (depthTargetForNode({ id: `${node.id}:y` }) / depthLimit) * 7,
         z: anchor.z + depthTargetForNode(node) * 0.15,
       });
   }

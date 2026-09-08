@@ -103,7 +103,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 
 현재 web은 exploration aggregate, node search, Relation 목록과 Evidence Trace를 사용한다. peripheral API도 web에 연결되어 초기 주변부와 추가 page를 조회한다. 저장 인사이트 목록·상세도 API와 web에 연결되어 있고 생성·품질 후속 작업은 #68이 소유한다.
 
-중심 전환에서는 선택 node의 현재 위치로 camera target을 이동하고, 새 응답의 이웃을 그 node 기준의 조밀한 목표 좌표로 한 번 재배치한다. 전환 종료 후 좌표 고정을 풀거나 force simulation을 다시 시작하지 않는다. 추가 page에서는 기존 좌표와 node 객체를 유지하고 새 node만 배치하며 새 응답에 없는 node·Relation은 전환 후 장면에서 제거한다. HTML label도 같은 node ID로 재사용하고 이탈·unmount 시 DOM에서 제거해 이전 label이 남거나 중복되지 않게 한다. #114의 이전 데모 비교와 사용자 시각 승인은 별도로 추적한다. node·label 가독성은 #106에서 사용자가 반복 검토한다. 현재 검토 후보는 기존 활동량별 반지름 비율을 유지하고 이전 후보의 core를 2배로 키운다. label은 HTML/CSS로 표시하며 중심16px·직접/2단계14px를 기준으로 한다. 지도 배치 영역은 desktop panel 바깥의 공간으로 제한하고 graph 간격과 camera 거리를 함께 조정한다. 사용자 승인 전까지 최종 시각 값으로 확정하지 않는다. 빈 map의 primary drag는 pan에 연결하고 회전과 node drag는 비활성화한다. 실제 화면 회귀 검증은 #107에서 추적한다. 첫 진입의 0~99% loading은 API 응답과 graph 준비를 기다린 뒤 intro로 이어지고, 일반 Relation 색·panel 제목과 control의 최소 조작 영역은 기존 디자인 token에 맞춘다. 실제 화면 검증은 #135에서 추적한다. 여러 peripheral page가 누적된 뒤 장면 정리와 세션 위치 cache가 실제로 필요한지는 #136에서 관찰 후 결정한다. 아래 시각·상호작용 절은 구현 완료 보고가 아니라 유지해야 할 제품 계약이며 현재 차이는 해당 Issue로 추적한다.
+중심 전환에서는 선택 node의 현재 위치로 camera target을 이동하고, 새 응답의 이웃을 그 node 기준의 조밀한 목표 좌표로 한 번 재배치한다. 규칙적인 격자 느낌을 줄이기 위해 node ID로 결정되는 작은 x·y 편차를 주며, 렌더링이나 page 추가 때마다 무작위 값을 다시 뽑지 않는다. 전환 종료 후 좌표 고정을 풀거나 force simulation을 다시 시작하지 않는다. 추가 page에서는 기존 좌표와 node 객체를 유지하고 새 node만 배치하며 새 응답에 없는 node·Relation은 전환 후 장면에서 제거한다. HTML label도 같은 node ID로 재사용하고 이탈·unmount 시 DOM에서 제거해 이전 label이 남거나 중복되지 않게 한다. #114의 이전 데모 비교와 사용자 시각 승인은 별도로 추적한다. node·label 가독성은 #106에서 사용자가 반복 검토한다. 현재 검토 후보는 기존 활동량별 반지름 비율을 유지하되, 너무 크다는 사용자 피드백에 따라 직전 후보보다 core 반지름을 30% 줄인다. label은 HTML/CSS로 표시하며 중심16px·직접/2단계14px를 기준으로 한다. 지도 배치 영역은 desktop panel 바깥의 공간으로 제한하고 graph 간격과 camera 거리를 함께 조정한다. 사용자 승인 전까지 최종 시각 값으로 확정하지 않는다. 빈 map의 primary drag는 pan에 연결하고 회전과 node drag는 비활성화한다. 실제 화면 회귀 검증은 #107에서 추적한다. 첫 진입의 0~99% loading은 API 응답과 graph 준비를 기다린 뒤 intro로 이어지고, 일반 Relation 색·panel 제목과 control의 최소 조작 영역은 기존 디자인 token에 맞춘다. 실제 화면 검증은 #135에서 추적한다. 여러 peripheral page가 누적된 뒤 장면 정리와 세션 위치 cache가 실제로 필요한지는 #136에서 관찰 후 결정한다. 아래 시각·상호작용 절은 구현 완료 보고가 아니라 유지해야 할 제품 계약이며 현재 차이는 해당 Issue로 추적한다.
 
 ## 현재 HTTP 읽기 계약
 
@@ -209,9 +209,9 @@ node를 선택하면 카메라는 선택한 node의 현재 위치를 새 중심�
 
 전환 중에는 기존 중심을 확정 상태로 유지하고 새 중심은 pending 상태로만 다룬다. header, URL, 탐색 경로와 상세 panel의 동적 내용은 전환이 끝난 뒤 새 중심으로 함께 갱신한다. `재배치 중` 같은 별도 문구로 내용을 바꾸지 않으며 graph 영역은 전환 시작부터 종료까지 busy 상태를 알린다.
 
-부분 graph와 force simulation은 전환 시작 시 한 번만 갱신한다. 전환 종료 시 graph를 다시 교체하거나 force를 다시 시작하지 않으며, 이탈 node와 관계선은 보이지 않는 상태로 위치를 고정하고 force 영향을 0으로 둔 뒤 다음 전환을 시작할 때 제거한다. force simulation은 layout이 안정되면 멈추고 장식 목적으로 계속 흔들지 않는다. `prefers-reduced-motion`에서는 같은 상태를 한 번에 적용하고 반복 animation을 끈다.
+부분 graph의 목표 좌표는 전환 시작 시 한 번 계산한다. 전환 종료 시 force를 다시 시작하지 않으며 이탈 node와 관계선, HTML label은 불투명도가 0이 된 뒤 제거한다. 남은 node의 위치는 그대로 유지하고 장식 목적으로 계속 흔들지 않는다. `prefers-reduced-motion`에서는 같은 상태를 한 번에 적용하고 반복 animation을 끈다.
 
-전환 시작 시에는 현재 node 위치를 한 render frame 동안 고정한 상태에서 관계선의 source와 target을 새 graph에 다시 연결한다. 다음 frame에 이웃 node의 고정을 풀고 force를 시작해 관계선 끝점 재계산과 위치 이동이 같은 frame에서 겹치지 않게 한다. 전환이 끝나면 남은 node 속도를 0으로 만들고 안정된 위치를 고정해 관계선이 뒤늦게 움찔하거나 장면이 계속 흐르지 않게 한다.
+전환 시작 시 현재 node 위치에서 관계선의 source와 target을 새 graph에 연결하고 같은 진행률로 node와 관계선 끝점을 이동한다. 각 frame에서 위치와 속도를 고정하며 force simulation을 시작하지 않는다. 관계선 좌표가 바뀌면 클릭 판정 범위도 갱신해 이동 후에도 Relation 정보를 열 수 있게 한다.
 
 ## Elevation & Depth
 
@@ -220,6 +220,8 @@ UI panel의 깊이는 `surface`, `surface-elevated`와 1px `border`로 구분한
 3D 깊이는 관계 묶음을 읽기 위한 보조 표현이다. 제한된 z축 차이는 겹침을 줄이기 위한 시각 배치일 뿐이며 node 사이 거리와 높이는 관계 강도, 조직 서열, 시간이나 인과를 뜻하지 않는다.
 
 모든 node는 유형 색을 유지하는 작은 발광 core와 낮은 강도의 halo를 가질 수 있다. 중심 node는 현재 탐색의 기준임을 바로 알아볼 수 있도록 활동량이나 hover 상태와 무관하게 장면에서 가장 밝게 유지한다. 직접 이웃과 중요한 2단계 이웃은 활동량과 게시 시점에 관계없이 같은 기본 발광 강도와 불투명도를 사용하고, 활성 graph 밖의 주변부만 한 단계 낮게 표시한다. 선택하거나 hover한 node와 그 직접 경로는 중심 node보다 밝아지지 않는 범위에서 bloom과 외곽선을 일시적으로 강화한다. bloom 반경이나 halo 크기에 confidence, 근거 수, 게시 시점과 같은 별도 의미를 부여하지 않으며 node label과 관계선의 대비를 낮추지 않는다.
+
+현재 중심 node에 직접 닿은 Relation만 가장 선명하게 표시하며 직접 이웃끼리의 선은 이 강조에 포함하지 않는다. 나머지 선은 2단계·3단계·주변부 순으로 대비를 낮추되 hover·focus 강조와 충돌 표시는 유지한다. 관계선과 화살표는 모든 node 뒤에 그려 node와 겹치는 부분이 비치지 않게 한다. 발광 halo와 장식 외곽선은 클릭을 가로채지 않으며 실제 node 표면과 관계선을 각각 선택할 수 있다.
 
 ## Shapes
 

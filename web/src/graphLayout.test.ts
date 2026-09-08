@@ -38,3 +38,25 @@ it("추가 page는 기존 좌표를 유지하고 최종 위치와 속도를 함�
   pinPosition(node, anchor);
   expect(node).toEqual({ ...anchor, fx: 0, fy: 0, fz: 0, vx: 0, vy: 0, vz: 0 });
 });
+
+it("불규칙한 배치에서도 페이지 추가가 기존 자리를 재사용하거나 좌표를 바꾸지 않는다", () => {
+  const nodes = Array.from(
+    { length: 100 },
+    (_, id) => ({ id: String(id) }) as KnowledgeNode,
+  );
+  const anchor = { x: 0, y: 0, z: 0 };
+  const first = layoutTargets(nodes.slice(0, 60), "0", anchor);
+  const next = layoutTargets(nodes, "0", anchor, [], first);
+  for (const [id, position] of first) expect(next.get(id)).toEqual(position);
+  expect(
+    new Set(
+      [...next.values()].map(
+        (p) => `${Math.round(p.x / 48)}:${Math.round(p.y / 28)}`,
+      ),
+    ).size,
+  ).toBe(100);
+  expect([...next.values()].some((p) => p.x % 48 !== 0 && p.y % 28 !== 0)).toBe(
+    true,
+  );
+  expect(layoutTargets(nodes, "0", anchor, [], first)).toEqual(next);
+});
