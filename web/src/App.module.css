@@ -13,8 +13,8 @@
   align-items: center;
   height: 56px;
   padding: 0 24px;
-  background: #090e14;
-  border-bottom: 1px solid #1d2733;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 
 .brand {
@@ -36,6 +36,7 @@
 }
 
 .trail {
+  flex: 1;
   min-width: 0;
   margin-left: 24px;
   padding-left: 24px;
@@ -56,6 +57,10 @@
   display: flex;
   min-width: 0;
   align-items: center;
+}
+
+.trailItem:last-child {
+  flex-shrink: 0;
 }
 
 .trailItem > button,
@@ -129,6 +134,11 @@
   border-radius: 8px;
 }
 
+.search {
+  position: relative;
+  min-width: 0;
+}
+
 .searchBox:focus-within {
   border-color: var(--focus-ring);
 }
@@ -164,9 +174,9 @@
 
 .searchResults {
   position: absolute;
-  top: 91px;
-  right: 16px;
-  left: 16px;
+  top: 100%;
+  right: 0;
+  left: 0;
   z-index: 2;
   max-height: 290px;
   padding: 6px;
@@ -455,7 +465,7 @@
 
 .panelHeader h1 {
   margin: 6px 40px 8px 0;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 600;
   line-height: 1.35;
 }
@@ -522,28 +532,32 @@
 .relationAccordion {
   display: grid;
   margin-top: 12px;
-  gap: 8px;
+  gap: 0;
 }
 
 .recommendationCard {
   position: relative;
   display: grid;
   min-height: 84px;
-  padding: 12px 36px 12px 12px;
+  padding: 16px 24px 16px 4px;
   color: var(--text-primary);
   text-align: left;
-  background: var(--surface-elevated);
-  border: 1px solid var(--border);
-  border-left: 2px solid var(--kind-color);
-  border-radius: 8px;
-  gap: 5px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  gap: 8px;
 }
 
 .recommendationCard:hover,
 .recommendationCard:focus-visible,
 .insightList button:hover,
-.relationToggle:hover {
-  border-color: var(--interactive);
+.insightList button:focus-visible,
+.relationToggle:hover,
+.relationToggle:focus-visible,
+.followups button:hover,
+.followups button:focus-visible {
+  background: var(--surface-elevated);
 }
 
 .cardTitle {
@@ -561,6 +575,16 @@
   gap: 8px;
 }
 
+.cardTitle > small {
+  flex-shrink: 0;
+}
+
+.cardTitle,
+.relationToggle strong,
+.insightList button {
+  overflow-wrap: anywhere;
+}
+
 .cardTitle small,
 .cardMeta,
 .evidencePreview small,
@@ -572,12 +596,10 @@
 }
 
 .cardReason {
-  overflow: hidden;
   color: var(--text-secondary);
   font-size: 12px;
-  line-height: 1.4;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
 }
 
 .cardMeta {
@@ -587,7 +609,7 @@
 .cardArrow {
   position: absolute;
   top: 50%;
-  right: 14px;
+  right: 4px;
   color: var(--interactive);
   font-size: 22px;
   transform: translateY(-50%);
@@ -614,9 +636,10 @@
   justify-content: space-between;
   color: var(--text-primary);
   text-align: left;
-  background: var(--surface-elevated);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
   gap: 12px;
 }
 
@@ -627,9 +650,10 @@
 
 .relationCard {
   overflow: hidden;
-  background: var(--surface-elevated);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
 }
 
 .relationCard[data-conflict="true"] {
@@ -640,7 +664,7 @@
   display: flex;
   width: 100%;
   min-height: 64px;
-  padding: 12px;
+  padding: 16px 4px;
   align-items: center;
   justify-content: space-between;
   color: var(--text-primary);
@@ -651,13 +675,28 @@
 }
 
 .relationToggle > span:first-child {
+  min-width: 0;
   display: grid;
-  gap: 5px;
+  gap: 8px;
+}
+
+.relationToggle > span:last-child {
+  flex-shrink: 0;
+  color: var(--interactive);
+  font-size: 12px;
+}
+
+.tabPanel > .followupSection:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .relationToggle small {
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .relationEvidence {
@@ -838,7 +877,7 @@
   padding: 0;
   margin: 12px 0 0;
   list-style: none;
-  gap: 8px;
+  gap: 0;
 }
 
 .insightList button {
@@ -847,12 +886,13 @@
   justify-content: space-between;
   width: 100%;
   min-height: 72px;
-  padding: 12px;
+  padding: 16px 4px;
   color: var(--text-primary);
   text-align: left;
-  background: var(--surface-elevated);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
   gap: 16px;
 }
 
@@ -1219,7 +1259,7 @@
   font-size: 12px;
 }
 
-/* #156: 기본 화면 적용 전 사용자 검토용 스타일이다. */
+/* 사용자 검토를 거쳐 기본 화면으로 채택한 지도 디자인이다. */
 :global(:root:not([data-theme="light"]):has([data-design-preview="true"])) {
   --conflict: #f26d78;
 }
@@ -1230,27 +1270,14 @@
   --border: #343c44;
   --text-secondary: #b8c1cb;
 }
-.previewBadge {
-  position: absolute;
-  top: 6px;
-  right: 24px;
-  z-index: 21;
+.themeControl {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   height: 44px;
-  gap: 16px;
+  margin-left: 24px;
   color: var(--text-secondary);
   font-size: 12px;
-}
-.previewBadge a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  color: var(--interactive);
-}
-.app[data-design-preview="true"] .header {
-  padding-right: 380px;
-  background: var(--surface);
 }
 .app[data-design-preview="true"] .brand svg {
   filter: none;
@@ -1316,7 +1343,7 @@
   box-shadow: none;
 }
 
-.previewBadge button {
+.themeControl button {
   padding: 0 12px;
   color: var(--text-primary);
   background: var(--surface-elevated);

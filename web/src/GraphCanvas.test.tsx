@@ -797,7 +797,7 @@ it("근접 조망은 1단계 간선만, 축소 뒤에는 2단계 간선까지만
   ]);
 });
 
-it("hover 대상은 맥동하고 테마 변경은 graph와 배율을 보존한다", () => {
+it("hover는 현재 밝기에서 강조로 전환한 뒤 유지하고 테마 변경은 graph와 배율을 보존한다", () => {
   const callbacks = props();
   const { rerender } = render(
     <GraphCanvas {...callbacks} designPreview introStarted introCompleted />,
@@ -816,6 +816,13 @@ it("hover 대상은 맥동하고 테마 변경은 graph와 배율을 보존한�
   expect(visual.userData.shell.visible).toBe(true);
   act(() => vi.advanceTimersByTime(300));
   expect(visual.userData.shell.material.opacity).not.toBe(opacity);
+  act(() => vi.advanceTimersByTime(100));
+  expect(visual.userData.shell.material.opacity).toBe(1);
+  const scale = visual.userData.shell.scale.clone();
+  act(() => vi.advanceTimersByTime(1500));
+  expect(visual.userData.shell.material.opacity).toBe(1);
+  expect(visual.userData.shell.scale).toEqual(scale);
+  expect(vi.getTimerCount()).toBe(0);
   const position = camera.position.clone();
   rerender(
     <GraphCanvas
@@ -831,7 +838,22 @@ it("hover 대상은 맥동하고 테마 변경은 graph와 배율을 보존한�
   expect(visual.userData.occluder.material.color.getHexString()).toBe("f5f7fa");
   act(() => harness.options.get("onNodeHover")?.(null as never));
   act(() => vi.advanceTimersByTime(200));
+  const fading = visual.userData.shell.material.opacity;
+  expect(fading).toBeGreaterThan(0);
+  expect(fading).toBeLessThan(1);
+  act(() => harness.options.get("onNodeHover")?.({ id: "2" } as never));
+  act(() => vi.advanceTimersByTime(16));
+  expect(visual.userData.shell.material.opacity).toBe(fading);
+  act(() => vi.advanceTimersByTime(420));
+  expect(visual.userData.shell.material.opacity).toBe(1);
+  act(() => harness.options.get("onNodeHover")?.(null as never));
+  act(() => vi.advanceTimersByTime(420));
   expect(visual.userData.shell.visible).toBe(false);
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  act(() => harness.options.get("onNodeHover")?.({ id: "2" } as never));
+  act(() => vi.advanceTimersByTime(16));
+  expect(visual.userData.shell.material.opacity).toBe(1);
+  expect(vi.getTimerCount()).toBe(0);
 });
 
 it("배치 완료 뒤 다시 생성된 간선도 첫 hover 전에 좌표를 갖는다", () => {
