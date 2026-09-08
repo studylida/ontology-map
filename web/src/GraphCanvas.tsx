@@ -96,6 +96,11 @@ type LinkVisual = THREE.Group & {
     linkId: string;
     lines: THREE.Line[];
     opacity: number;
+    reveal: number;
+    filamentMix: number;
+    filamentFrom: number;
+    expanded: boolean;
+    changedAt: number;
     endpoints?: number[];
     arrow?: THREE.Mesh<THREE.ConeGeometry, THREE.MeshBasicMaterial>;
   };
@@ -380,13 +385,24 @@ function makeLinkVisual(link: RuntimeLink, designPreview: boolean): LinkVisual {
       line.frustumCulled = false;
       const raycast = line.raycast.bind(line);
       line.raycast = (raycaster, hits) => {
-        if (group.visible) raycast(raycaster, hits);
+        if (group.visible && material.opacity > 0.001) raycast(raycaster, hits);
       };
       group.add(line);
       return line;
     },
   );
-  group.userData = { linkId: link.id, lines, opacity };
+  const expanded = !designPreview || link.tier === "direct";
+  group.userData = {
+    linkId: link.id,
+    lines,
+    opacity,
+    reveal: 1,
+    filamentMix: Number(expanded),
+    filamentFrom: Number(expanded),
+    expanded,
+    changedAt: performance.now(),
+  };
+  paintLinkOpacity(group, 1, expanded);
   if (link.directionality === "DIRECTED") {
     const arrow = new THREE.Mesh(
       new THREE.ConeGeometry(1, 4, 8),
@@ -437,7 +453,10 @@ function updateLinkPosition(
     if (line.geometry.getAttribute("position")?.count === 0)
       line.geometry.deleteAttribute("position");
     line.geometry.setFromPoints(curve.getPoints(14));
-    if (index === 0 && group.userData.arrow) {
+    if (
+      index === Math.floor((group.userData.lines.length - 1) / 2) &&
+      group.userData.arrow
+    ) {
       group.userData.arrow.position.copy(curve.getPoint(0.85));
       group.userData.arrow.quaternion.setFromUnitVectors(
         new THREE.Vector3(0, 1, 0),
@@ -451,11 +470,35 @@ function updateLinkPosition(
   return true;
 }
 
-function paintLinkOpacity(visual: LinkVisual, reveal: number) {
+function updateFilaments(visual: LinkVisual, expanded: boolean) {
+  const state = visual.userData;
+  const now = performance.now();
+  if (state.expanded !== expanded) {
+    state.filamentFrom = state.filamentMix;
+    state.expanded = expanded;
+    state.changedAt = now;
+  }
+  const progress = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? 1
+    : Math.min(1, (now - state.changedAt) / 450);
+  state.filamentMix =
+    state.filamentFrom +
+    (Number(expanded) - state.filamentFrom) * easeInOutCubic(progress);
+}
+
+function paintLinkOpacity(
+  visual: LinkVisual,
+  reveal: number,
+  expanded: boolean,
+) {
+  updateFilaments(visual, expanded);
+  visual.userData.reveal = reveal;
   const opacity = visual.userData.opacity * reveal;
   visual.visible = opacity > 0.001;
-  for (const line of visual.userData.lines)
-    (line.material as THREE.Material).opacity = opacity;
+  const representative = Math.floor((visual.userData.lines.length - 1) / 2);
+  for (const [index, line] of visual.userData.lines.entries())
+    (line.material as THREE.Material).opacity =
+      opacity * (index === representative ? 1 : visual.userData.filamentMix);
   const material = visual.userData.lines[0]
     ?.material as THREE.LineBasicMaterial;
   if (visual.userData.arrow && material) {
@@ -834,7 +877,13 @@ export function GraphCanvas({
               ? 1
               : neighborhoodReveal,
           );
-          paintLinkOpacity(visual, linkIsVisible(link) ? reveal : 0);
+          paintLinkOpacity(
+            visual,
+            linkIsVisible(link) ? reveal : 0,
+            !designPreview ||
+              link.tier === "direct" ||
+              linkFocusRef.current(link),
+          );
         }
         renderLabels(scene, camera);
         if (designPreview) placePreviewLabels(container);
@@ -971,6 +1020,7 @@ export function GraphCanvas({
         return {
           visual,
           focused,
+          expanded: !designPreview || link.tier === "direct" || focused,
           colors:
             visual?.userData.lines.map((line) =>
               (line.material as THREE.LineBasicMaterial).color.clone(),
@@ -1017,7 +1067,6 @@ export function GraphCanvas({
               ? target.from + (1 - target.from) * eased
               : target.from + (target.to - target.from) * eased;
           for (const [index, line] of target.visual.userData.lines.entries()) {
-            (line.material as THREE.Material).opacity = opacity;
             const from = target.colors[index];
             if (designPreview && from)
               (line.material as THREE.LineBasicMaterial).color.lerpColors(
@@ -1027,6 +1076,11 @@ export function GraphCanvas({
               );
           }
           target.visual.userData.opacity = opacity;
+          paintLinkOpacity(
+            target.visual,
+            target.visual.userData.reveal,
+            target.expanded,
+          );
         }
         if (progress < 1)
           hoverAnimationRef.current = requestAnimationFrame(animate);
@@ -1421,9 +1475,6 @@ export function GraphCanvas({
           ? oldOpacity + (targetOpacity - oldOpacity) * progress
           : targetOpacity;
         for (const line of visual.userData.lines) {
-          (line.material as THREE.Material).opacity =
-            opacity *
-            (link.tier === "direct" ? 1 : (introRevealRef.current ?? 1));
           if (designPreview)
             (line.material as THREE.LineBasicMaterial).color.set(
               previewLinkColor(
@@ -1434,6 +1485,13 @@ export function GraphCanvas({
             );
         }
         visual.userData.opacity = opacity;
+        paintLinkOpacity(
+          visual,
+          visual.userData.reveal,
+          !designPreview ||
+            link.tier === "direct" ||
+            linkFocusRef.current(link),
+        );
       }
     };
     const animate = (mode: "intro" | "center" | "resize" | "restore") => {
