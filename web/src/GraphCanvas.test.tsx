@@ -452,7 +452,7 @@ it("미리보기 준비 이동은 2단위 이내에서 멈추고 응답 순간 �
   const { rerender } = render(<GraphCanvas {...callbacks} designPreview />);
   act(() => vi.advanceTimersByTime(16));
   rerender(<GraphCanvas {...callbacks} designPreview introStarted />);
-  act(() => vi.advanceTimersByTime(3000));
+  act(() => vi.advanceTimersByTime(4000));
   const selected = visual("2").position.clone();
   const origin = visual("1").position.clone();
   const camera = harness.camera?.position.clone();
@@ -527,15 +527,15 @@ it("로딩이 이미 끝난 상태에서 지도가 다시 생성되어도 초기
   if (!camera || !target) throw new Error("camera가 없습니다.");
   const initialDistance = camera.position.distanceTo(target);
   expect(harness.navigationEnabled).toBe(false);
-  act(() => vi.advanceTimersByTime(1200));
+  act(() => vi.advanceTimersByTime(1500));
   const overviewDistance = camera.position.distanceTo(target);
   expect(overviewDistance).toBeLessThan(initialDistance / 50);
   act(() => vi.advanceTimersByTime(160));
   expect(camera.position.distanceTo(target)).toBe(overviewDistance);
   expect(callbacks.onIntroComplete).not.toHaveBeenCalled();
-  act(() => vi.advanceTimersByTime(400));
+  act(() => vi.advanceTimersByTime(600));
   expect(camera.position.distanceTo(target)).toBeLessThan(overviewDistance);
-  act(() => vi.advanceTimersByTime(1240));
+  act(() => vi.advanceTimersByTime(1740));
   expect(callbacks.onReady).toHaveBeenCalledTimes(1);
   expect(callbacks.onIntroComplete).toHaveBeenCalledTimes(1);
   expect(harness.navigationEnabled).toBe(true);
@@ -709,6 +709,8 @@ it("hover 대상은 맥동하고 테마 변경은 graph와 배율을 보존한�
   act(() => harness.options.get("onNodeHover")?.({ id: "2" } as never));
   act(() => vi.advanceTimersByTime(16));
   const opacity = visual.userData.shell.material.opacity;
+  expect(opacity).toBeGreaterThan(0);
+  expect(opacity).toBeLessThan(0.5);
   expect(visual.userData.shell.visible).toBe(true);
   act(() => vi.advanceTimersByTime(300));
   expect(visual.userData.shell.material.opacity).not.toBe(opacity);

@@ -29,10 +29,8 @@ export function useInitialLoading(ready: boolean, failed: boolean) {
     let frame = 0;
     const timers: number[] = [];
     const ramp = () => {
-      const next = Math.min(
-        89,
-        Math.floor(((Date.now() - startedAt.current) / 1400) * 89),
-      );
+      const time = Math.min(1, (Date.now() - startedAt.current) / 1400);
+      const next = Math.floor(time * time * (3 - 2 * time) * 89);
       setProgress(next);
       if (next < 89) frame = requestAnimationFrame(ramp);
     };
