@@ -578,12 +578,10 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
 
               {panelOpen ? (
                 <DetailPanel
-                  key={currentView.centerId}
+                  key={`${currentView.centerId}:${timeRange}`}
                   timeRange={timeRange}
                   view={currentView}
                   onClose={() => setPanelOpen(false)}
-                  onEvidence={setEvidence}
-                  onFollowup={selectNode}
                   onSelect={selectNode}
                 />
               ) : (
