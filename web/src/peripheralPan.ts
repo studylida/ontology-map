@@ -21,12 +21,12 @@ export function approachesBoundary(
     centerY = (minY + maxY) / 2;
   const halfWidth = Math.max(28, (maxX - minX) / 2);
   const halfHeight = Math.max(28, (maxY - minY) / 2);
-  const distance = (point: Position) =>
-    Math.max(
-      Math.abs(point.x - centerX) / halfWidth,
-      Math.abs(point.y - centerY) / halfHeight,
-    );
-  return distance(end) >= 0.6 && distance(end) > distance(start);
+  const outward = (from: number, to: number, center: number, half: number) =>
+    Math.abs(to - center) / half >= 0.6 && (to - center) * (to - from) > 0;
+  return (
+    outward(start.x, end.x, centerX, halfWidth) ||
+    outward(start.y, end.y, centerY, halfHeight)
+  );
 }
 
 export function watchBoundaryPan(
@@ -38,12 +38,16 @@ export function watchBoundaryPan(
   let start: Position | null = null;
   let waiting = false;
   let startDistance = 0;
+  let lastTarget = controls.target.clone();
+  let lastDistance = 0;
   let timer: number | undefined;
   const cancel = () => {
     window.clearTimeout(timer);
   };
   const schedule = () => {
     cancel();
+    lastTarget = controls.target.clone();
+    lastDistance = controls.object.position.distanceTo(controls.target);
     timer = window.setTimeout(() => {
       waiting = false;
       if (
@@ -70,7 +74,15 @@ export function watchBoundaryPan(
     }
   };
   const onChange = () => {
-    if (waiting) schedule();
+    // damping의 미세한 잔여 이동 때문에 정지 판정을 계속 미루지 않는다.
+    if (
+      waiting &&
+      (controls.target.distanceTo(lastTarget) > 0.5 ||
+        Math.abs(
+          controls.object.position.distanceTo(controls.target) - lastDistance,
+        ) > 0.5)
+    )
+      schedule();
   };
   controls.addEventListener("start", onStart);
   controls.addEventListener("end", onEnd);
