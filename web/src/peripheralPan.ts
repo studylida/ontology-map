@@ -49,13 +49,14 @@ export function watchBoundaryPan(
     if (!start || !canLoad()) return;
     const camera = controls.object as PerspectiveCamera;
     const distance = camera.position.distanceTo(controls.target);
-    // 화면 반폭에 반 화면의 여유를 더해 경계가 보이기 전에 한 page를 준비한다.
-    const margin =
-      (2 * distance * Math.tan((camera.fov * Math.PI) / 360)) / camera.zoom;
+    const halfHeight =
+      (distance * Math.tan((camera.fov * Math.PI) / 360)) / camera.zoom;
+    const halfWidth = halfHeight * camera.aspect;
+    // 확대해도 화면 밖에 배치 두 칸(48×28) 이상의 여유를 유지한다.
     if (
       approachesBoundary(getNodes(), start, controls.target, {
-        x: margin * camera.aspect,
-        y: margin,
+        x: halfWidth + Math.max(halfWidth, 96),
+        y: halfHeight + Math.max(halfHeight, 56),
       }) ||
       distance > startDistance + 0.5
     ) {

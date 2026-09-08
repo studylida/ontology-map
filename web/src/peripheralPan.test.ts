@@ -16,7 +16,7 @@ it("화면 밖 여유 영역이 경계에 닿으면 이동 종료 전에 한 pag
   let ready = true;
   const stop = watchBoundaryPan(
     controls,
-    () => nodes,
+    () => nodes.map((node) => ({ ...node, x: node.x * 2, y: node.y * 2 })),
     () => ready,
     load,
   );
@@ -28,7 +28,7 @@ it("화면 밖 여유 영역이 경계에 닿으면 이동 종료 전에 한 pag
   controls.dispatchEvent({ type: "start" });
   pan(15);
   expect(load).not.toHaveBeenCalled();
-  pan(25); // 실제 화면 오른쪽 끝은 65, 미리 읽는 범위는 105다.
+  pan(75); // 실제 화면 오른쪽 끝은 115, 미리 읽는 범위는 211이다.
   expect(load).toHaveBeenCalledTimes(1);
   pan(90);
   controls.dispatchEvent({ type: "end" });
@@ -74,6 +74,36 @@ it("사용자 축소는 즉시 조회하고 확대와 프로그램 이동은 무
   controls.dispatchEvent({ type: "change" });
   expect(load).toHaveBeenCalledTimes(1);
   controls.dispatchEvent({ type: "end" });
+  stop();
+  controls.dispose();
+});
+
+it("많이 확대해도 화면 밖 두 칸의 여유를 유지한다", () => {
+  const camera = new PerspectiveCamera(50, 1);
+  camera.position.z = 95;
+  const controls = new OrbitControls(camera, document.createElement("div"));
+  const load = vi.fn();
+  const stop = watchBoundaryPan(
+    controls,
+    () => [
+      { x: -200, y: -200, z: 0 },
+      { x: 200, y: 200, z: 0 },
+    ],
+    () => true,
+    load,
+  );
+  controls.dispatchEvent({ type: "start" });
+  camera.position.x = controls.target.x = 70;
+  controls.dispatchEvent({ type: "change" });
+  // 화면 끝은 약 114지만 경계 200까지 미리 준비한다.
+  expect(load).toHaveBeenCalledTimes(1);
+  controls.dispatchEvent({ type: "end" });
+  camera.zoom = 4;
+  camera.updateProjectionMatrix();
+  controls.dispatchEvent({ type: "start" });
+  camera.position.x = controls.target.x = 100;
+  controls.dispatchEvent({ type: "change" });
+  expect(load).toHaveBeenCalledTimes(2);
   stop();
   controls.dispose();
 });
