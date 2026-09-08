@@ -462,6 +462,11 @@ export function App() {
         <section className={styles.workspace}>
           {peripheral.graphView && (
             <GraphCanvas
+              pendingNodeId={
+                status === "loading" && lastRequestRef.current?.navigation
+                  ? lastRequestRef.current.centerId
+                  : null
+              }
               panelOpen={panelOpen}
               onIntroComplete={() => setIntroComplete(true)}
               view={peripheral.graphView}

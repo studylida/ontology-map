@@ -44,6 +44,7 @@ interface RuntimeLink extends Omit<KnowledgeViewRelation, "source" | "target"> {
 interface GraphCanvasProps {
   view: ExplorationView;
   introStarted: boolean;
+  pendingNodeId: string | null;
   onSelect: (nodeId: string) => void;
   onTransitionComplete: (nodeId: string) => void;
   onReady: () => void;
@@ -393,9 +394,56 @@ function endpointId(endpoint: string | RuntimeNode): string {
   return typeof endpoint === "string" ? endpoint : endpoint.id;
 }
 
+function alignLinks(
+  links: Map<string, RuntimeLink>,
+  visuals: Map<string, LinkVisual>,
+  nodes: Map<string, NodeVisual>,
+) {
+  for (const [id, link] of links) {
+    const visual = visuals.get(id);
+    const source = nodes.get(endpointId(link.source));
+    const target = nodes.get(endpointId(link.target));
+    if (visual && source && target)
+      updateLinkPosition(visual, source.position, target.position);
+  }
+}
+
+function floatWhileWaiting(
+  nodes: Map<string, NodeVisual>,
+  links: Map<string, RuntimeLink>,
+  visuals: Map<string, LinkVisual>,
+  selectedId: string,
+) {
+  const starts = [...nodes].map(([id, visual], index) => ({
+    visual,
+    position: visual.position.clone(),
+    phase: index * 2.4,
+    selected: id === selectedId,
+  }));
+  const begun = performance.now();
+  let frameId: number;
+  const frame = (now: number) => {
+    const elapsed = now - begun;
+    const amplitude = Math.min(1, elapsed / 160);
+    for (const { visual, position, phase, selected } of starts) {
+      if (selected) continue;
+      visual.position.set(
+        position.x + Math.sin(elapsed / 900 + phase) * amplitude * 0.8,
+        position.y + Math.sin(elapsed / 700 + phase) * amplitude * 1.8,
+        position.z,
+      );
+    }
+    alignLinks(links, visuals, nodes);
+    frameId = requestAnimationFrame(frame);
+  };
+  frameId = requestAnimationFrame(frame);
+  return () => cancelAnimationFrame(frameId);
+}
+
 export function GraphCanvas({
   view,
   introStarted,
+  pendingNodeId,
   onSelect,
   onTransitionComplete,
   onReady,
@@ -427,6 +475,7 @@ export function GraphCanvas({
   const readyRef = useRef(false);
   const introCompletedRef = useRef(false);
   const animationRef = useRef<number | null>(null);
+  const resizeDeadlineRef = useRef<number | null>(null);
   const hoverAnimationRef = useRef<number | null>(null);
   const introTimeoutRef = useRef<number | null>(null);
   const [busy, setBusy] = useState(true);
@@ -737,10 +786,26 @@ export function GraphCanvas({
       "(prefers-reduced-motion: reduce)",
     ).matches;
     const controls = graph.controls() as GraphControls;
+    if (pendingNodeId && introCompletedRef.current) {
+      setBusy(true);
+      if (reducedMotion) return;
+      return floatWhileWaiting(
+        nodeVisualsRef.current,
+        linksRef.current,
+        linkVisualsRef.current,
+        pendingNodeId,
+      );
+    }
     const initial = !dataInitializedRef.current;
     const changed = previousCenterRef.current !== centerId;
-    const center = nodesRef.current.get(centerId);
+    const center =
+      nodeVisualsRef.current.get(centerId)?.position ??
+      nodesRef.current.get(centerId);
     const anchor = { x: center?.x ?? 0, y: center?.y ?? 0, z: center?.z ?? 0 };
+    const resizeTargetChanged = view.nodes.some((node) => {
+      const previous = nodesRef.current.get(node.id);
+      return previous && radiusFor(previous) !== radiusFor(node);
+    });
     const previousStyles = new Map(
       [...nodeVisualsRef.current].map(([id, visual]) => [
         id,
@@ -759,6 +824,13 @@ export function GraphCanvas({
         visual.userData.opacity,
       ]),
     );
+    const resizing = view.nodes.some((node) => {
+      const previous = previousRadii.get(node.id);
+      return (
+        previous !== undefined &&
+        Math.abs(previous - radiusFor(node)) > 0.000001
+      );
+    });
     const currentPositions = new Map(
       [...nodesRef.current].map(([id, n]) => [
         id,
@@ -773,6 +845,12 @@ export function GraphCanvas({
       changed || initial ? new Map() : currentPositions,
     );
     const starts = new Map(currentPositions);
+    for (const [id, visual] of nodeVisualsRef.current)
+      starts.set(id, {
+        x: visual.position.x,
+        y: visual.position.y,
+        z: visual.position.z,
+      });
     for (const target of view.nodes) {
       const position = targets.get(target.id);
       if (!position) continue;
@@ -781,7 +859,7 @@ export function GraphCanvas({
       Object.assign(node, target);
       pinPosition(
         node as RuntimeNode & Position,
-        starts.get(target.id) ?? position,
+        (changed ? starts : currentPositions).get(target.id) ?? position,
       );
       nodesRef.current.set(target.id, node);
       starts.set(target.id, { x: node.x ?? 0, y: node.y ?? 0, z: node.z ?? 0 });
@@ -834,7 +912,7 @@ export function GraphCanvas({
       for (const [id, node] of nodesRef.current) {
         const target = targets.get(id);
         const start = starts.get(id);
-        if (target && start && move)
+        if (target && start && move && changed)
           pinPosition(node as RuntimeNode & Position, {
             x: start.x + (target.x - start.x) * progress,
             y: start.y + (target.y - start.y) * progress,
@@ -870,18 +948,15 @@ export function GraphCanvas({
         visual.position.set(node.x ?? 0, node.y ?? 0, node.z ?? 0);
         applyNodeVisual(visual, node, radius, style);
       }
+      alignLinks(
+        linksRef.current,
+        linkVisualsRef.current,
+        nodeVisualsRef.current,
+      );
       const ids = new Set(view.relations.map((r) => r.id));
       for (const [id, link] of linksRef.current) {
         const visual = linkVisualsRef.current.get(id);
         if (!visual) continue;
-        const source = nodesRef.current.get(endpointId(link.source));
-        const target = nodesRef.current.get(endpointId(link.target));
-        if (source && target)
-          updateLinkPosition(
-            visual,
-            { x: source.x ?? 0, y: source.y ?? 0, z: source.z ?? 0 },
-            { x: target.x ?? 0, y: target.y ?? 0, z: target.z ?? 0 },
-          );
         const targetOpacity = ids.has(id) ? relationOpacity[link.tier] : 0;
         const oldOpacity = previousOpacities.get(id) ?? 0;
         const opacity = move
@@ -892,40 +967,55 @@ export function GraphCanvas({
         visual.userData.opacity = opacity;
       }
     };
-    const animate = (intro: boolean) => {
+    const animate = (mode: "intro" | "center" | "resize") => {
+      const intro = mode === "intro";
+      const moveCamera = mode !== "resize";
       const startCamera = graph.camera().position.clone();
       const startTarget = controls.target.clone();
       const endTarget = new THREE.Vector3(anchor.x, anchor.y, anchor.z);
       const endCamera = endTarget
         .clone()
         .add(new THREE.Vector3(0, 0, fitDistance(false)));
-      const duration = reducedMotion ? 0 : 1200;
       const begun = performance.now();
+      if (
+        mode === "resize" &&
+        (resizeTargetChanged || resizeDeadlineRef.current === null)
+      )
+        resizeDeadlineRef.current = begun + 320;
+      const duration = reducedMotion
+        ? 0
+        : moveCamera
+          ? 1200
+          : Math.max(0, (resizeDeadlineRef.current ?? begun) - begun);
       paint(0, !intro);
       setBusy(true);
       const frame = (now: number) => {
         const progress = duration ? Math.min(1, (now - begun) / duration) : 1;
         const eased = easeInOutCubic(progress);
         paint(eased, !intro);
-        graph.camera().position.lerpVectors(startCamera, endCamera, eased);
-        controls.target.lerpVectors(startTarget, endTarget, eased);
-        controls.update();
+        if (moveCamera) {
+          graph.camera().position.lerpVectors(startCamera, endCamera, eased);
+          controls.target.lerpVectors(startTarget, endTarget, eased);
+          controls.update();
+        }
         if (progress < 1) {
           animationRef.current = requestAnimationFrame(frame);
           return;
         }
         animationRef.current = null;
+        resizeDeadlineRef.current = null;
         previousCenterRef.current = centerId;
         introCompletedRef.current = true;
         if (intro) onIntroRef.current();
         if (!intro) {
           removeOutgoing();
-          onTransitionCompleteRef.current(centerId);
+          if (mode === "center") onTransitionCompleteRef.current(centerId);
         }
         graph.enableNavigationControls(true).enablePointerInteraction(true);
         setBusy(false);
       };
-      animationRef.current = requestAnimationFrame(frame);
+      if (reducedMotion) frame(begun);
+      else animationRef.current = requestAnimationFrame(frame);
     };
     if (initial) {
       dataInitializedRef.current = true;
@@ -940,12 +1030,14 @@ export function GraphCanvas({
       introTimeoutRef.current = window.setTimeout(
         () => {
           introTimeoutRef.current = null;
-          animate(true);
+          animate("intro");
         },
         reducedMotion ? 0 : 720,
       );
     } else if (introStarted && changed) {
-      animate(false);
+      animate("center");
+    } else if (introStarted && resizing) {
+      animate("resize");
     } else {
       paint(1, false);
       removeOutgoing();
@@ -976,7 +1068,7 @@ export function GraphCanvas({
         window.clearTimeout(introTimeoutRef.current);
       introTimeoutRef.current = null;
     };
-  }, [centerId, introStarted, view]);
+  }, [centerId, introStarted, pendingNodeId, view]);
 
   return (
     <section
