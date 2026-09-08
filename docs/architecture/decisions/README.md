@@ -50,3 +50,5 @@ affected_docs: 영향을 받는 현재 문서 링크
 
 ## 근거
 ```
+
+- [ADR-0007: 질문 답변과 발견별 보고서 저장](current/0007-store-panel-reading-results.md)

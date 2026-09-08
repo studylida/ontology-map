@@ -18,7 +18,7 @@
 ## 현재 구현 기준
 
 - SQLAlchemy metadata: `server/src/ontology_map/db/schema.py`
-- Alembic revision: `server/migrations/versions/0001_create_frozen_schema.py`
+- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py`
 - 개발 fixture: `server/src/ontology_map/db/fixture.py`
 - PostgreSQL namespace: `public`
 - 현재 metadata에 구현된 table 수와 각 객체의 세부 정의는 [스키마 참고 문서](schema-reference.md)에서 확인한다.
@@ -48,7 +48,7 @@ publication_status: NOT_STARTED → PREPARING → READY
                                           └→ FAILED → PREPARING
 ```
 
-READY 전환은 같은 transaction에서 모든 영향 node를 검사한다. 각 node에는 `node_search_document`와 그 문서에 속하는 `node_embedding`, `node_context`, 정확히 두 개의 `followup_question` 및 성공한 `NODE_INSIGHT` 작업이 필요하다. 인사이트 작업은 `RECENT_90_DAYS`와 `RECENT_1_YEAR`를 모두 처리하며 각 범위의 결과는 0–3개다. 현재 공개 가능한 basis 지식과 열린 `BLOCKING` lint 부재도 함께 검사한다.
+READY 전환은 같은 transaction에서 모든 영향 node를 검사한다. 새 패널 계약에서는 각 node의 검색 문서·embedding·context와 두 기간별 node_question_set 및 성공한 NODE_INSIGHT 작업의 node_insight_window가 필요하다. 질문 묶음은 0개 이상의 답변, 인사이트 window는 0개 또는 1개 보고서를 선택한다. 기존 followup_question과 slot 1–3 인사이트는 호환 데이터로 보존한다. 현재 공개 가능한 basis 지식과 열린 `BLOCKING` lint 부재도 함께 검사한다.
 
 이 완결성은 여러 table의 개수, task kind와 상태를 함께 읽어야 하므로 DB의 nullable column만으로 보장하지 않고 publication application service가 짧은 transaction 안에서 보장한다. `READY` 뒤 선택 pointer와 산출물은 바꾸지 않는다.
 
@@ -901,3 +901,11 @@ conflict_set
 이미 `main`에 병합된 revision을 수정하거나 순서를 다시 쓰지 않는다. 저장 의미, 제약이나 publication 계약이 바뀌면 먼저 logical·physical 결정 Issue를 승인하고 새 Alembic revision으로 변경한다. HTTP DTO나 화면 전용 상태는 DB column을 추가하지 않고 [제품 설계](../product/design.md)의 API 경계에 기록한다.
 
 migration 변경은 논리 필드와 물리 컬럼, PostgreSQL type, `NULL`과 default, PK·FK·UNIQUE·CHECK, 삭제·갱신 동작, lifecycle, index, 한국어 DB comment, DB와 service의 무결성 책임 및 정상·실패 검증을 함께 설명해야 한다.
+
+## 기간별 패널 결과 추가 계약
+
+`0002_add_panel_reading_contracts.py`는 기존 43개 테이블을 수정하지 않고 6개 테이블을 추가한다. `node_question_set`의 context·기간, `node_question`의 묶음·표시 순서, `node_insight_window`의 작업·기간, `node_insight_section`의 보고서·표시 순서가 각각 유일하다. `node_question_claim`과 `node_insight_section_claim`은 부모·Claim 복합 PK와 부모·표시 순서 UNIQUE를 갖는다. FK는 RESTRICT를 사용하고 양의 순서·비어 있지 않은 본문·허용 기간·역할·유한 기준 시각은 CHECK로 검사한다.
+
+선택된 context·작업과 성공 상태, 전체 공개 basis, Claim 원문 연결, 보고서와 window의 node·검색 문서·작업·기간·기준 시각 일치 및 절별 Claim의 상위 보고서 포함 여부는 읽기 transaction에서 검사한다. 새 결과가 없던 기존 READY는 503으로 구분하고 기존 데이터를 생성 결과처럼 backfill하지 않는다. 생성 worker와 실제 출력 저장 검증기는 후속 구현 범위다. 기존 필드와 추가 구조의 의미는 [논리 스키마](logical-schema.md#512-기간별-질문답변과-종합보고서)를 따른다.
+
+추가 테이블에 결과가 존재하면 downgrade는 오류로 중단한다. 일반 되돌리기는 새 스키마와 데이터를 유지하고 기존 앱·API로 복귀하는 방식이며, 데이터 삭제가 필요한 downgrade를 자동 실행하지 않는다.
