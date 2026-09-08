@@ -496,7 +496,8 @@ export function GraphCanvas({
       .nodeId("id")
       .nodeLabel(() => "")
       .nodeThreeObject((node) => {
-        const visual = makeNodeVisual(node);
+        const visual =
+          nodeVisualsRef.current.get(node.id) ?? makeNodeVisual(node);
         nodeVisualsRef.current.set(node.id, visual);
         return visual;
       })
@@ -706,6 +707,8 @@ export function GraphCanvas({
         cancelAnimationFrame(hoverAnimationRef.current);
       if (introTimeoutRef.current !== null)
         window.clearTimeout(introTimeoutRef.current);
+      for (const visual of nodeVisualsRef.current.values())
+        visual.userData.label.element.remove();
       graph._destructor();
       graphRef.current = null;
       dataInitializedRef.current = false;
@@ -796,6 +799,8 @@ export function GraphCanvas({
       const linkIds = new Set(view.relations.map((r) => r.id));
       retainGraphItems(nodesRef.current, nodeIds);
       retainGraphItems(linksRef.current, linkIds);
+      for (const [id, visual] of nodeVisualsRef.current)
+        if (!nodeIds.has(id)) visual.userData.label.element.remove();
       retainGraphItems(nodeVisualsRef.current, nodeIds);
       retainGraphItems(linkVisualsRef.current, linkIds);
       publishData();
