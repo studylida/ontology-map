@@ -668,11 +668,7 @@ export function GraphCanvas({
             wasClose = close;
             graphRef.current?.linkVisibility(
               (link) =>
-                !close ||
-                [link.source, link.target].every((endpoint) => {
-                  const tier = nodesRef.current.get(endpointId(endpoint))?.tier;
-                  return tier === "center" || tier === "direct";
-                }),
+                link.tier === "direct" || (!close && link.tier === "twoHop"),
             );
           }
         }
