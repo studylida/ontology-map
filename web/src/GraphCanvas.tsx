@@ -46,6 +46,7 @@ interface RuntimeLink extends Omit<KnowledgeViewRelation, "source" | "target"> {
 interface GraphCanvasProps {
   designPreview?: boolean;
   theme?: "dark" | "light";
+  hiddenKinds?: readonly string[];
   view: ExplorationView;
   introStarted: boolean;
   introCompleted?: boolean;
@@ -77,6 +78,8 @@ type NodeVisual = THREE.Group & {
     designPreview: boolean;
     lightMode: boolean;
     velocity: THREE.Vector3;
+    reveal: number;
+    hoverOpacity: number;
     surface: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
     occluder: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
     core: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
@@ -94,6 +97,7 @@ type LinkVisual = THREE.Group & {
     lines: THREE.Line[];
     opacity: number;
     endpoints?: number[];
+    arrow?: THREE.Mesh<THREE.ConeGeometry, THREE.MeshBasicMaterial>;
   };
 };
 
@@ -317,6 +321,10 @@ function makeNodeVisual(node: RuntimeNode, designPreview: boolean): NodeVisual {
     surface.material.fog = false;
     occluder.material.color.set("#111416");
   }
+  const raycast = surface.raycast.bind(surface);
+  surface.raycast = (raycaster, hits) => {
+    if (group.visible) raycast(raycaster, hits);
+  };
   group.add(halo, occluder, surface, core, shell, label);
   group.addEventListener("removed", () => label.element.remove());
   group.userData = {
@@ -324,6 +332,8 @@ function makeNodeVisual(node: RuntimeNode, designPreview: boolean): NodeVisual {
     designPreview,
     lightMode: false,
     velocity: new THREE.Vector3(),
+    reveal: 1,
+    hoverOpacity: 0,
     surface,
     occluder,
     core,
@@ -368,11 +378,29 @@ function makeLinkVisual(link: RuntimeLink, designPreview: boolean): LinkVisual {
       );
       line.renderOrder = 1;
       line.frustumCulled = false;
+      const raycast = line.raycast.bind(line);
+      line.raycast = (raycaster, hits) => {
+        if (group.visible) raycast(raycaster, hits);
+      };
       group.add(line);
       return line;
     },
   );
   group.userData = { linkId: link.id, lines, opacity };
+  if (link.directionality === "DIRECTED") {
+    const arrow = new THREE.Mesh(
+      new THREE.ConeGeometry(1, 4, 8),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        toneMapped: !designPreview,
+      }),
+    );
+    arrow.raycast = () => {};
+    group.add(arrow);
+    group.userData.arrow = arrow;
+  }
   return group;
 }
 
@@ -409,11 +437,38 @@ function updateLinkPosition(
     if (line.geometry.getAttribute("position")?.count === 0)
       line.geometry.deleteAttribute("position");
     line.geometry.setFromPoints(curve.getPoints(14));
+    if (index === 0 && group.userData.arrow) {
+      group.userData.arrow.position.copy(curve.getPoint(0.85));
+      group.userData.arrow.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        curve.getTangent(0.85).normalize(),
+      );
+    }
     line.geometry.computeBoundingSphere();
     if (line.material instanceof THREE.LineDashedMaterial)
       line.computeLineDistances();
   });
   return true;
+}
+
+function paintLinkOpacity(visual: LinkVisual, reveal: number) {
+  const opacity = visual.userData.opacity * reveal;
+  visual.visible = opacity > 0.001;
+  for (const line of visual.userData.lines)
+    (line.material as THREE.Material).opacity = opacity;
+  const material = visual.userData.lines[0]
+    ?.material as THREE.LineBasicMaterial;
+  if (visual.userData.arrow && material) {
+    visual.userData.arrow.material.color.copy(material.color);
+    visual.userData.arrow.material.opacity = opacity;
+  }
+}
+
+function filterPulse(elapsed: number, reducedMotion: boolean) {
+  if (elapsed < 0 || elapsed >= 2500) return 0;
+  if (reducedMotion) return 0.55;
+  const envelope = Math.min(1, elapsed / 300, (2500 - elapsed) / 500);
+  return envelope * (0.35 + 0.3 * (1 - Math.cos((elapsed * Math.PI) / 600)));
 }
 
 function easeInOutCubic(value: number): number {
@@ -539,9 +594,12 @@ function floatWhileWaiting(
   return () => cancelAnimationFrame(frameId);
 }
 
+const EMPTY_KINDS: readonly string[] = [];
+
 export function GraphCanvas({
   designPreview = false,
   theme = "dark",
+  hiddenKinds = EMPTY_KINDS,
   view,
   introStarted,
   introCompleted = false,
@@ -555,6 +613,17 @@ export function GraphCanvas({
   onIntroComplete,
 }: GraphCanvasProps) {
   const centerId = view.centerId;
+  const hiddenKindsRef = useRef(hiddenKinds);
+  const filterChangedAtRef = useRef(-Infinity);
+  const refreshVisibilityRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (hiddenKindsRef.current === hiddenKinds) return;
+    hiddenKindsRef.current = hiddenKinds;
+    filterChangedAtRef.current = performance.now();
+    focusPathRef.current(null);
+    setHoveredRelation(null);
+    refreshVisibilityRef.current();
+  }, [hiddenKinds]);
   const themeRef = useRef(theme);
   themeRef.current = theme;
   const nearViewRef = useRef<{ distance: number; anchor: Position } | null>(
@@ -645,19 +714,30 @@ export function GraphCanvas({
     const labels = new CSS2DRenderer();
     labels.domElement.dataset.graphLabels = "true";
     labels.domElement.style.pointerEvents = "none";
+
+    let neighborhoodReveal = 1;
     let closeView = false;
+    const nodeIsVisible = (id: string) => {
+      const node = nodesRef.current.get(id);
+      return !!node && !hiddenKindsRef.current.includes(node.kindCode);
+    };
     const linkIsVisible = (link: RuntimeLink) =>
-      link.tier === "direct" ||
-      linkFocusRef.current(link) ||
-      (!closeView && link.tier === "twoHop");
-    if (designPreview) {
+      nodeIsVisible(endpointId(link.source)) &&
+      nodeIsVisible(endpointId(link.target)) &&
+      (!designPreview ||
+        link.tier === "direct" ||
+        linkFocusRef.current(link) ||
+        (!closeView && link.tier === "twoHop"));
+    refreshVisibilityRef.current = () =>
+      graphRef.current?.linkVisibility(linkIsVisible);
+    {
       const renderLabels = labels.render.bind(labels);
       labels.render = (scene, camera) => {
         const near = nearViewRef.current;
         const controls = graphRef.current?.controls() as
           | GraphControls
           | undefined;
-        if (near && controls) {
+        if (designPreview && near && controls) {
           const offset = controls.target.distanceTo(
             new THREE.Vector3(near.anchor.x, near.anchor.y, near.anchor.z),
           );
@@ -680,8 +760,12 @@ export function GraphCanvas({
                 ),
               ),
             );
-          const close =
-            introRevealRef.current === null ? reveal < 1 : reveal <= 0.001;
+          neighborhoodReveal = reveal;
+          const close = reveal <= 0.001;
+          if (close !== closeView) {
+            closeView = close;
+            graphRef.current?.linkVisibility(linkIsVisible);
+          }
           const secondHopLabel = easeInOutCubic(
             Math.min(
               1,
@@ -704,7 +788,8 @@ export function GraphCanvas({
                 : tier === "twoHop"
                   ? secondHopLabel
                   : 0;
-            visual.visible = opacity > 0.001;
+            visual.userData.reveal = opacity;
+            visual.visible = opacity > 0.001 && nodeIsVisible(id);
             visual.userData.label.visible =
               visual.visible && labelOpacity > 0.001;
             visual.userData.surface.material.opacity =
@@ -716,20 +801,43 @@ export function GraphCanvas({
                 labelOpacity,
             );
           }
-          if (close !== closeView) {
-            closeView = close;
-            graphRef.current?.linkVisibility(linkIsVisible);
-          }
-          if (introRevealRef.current !== null)
-            for (const [id, visual] of linkVisualsRef.current) {
-              if (linksRef.current.get(id)?.tier === "direct") continue;
-              for (const line of visual.userData.lines)
-                (line.material as THREE.Material).opacity =
-                  visual.userData.opacity * reveal;
-            }
+        }
+        const pulse = filterPulse(
+          performance.now() - filterChangedAtRef.current,
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+        );
+        for (const [id, visual] of nodeVisualsRef.current) {
+          visual.visible =
+            nodeIsVisible(id) &&
+            visual.userData.reveal > 0.001 &&
+            visual.userData.style.opacity > 0.001;
+          const shell = visual.userData.shell;
+          shell.material.opacity =
+            Math.max(
+              visual.userData.hoverOpacity,
+              pulse,
+              designPreview ? 0 : visual.userData.style.shellOpacity,
+            ) * visual.userData.reveal;
+          shell.visible = shell.material.opacity > 0;
+          shell.material.blending = THREE.NormalBlending;
+          shell.scale.setScalar(visual.userData.radius * 1.3);
+        }
+        for (const [id, visual] of linkVisualsRef.current) {
+          const link = linksRef.current.get(id);
+          if (!link) continue;
+          const source = nodeVisualsRef.current.get(endpointId(link.source));
+          const target = nodeVisualsRef.current.get(endpointId(link.target));
+          const reveal = Math.min(
+            source?.userData.reveal ?? 0,
+            target?.userData.reveal ?? 0,
+            link.tier === "direct" || linkFocusRef.current(link)
+              ? 1
+              : neighborhoodReveal,
+          );
+          paintLinkOpacity(visual, linkIsVisible(link) ? reveal : 0);
         }
         renderLabels(scene, camera);
-        placePreviewLabels(container);
+        if (designPreview) placePreviewLabels(container);
       };
     }
     const graph = new ForceGraph3D(container, {
@@ -754,11 +862,14 @@ export function GraphCanvas({
         const visual =
           nodeVisualsRef.current.get(node.id) ??
           makeNodeVisual(node, designPreview);
+        visual.visible = !hiddenKindsRef.current.includes(node.kindCode);
         nodeVisualsRef.current.set(node.id, visual);
         return visual;
       })
       .linkThreeObject((link) => {
-        const visual = makeLinkVisual(link, designPreview);
+        const visual =
+          linkVisualsRef.current.get(link.id) ??
+          makeLinkVisual(link, designPreview);
         // 표시 범위 변화로 paint 이후 다시 생성돼도 첫 raycast 전에 좌표를 채운다.
         const source = nodeVisualsRef.current.get(endpointId(link.source));
         const target = nodeVisualsRef.current.get(endpointId(link.target));
@@ -778,15 +889,12 @@ export function GraphCanvas({
         linkVisualsRef.current.set(link.id, visual);
         return visual;
       })
-      .linkDirectionalArrowLength((link) =>
-        link.directionality === "DIRECTED" ? 4 : 0,
-      )
-      .linkDirectionalArrowRelPos(0.85)
+      .linkDirectionalArrowLength(0)
       .linkHoverPrecision(6)
       .onLinkHover((link) => focusRelationRef.current(link?.id ?? null))
       .onLinkClick((link) => {
         const selection = relationActionsRef.current.get(link.id);
-        if (selection) {
+        if (selection && linkIsVisible(link)) {
           relationButtonsRef.current.get(link.id)?.focus();
           onEvidenceRef.current(selection);
         }
@@ -795,21 +903,17 @@ export function GraphCanvas({
         updateLinkPosition(object, coordinates.start, coordinates.end),
       )
       .onNodeClick((node) => {
-        if (viewNodesRef.current.has(node.id)) onSelectRef.current(node.id);
+        if (viewNodesRef.current.has(node.id) && nodeIsVisible(node.id))
+          onSelectRef.current(node.id);
       })
       .onNodeHover((node) => {
-        focusPathRef.current(node?.id ?? null);
+        focusPathRef.current(node && nodeIsVisible(node.id) ? node.id : null);
         container.style.cursor = node ? "pointer" : "grab";
       })
       .warmupTicks(0)
       .cooldownTicks(0);
 
-    if (designPreview)
-      graph
-        .linkVisibility(linkIsVisible)
-        .linkDirectionalArrowColor((link) =>
-          previewLinkColor(link, false, themeRef.current === "light"),
-        );
+    graph.linkVisibility(linkIsVisible);
     const highlight = (nodeIds: Set<string>, relationId: string | null) => {
       container.style.cursor = nodeIds.size || relationId ? "pointer" : "grab";
       const reducedMotion = window.matchMedia(
@@ -821,16 +925,7 @@ export function GraphCanvas({
           : nodeIds.has(endpointId(link.source)) ||
             nodeIds.has(endpointId(link.target));
       linkFocusRef.current = isFocused;
-      if (designPreview)
-        graph
-          .linkVisibility(linkIsVisible)
-          .linkDirectionalArrowColor((link) =>
-            previewLinkColor(
-              link,
-              isFocused(link),
-              themeRef.current === "light",
-            ),
-          );
+      graph.linkVisibility(linkIsVisible);
       if (hoverAnimationRef.current !== null)
         cancelAnimationFrame(hoverAnimationRef.current);
       const nodeTargets = [...nodesRef.current.values()].map((item) => {
@@ -856,7 +951,7 @@ export function GraphCanvas({
         }
         return {
           visual,
-          shellFrom: visual?.userData.shell.material.opacity ?? 0,
+          shellFrom: visual?.userData.hoverOpacity ?? 0,
           shellTo: nodeIds.has(item.id) ? 1 : 0,
           from: visual
             ? (visual.userData.halo.material as THREE.SpriteMaterial).opacity
@@ -904,8 +999,10 @@ export function GraphCanvas({
             target.visual.userData.shell.scale.setScalar(
               target.visual.userData.radius * 1.3,
             );
-            target.visual.userData.shell.material.opacity =
+            target.visual.userData.hoverOpacity =
               target.shellFrom + (target.shellTo - target.shellFrom) * eased;
+            target.visual.userData.shell.material.opacity =
+              target.visual.userData.hoverOpacity;
             if (progress === 1)
               target.visual.userData.shell.visible = target.shellTo > 0;
           }
@@ -938,7 +1035,8 @@ export function GraphCanvas({
       hoverAnimationRef.current = requestAnimationFrame(animate);
     };
 
-    focusPathRef.current = (id) => highlight(new Set(id ? [id] : []), null);
+    focusPathRef.current = (id) =>
+      highlight(new Set(id && nodeIsVisible(id) ? [id] : []), null);
     focusRelationRef.current = (id) => {
       const relation = id ? linksRef.current.get(id) : undefined;
       setHoveredRelation(id);
@@ -1533,9 +1631,6 @@ export function GraphCanvas({
             previewLinkColor(link, linkFocusRef.current(link), light),
           );
     }
-    graph.linkDirectionalArrowColor((link) =>
-      previewLinkColor(link, linkFocusRef.current(link), light),
-    );
   }, [theme, designPreview, view]);
 
   return (
@@ -1553,23 +1648,33 @@ export function GraphCanvas({
         </div>
       )}
       <nav className={styles.accessibleNodes} aria-label="지도 관계 목록">
-        {view.relations.map((relation) => (
-          <button
-            key={relation.id}
-            ref={(element) => {
-              if (element) relationButtonsRef.current.set(relation.id, element);
-              else relationButtonsRef.current.delete(relation.id);
-            }}
-            type="button"
-            onFocus={() => focusRelationRef.current(relation.id)}
-            onBlur={() => focusRelationRef.current(null)}
-            onClick={() =>
-              onEvidence({ id: relation.id, label: relationName(relation) })
-            }
-          >
-            {relationName(relation)}
-          </button>
-        ))}
+        {view.relations
+          .filter((relation) =>
+            [relation.source, relation.target].every((id) =>
+              view.nodes.some(
+                (node) =>
+                  node.id === id && !hiddenKinds.includes(node.kindCode),
+              ),
+            ),
+          )
+          .map((relation) => (
+            <button
+              key={relation.id}
+              ref={(element) => {
+                if (element)
+                  relationButtonsRef.current.set(relation.id, element);
+                else relationButtonsRef.current.delete(relation.id);
+              }}
+              type="button"
+              onFocus={() => focusRelationRef.current(relation.id)}
+              onBlur={() => focusRelationRef.current(null)}
+              onClick={() =>
+                onEvidence({ id: relation.id, label: relationName(relation) })
+              }
+            >
+              {relationName(relation)}
+            </button>
+          ))}
       </nav>
       <div className={styles.depthNote}>
         {designPreview
@@ -1580,17 +1685,19 @@ export function GraphCanvas({
         className={styles.accessibleNodes}
         aria-label="탐색 가능한 node 목록"
       >
-        {view.nodes.map((node) => (
-          <button
-            key={node.id}
-            type="button"
-            onClick={() => onSelect(node.id)}
-            onFocus={() => focusPathRef.current(node.id)}
-            onBlur={() => focusPathRef.current(null)}
-          >
-            {node.name} · {node.kind}
-          </button>
-        ))}
+        {view.nodes
+          .filter((node) => !hiddenKinds.includes(node.kindCode))
+          .map((node) => (
+            <button
+              key={node.id}
+              type="button"
+              onClick={() => onSelect(node.id)}
+              onFocus={() => focusPathRef.current(node.id)}
+              onBlur={() => focusPathRef.current(null)}
+            >
+              {node.name} · {node.kind}
+            </button>
+          ))}
       </nav>
     </section>
   );
