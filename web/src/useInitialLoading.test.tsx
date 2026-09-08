@@ -67,6 +67,23 @@ it("진행률은 초반에 가속하고 끝에서는 감속한다", () => {
   expect(result.current.progress).toBe(89);
 });
 
+it("불규칙한 속도에서도 진행률은 뒤로 가지 않고 준비 전 89를 넘지 않는다", () => {
+  vi.spyOn(Math, "random").mockReturnValue(0.99);
+  const { result, rerender } = renderHook(() =>
+    useInitialLoading(false, false),
+  );
+  let previous = 0;
+  for (let i = 0; i < 100; i++) {
+    advance(16);
+    expect(result.current.progress).toBeGreaterThanOrEqual(previous);
+    expect(result.current.progress).toBeLessThanOrEqual(89);
+    previous = result.current.progress;
+    rerender();
+  }
+  expect(previous).toBe(89);
+  vi.restoreAllMocks();
+});
+
 it("늦은 graph-ready 이후 종료하고 unmount에서 예약된 frame과 timer를 정리한다", () => {
   const { result, rerender, unmount } = renderHook(
     ({ ready }) => useInitialLoading(ready, false),

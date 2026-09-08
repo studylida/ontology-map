@@ -547,6 +547,33 @@ it("로딩이 이미 끝난 상태에서 지도가 다시 생성되어도 초기
   );
 });
 
+it("초기 확대에서는 근접 경계에 도달하기 전부터 주변 node를 천천히 숨긴다", () => {
+  render(
+    <GraphCanvas
+      {...props()}
+      view={{
+        ...view,
+        nodes: [...view.nodes, { ...node("3", "ambient"), tier: "twoHop" }],
+      }}
+      designPreview
+      introStarted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(2300));
+  const { camera, labels, scene } = harness;
+  if (!camera || !labels || !scene) throw new Error("graph가 없습니다.");
+  labels.render(scene, camera);
+  const second = visual("3");
+  expect(second.userData.surface.material.opacity).toBeGreaterThan(0);
+  expect(second.userData.surface.material.opacity).toBeLessThan(
+    second.userData.style.opacity,
+  );
+  act(() => vi.advanceTimersByTime(1700));
+  labels.render(scene, camera);
+  expect(second.visible).toBe(false);
+  expect(harness.navigationEnabled).toBe(true);
+});
+
 it("초기 연출을 이미 마친 지도는 재생성 시 확대를 반복하지 않고 조작을 복구한다", () => {
   const callbacks = props();
   render(

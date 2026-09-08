@@ -583,6 +583,7 @@ export function GraphCanvas({
   const readyRef = useRef(false);
   const readyFrameRef = useRef<number | null>(null);
   const introCompletedRef = useRef(false);
+  const introRevealRef = useRef<number | null>(null);
   const animationRef = useRef<number | null>(null);
   const preparingRef = useRef(false);
   const resizeDeadlineRef = useRef<number | null>(null);
@@ -660,24 +661,27 @@ export function GraphCanvas({
           const offset = controls.target.distanceTo(
             new THREE.Vector3(near.anchor.x, near.anchor.y, near.anchor.z),
           );
-          const reveal = easeInOutCubic(
-            Math.min(
-              1,
-              Math.max(
-                0,
-                offset /
-                  (Math.min(
-                    near.distance,
-                    camera.position.distanceTo(controls.target),
-                  ) *
-                    0.25),
-                (camera.position.distanceTo(controls.target) / near.distance -
-                  1) /
-                  0.2,
+          const reveal =
+            introRevealRef.current ??
+            easeInOutCubic(
+              Math.min(
+                1,
+                Math.max(
+                  0,
+                  offset /
+                    (Math.min(
+                      near.distance,
+                      camera.position.distanceTo(controls.target),
+                    ) *
+                      0.25),
+                  (camera.position.distanceTo(controls.target) / near.distance -
+                    1) /
+                    0.2,
+                ),
               ),
-            ),
-          );
-          const close = reveal < 1;
+            );
+          const close =
+            introRevealRef.current === null ? reveal < 1 : reveal <= 0.001;
           for (const [id, visual] of nodeVisualsRef.current) {
             const tier = nodesRef.current.get(id)?.tier;
             const opacity = tier === "center" || tier === "direct" ? 1 : reveal;
@@ -696,6 +700,13 @@ export function GraphCanvas({
             closeView = close;
             graphRef.current?.linkVisibility(linkIsVisible);
           }
+          if (introRevealRef.current !== null)
+            for (const [id, visual] of linkVisualsRef.current) {
+              if (linksRef.current.get(id)?.tier === "direct") continue;
+              for (const line of visual.userData.lines)
+                (line.material as THREE.Material).opacity =
+                  visual.userData.opacity * reveal;
+            }
         }
         renderLabels(scene, camera);
         placePreviewLabels(container);
@@ -1338,6 +1349,9 @@ export function GraphCanvas({
               : Math.max(0, (elapsed - 1600) / 1500);
             const stageFrom = arriving ? from : overviewDistance;
             const stageTo = arriving ? overviewDistance : to;
+            introRevealRef.current = arriving
+              ? 1
+              : 1 - easeInOutCubic(Math.min(1, stage / 0.8));
             const distance = Math.exp(
               Math.log(stageFrom) +
                 (Math.log(stageTo) - Math.log(stageFrom)) *
@@ -1360,6 +1374,7 @@ export function GraphCanvas({
           return;
         }
         animationRef.current = null;
+        introRevealRef.current = null;
         resizeDeadlineRef.current = null;
         previousCenterRef.current = centerId;
         introCompletedRef.current = true;
@@ -1431,6 +1446,7 @@ export function GraphCanvas({
       if (animationRef.current !== null)
         cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
+      introRevealRef.current = null;
       if (introTimeoutRef.current !== null)
         window.clearTimeout(introTimeoutRef.current);
       introTimeoutRef.current = null;
