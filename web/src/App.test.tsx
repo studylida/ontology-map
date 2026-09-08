@@ -17,14 +17,20 @@ vi.mock("./GraphCanvas", () => ({
     onSelect,
     onTransitionComplete,
     pendingNodeId,
+    hiddenKinds,
   }: {
     view: { centerId: string; nodes: { id: string }[] };
     pendingNodeId: string | null;
+    hiddenKinds: readonly string[];
     onReady: () => void;
     onSelect: (nodeId: string) => void;
     onTransitionComplete: (nodeId: string) => void;
   }) => (
-    <section aria-label="동적 지식맵" data-pending-node={pendingNodeId ?? ""}>
+    <section
+      aria-label="동적 지식맵"
+      data-pending-node={pendingNodeId ?? ""}
+      data-hidden-kinds={hiddenKinds.join(",")}
+    >
       <span>{`요청 중심: ${view.centerId}`}</span>
       <button type="button" onClick={onReady}>
         그래프 준비 완료
@@ -216,6 +222,28 @@ describe("exploration API 화면", () => {
     expect(searchInput().disabled).toBe(false);
     expect(screen.queryByText("Evidence Trace")).toBeNull();
     expect(screen.getByRole("tab", { name: "인사이트" })).toBeTruthy();
+  });
+
+  it("유형을 여러 개 선택·해제해도 API를 다시 요청하거나 중심을 이동하지 않는다", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { name: "SK하이닉스" });
+    fireEvent.click(screen.getByText("노드 유형 · 전체 표시"));
+    const before = fetchMock.mock.calls.length;
+    const url = window.location.href;
+    fireEvent.click(screen.getByRole("button", { name: "전체 해제" }));
+    for (const checkbox of screen.getAllByRole("checkbox"))
+      expect((checkbox as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(screen.getByRole("checkbox", { name: "사람" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "회사" }));
+    expect(
+      screen.getByRole("region", { name: "동적 지식맵" }).dataset.hiddenKinds,
+    ).toBe("TECHNOLOGY,TOPIC,EVENT");
+    fireEvent.click(screen.getByRole("button", { name: "전체 표시" }));
+    expect(
+      screen.getByRole("region", { name: "동적 지식맵" }).dataset.hiddenKinds,
+    ).toBe("");
+    expect(fetchMock.mock.calls).toHaveLength(before);
+    expect(window.location.href).toBe(url);
   });
 
   it("graph node를 선택하면 aggregate 한 번으로 새 중심을 전환한다", async () => {

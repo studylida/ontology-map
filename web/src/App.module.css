@@ -1429,3 +1429,33 @@
   opacity: 0.7;
   margin-top: 20px;
 }
+
+.typeFilter {
+  margin-top: 14px;
+  font-size: 13px;
+}
+.typeFilter summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.typeFilter fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 8px 0 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+}
+.typeFilter label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.typeFilter button {
+  color: var(--text-primary);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+}

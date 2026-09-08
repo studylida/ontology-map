@@ -894,3 +894,204 @@ it("배치 완료 뒤 다시 생성된 간선도 첫 hover 전에 좌표를 갖�
   expect(position.getX(0)).toBeCloseTo(source.x);
   expect(position.getY(position.count - 1)).toBeCloseTo(target.y);
 });
+
+it("유형 필터는 좌표·배율을 보존하며 숨긴 노드와 연결을 선택·강조하지 않고 2.5초 뒤 강조를 끝낸다", () => {
+  const callbacks = props();
+  const relation = {
+    id: "filtered",
+    source: "1",
+    target: "2",
+    label: "연결",
+    tier: "direct" as const,
+    directionality: "DIRECTED" as const,
+    evidenceGroupCount: 2,
+    conflict: false,
+  };
+  const data = {
+    ...view,
+    nodes: [
+      node("1", "center"),
+      { ...node("2", "direct"), kind: "회사", kindCode: "COMPANY" },
+    ],
+    relations: [relation],
+  };
+  const { rerender, queryByRole } = render(
+    <GraphCanvas
+      {...callbacks}
+      view={data}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(32));
+  const { labels, scene, camera, target } = harness;
+  if (!labels || !scene || !camera || !target)
+    throw new Error("graph가 없습니다.");
+  const draw = () => labels.render(scene, camera);
+  draw();
+  const positions = data.nodes.map((n) => visual(n.id).position.clone());
+  const cameraPosition = camera.position.clone();
+  const hidden = ["COMPANY"];
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      view={data}
+      hiddenKinds={hidden}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  draw();
+  expect(visual("2").visible).toBe(false);
+  expect(harness.links.get("filtered")?.visible).toBe(false);
+  expect(queryByRole("button", { name: "2 · 회사" })).toBeNull();
+  expect(queryByRole("button", { name: /독립 근거/ })).toBeNull();
+  act(() => {
+    harness.options.get("onNodeClick")?.(data.nodes[1] as never);
+    harness.options.get("onLinkClick")?.(relation as never);
+    harness.options.get("onNodeHover")?.(data.nodes[0] as never);
+  });
+  draw();
+  expect(callbacks.onSelect).not.toHaveBeenCalled();
+  expect(callbacks.onEvidence).not.toHaveBeenCalled();
+  expect(harness.options.get("linkVisibility")?.(relation as never)).toBe(
+    false,
+  );
+  act(() => harness.options.get("onNodeHover")?.(null as never));
+  act(() => vi.advanceTimersByTime(450));
+  draw();
+  expect(visual("1").userData.shell.material.opacity).toBeGreaterThan(0);
+  const allHidden = ["COMPANY", "TECHNOLOGY"];
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      view={data}
+      hiddenKinds={allHidden}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  draw();
+  expect(visual("1").visible).toBe(false);
+  const page = {
+    ...data,
+    nodes: [
+      ...data.nodes,
+      { ...node("3", "direct"), kind: "회사", kindCode: "COMPANY" },
+    ],
+  };
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      view={page}
+      hiddenKinds={hidden}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  draw();
+  expect(visual("3").visible).toBe(false);
+  expect(visual("1").userData.shell.material.opacity).toBe(0);
+  act(() => vi.advanceTimersByTime(600));
+  draw();
+  expect(visual("1").userData.shell.material.opacity).toBeGreaterThan(0);
+  act(() => vi.advanceTimersByTime(2100));
+  draw();
+  expect(visual("1").userData.shell.visible).toBe(false);
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      view={page}
+      hiddenKinds={[]}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  draw();
+  expect(visual("2").visible).toBe(true);
+  expect(harness.links.get("filtered")?.visible).toBe(true);
+  expect(data.nodes.map((n) => visual(n.id).position)).toEqual(positions);
+  expect(camera.position).toEqual(cameraPosition);
+  expect(callbacks.onTransitionComplete).not.toHaveBeenCalled();
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      view={page}
+      hiddenKinds={hidden}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  draw();
+  const steady = visual("1").userData.shell.material.opacity;
+  act(() => vi.advanceTimersByTime(1000));
+  draw();
+  expect(visual("1").userData.shell.material.opacity).toBe(steady);
+  act(() => vi.advanceTimersByTime(1600));
+  draw();
+  expect(visual("1").userData.shell.visible).toBe(false);
+});
+
+it("2단계 간선과 화살표는 이동·확대 중 노드와 같은 진행률로 나타나고 사라진다", () => {
+  const relation = {
+    id: "fade",
+    source: "1",
+    target: "3",
+    label: "연결",
+    tier: "twoHop" as const,
+    directionality: "DIRECTED" as const,
+    evidenceGroupCount: 3,
+    conflict: true,
+  };
+  render(
+    <GraphCanvas
+      {...props()}
+      view={{
+        ...view,
+        nodes: [...view.nodes, { ...node("3", "ambient"), tier: "twoHop" }],
+        relations: [relation],
+      }}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(32));
+  const { labels, camera, target, scene } = harness;
+  if (!labels || !camera || !target || !scene)
+    throw new Error("graph가 없습니다.");
+  const initial = camera.position.clone();
+  const draw = (scale: number) => {
+    camera.position.copy(initial).sub(target).multiplyScalar(scale).add(target);
+    labels.render(scene, camera);
+  };
+  const opacity = () =>
+    harness.links.get("fade")?.userData.lines[0].material.opacity as number;
+  draw(1);
+  expect(opacity()).toBe(0);
+  draw(1.1);
+  const partial = opacity();
+  expect(partial).toBeGreaterThan(0);
+  expect(partial).toBeLessThan(0.36);
+  expect(partial / 0.36).toBeCloseTo(
+    visual("3").userData.surface.material.opacity /
+      visual("3").userData.style.opacity,
+  );
+  expect(harness.links.get("fade")?.userData.arrow.material.opacity).toBe(
+    partial,
+  );
+  draw(1.3);
+  expect(opacity()).toBeCloseTo(0.36);
+  draw(1.1);
+  expect(opacity()).toBeCloseTo(partial);
+  draw(1);
+  expect(opacity()).toBe(0);
+  expect(harness.links.get("fade")?.visible).toBe(false);
+});
