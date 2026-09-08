@@ -560,6 +560,10 @@ it("초기 확대에서는 근접 경계에 도달하기 전부터 주변 node�
     />,
   );
   act(() => vi.advanceTimersByTime(2300));
+  expect(visual("3").userData.surface.material.opacity).toBeGreaterThan(0);
+  expect(visual("3").userData.surface.material.opacity).toBeLessThan(
+    visual("3").userData.style.opacity,
+  );
   const { camera, labels, scene } = harness;
   if (!camera || !labels || !scene) throw new Error("graph가 없습니다.");
   labels.render(scene, camera);

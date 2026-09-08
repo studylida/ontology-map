@@ -1271,6 +1271,17 @@ export function GraphCanvas({
         }
         visual.position.set(node.x ?? 0, node.y ?? 0, node.z ?? 0);
         applyNodeVisual(visual, node, radius, style);
+        if (
+          introRevealRef.current !== null &&
+          node.tier !== "center" &&
+          node.tier !== "direct"
+        ) {
+          visual.userData.surface.material.opacity *= introRevealRef.current;
+          visual.userData.occluder.material.opacity = introRevealRef.current;
+          visual.userData.label.element.style.opacity = String(
+            style.labelOpacity * introRevealRef.current,
+          );
+        }
       }
       alignLinks(
         linksRef.current,
@@ -1287,7 +1298,9 @@ export function GraphCanvas({
           ? oldOpacity + (targetOpacity - oldOpacity) * progress
           : targetOpacity;
         for (const line of visual.userData.lines) {
-          (line.material as THREE.Material).opacity = opacity;
+          (line.material as THREE.Material).opacity =
+            opacity *
+            (link.tier === "direct" ? 1 : (introRevealRef.current ?? 1));
           if (designPreview)
             (line.material as THREE.LineBasicMaterial).color.set(
               previewLinkColor(
@@ -1334,7 +1347,6 @@ export function GraphCanvas({
       const frame = (now: number) => {
         const progress = duration ? Math.min(1, (now - begun) / duration) : 1;
         const eased = easeInOutCubic(progress);
-        paint(eased, !intro, progress, duration);
         if (moveCamera) {
           const offset = graph.camera().position.clone().sub(controls.target);
           if (intro)
@@ -1369,6 +1381,7 @@ export function GraphCanvas({
           if (!intro) graph.camera().position.copy(controls.target).add(offset);
           controls.update();
         }
+        paint(eased, !intro, progress, duration);
         if (progress < 1) {
           animationRef.current = requestAnimationFrame(frame);
           return;
