@@ -14,7 +14,7 @@ colors:
   conflict: "#E6A23C"
   danger: "#F26D78"
   ready: "#4FD1A1"
-  node-person: "#6EA8FE"
+  node-person: "#F5A24B"
   node-company: "#B792F4"
   node-technology: "#43C6D9"
   node-topic: "#65C98B"

@@ -98,7 +98,7 @@ type LinkVisual = THREE.Group & {
 };
 
 const colors = {
-  사람: "#6ea8fe",
+  사람: "#f5a24b",
   회사: "#b792f4",
   기술: "#43c6d9",
   주제: "#65c98b",
