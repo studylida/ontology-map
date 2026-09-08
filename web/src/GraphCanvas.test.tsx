@@ -398,7 +398,7 @@ it("미리보기는 중심·초점 연결을 파란색으로, 충돌을 우선 �
     id: "remote",
     source: "2",
     target: "3",
-    tier: "twoHop" as const,
+    tier: "threeHop" as const,
   };
   const conflict = { ...remote, id: "conflict", conflict: true };
   const data = {
@@ -426,11 +426,24 @@ it("미리보기는 중심·초점 연결을 파란색으로, 충돌을 우선 �
   expect(visual("1").userData.halo.visible).toBe(false);
   expect(visual("1").userData.core.visible).toBe(false);
   expect(visual("1").userData.shell.visible).toBe(false);
+  const isVisible = () => harness.options.get("linkVisibility");
+  expect(isVisible()?.(remote as never)).toBe(false);
   act(() => getByRole("button", { name: "3 · 기술" }).focus());
+  expect(isVisible()?.(remote as never)).toBe(true);
+  expect(isVisible()?.(conflict as never)).toBe(true);
+  const recreate = harness.options.get("linkThreeObject");
+  if (!recreate) throw new Error("간선 생성기가 없습니다.");
+  const revealed = recreate(remote as never) as THREE.Group;
+  const revealedColor = () =>
+    (
+      (revealed.children[0] as THREE.Line).material as THREE.LineBasicMaterial
+    ).color.getHexString();
+  expect(revealedColor()).toBe("72a7ff");
   expect(color("remote")).toBe("72a7ff");
   expect(color("conflict")).toBe("f26d78");
   act(() => getByRole("button", { name: "3 · 기술" }).blur());
-  expect(color("remote")).toBe("7b8797");
+  expect(isVisible()?.(remote as never)).toBe(false);
+  expect(revealedColor()).toBe("7b8797");
   expect(color("direct")).toBe("72a7ff");
 });
 

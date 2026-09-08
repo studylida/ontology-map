@@ -644,9 +644,12 @@ export function GraphCanvas({
     const labels = new CSS2DRenderer();
     labels.domElement.dataset.graphLabels = "true";
     labels.domElement.style.pointerEvents = "none";
+    let closeView = false;
+    const linkIsVisible = (link: RuntimeLink) =>
+      link.tier === "direct" ||
+      (!closeView && (link.tier === "twoHop" || linkFocusRef.current(link)));
     if (designPreview) {
       const renderLabels = labels.render.bind(labels);
-      let wasClose = false;
       labels.render = (scene, camera) => {
         const near = nearViewRef.current;
         const controls = graphRef.current?.controls() as
@@ -664,12 +667,9 @@ export function GraphCanvas({
             visual.visible = !close || tier === "center" || tier === "direct";
             visual.userData.label.visible = visual.visible;
           }
-          if (close !== wasClose) {
-            wasClose = close;
-            graphRef.current?.linkVisibility(
-              (link) =>
-                link.tier === "direct" || (!close && link.tier === "twoHop"),
-            );
+          if (close !== closeView) {
+            closeView = close;
+            graphRef.current?.linkVisibility(linkIsVisible);
           }
         }
         renderLabels(scene, camera);
@@ -711,7 +711,11 @@ export function GraphCanvas({
         if (designPreview)
           for (const line of visual.userData.lines) {
             (line.material as THREE.LineBasicMaterial).color.set(
-              previewLinkColor(link, false, themeRef.current === "light"),
+              previewLinkColor(
+                link,
+                linkFocusRef.current(link),
+                themeRef.current === "light",
+              ),
             );
             (line.material as THREE.LineBasicMaterial).toneMapped = false;
           }
@@ -745,9 +749,11 @@ export function GraphCanvas({
       .cooldownTicks(0);
 
     if (designPreview)
-      graph.linkDirectionalArrowColor((link) =>
-        previewLinkColor(link, false, themeRef.current === "light"),
-      );
+      graph
+        .linkVisibility(linkIsVisible)
+        .linkDirectionalArrowColor((link) =>
+          previewLinkColor(link, false, themeRef.current === "light"),
+        );
     const highlight = (nodeIds: Set<string>, relationId: string | null) => {
       container.style.cursor = nodeIds.size || relationId ? "pointer" : "grab";
       const reducedMotion = window.matchMedia(
@@ -760,9 +766,15 @@ export function GraphCanvas({
             nodeIds.has(endpointId(link.target));
       linkFocusRef.current = isFocused;
       if (designPreview)
-        graph.linkDirectionalArrowColor((link) =>
-          previewLinkColor(link, isFocused(link), themeRef.current === "light"),
-        );
+        graph
+          .linkVisibility(linkIsVisible)
+          .linkDirectionalArrowColor((link) =>
+            previewLinkColor(
+              link,
+              isFocused(link),
+              themeRef.current === "light",
+            ),
+          );
       if (hoverAnimationRef.current !== null)
         cancelAnimationFrame(hoverAnimationRef.current);
       const nodeTargets = [...nodesRef.current.values()].map((item) => {
