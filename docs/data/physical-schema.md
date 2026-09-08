@@ -550,19 +550,15 @@ FALSE
 vector(1024) NOT NULL
 ```
 
-POC는 한 시점에 승인된 하나의 embedding 모델과 하나의 호환 벡터 공간만 사용한다.
+이 타입과 embedding 관련 FK·작업 종류·READY pointer는 현재 migration·metadata에 남아 있다. 개발 fixture는 합성 one-hot 값을 만들지만 제품 embedding worker와 query 모델 호출은 없다.
 
 - 행별 dimension 컬럼을 추가하지 않는다.
 - 서로 다른 차원의 벡터를 같은 컬럼에 섞지 않는다.
 - `halfvec`, SQL 배열과 JSON 배열을 사용하지 않는다.
-- 초기 검색은 exact nearest-neighbor 검색을 사용한다.
-- 모델은 `qwen3.7-text-embedding`, 출력은 dense 1024차원이며 거리 연산자는 cosine `<=>`를 사용한다.
-- FTS와 vector branch는 각각 최대 50개를 구하고 `k = 60` RRF로 결합한다.
-- 한 branch가 실패하면 가능한 다른 branch 결과를 반환한다.
-- HNSW·IVFFlat은 #81에서 exact search의 실행 계획, p95 응답 시간과 검색 품질을 측정한 뒤 기준을 충족하지 못할 때만 검토한다.
-- 모델이나 차원이 바뀌면 기존 벡터를 덮어쓰지 않고 전부 새로 생성한 뒤 공개 결과가 `READY`가 되면 전환한다.
 
-현재 migration에는 ANN index가 없다. HTTP search의 vector·RRF branch는 #117에 남아 있으며 storage 계약이 구현되었다는 사실만으로 조회 기능이 완료된 것으로 보지 않는다.
+과거 Qwen embedding·cosine·RRF 도입 방향은 [#121](https://github.com/studylida/ontology-map/issues/121)의 제거 결정으로 대체됐다. 현재 검색은 alias와 native PostgreSQL FTS만 사용하며 ANN index도 없다. #81은 종료됐고 #117은 vector 구현이 아니라 FTS 우선순위·응답 단순화를 소유한다.
+
+#121은 초기 migration baseline을 교체하고 기존 개발 DB를 재생성해 pgvector까지 제거하는 예외를 승인받았다. 아직 구현 전이므로 이 문서에서 `vector(1024)`와 관련 현재 제약을 미리 지우지 않는다. 제거 PR에서 논리·물리 schema, metadata·migration·fixture·의존성·운영 절차를 함께 바꿔야 한다. in-place 이관이 지원된다는 뜻은 아니다.
 
 ## 7. 닫힌 코드와 확장 가능한 참조 목록
 

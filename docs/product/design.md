@@ -149,7 +149,6 @@ hover·키보드 초점으로 강조한 일반 연결선은 기본 중심 연결
 | node의 공개 Relation | `GET /api/v1/nodes/{node_id}/relations?cursor=...&limit=20` | 상대 node, relation 유형, 지지 근거 묶음 수, 충돌 여부 | `list_node_relations` | 최신 READY 검색 문서·basis → relation → 지지 Claim → Observation → Source Document | web 연동 구현 |
 | Relation 근거 | `GET /api/v1/relations/{relation_id}/evidence?cursor=...&limit=10` | Claim stance, source metadata, quote와 locator | `list_relation_evidence` | Claim Relation → Claim Observation → Observation → Source Document | web 연동 구현 |
 | 주변부 추가 조회 | `GET /api/v1/exploration/{center_node_id}/peripheral?time_window=...&cursor=...&limit=20` | `AMBIENT` node, 활성 graph·현재/이전 page 사이의 실제 Relation, 다음 cursor | `list_peripheral_nodes` | exploration 활성 graph → 최신 READY 공개 node의 다음 page → 활성 graph와의 relation | web 연동 구현 |
-
 | 저장 인사이트 목록 | `GET /api/v1/nodes/{node_id}/insights?time_window=...` | slot·제목·독립 근거 수 | `list_node_insights` | 최신 READY의 NODE_INSIGHT SUCCESS → 전체 basis 공개 재검증 → window별 결과 | web 연동 구현 |
 | 저장 인사이트 상세 | `GET /api/v1/insights/{insight_id}` | summary·synthesis·caveat·역할별 Claim과 Trace | `get_insight` | 현재 목록과 같은 공개 검사 → Claim Observation → Observation → Source Document | web 연동 구현 |
 
@@ -188,7 +187,26 @@ PostgreSQL의 `bigint` ID는 JavaScript 정밀도 손실을 막기 위해 모든
 
 일반 사용자 조회에는 현재 공개 가능한 최신 READY 결과만 포함한다. `promotion_status = COMMITTED`, `publication_status = READY`, 지식 상태 `EVIDENCE_VERIFIED | HUMAN_VERIFIED`와 열린 `BLOCKING` lint 부재를 다시 확인한다. selected 검색 문서의 모든 `search_document_basis`가 계속 공개 가능한지 재검증하는 것은 제품 불변성이다. search와 저장 인사이트 경로뿐 아니라 exploration, peripheral, node Relation과 Relation Evidence Trace가 사용하는 공통 공개 경로도 이 basis 재검증을 수행한다. 새 publication이 실패해도 이전 READY 결과가 있으면 계속 제공한다.
 
-현재 search는 alias 정확 일치를 첫 bucket으로 반환한 뒤 `identity_text`와 `knowledge_text`를 함께 사용한 PostgreSQL `simple` FTS 결과를 이어서 반환하고 HTTP 응답과 web에 `match_reasons`를 노출한다. 아직 구현되지 않은 frozen node embedding 저장 계약과 pgvector·READY embedding 의존성은 #121에서 제거한다. 그 뒤 #117은 exact alias → identity FTS → knowledge FTS의 세 bucket을 고정하고 `match_reasons`와 검색 이유 표시를 제거한다. 실제 한국어 단어 FTS 누락 사례가 확인될 때만 #80에서 tokenizer, `pg_trgm` 또는 BM25 같은 확장을 다시 검토한다.
+현재 search는 alias 정확 일치를 첫 bucket으로 반환한 뒤 `identity_text`와 `knowledge_text`를 함께 사용한 PostgreSQL `simple` FTS 결과를 이어서 반환하고 HTTP 응답과 web에 `match_reasons`를 노출한다. node embedding 저장 구조와 pgvector는 현재 schema·migration·fixture에 있지만 실제 검색 경로와 모델 호출에는 쓰이지 않는다. #121은 이 저장 구조와 READY embedding 의존성을 제거한다. 그 뒤 #117은 exact alias → identity FTS → knowledge FTS의 세 bucket을 고정하고 `match_reasons`와 검색 이유 표시를 제거한다. 실제 한국어 단어 FTS 누락 사례가 확인될 때만 #80에서 tokenizer, `pg_trgm` 또는 BM25 같은 확장을 다시 검토한다.
+
+## 승인된 지식 선정·의미 보존 원칙
+
+이 절은 [#127에 보완한 사용자 결정](https://github.com/studylida/ontology-map/issues/127#issuecomment-5580300060)을 정리한다. 제품 worker·자동 저장·운영 품질이 구현됐다는 뜻은 아니다. 데이터 저장 형태는 [논리 스키마](../data/logical-schema.md), 모델과 시험 구성은 [구현 스택](../development/implementation-stack.md#에이전트-역할과-모델)이 소유한다.
+
+- 특정 기업·인물·기술·제품·사건의 구체적인 활동·관계·속성을 선정한다. 명시적인 방문·관람도 포함할 수 있지만 이를 협력·지지로 추론하지 않는다. 추가 해석은 인사이트와 구별한다.
+- 기술 적용·성능·호환성·출시 정보는 대상과 조건을 보존한다. 표의 색상·무게·포트 수를 모두 복제하지 않고 기술·사업 맥락에서 비교·변화·적용 조건의 핵심인 경우 선정한다. 근거 없는 홍보 표현·일반 정의·단순 전달 방식은 생략할 수 있다.
+- 계획·추진·예정도 선정할 지식이다. 아직 실행되지 않았다는 이유로 제외하거나 계획을 현재 시행 사실로 바꾸지 않는다. 시점·수량·부정·제한·목적처럼 의미를 바꾸는 조건은 해당 사실에 연결한다.
+- 실제 발언자의 이름·당시 직책과 발언 속 행동·계획의 주체를 함께 보존한다. 직책과 업무 맥락이 있는 발언은 조직 입장을 표현할 수 있지만 발언자를 지우지 않는다. 사실 주장·계획·예측·평가와 객관적 진실 여부를 혼동하지 않는다.
+- 독립 적용되는 제품별 사실은 분리하고 공동 행위는 공동 의미를 유지한다. 필요한 지식의 선정 여부와 현재 ontology로 저장할 수 있는지는 별도로 검토한다.
+- 의미 보존·필수 정보·독립 사실 분리·근거 충분성·인용 범위·내부 출력 계약을 구별해 검증한다. 특정 정보의 생략 허용을 Claim 전체의 통과로 확대하지 않는다. 기존 점수의 재평가와 새 출력의 모델 개선도 구별한다.
+
+이 최소 원칙은 #110의 전체 출처·적재·보존 정책과 #126의 Relation·attribute·Topic 목록 승인을 대신하지 않는다. #139의 진단 역할·판정 상태와 정답표는 시험용이며 사용자 화면이나 DB에 새 객체를 추가하는 계약이 아니다.
+
+## 승인된 화면 개선안 — main 미반영
+
+2026-09-08에 [#159](https://github.com/studylida/ontology-map/issues/159)의 디자인 후보 구현·검토가 승인됐다. 상세 패널·헤더·목록의 정보 위계와 연결 이유를 정리하고, 이름을 node 가까이에 배치하되 겹치는 일반 이름은 숨기고 hover·초점에서 다시 보여준다. 반복 맥동은 부드럽게 밝아진 뒤 일정 밝기를 유지하는 강조로 바꿀 예정이다. 이 절은 위 현재 화면의 동작을 대체하지 않으며, 상세 수치·실행 상태·사용자 시각 검토는 #159에서 관리한다.
+
+기존 색상, 초기 접근·정지·확대와 이름 페이드인, 관계·근거·인사이트 읽기는 유지한다. 중심 복귀 버튼은 검토 대기이며 후속 질문의 간이 인사이트 전환·cache·거리 기반 제거·모바일·생성 worker를 이번 개선으로 승인하지 않는다. 공개 API·DB schema·의존성 변경도 없다.
 
 ## Colors
 

@@ -3,8 +3,8 @@
 ## 문서 상태
 
 - 상태: 승인된 구현 기준
-- 확인일: 2026-09-03
-- 관련 Issue: #8, #95–#100
+- 확인일: 2026-09-08
+- 관련 Issue: #8, #95–#100, #125, #158
 - 구현 스택: [implementation-stack.md](implementation-stack.md)
 - Git 규칙: [CONTRIBUTING.md](../../CONTRIBUTING.md)
 - PostgreSQL 물리 규칙: [물리 스키마](../data/physical-schema.md)
@@ -35,6 +35,7 @@ ontology-map/
             ├── exploration.py
             ├── search.py
             ├── relations.py
+            ├── insights.py
             ├── pagination.py
             └── db/
 ```
@@ -98,12 +99,13 @@ ontology-map/
 
 ## Agent와 모델 호출
 
-현재 agent/worker와 model provider dependency는 구현되어 있지 않다. 아래 규칙은 #111, #113과 #68에서 실제 경계를 만들 때 적용하며 임시 launcher나 가짜 실행 경로를 추가하지 않는다.
+현재 agent/worker와 model provider dependency는 구현되어 있지 않다. 아래 규칙은 #125의 승인된 역할 경계를 #127·#128·#129·#68 등의 제품 구현에 적용할 때 따른다. 모델 배정·시험 상태는 [구현 스택](implementation-stack.md#에이전트-역할과-모델)을 참조하며 임시 시험 실행기를 제품 진입점으로 취급하지 않는다.
 
 - provider 선택과 `provider:model` 해석은 `agent` 경계 안에 둔다. provider 전용 class를 API나 데이터베이스 모듈에 노출하지 않는다.
 - 모델 출력은 작업별 Pydantic structured output으로 검증한다. 실제 응답 JSON과 후보 payload는 기준 데이터베이스에 저장하지 않는다.
 - provider library의 내부 재시도는 끄고 애플리케이션의 최대 5회 재시도 정책만 사용한다. 모델 호출 실패와 계약·원문 위치·온톨로지·lint 검증 실패를 다른 상태로 처리한다.
 - prompt, structured output schema와 모델 식별자는 작업 종류 가까이에 둔다. 하나의 거대한 prompt registry나 모든 작업을 감싸는 범용 agent class는 만들지 않는다.
+- LangChain의 필요한 최소 기능을 사용하고 일반 코드가 후보 조회·원문 참조 복원·검증·저장을 맡는다. Agent에 직접 DB 접근을 주거나 자동 수정 모델 호출·fallback을 추가하지 않는다. #139의 자동 재시도 없는 시험 설정과 위 제품의 일시 장애 재시도 계약은 서로 대체하지 않는다.
 - 테스트에서는 실제 provider와 네트워크를 호출하지 않는다. 모델 경계가 반환할 최소 structured output을 작은 fake로 제공한다.
 
 ## 오류 처리와 로그

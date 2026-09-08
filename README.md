@@ -4,7 +4,7 @@ ontology-map은 공개 자료에서 확인한 근거와 시간축을 지식그�
 
 ## 처음 읽을 문서
 
-1. [HANDOFF.md](HANDOFF.md)에서 최신 `main`, 구현 상태와 다음 Issue를 확인한다.
+1. [구현 스택](docs/development/implementation-stack.md)에서 현재 구성과 승인·시험 상태를 확인하고, [HANDOFF.md](HANDOFF.md)에서 인계 기준 commit과 다음 Issue를 확인한다.
 2. [문서 안내](docs/README.md)에서 목적에 맞는 정식 문서를 찾는다.
 3. [제품 설계](docs/product/design.md)에서 제품과 화면 계약을 확인한다.
 4. [논리 스키마](docs/data/logical-schema.md)와 [물리 스키마](docs/data/physical-schema.md)에서 frozen 데이터 의미와 PostgreSQL 계약을 확인한다.
@@ -20,7 +20,7 @@ ontology-map은 공개 자료에서 확인한 근거와 시간축을 지식그�
 | `scripts/check_docs.py` | 메타데이터 기반 스키마 참고 문서 생성과 문서 계약 검사 |
 | `compose.yaml` | 개발용 PostgreSQL과 FastAPI 컨테이너 |
 
-PostgreSQL, migration, 개발용 HBF fixture, FastAPI, web과 종료·초기화 절차는 [DB 운영 문서](docs/operations/database.md)에 모아 두었다. Agent와 worker는 아직 실행 가능한 구현과 명령이 없으며, 현재 상태와 후속 Issue는 [HANDOFF.md](HANDOFF.md)에서 확인한다.
+PostgreSQL, migration, 개발용 HBF·100-node fixture, FastAPI, web과 종료·초기화 절차는 [DB 운영 문서](docs/operations/database.md)에 모아 두었다. 제품 Agent와 worker는 아직 실행 가능한 구현과 명령이 없다. 승인된 역할·모델 선택과 제한된 시험 구성은 [구현 스택](docs/development/implementation-stack.md#에이전트-역할과-모델)에서 확인한다.
 
 web 실행 후 `/?center=<node ID>&range=90d`에서 지식맵을 연다. 사용자 검토를 거친 디자인을 기본 화면으로 사용하며, 기존 `/design-preview` 주소도 같은 화면으로 열린다. 현재 화면 규칙은 [제품 설계](docs/product/design.md#가독성-디자인-미리보기)에서 확인한다.
 
@@ -31,7 +31,7 @@ web 실행 후 `/?center=<node ID>&range=90d`에서 지식맵을 연다. 사용�
 - [논리 스키마](docs/data/logical-schema.md): frozen 논리 데이터 의미와 수명주기
 - [물리 스키마](docs/data/physical-schema.md): frozen PostgreSQL 표현과 무결성 기준
 - [스키마 참고 문서](docs/data/schema-reference.md): SQLAlchemy metadata에서 생성한 실제 table, column, constraint와 index 목록
-- [구현 스택](docs/development/implementation-stack.md): 현재 런타임, 의존성, 프로세스와 코드 구조
+- [구현 스택](docs/development/implementation-stack.md): 현재 런타임·의존성·코드 구조, 승인된 에이전트 역할과 모델 시험 구성
 - [코드 규칙](docs/development/code-conventions.md): TypeScript, Python, 테스트와 오류 처리 규칙
 - [DB 운영](docs/operations/database.md): 로컬 실행과 DB 운영
 - [기여 규칙](CONTRIBUTING.md): Issue, branch, commit, 문서, PR과 병합 규칙

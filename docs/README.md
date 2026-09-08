@@ -13,7 +13,7 @@
 | 도메인 의미 | [논리 스키마](data/logical-schema.md) | ERD, 의미, 관계, 소유권과 수명주기를 사람이 관리한다. |
 | PostgreSQL 표현 | [물리 스키마](data/physical-schema.md) | 공통 자료형, 이름, 불변성과 변경 규칙을 사람이 관리한다. |
 | 실제 DB 객체 | [스키마 참고 문서](data/schema-reference.md) | SQLAlchemy metadata에서 생성하며 수동으로 수정하지 않는다. |
-| 현재 기술 선택 | [구현 스택](development/implementation-stack.md) | lockfile과 실제 코드에 있는 런타임·의존성을 기록한다. |
+| 기술·에이전트 구성 | [구현 스택](development/implementation-stack.md) | 코드·lockfile의 현재 구성, 승인된 미구현 변경, 모델 시험을 구별한다. |
 | 코드 품질 | [코드 규칙](development/code-conventions.md) | 언어, 계층, 검증과 오류 처리 규칙을 기록한다. |
 | 로컬 실행 | [DB 운영](operations/database.md) | 개발 환경의 실행, 검사, 종료와 초기화 절차를 기록한다. |
 
@@ -24,5 +24,6 @@
 - 엔터티, 관계, 카디널리티, 소유권이나 수명주기가 바뀌면 [논리 스키마](data/logical-schema.md)를 같은 PR에서 갱신한다.
 - SQLAlchemy metadata가 바뀌면 `uv run --project server --frozen python scripts/check_docs.py --write`로 [스키마 참고 문서](data/schema-reference.md)를 갱신한다.
 - 여러 경계에 영향을 주고 되돌리기 비싼 결정만 [ADR](architecture/decisions/README.md)로 남긴다. 논의 중인 선택은 Issue에 둔다.
-- 후속 계획과 미결정 사항은 새 정식 문서가 아니라 GitHub Issue에서 관리한다.
+- 승인된 미구현 결정과 시험 구성은 책임 문서의 별도 절·상태로 설명하고 Issue 근거를 연결한다. 코드·schema·운영 명령의 현재 사실과 섞지 않는다. 상세 후속 계획·미결정 사항·점수·비용·진행 이력은 GitHub Issue에서 관리한다.
+- 세션에서 결정이 바뀌면 사용자 승인과 후속 정정을 대조해 관련 Issue에 요약하고 책임 문서에 반영한다. 세션 원문을 복제하지 않으며, 이전 결정은 대체·보류·취소 여부를 남긴다.
 - `uv run --project server --frozen python scripts/check_docs.py --check`로 생성 결과, 내부 Markdown 링크와 ADR 규칙을 확인한다.

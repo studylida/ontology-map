@@ -27,7 +27,7 @@ flowchart LR
     Developer -->|로컬 실행과 데이터 준비| System
 ```
 
-현재 구현은 외부 수집 시스템이나 모델 provider와 연결되지 않는다. Agent 계획의 계약 감사는 [#124](https://github.com/studylida/ontology-map/issues/124), 역할과 실행 경계는 [#125](https://github.com/studylida/ontology-map/issues/125)에서 논의한다.
+현재 제품 구현은 외부 수집 시스템이나 모델 provider와 연결되지 않는다. 별도 모델 시험을 제품 연결로 해석하지 않는다. 승인된 역할·일반 코드의 책임·모델 시험 구성은 [구현 스택](../development/implementation-stack.md#에이전트-역할과-모델), frozen schema와의 정합성 감사는 [#124](https://github.com/studylida/ontology-map/issues/124)에서 확인한다.
 
 ### Container
 
@@ -52,7 +52,7 @@ flowchart LR
 
 - React는 화면 상태와 사용자 상호작용을 소유하고 `web/src/data.ts`에서 HTTP 응답을 검증해 화면 모델로 바꾼다.
 - FastAPI route는 HTTP parsing, Pydantic DTO와 오류 변환을 소유하며 같은 프로세스의 application service를 호출한다.
-- application service는 탐색·검색·Relation 조회 use case를 조합하고 `db/`의 명시적 SQLAlchemy query를 사용한다.
+- application service는 탐색·검색·Relation·인사이트 조회 use case를 조합하고 `db/`의 명시적 SQLAlchemy query를 사용한다.
 - PostgreSQL은 frozen schema의 기준 지식, 근거와 공개 파생 결과를 저장한다. 화면 layout과 런타임 부분 graph는 저장하지 않는다.
 - Alembic migration이 물리 스키마를 만들고 개발 fixture가 고정된 시연 데이터를 별도 명령으로 적재한다.
 
@@ -66,7 +66,7 @@ flowchart LR
     App[App과 화면 컴포넌트<br/>화면 상태·사용자 상호작용 관리]
     Adapter[web/src/data.ts<br/>HTTP 호출·응답 검증·화면 모델 변환]
     Route[FastAPI route와 DTO<br/>HTTP parsing·Pydantic DTO·오류 변환]
-    Service[exploration·search·relations service<br/>use case 조합·조회 규칙 적용]
+    Service[exploration·search·relations·insights service<br/>use case 조합·조회 규칙 적용]
     Query[db query 함수<br/>명시적 SQLAlchemy 조회 실행]
     DB[(PostgreSQL<br/>공개 가능한 지식·근거 제공)]
     User -->|선택·검색·기간 변경| App --> Adapter -->|/api/v1 HTTP| Route --> Service --> Query -->|SQLAlchemy SQL| DB
@@ -82,7 +82,7 @@ flowchart LR
     Metadata[SQLAlchemy metadata<br/>db/schema.py<br/>Python-side schema 표현]
     Alembic[Alembic env와 CLI<br/>metadata 비교·revision 실행]
     Migration[0001 frozen migration<br/>현재 물리 schema baseline]
-    Fixture[db/fixture.py<br/>개발용 고정 시연 데이터 구성]
+    Fixture[db/fixture.py·db/review_fixture.py<br/>HBF·100-node 개발 데이터 구성]
     Connection[SQLAlchemy Connection<br/>transaction·SQL 실행]
     DB[(PostgreSQL<br/>migration 결과·fixture 데이터 저장)]
     Developer -->|schema 적용| Alembic -->|revision 실행| Migration -->|DDL 적용| DB
@@ -118,7 +118,7 @@ server는 입력 검증 오류와 application 오류를 안정된 HTTP 오류 co
 
 ## 알려진 위험과 열린 결정
 
-- Agent·worker 실행은 아직 없다. frozen schema와의 정합성은 [#124](https://github.com/studylida/ontology-map/issues/124), 구체적인 역할과 지식 정합화 경계는 [#125](https://github.com/studylida/ontology-map/issues/125)에서 먼저 결정한다.
+- Agent·worker 실행은 아직 없다. [#125](https://github.com/studylida/ontology-map/issues/125)의 승인된 역할·지식 정합화 방향과 남은 상세 계약을 구별한다. 모델 시험의 역할 분리가 제품 프로세스 분리를 뜻하지 않는다.
 - node embedding과 READY 의존성 변경은 [#121](https://github.com/studylida/ontology-map/issues/121)의 구현 PR에서 별도 ADR 필요성을 판단한다.
 - 이 문서는 현재 구현을 설명하므로 구현되지 않은 운영 배포 구조를 추정하지 않는다.
 
