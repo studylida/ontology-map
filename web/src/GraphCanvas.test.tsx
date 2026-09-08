@@ -1073,7 +1073,7 @@ it("2단계 간선과 화살표는 이동·확대 중 노드와 같은 진행률
     labels.render(scene, camera);
   };
   const opacity = () =>
-    harness.links.get("fade")?.userData.lines[0].material.opacity as number;
+    harness.links.get("fade")?.userData.lines[1].material.opacity as number;
   draw(1);
   expect(opacity()).toBe(0);
   draw(1.1);
@@ -1094,4 +1094,113 @@ it("2단계 간선과 화살표는 이동·확대 중 노드와 같은 진행률
   draw(1);
   expect(opacity()).toBe(0);
   expect(harness.links.get("fade")?.visible).toBe(false);
+});
+
+it("대표 가닥을 고정하고 hover·중심 관계 변화에서 추가 가닥만 현재 밝기부터 전환한다", () => {
+  const callbacks = props();
+  const relations = [1, 3, 6].map((count) => ({
+    id: String(count),
+    source: "1",
+    target: "2",
+    label: "연결",
+    tier: "twoHop" as const,
+    directionality: "DIRECTED" as const,
+    evidenceGroupCount: count,
+    conflict: count === 6,
+  }));
+  const data = { ...view, relations };
+  const { rerender } = render(
+    <GraphCanvas
+      {...callbacks}
+      view={data}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(32));
+  const { camera, target, labels, scene } = harness;
+  if (!camera || !target || !labels || !scene)
+    throw new Error("graph가 없습니다.");
+  camera.position.sub(target).multiplyScalar(2).add(target);
+  const draw = () => labels.render(scene, camera);
+  const opacities = (id: string): number[] =>
+    harness.links
+      .get(id)
+      ?.userData.lines.map(
+        (line: THREE.Line) => (line.material as THREE.Material).opacity,
+      );
+  draw();
+  for (const count of [1, 3, 6]) {
+    const values = opacities(String(count));
+    expect(values.filter((value) => value > 0)).toHaveLength(1);
+    expect(values[Math.floor((count - 1) / 2)]).toBeGreaterThan(0);
+  }
+  const geometry = harness.links.get("6")?.userData.lines[2].geometry;
+  const vertices = Array.from(geometry.getAttribute("position").array);
+  act(() => harness.options.get("onNodeHover")?.(data.nodes[1] as never));
+  draw();
+  expect(opacities("6")[0]).toBe(0);
+  act(() => vi.advanceTimersByTime(200));
+  draw();
+  const midway = opacities("6")[0] ?? 0;
+  expect(midway).toBeGreaterThan(0);
+  expect(midway).toBeLessThan(opacities("6")[2] ?? 0);
+  act(() => harness.options.get("onNodeHover")?.(null as never));
+  draw();
+  expect(opacities("6")[0]).toBeCloseTo(midway);
+  act(() => vi.advanceTimersByTime(200));
+  draw();
+  expect(opacities("6")[0]).toBeLessThan(midway);
+  act(() => vi.advanceTimersByTime(500));
+  draw();
+  expect(opacities("6").filter((value) => value > 0)).toHaveLength(1);
+  const direct = {
+    ...data,
+    relations: relations.map((link) => ({ ...link, tier: "direct" as const })),
+  };
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      view={direct}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(500));
+  draw();
+  expect(opacities("6").filter((value) => value > 0)).toHaveLength(6);
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      view={data}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  draw();
+  expect(opacities("6")[0]).toBeGreaterThan(0);
+  act(() => vi.advanceTimersByTime(500));
+  draw();
+  expect(opacities("6").filter((value) => value > 0)).toHaveLength(1);
+  expect(Array.from(geometry.getAttribute("position").array)).toEqual(vertices);
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  act(() => harness.options.get("onLinkHover")?.(relations[2] as never));
+  draw();
+  expect(opacities("6").filter((value) => value > 0)).toHaveLength(6);
+  expect(opacities("3").filter((value) => value > 0)).toHaveLength(1);
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      view={data}
+      hiddenKinds={["TECHNOLOGY"]}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  draw();
+  expect(opacities("6").every((value) => value === 0)).toBe(true);
 });
