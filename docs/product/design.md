@@ -259,6 +259,8 @@ Relation 방향 표현과 Evidence Trace 상호작용은 #118의 승인된 후�
 
 loading 화면이 사라지면 첫 exploration 응답의 부분 graph를 화면에 맞춰 한 번 조망하고 720ms 동안 유지한 다음 기본 중심 node로 1200ms 동안 확대한다. 중심 node는 전체 조망부터 화면 중앙에 고정하고 확대 중에는 camera target과 node 위치를 바꾸지 않은 채 camera 거리만 줄인다. node 배치와 그래픽 준비는 loading 중에 끝내고 초기 force warmup이나 간선 곡선 재생성을 확대 중에 반복하지 않는다. BISTelligence node가 fixture에 없는 검증 예시에서는 SK하이닉스를 기본 중심으로 사용한다. 이 조망은 저장 좌표나 기준 DB를 뜻하지 않는 일시적인 intro 상태이며, intro가 끝나면 같은 동적 부분 graph 탐색을 유지한다. #134는 loading 종료 뒤 현재 GraphCanvas의 이 intro가 정확히 한 번 시작되는지도 함께 검증한다.
 
+주변부의 바깥 20%로 향하는 pan은 x·y축을 각각 판정해 한쪽 가장자리에 머문 채 다른 방향으로 이동해도 추가 조회할 수 있게 한다. 정지 뒤 200ms 조회 대기에서는 0.5 장면 단위 이하의 미세한 감속만으로 timer를 계속 초기화하지 않는다. 새로 조회한 page나 프로그램 이동은 자체적으로 다음 page를 요청하지 않는다.
+
 node는 클릭하거나 keyboard로 선택해 중심을 바꾸지만 직접 끌어 배치할 수 없다. 빈 map 영역의 drag는 항상 카메라 평행 이동에만 사용하며, node drag로 force simulation을 다시 시작하거나 navigation control을 점유하지 않는다.
 
 node 크기는 선택 기간에 게시된 출처가 뒷받침하는 `근거 확인됨` 또는 `사람 확인됨` Claim의 독립 근거 묶음 수를 나타낸다. 같은 Claim과 같은 독립 근거 묶음이 여러 경로로 같은 node에 도달해도 한 번만 센다. 크기 범위는 가장 작은 node와 가장 큰 node가 지름 기준 1:2.2를 넘지 않게 제한하고, 근거 활동량이 낮아도 label과 선택 가능성을 유지한다.
