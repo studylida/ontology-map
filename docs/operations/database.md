@@ -15,6 +15,8 @@
 
 Docker Desktop을 쓰는 Windows 환경에서는 현재 WSL distribution의 Docker integration을 먼저 켜고 WSL에서 `docker version`과 `docker compose version`이 모두 성공하는지 확인한다.
 
+이 절차는 pgvector가 남아 있는 현재 main의 실행 기준이다. [#121](https://github.com/studylida/ontology-map/issues/121)의 제거안은 초기 migration 교체와 기존 개발 DB 재생성을 포함하는 승인된 후속 변경이며 아직 적용되지 않았다. 이 문서 정리를 위해 DB를 초기화하거나 image를 교체하지 않는다.
+
 ## 1. 환경 변수 준비
 
 저장소 루트에서 개발 환경 파일을 만든다.
@@ -153,9 +155,11 @@ npm run check
 
 ## 8. agent와 worker
 
-현재 `server/`에는 agent/worker 진입점과 실행 명령이 없다. 실행 가능한 것처럼 임시 명령을 만들지 않는다. 외부 수집·publication worker는 #111, 후속 질문 계약은 #113, 인사이트 생성과 읽기는 #68에서 다룬다.
+현재 `server/`에는 agent/worker 진입점과 실행 명령이 없다. 작은 자료의 입력 준비는 #111, 추출 계약은 #127, 동일 대상 판정은 #128, 질문 생성은 #129, 인사이트 생성·품질은 #68에서 다룬다. 저장 인사이트 읽기는 이미 구현되어 있다. #111을 운영 수집·publication 전체의 구현 Issue로 해석하지 않는다.
 
 API와 worker는 구현된 뒤에도 같은 Python 코드와 image를 사용하고 실행 명령만 구분한다. Redis, Celery, LangGraph와 별도 microservice는 실제 필요가 승인되기 전에는 추가하지 않는다.
+
+역할과 모델 snapshot은 [구현 스택](../development/implementation-stack.md#에이전트-역할과-모델)이 소유한다. #139의 임시 시험 실행기와 저장소 밖 WSL secret 주입은 제품 실행 절차가 아니다. 이 문서의 DB·API·web 명령은 모델을 호출하지 않으며, 시험 재현과 비용 승인은 #139의 해당 실행 기록을 따른다. 시험용 credential이나 개별 Workspace endpoint를 문서·저장소·브라우저 설정에 복사하지 않는다.
 
 ## 9. 종료와 초기화
 

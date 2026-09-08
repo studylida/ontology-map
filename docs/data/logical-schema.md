@@ -26,6 +26,8 @@ Logical Schema v1.2는 다음 원칙을 고정한다.
 
 ## 2. 전체 흐름
 
+아래는 frozen schema의 논리 흐름이며 수집·모델 호출·승격·publication worker가 실행된다는 뜻은 아니다. 현재 실행 범위와 승인된 변경은 [구현 스택](../development/implementation-stack.md)이 구별한다. embedding 저장과 READY 의존성은 현재 schema에 남아 있지만 [#121](https://github.com/studylida/ontology-map/issues/121)에서 제거하기로 승인했다. 해당 구현 전에는 엔터티와 제약을 제거 완료로 표시하지 않는다.
+
 ```text
 자료 준비 레이어의 정규화 문서
 → source_key·문서 버전·evidence group 확정
@@ -218,6 +220,8 @@ erDiagram
 
 `source_document_id + start_char + end_char`는 고유하다. 이 행은 출처가 해당 내용을 말했다는 점을 입증하지만 객관적 진실을 입증하지 않는다.
 
+[#139](https://github.com/studylida/ontology-map/issues/139#issuecomment-5580299907)의 승인된 시험은 정확한 문장·표 행을 근거 단위로 허용한다. 모델이 고른 runtime ID를 일반 코드가 위 범위·인용·hash로 복원하는 방식은 이 저장 형태를 재사용할 수 있다. 필요한 선행 문맥·표 머리글은 Claim의 여러 Observation 연결로 표현하며, 시험의 main/context ID·requirement·element를 새 영속 필드로 정의하지 않는다. 최종 추출·저장 대응은 #127에서 검토한다.
+
 ### 5.4 모델 실행
 
 #### `output_schema_definition`
@@ -242,6 +246,8 @@ erDiagram
 | `created_at`, `finished_at` | 생성·종료 시각 |
 
 허용 작업은 `KNOWLEDGE_EXTRACTION`, `ENTITY_RESOLUTION_PROPOSAL`, `EVIDENCE_LINEAGE_PROPOSAL`, `CONFLICT_SUMMARY`, `NODE_CONTEXT`, `FOLLOWUP_QUESTIONS`, `NODE_INSIGHT`와 schema가 없는 `EMBEDDING`이다.
+
+이 목록은 현재 저장 계약이며 각 작업의 worker·모델 구현 여부는 별개다. 시험용 Selection·Composer·보존 대응·충실도 검증을 각각 새 task kind로 추가한 것은 아니다. 실제 모델·prompt 계보와 기존 작업 종류의 매핑은 제품 adapter 구현 전에 검토한다.
 
 캐시 적중은 호출 횟수를 늘리지 않는다. `SUCCESS`는 결과가 영속 저장소에 연결되었거나 유효 응답에 관련 후보가 없다는 뜻이다.
 
@@ -333,6 +339,8 @@ POC는 전체 활성 규칙 집합을 `ontology_version`과 `ontology_member` ma
 `claim`은 공유 ID, 원자적 문장, 언어, modality, 주장 시간 양쪽 값과 precision을 가진다. 모든 Claim은 observation을 최소 하나 가지며 관계·속성값·사건 시간 중 최소 한 의미 대상과 연결된다.
 
 `claim_relation`은 `(claim_id, relation_id)`와 `SUPPORT | DISPUTE` stance를 가진다. `claim_observation`은 Claim과 observation의 다대다 연결이다.
+
+공동 수행 사실을 회사별 독립 수행으로 바꾸지 않고 Claim 하나에서 여러 Relation으로 표현하는 방향은 [#127의 세션 결정](https://github.com/studylida/ontology-map/issues/127#issuecomment-5580300060)을 따른다. 현재 연결 구조는 이를 수용할 수 있지만, 어떤 Relation·사건·attribute로 대응시킬지는 활성 ontology와 추출 계약 검토가 필요하다. 문서화만으로 새 유형이나 자동 저장 규칙을 승인하지 않는다.
 
 #### `claim_attribute_value`
 
@@ -469,13 +477,13 @@ publication_status: NOT_STARTED → PREPARING → READY
 - 이웃 정렬: 지지 독립 근거 수 내림차순 → 선택 기간 활동량 내림차순 → 내부 ID 오름차순
 - node 크기: 선택 기간의 독립 근거 묶음 수
 - relation 필라멘트 수: 지지 독립 근거 묶음 수와 같은 개수의 1px 선을 같은 경로 주변에 겹쳐 표시
-- 충돌 관계: 호박색 점선
+- 충돌 관계의 색·점선과 표시 규칙: [제품 설계](../product/design.md)가 소유하며 DB에 저장하지 않음
 - 중심 강조·active/peripheral 밝기와 opacity: UI 상태이며 DB 비영속
 - 오래됨: 지도 감쇠로 표현하지 않고 상세 패널의 마지막 근거 게시일과 Evidence Trace에서 확인
 - 일반 사용자 검색·상세 패널·Evidence Trace는 현재 공개 가능한 READY 범위만 조회하며 내부 이력은 삭제하지 않고 보존함
 - 좌표·카메라·viewport·지도 snapshot은 저장하지 않음
 
-검색은 alias 정확 일치를 먼저 반환하고 전문 검색·벡터 검색 결과를 각각 최대 50개 구한 뒤 `k = 60` RRF로 결합한다. 한 branch 실패 시 다른 결과를 제공한다. 벡터 유사도는 검색 순위에만 사용한다. 현재 HTTP 구현은 alias와 `simple` FTS까지이며 vector·RRF 구현은 #117에 남아 있다.
+현재 HTTP 검색은 alias 정확 일치 뒤 `identity_text`·`knowledge_text`를 합친 `simple` FTS 결과를 반환한다. embedding 모델 호출·vector branch·RRF는 실행되지 않는다. 과거 vector·RRF 도입안은 [#121](https://github.com/studylida/ontology-map/issues/121)의 embedding 제거안과 [#117](https://github.com/studylida/ontology-map/issues/117)의 alias → identity FTS → knowledge FTS 변경안으로 대체됐다. 현재 엔터티·READY의 embedding 참조는 #121 구현 전까지 유지하며 검색 응답의 정확한 현재 형태는 [제품 설계](../product/design.md)를 따른다.
 
 ## 9. HBF 검증 흐름
 
