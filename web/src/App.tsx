@@ -490,6 +490,7 @@ export function App({ designPreview = false }: { designPreview?: boolean }) {
               view={peripheral.graphView}
               onPanBoundary={peripheral.trigger}
               introStarted={graphReady && !initialLoading}
+              introCompleted={introComplete}
               onReady={() => setGraphReady(true)}
               onSelect={selectNode}
               onEvidence={setEvidence}

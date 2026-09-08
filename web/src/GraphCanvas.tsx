@@ -47,6 +47,7 @@ interface GraphCanvasProps {
   designPreview?: boolean;
   view: ExplorationView;
   introStarted: boolean;
+  introCompleted?: boolean;
   pendingNodeId: string | null;
   onSelect: (nodeId: string) => void;
   onTransitionComplete: (nodeId: string) => void;
@@ -526,6 +527,7 @@ export function GraphCanvas({
   designPreview = false,
   view,
   introStarted,
+  introCompleted = false,
   pendingNodeId,
   onSelect,
   onTransitionComplete,
@@ -557,6 +559,7 @@ export function GraphCanvas({
   const focusPathRef = useRef<(nodeId: string | null) => void>(() => {});
   const dataInitializedRef = useRef(false);
   const readyRef = useRef(false);
+  const readyFrameRef = useRef<number | null>(null);
   const introCompletedRef = useRef(false);
   const animationRef = useRef<number | null>(null);
   const preparingRef = useRef(false);
@@ -617,6 +620,7 @@ export function GraphCanvas({
     const container = containerRef.current;
     if (!container) return;
     const labels = new CSS2DRenderer();
+    labels.domElement.dataset.graphLabels = "true";
     labels.domElement.style.pointerEvents = "none";
     if (designPreview) {
       const renderLabels = labels.render.bind(labels);
@@ -874,6 +878,9 @@ export function GraphCanvas({
     return () => {
       stopWatchingPan();
       observer.disconnect();
+      if (readyFrameRef.current !== null)
+        cancelAnimationFrame(readyFrameRef.current);
+      readyFrameRef.current = null;
       if (animationRef.current !== null)
         cancelAnimationFrame(animationRef.current);
       if (hoverAnimationRef.current !== null)
@@ -903,6 +910,9 @@ export function GraphCanvas({
       "(prefers-reduced-motion: reduce)",
     ).matches;
     const controls = graph.controls() as GraphControls;
+    const labelLayer = containerRef.current?.querySelector<HTMLElement>(
+      "[data-graph-labels]",
+    );
     if (pendingNodeId && introCompletedRef.current) {
       setBusy(true);
       if (reducedMotion) return;
@@ -1013,17 +1023,35 @@ export function GraphCanvas({
       const tangent = Math.tan((camera.fov * Math.PI) / 360);
       const horizontal = (tangent * graph.width()) / graph.height();
       let distance = Math.max(150, 40 / horizontal, 40 / tangent);
+      let frontDepth = 0;
       for (const node of visible) {
         const position = targets.get(node.id);
         if (!position) continue;
         const depth = designPreview ? position.z - anchor.z : 0;
+        frontDepth = Math.max(frontDepth, depth);
         distance = Math.max(
           distance,
           depth + (Math.abs(position.x - anchor.x) + 24) / horizontal,
           depth + (Math.abs(position.y - anchor.y) + 24) / tangent,
         );
       }
-      return distance * (wide ? 1.55 : 1);
+      if (wide) return distance * (designPreview ? 100 : 1.55);
+      return designPreview
+        ? Math.max(150, frontDepth + 80, distance * 0.76)
+        : distance;
+    };
+    const placeCamera = (distance: number) => {
+      if (designPreview) {
+        controls.maxDistance = Math.max(2400, distance);
+        const camera = graph.camera() as THREE.PerspectiveCamera;
+        camera.far = Math.max(4000, distance * 2);
+        camera.updateProjectionMatrix();
+      }
+      graph.cameraPosition(
+        { x: anchor.x, y: anchor.y, z: anchor.z + distance },
+        anchor,
+        0,
+      );
     };
     const removeOutgoing = () => {
       const nodeIds = new Set(view.nodes.map((n) => n.id));
@@ -1140,13 +1168,14 @@ export function GraphCanvas({
         (resizeTargetChanged || resizeDeadlineRef.current === null)
       )
         resizeDeadlineRef.current = begun + 320;
-      const duration = reducedMotion
-        ? 0
-        : moveCamera
-          ? 1200
-          : mode === "restore"
-            ? preparationDuration
-            : Math.max(0, (resizeDeadlineRef.current ?? begun) - begun);
+      const duration =
+        reducedMotion || (intro && introCompleted)
+          ? 0
+          : moveCamera
+            ? 1200
+            : mode === "restore"
+              ? preparationDuration
+              : Math.max(0, (resizeDeadlineRef.current ?? begun) - begun);
       paint(0, !intro);
       setBusy(true);
       const frame = (now: number) => {
@@ -1155,6 +1184,20 @@ export function GraphCanvas({
         paint(eased, !intro, progress, duration);
         if (moveCamera) {
           graph.camera().position.lerpVectors(startCamera, endCamera, eased);
+          if (intro && designPreview) {
+            const from = startCamera.distanceTo(startTarget);
+            const to = endCamera.distanceTo(endTarget);
+            const distance = Math.exp(
+              Math.log(from) + (Math.log(to) - Math.log(from)) * eased,
+            );
+            graph
+              .camera()
+              .position.set(endTarget.x, endTarget.y, endTarget.z + distance);
+            if (labelLayer)
+              labelLayer.style.opacity = String(
+                Math.max(0, (progress - 0.45) / 0.55),
+              );
+          }
           controls.target.lerpVectors(startTarget, endTarget, eased);
           controls.update();
         }
@@ -1166,7 +1209,14 @@ export function GraphCanvas({
         resizeDeadlineRef.current = null;
         previousCenterRef.current = centerId;
         introCompletedRef.current = true;
-        if (intro) onIntroRef.current();
+        if (intro && !introCompleted) onIntroRef.current();
+        if (intro && designPreview) {
+          controls.maxDistance = 2400;
+          const camera = graph.camera() as THREE.PerspectiveCamera;
+          camera.far = 4000;
+          camera.updateProjectionMatrix();
+        }
+        if (labelLayer) labelLayer.style.opacity = "1";
         if (!intro) {
           removeOutgoing();
           if (mode === "center") onTransitionCompleteRef.current(centerId);
@@ -1174,26 +1224,28 @@ export function GraphCanvas({
         graph.enableNavigationControls(true).enablePointerInteraction(true);
         setBusy(false);
       };
-      if (reducedMotion) frame(begun);
+      if (!duration) frame(begun);
       else animationRef.current = requestAnimationFrame(frame);
     };
-    if (initial) {
-      dataInitializedRef.current = true;
-      paint(1, false);
-      graph.cameraPosition(
-        { x: anchor.x, y: anchor.y, z: anchor.z + fitDistance(true) },
-        anchor,
-        0,
-      );
-      graph.enableNavigationControls(false).enablePointerInteraction(false);
-    } else if (introStarted && !introCompletedRef.current) {
+    const startIntro = () => {
       introTimeoutRef.current = window.setTimeout(
         () => {
           introTimeoutRef.current = null;
           animate("intro");
         },
-        reducedMotion ? 0 : 720,
+        reducedMotion || introCompleted ? 0 : designPreview ? 240 : 720,
       );
+    };
+    if (initial) {
+      dataInitializedRef.current = true;
+      paint(1, false);
+      placeCamera(fitDistance(!reducedMotion && !introCompleted));
+      if (designPreview && labelLayer)
+        labelLayer.style.opacity = reducedMotion || introCompleted ? "1" : "0";
+      graph.enableNavigationControls(false).enablePointerInteraction(false);
+      if (introStarted) startIntro();
+    } else if (introStarted && !introCompletedRef.current) {
+      startIntro();
     } else if (introStarted && changed) {
       animate("center");
     } else if (introStarted && restoring) {
@@ -1204,11 +1256,7 @@ export function GraphCanvas({
       paint(1, false);
       removeOutgoing();
       if (!introStarted)
-        graph.cameraPosition(
-          { x: anchor.x, y: anchor.y, z: anchor.z + fitDistance(true) },
-          anchor,
-          0,
-        );
+        placeCamera(fitDistance(!reducedMotion && !introCompleted));
       if (introStarted && introCompletedRef.current) {
         graph.enableNavigationControls(true).enablePointerInteraction(true);
         setBusy(false);
@@ -1216,13 +1264,16 @@ export function GraphCanvas({
     }
     // 초기 page가 첫 frame보다 먼저 도착해 effect를 교체해도 준비 신호를 잃지 않는다.
     if (!readyRef.current) {
-      animationRef.current = requestAnimationFrame(() => {
-        animationRef.current = null;
+      readyFrameRef.current = requestAnimationFrame(() => {
+        readyFrameRef.current = null;
         readyRef.current = true;
         onReadyRef.current();
       });
     }
     return () => {
+      if (readyFrameRef.current !== null)
+        cancelAnimationFrame(readyFrameRef.current);
+      readyFrameRef.current = null;
       if (animationRef.current !== null)
         cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
@@ -1230,7 +1281,14 @@ export function GraphCanvas({
         window.clearTimeout(introTimeoutRef.current);
       introTimeoutRef.current = null;
     };
-  }, [centerId, introStarted, pendingNodeId, view, designPreview]);
+  }, [
+    centerId,
+    introStarted,
+    introCompleted,
+    pendingNodeId,
+    view,
+    designPreview,
+  ]);
 
   return (
     <section
