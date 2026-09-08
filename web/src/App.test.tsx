@@ -16,13 +16,15 @@ vi.mock("./GraphCanvas", () => ({
     onReady,
     onSelect,
     onTransitionComplete,
+    pendingNodeId,
   }: {
     view: { centerId: string; nodes: { id: string }[] };
+    pendingNodeId: string | null;
     onReady: () => void;
     onSelect: (nodeId: string) => void;
     onTransitionComplete: (nodeId: string) => void;
   }) => (
-    <section aria-label="동적 지식맵">
+    <section aria-label="동적 지식맵" data-pending-node={pendingNodeId ?? ""}>
       <span>{`요청 중심: ${view.centerId}`}</span>
       <button type="button" onClick={onReady}>
         그래프 준비 완료
@@ -252,6 +254,11 @@ describe("exploration API 화면", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "다른 graph node 선택" }),
     );
+    expect(
+      screen
+        .getByRole("region", { name: "동적 지식맵" })
+        .getAttribute("data-pending-node"),
+    ).toBe("9223372036854775806");
     fireEvent.click(
       screen.getByRole("button", { name: "SK하이닉스 다시 보기" }),
     );
@@ -262,6 +269,11 @@ describe("exploration API 화면", () => {
     fireEvent.click(screen.getByRole("button", { name: "중심 전환 완료" }));
     expect(screen.getByRole("heading", { name: "SK하이닉스" })).toBeTruthy();
     expect(screen.getByText("요청 중심: 9223372036854775807")).toBeTruthy();
+    expect(
+      screen
+        .getByRole("region", { name: "동적 지식맵" })
+        .getAttribute("data-pending-node"),
+    ).toBe("");
   });
 
   it("시간 범위를 바꾸면 같은 중심의 1년 aggregate를 한 번 요청한다", async () => {

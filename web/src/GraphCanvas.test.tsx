@@ -5,6 +5,8 @@ import type { ExplorationView, KnowledgeRelation } from "./data";
 import { GraphCanvas } from "./GraphCanvas";
 
 const harness = vi.hoisted(() => ({
+  camera: null as THREE.PerspectiveCamera | null,
+  target: null as THREE.Vector3 | null,
   options: new Map<string, (...args: never[]) => unknown>(),
   nodes: new Map<string, THREE.Group>(),
   links: new Map<string, THREE.Group>(),
@@ -24,6 +26,8 @@ vi.mock("3d-force-graph", () => ({
       removeEventListener: vi.fn(),
       update: vi.fn(),
     };
+    harness.camera = camera;
+    harness.target = controls.target;
     let nodeFactory: (node: { id: string }) => THREE.Group;
     let linkFactory: (link: KnowledgeRelation) => THREE.Group;
     const dimensions = { width: 800, height: 600 };
@@ -135,6 +139,7 @@ const view: ExplorationView = {
 const props = () => ({
   view,
   introStarted: false,
+  pendingNodeId: null,
   panelOpen: true,
   onReady: vi.fn(),
   onIntroComplete: vi.fn(),
@@ -244,4 +249,113 @@ it("노드 장식이 간선 선택을 가로채지 않고 이동한 선을 클�
     label: expect.stringContaining("관련 기술"),
   });
   expect(callbacks.onSelect).not.toHaveBeenCalled();
+});
+
+function visual(id: string) {
+  const value = harness.nodes.get(id);
+  if (!value) throw new Error(`node ${id}가 없습니다.`);
+  return value;
+}
+
+it("기간 변경은 위치와 camera를 유지하며 320ms 보간하고 page 도착과 재선택에도 이전 목표로 돌아가지 않는다", () => {
+  const callbacks = props();
+  const { rerender } = render(<GraphCanvas {...callbacks} />);
+  act(() => vi.advanceTimersByTime(16));
+  rerender(<GraphCanvas {...callbacks} introStarted />);
+  act(() => vi.advanceTimersByTime(2000));
+  const before = visual("1").userData.radius;
+  const position = visual("1").position.clone();
+  const camera = harness.camera?.position.clone();
+  const target = harness.target?.clone();
+  const larger = {
+    ...view,
+    nodes: view.nodes.map((n) => ({ ...n, activityEvidenceGroupCount: 6 })),
+  };
+  rerender(<GraphCanvas {...callbacks} introStarted view={larger} />);
+  expect(visual("1").userData.radius).toBe(before);
+  act(() => vi.advanceTimersByTime(160));
+  const halfway = visual("1").userData.radius;
+  expect(halfway).toBeGreaterThan(before);
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      introStarted
+      view={{ ...larger, nodes: [...larger.nodes, node("3", "ambient")] }}
+    />,
+  );
+  act(() => vi.advanceTimersByTime(160));
+  const end = visual("1").userData.radius;
+  expect(end).toBeGreaterThan(halfway);
+  act(() => vi.advanceTimersByTime(400));
+  expect(visual("1").userData.radius).toBe(end);
+  expect(visual("1").position).toEqual(position);
+  expect(harness.camera?.position).toEqual(camera);
+  expect(harness.target).toEqual(target);
+  rerender(<GraphCanvas {...callbacks} introStarted />);
+  act(() => vi.advanceTimersByTime(160));
+  const interrupted = visual("1").userData.radius;
+  rerender(<GraphCanvas {...callbacks} introStarted view={larger} />);
+  expect(visual("1").userData.radius).toBe(interrupted);
+  act(() => vi.advanceTimersByTime(1000));
+  expect(visual("1").userData.radius).toBe(end);
+  expect(callbacks.onTransitionComplete).not.toHaveBeenCalled();
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  rerender(<GraphCanvas {...callbacks} introStarted />);
+  expect(visual("1").userData.radius).toBe(before);
+});
+
+it("응답 대기 중 선택 node는 고정하고 주변만 떠 움직이다 현재 화면 위치에서 전환한다", () => {
+  const callbacks = props();
+  const { rerender } = render(<GraphCanvas {...callbacks} />);
+  act(() => vi.advanceTimersByTime(16));
+  rerender(<GraphCanvas {...callbacks} introStarted />);
+  act(() => vi.advanceTimersByTime(2000));
+  const selected = visual("2").position.clone();
+  const neighbor = visual("1").position.clone();
+  const camera = harness.camera?.position.clone();
+  rerender(<GraphCanvas {...callbacks} introStarted pendingNodeId="2" />);
+  act(() => vi.advanceTimersByTime(400));
+  expect(visual("2").position).toEqual(selected);
+  expect(visual("1").position).not.toEqual(neighbor);
+  expect(harness.camera?.position).toEqual(camera);
+  const floating = visual("1").position.clone();
+  const next = {
+    ...view,
+    centerId: "2",
+    nodes: [node("2", "center"), node("1", "direct")],
+  };
+  rerender(<GraphCanvas {...callbacks} introStarted view={next} />);
+  expect(visual("1").position).toEqual(floating);
+  expect(visual("2").position).toEqual(selected);
+  act(() => vi.advanceTimersByTime(1300));
+  const settled = visual("1").position.clone();
+  act(() => vi.advanceTimersByTime(1000));
+  expect(visual("1").position).toEqual(settled);
+  expect(callbacks.onTransitionComplete).toHaveBeenCalledExactlyOnceWith("2");
+});
+
+it("대기 중 재선택·오류 종료는 떠 움직임을 정리하고 reduced motion에서는 움직이지 않는다", () => {
+  const callbacks = props();
+  const { rerender, container } = render(<GraphCanvas {...callbacks} />);
+  act(() => vi.advanceTimersByTime(16));
+  rerender(<GraphCanvas {...callbacks} introStarted />);
+  act(() => vi.advanceTimersByTime(2000));
+  rerender(<GraphCanvas {...callbacks} introStarted pendingNodeId="2" />);
+  act(() => vi.advanceTimersByTime(200));
+  const selected = visual("1").position.clone();
+  rerender(<GraphCanvas {...callbacks} introStarted pendingNodeId="1" />);
+  act(() => vi.advanceTimersByTime(200));
+  expect(visual("1").position).toEqual(selected);
+  rerender(<GraphCanvas {...callbacks} introStarted />);
+  const stopped = visual("2").position.clone();
+  act(() => vi.advanceTimersByTime(1000));
+  expect(visual("2").position).toEqual(stopped);
+  expect(container.querySelector("section")?.getAttribute("aria-busy")).toBe(
+    "false",
+  );
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  rerender(<GraphCanvas {...callbacks} introStarted pendingNodeId="1" />);
+  act(() => vi.advanceTimersByTime(1000));
+  expect(visual("2").position).toEqual(stopped);
+  expect(callbacks.onTransitionComplete).not.toHaveBeenCalled();
 });
