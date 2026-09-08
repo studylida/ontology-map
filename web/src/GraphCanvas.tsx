@@ -362,7 +362,10 @@ function makeLinkVisual(link: RuntimeLink, designPreview: boolean): LinkVisual {
             depthTest: true,
             depthWrite: false,
           });
-      const line = new THREE.Line(new THREE.BufferGeometry(), material);
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([]),
+        material,
+      );
       line.renderOrder = 1;
       line.frustumCulled = false;
       group.add(line);
@@ -403,6 +406,8 @@ function updateLinkPosition(
       midpoint,
       endPoint,
     );
+    if (line.geometry.getAttribute("position")?.count === 0)
+      line.geometry.deleteAttribute("position");
     line.geometry.setFromPoints(curve.getPoints(14));
     line.geometry.computeBoundingSphere();
     if (line.material instanceof THREE.LineDashedMaterial)
@@ -702,6 +707,11 @@ export function GraphCanvas({
       })
       .linkThreeObject((link) => {
         const visual = makeLinkVisual(link, designPreview);
+        // 표시 범위 변화로 paint 이후 다시 생성돼도 첫 raycast 전에 좌표를 채운다.
+        const source = nodeVisualsRef.current.get(endpointId(link.source));
+        const target = nodeVisualsRef.current.get(endpointId(link.target));
+        if (source && target)
+          updateLinkPosition(visual, source.position, target.position);
         if (designPreview)
           for (const line of visual.userData.lines) {
             (line.material as THREE.LineBasicMaterial).color.set(
