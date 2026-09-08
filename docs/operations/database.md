@@ -68,6 +68,16 @@ fixture는 `ONTOLOGY_MAP_ENVIRONMENT=development`에서만 동작하고 같은 D
 
 이 fixture는 개발용 고정 데이터다. 외부 source에서 수집한 운영 데이터나 모델의 실제 출력으로 해석하지 않는다.
 
+### 많은 node와 복수 근거를 검토할 개발 자료
+
+기본 HBF 자료를 보존하면서 별도 100-node 검토 자료를 추가하려면 `server/`에서 다음 명령을 실행한다.
+
+```bash
+PYTHONPATH=src uv run --env-file ../.env python -m ontology_map.db.review_fixture
+```
+
+명령은 development 환경에서만 실행되며 재실행해도 중복 적재하지 않는다. 출력의 `center`를 URL의 `center` 값으로 사용한다. 이름의 `[검토]` 표시와 `example.invalid` 출처는 실제 주장이나 수집 결과가 아니라는 뜻이다. `daa0bf2`의 20-node·24-Relation 구조와 1·3·6개의 독립 근거, 충돌을 재현하고 100 nodes로 늘려 단계별 표시·방향·여러 페이지를 검토한다. 운영 데이터 의미나 모델 품질을 검증하는 자료가 아니며 기존 HBF fixture와 DB volume을 삭제할 필요가 없다.
+
 ## 4. FastAPI 실행
 
 호스트에서 실행하려면 `server/`에서 다음 명령을 사용한다.
