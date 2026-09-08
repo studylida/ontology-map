@@ -33,7 +33,9 @@ export function PageNotice({
         : error.status === 422
           ? "조회 요청을 확인할 수 없습니다. 다시 선택해 주세요."
           : error.status === 503
-            ? "공개 자료를 준비하고 있습니다."
+            ? error.code === "PANEL_NOT_READY"
+              ? "이 기간에 공개할 수 있는 자료가 아직 준비되지 않았습니다."
+              : "공개 자료를 준비하고 있습니다."
             : "자료를 불러오지 못했습니다.";
     return (
       <div role="alert">

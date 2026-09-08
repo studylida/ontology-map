@@ -612,3 +612,213 @@ export async function fetchInsight(
     nextCursor: null,
   };
 }
+
+export interface PanelClaim {
+  id: string;
+  text: string;
+  modality: string;
+  state: string;
+  evidenceGroupCount: number;
+  asOf: string;
+  role: string | null;
+  connections: {
+    kind: string;
+    id: string;
+    position: string | null;
+    label: string;
+  }[];
+}
+export interface PanelTrace extends SourceTrace {
+  periodRole: "IN_WINDOW" | "BACKGROUND" | "UNKNOWN";
+}
+export interface PanelQuestion {
+  id: string;
+  text: string;
+}
+export interface PanelAnswer extends PanelQuestion {
+  answer: string;
+  caveat: string | null;
+  asOf: string;
+  sectionId: string | null;
+  claims: PanelClaim[];
+}
+export interface PanelReport {
+  id: string;
+  title: string;
+  summary: string;
+  asOf: string;
+  evidenceGroupCount: number;
+  conclusion: string | null;
+  caveat: string | null;
+  sections: {
+    id: string;
+    title: string;
+    synthesis: string | null;
+    caveat: string | null;
+    claims: PanelClaim[];
+  }[];
+}
+function panelParams(range: TimeRange, cursor: string | null = null) {
+  const params = new URLSearchParams({
+    time_window: range === "90d" ? "RECENT_90_DAYS" : "RECENT_1_YEAR",
+  });
+  if (cursor) params.set("cursor", cursor);
+  return params;
+}
+function toPanelClaim(value: unknown): PanelClaim {
+  const row = object(value);
+  return {
+    id: string(row.claim_id),
+    text: string(row.claim_text),
+    modality: string(row.modality),
+    state: string(row.knowledge_state),
+    evidenceGroupCount: number(row.evidence_group_count),
+    asOf: string(row.as_of_at),
+    role: nullableString(row.role),
+    connections: array(row.connections).map((value) => {
+      const connection = object(value);
+      return {
+        kind: member(connection.kind, [
+          "RELATION",
+          "ATTRIBUTE",
+          "EVENT_TIME",
+          "CONFLICT",
+        ] as const),
+        id: string(connection.target_id),
+        position: nullableString(connection.position),
+        label: string(connection.label),
+      };
+    }),
+  };
+}
+export async function fetchPanelClaims(
+  nodeId: string,
+  range: TimeRange,
+  cursor: string | null,
+  signal: AbortSignal,
+): Promise<CursorPage<PanelClaim>> {
+  const body = object(
+    await fetchAPI(
+      `/api/v1/nodes/${encodeURIComponent(nodeId)}/claims?${panelParams(range, cursor)}`,
+      signal,
+    ),
+  );
+  return {
+    items: array(body.items).map(toPanelClaim),
+    nextCursor: nullableString(body.next_cursor),
+  };
+}
+export async function fetchPanelTraces(
+  nodeId: string,
+  claim: PanelClaim,
+  range: TimeRange,
+  cursor: string | null,
+  signal: AbortSignal,
+): Promise<CursorPage<PanelTrace>> {
+  const params = panelParams(range, cursor);
+  params.set("as_of_at", claim.asOf);
+  const body = object(
+    await fetchAPI(
+      `/api/v1/nodes/${encodeURIComponent(nodeId)}/claims/${encodeURIComponent(claim.id)}/evidence?${params}`,
+      signal,
+    ),
+  );
+  return {
+    items: array(body.items).map((value) => {
+      const row = object(value);
+      return {
+        ...toSourceTrace(row),
+        periodRole: member(row.period_role, [
+          "IN_WINDOW",
+          "BACKGROUND",
+          "UNKNOWN",
+        ] as const),
+      };
+    }),
+    nextCursor: nullableString(body.next_cursor),
+  };
+}
+export async function fetchPanelQuestions(
+  nodeId: string,
+  range: TimeRange,
+  cursor: string | null,
+  signal: AbortSignal,
+): Promise<CursorPage<PanelQuestion>> {
+  const body = object(
+    await fetchAPI(
+      `/api/v1/nodes/${encodeURIComponent(nodeId)}/questions?${panelParams(range, cursor)}`,
+      signal,
+    ),
+  );
+  return {
+    items: array(body.items).map((value) => {
+      const row = object(value);
+      return { id: string(row.question_id), text: string(row.question_text) };
+    }),
+    nextCursor: nullableString(body.next_cursor),
+  };
+}
+export async function fetchPanelAnswer(
+  id: string,
+  _cursor: string | null,
+  signal: AbortSignal,
+): Promise<CursorPage<PanelAnswer>> {
+  const row = object(
+    await fetchAPI(`/api/v1/questions/${encodeURIComponent(id)}`, signal),
+  );
+  return {
+    items: [
+      {
+        id: string(row.question_id),
+        text: string(row.question_text),
+        answer: string(row.answer),
+        caveat: nullableString(row.caveat),
+        asOf: string(row.as_of_at),
+        sectionId: nullableString(row.section_id),
+        claims: array(row.claims).map(toPanelClaim),
+      },
+    ],
+    nextCursor: null,
+  };
+}
+export async function fetchPanelReport(
+  nodeId: string,
+  range: TimeRange,
+  detail: boolean,
+  signal: AbortSignal,
+): Promise<CursorPage<PanelReport>> {
+  const params = panelParams(range);
+  params.set("detail", String(detail));
+  const body = object(
+    await fetchAPI(
+      `/api/v1/nodes/${encodeURIComponent(nodeId)}/insight-report?${params}`,
+      signal,
+    ),
+  );
+  return {
+    items: array(body.items).map((value) => {
+      const row = object(value);
+      return {
+        id: string(row.report_id),
+        title: string(row.title),
+        summary: string(row.summary),
+        asOf: string(row.as_of_at),
+        evidenceGroupCount: number(row.evidence_group_count),
+        conclusion: row.conclusion == null ? null : string(row.conclusion),
+        caveat: row.caveat == null ? null : string(row.caveat),
+        sections: array(row.sections).map((value) => {
+          const section = object(value);
+          return {
+            id: string(section.section_id),
+            title: string(section.title),
+            synthesis:
+              section.synthesis == null ? null : string(section.synthesis),
+            caveat: section.caveat == null ? null : string(section.caveat),
+            claims: array(section.claims).map(toPanelClaim),
+          };
+        }),
+      };
+    }),
+    nextCursor: null,
+  };
+}

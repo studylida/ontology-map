@@ -40,6 +40,9 @@ vi.mock("./GraphCanvas", () => ({
       >
         다른 graph node 선택
       </button>
+      <button type="button" onClick={() => onSelect(view.centerId)}>
+        현재 graph node 선택
+      </button>
       <button type="button" onClick={() => onTransitionComplete(view.centerId)}>
         중심 전환 완료
       </button>
@@ -171,7 +174,7 @@ describe("exploration API 화면", () => {
   beforeEach(() => {
     vi.stubEnv("VITE_DEFAULT_CENTER_NODE_ID", "9223372036854775807");
     vi.stubGlobal("fetch", (input: string, init?: RequestInit) => {
-      if (/\/nodes\/[^/]+\/relations/.test(input))
+      if (/\/nodes\/[^/]+\/(relations|questions)/.test(input))
         return Promise.resolve(response({ items: [], next_cursor: null }));
       if (input.includes("/peripheral?"))
         return Promise.resolve(
@@ -228,17 +231,17 @@ describe("exploration API 화면", () => {
     expect(await screen.findByRole("heading", { name: "HBF" })).toBeTruthy();
   });
 
-  it("추천과 후속 질문은 선택할 때마다 aggregate를 한 번 요청한다", async () => {
+  it("추천 선택은 aggregate를 한 번 요청하고 이전 이동형 질문은 표시하지 않는다", async () => {
     render(<App />);
     await screen.findByRole("heading", { name: "SK하이닉스" });
     fireEvent.click(screen.getByRole("button", { name: /HBF.*확인된 관계/ }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     fireEvent.click(screen.getByRole("button", { name: "중심 전환 완료" }));
     await screen.findByRole("heading", { name: "HBF" });
-    fireEvent.click(
-      screen.getByRole("button", { name: "SK하이닉스 중심으로 보기" }),
-    );
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(
+      screen.queryByRole("button", { name: "SK하이닉스 중심으로 보기" }),
+    ).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("새 선택이 이전 응답과 이전 전환 완료를 무효화한다", async () => {
@@ -260,7 +263,7 @@ describe("exploration API 화면", () => {
         .getAttribute("data-pending-node"),
     ).toBe("9223372036854775806");
     fireEvent.click(
-      screen.getByRole("button", { name: "SK하이닉스 다시 보기" }),
+      screen.getByRole("button", { name: "현재 graph node 선택" }),
     );
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
     await act(async () =>
