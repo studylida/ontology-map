@@ -7,6 +7,7 @@ import { GraphCanvas } from "./GraphCanvas";
 const harness = vi.hoisted(() => ({
   camera: null as THREE.PerspectiveCamera | null,
   target: null as THREE.Vector3 | null,
+  navigationEnabled: true,
   options: new Map<string, (...args: never[]) => unknown>(),
   nodes: new Map<string, THREE.Group>(),
   links: new Map<string, THREE.Group>(),
@@ -37,6 +38,17 @@ vi.mock("3d-force-graph", () => ({
         if (key === "controls") return () => controls;
         if (key === "camera") return () => camera;
         if (key === "scene") return () => scene;
+        if (key === "cameraPosition")
+          return (position: THREE.Vector3, target: THREE.Vector3) => {
+            camera.position.copy(position);
+            controls.target.copy(target);
+            return proxy;
+          };
+        if (key === "enableNavigationControls")
+          return (enabled: boolean) => {
+            harness.navigationEnabled = enabled;
+            return proxy;
+          };
         if (key === "renderer") return () => ({});
         if (key === "postProcessingComposer")
           return () => ({ addPass: vi.fn() });
@@ -482,4 +494,40 @@ it("미리보기 준비 이동은 2단위 이내에서 멈추고 응답 순간 �
     <GraphCanvas {...callbacks} designPreview introStarted view={next} />,
   );
   expect(visual("2").position).toEqual(settled);
+});
+
+it("로딩이 이미 끝난 상태에서 지도가 다시 생성되어도 초기 연출과 조작 복구를 완료한다", () => {
+  const callbacks = props();
+  const { container } = render(
+    <GraphCanvas {...callbacks} designPreview introStarted />,
+  );
+  const { camera, target } = harness;
+  if (!camera || !target) throw new Error("camera가 없습니다.");
+  const initialDistance = camera.position.distanceTo(target);
+  expect(harness.navigationEnabled).toBe(false);
+  act(() => vi.advanceTimersByTime(3000));
+  expect(callbacks.onReady).toHaveBeenCalledTimes(1);
+  expect(callbacks.onIntroComplete).toHaveBeenCalledTimes(1);
+  expect(harness.navigationEnabled).toBe(true);
+  expect(container.querySelector("section")?.getAttribute("aria-busy")).toBe(
+    "false",
+  );
+  expect(initialDistance).toBeGreaterThan(
+    90 * camera.position.distanceTo(target),
+  );
+});
+
+it("초기 연출을 이미 마친 지도는 재생성 시 확대를 반복하지 않고 조작을 복구한다", () => {
+  const callbacks = props();
+  render(
+    <GraphCanvas {...callbacks} designPreview introStarted introCompleted />,
+  );
+  const camera = harness.camera;
+  if (!camera) throw new Error("camera가 없습니다.");
+  const initialPosition = camera.position.clone();
+  act(() => vi.advanceTimersByTime(16));
+  expect(harness.navigationEnabled).toBe(true);
+  expect(camera.position.distanceTo(initialPosition)).toBeLessThan(0.001);
+  expect(callbacks.onReady).toHaveBeenCalledTimes(1);
+  expect(callbacks.onIntroComplete).not.toHaveBeenCalled();
 });
