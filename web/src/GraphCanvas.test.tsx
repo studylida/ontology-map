@@ -683,6 +683,72 @@ it("근접 조망에서 숨긴 2단계는 축소하면 같은 좌표로 나타�
   expect(second.position).toEqual(position);
 });
 
+it("이름은 단계와 배율로 줄이되 node·간선 hover와 초점에서는 다시 표시한다", () => {
+  const page = {
+    ...view,
+    nodes: [
+      ...view.nodes,
+      { ...node("3", "ambient"), tier: "twoHop" as const },
+      node("4", "ambient"),
+    ],
+    relations: [
+      {
+        id: "remote",
+        source: "3",
+        target: "4",
+        label: "관계",
+        tier: "ambient" as const,
+        directionality: "DIRECTED" as const,
+        evidenceGroupCount: 1,
+        conflict: false,
+      },
+    ],
+  };
+  const { getByRole } = render(
+    <GraphCanvas
+      {...props()}
+      view={page}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(16));
+  const { camera, target, labels, scene } = harness;
+  if (!camera || !target || !labels || !scene)
+    throw new Error("graph가 없습니다.");
+  const near = camera.position.distanceTo(target);
+  const draw = () => labels.render(scene, camera);
+  camera.position.z = near * 1.3;
+  draw();
+  expect(visual("3").userData.label.visible).toBe(true);
+  expect(visual("4").visible).toBe(true);
+  expect(visual("4").userData.label.visible).toBe(false);
+  camera.position.z = near * 1.55;
+  draw();
+  expect(
+    Number(visual("3").userData.label.element.style.opacity),
+  ).toBeGreaterThan(0);
+  expect(Number(visual("3").userData.label.element.style.opacity)).toBeLessThan(
+    visual("3").userData.style.labelOpacity,
+  );
+  camera.position.z = near * 2;
+  draw();
+  expect(visual("3").userData.label.visible).toBe(false);
+  expect(visual("2").userData.label.visible).toBe(true);
+  act(() => getByRole("button", { name: "4 · 기술" }).focus());
+  draw();
+  expect(visual("4").userData.label.visible).toBe(true);
+  act(() => getByRole("button", { name: "4 · 기술" }).blur());
+  act(() => harness.options.get("onLinkHover")?.(page.relations[0] as never));
+  draw();
+  expect(visual("3").userData.label.visible).toBe(true);
+  expect(visual("4").userData.label.visible).toBe(true);
+  act(() => harness.options.get("onLinkHover")?.(null as never));
+  draw();
+  expect(visual("3").userData.label.visible).toBe(false);
+});
+
 it("근접 조망은 1단계 간선만, 축소 뒤에는 2단계 간선까지만 표시한다", () => {
   const callbacks = props();
   const relations = (["direct", "twoHop", "threeHop", "ambient"] as const).map(
