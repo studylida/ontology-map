@@ -80,6 +80,7 @@ type NodeVisual = THREE.Group & {
     velocity: THREE.Vector3;
     reveal: number;
     hoverOpacity: number;
+    neighborReveal: number;
     surface: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
     occluder: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
     core: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
@@ -254,7 +255,8 @@ function paintPreviewNode(
   const presence = Math.min(1, style.opacity / base.opacity);
   const near = node.tier === "center" || node.tier === "direct";
   const distanceOpacity = near ? 1 : reveal;
-  const opacity = distanceOpacity + (1 - distanceOpacity) * focus;
+  const revealFocus = Math.max(focus, visual.userData.neighborReveal);
+  const opacity = distanceOpacity + (1 - distanceOpacity) * revealFocus;
   const baseLabel = near ? 1 : 0;
   const labelOpacity = baseLabel + (1 - baseLabel) * focus;
   visual.userData.reveal = opacity;
@@ -372,6 +374,7 @@ function makeNodeVisual(node: RuntimeNode, designPreview: boolean): NodeVisual {
     velocity: new THREE.Vector3(),
     reveal: 1,
     hoverOpacity: 0,
+    neighborReveal: 0,
     surface,
     occluder,
     core,
@@ -994,6 +997,12 @@ export function GraphCanvas({
           : nodeIds.has(endpointId(link.source)) ||
             nodeIds.has(endpointId(link.target));
       linkFocusRef.current = isFocused;
+      const neighbors = new Set<string>();
+      for (const link of linksRef.current.values()) {
+        if (!isFocused(link) || !linkIsVisible(link)) continue;
+        neighbors.add(endpointId(link.source));
+        neighbors.add(endpointId(link.target));
+      }
       graph.linkVisibility(linkIsVisible);
       if (hoverAnimationRef.current !== null)
         cancelAnimationFrame(hoverAnimationRef.current);
@@ -1022,6 +1031,8 @@ export function GraphCanvas({
           visual,
           shellFrom: visual?.userData.hoverOpacity ?? 0,
           shellTo: nodeIds.has(item.id) ? 1 : 0,
+          neighborFrom: visual?.userData.neighborReveal ?? 0,
+          neighborTo: neighbors.has(item.id) ? 1 : 0,
           from: visual
             ? (visual.userData.halo.material as THREE.SpriteMaterial).opacity
             : 0,
@@ -1068,6 +1079,9 @@ export function GraphCanvas({
           if (designPreview)
             target.visual.userData.hoverOpacity =
               target.shellFrom + (target.shellTo - target.shellFrom) * eased;
+          target.visual.userData.neighborReveal =
+            target.neighborFrom +
+            (target.neighborTo - target.neighborFrom) * eased;
           (
             target.visual.userData.halo.material as THREE.SpriteMaterial
           ).opacity = target.from + (target.to - target.from) * eased;
