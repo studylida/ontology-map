@@ -1435,6 +1435,20 @@
   opacity: 0.7;
   margin-top: 20px;
 }
+.reportInterpretation {
+  padding: 16px;
+  margin: 14px 0 20px;
+  background: var(--surface-elevated);
+  border-left: 2px solid var(--interactive);
+}
+.reportInterpretation h4 {
+  margin: 0 0 8px;
+  color: var(--interactive);
+  opacity: 1;
+}
+.reportInterpretation p {
+  color: var(--text-primary);
+}
 
 /* 유형 색을 지워도 누름 상태와 취소선으로 숨김을 구분한다. */
 .nodeTypes button[aria-pressed="false"],
