@@ -52,7 +52,7 @@ function ClaimTraces({
                 ? "기간 밖 배경 근거"
                 : "게시 시점 미상"}
           </small>
-          <TraceContent trace={trace} />
+          <TraceContent trace={trace} claimText={claim.text} />
         </article>
       ))}
       <PageNotice {...page} empty={!page.items.length} onRetry={page.retry} />
