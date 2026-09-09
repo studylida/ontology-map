@@ -140,6 +140,25 @@ it("Relation 선택 때만 공용 근거 창을 열고 cursor를 그대로 전�
   expect(document.activeElement).toBe(opener);
 });
 
+it("Claim과 원문 인용이 같으면 문장을 한 번만 표시한다", async () => {
+  request.mockResolvedValue(
+    response({
+      items: [{ ...trace, quote_text: trace.claim_text }],
+      next_cursor: null,
+      trace_count: 1,
+    }),
+  );
+  const { container } = render(
+    <EvidenceDialog
+      selection={{ id: "1", label: "검토 관계" }}
+      onClose={vi.fn()}
+    />,
+  );
+  await screen.findByText(trace.claim_text);
+  expect(screen.getAllByText(trace.claim_text)).toHaveLength(1);
+  expect(container.querySelector("blockquote")).toBeNull();
+});
+
 it.each([404, 422, 503, 0])(
   "오류 %s를 빈 결과와 구분하고 retry 정책을 따른다",
   async (status) => {
