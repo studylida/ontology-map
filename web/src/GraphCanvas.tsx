@@ -260,6 +260,14 @@ function paintPreviewNode(
   visual.userData.reveal = opacity;
   visual.userData.surface.material.opacity =
     (style.opacity + (1 - base.opacity) * presence * focus) * opacity;
+  const { surface, core, lightMode } = visual.userData;
+  if (near || node.tier === "twoHop") {
+    surface.material.emissive.copy(core.material.color);
+  } else {
+    surface.material.emissive
+      .set(lightMode ? "#707070" : "#808080")
+      .lerp(core.material.color, focus);
+  }
   visual.userData.occluder.material.opacity = opacity * presence;
   visual.userData.label.visible = opacity * labelOpacity * presence > 0.001;
   visual.userData.label.element.style.opacity = String(
@@ -579,7 +587,13 @@ const previewNodeStyles = Object.fromEntries(
     tier,
     {
       ...style,
-      opacity: tier === "direct" ? 0.98 : style.opacity,
+      opacity: {
+        center: 1,
+        direct: 0.98,
+        twoHop: 0.55,
+        threeHop: 0.28,
+        ambient: 0.18,
+      }[tier],
       shellOpacity: tier === "direct" ? 0.3 : 0,
       labelOpacity: {
         center: 1,

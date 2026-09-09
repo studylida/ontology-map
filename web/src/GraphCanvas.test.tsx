@@ -1291,6 +1291,10 @@ it("먼 노드는 hover에서 본체와 이름도 서서히 선명해지고 해�
   const opacity = () => visual("3").userData.surface.material.opacity as number;
   draw();
   const baseline = opacity();
+  const material = visual("3").userData.surface.material;
+  const neutral = material.emissive.clone();
+  expect(neutral.getHexString()).toBe("808080");
+  expect(neutral.equals(visual("3").userData.core.material.color)).toBe(false);
   act(() => harness.options.get("onNodeHover")?.(data.nodes[2] as never));
   draw();
   expect(opacity()).toBe(baseline);
@@ -1301,6 +1305,9 @@ it("먼 노드는 hover에서 본체와 이름도 서서히 선명해지고 해�
   act(() => vi.advanceTimersByTime(250));
   draw();
   expect(opacity()).toBeCloseTo(1);
+  expect(material.emissive.getHexString()).toBe(
+    visual("3").userData.core.material.color.getHexString(),
+  );
   expect(Number(visual("3").userData.label.element.style.opacity)).toBeCloseTo(
     1,
   );
@@ -1308,6 +1315,7 @@ it("먼 노드는 hover에서 본체와 이름도 서서히 선명해지고 해�
   act(() => vi.advanceTimersByTime(450));
   draw();
   expect(opacity()).toBeCloseTo(baseline);
+  expect(material.emissive.equals(neutral)).toBe(true);
   expect(visual("3").userData.label.visible).toBe(false);
   vi.stubGlobal("matchMedia", () => ({ matches: true }));
   act(() => harness.options.get("onNodeHover")?.(data.nodes[2] as never));
