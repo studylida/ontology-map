@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "full_article_text_published": false,
+  "sources": [
+    {
+      "article_id": "N01",
+      "title": "SK하이닉스, 충청권 투자 계획 발표",
+      "publisher": "SK hynix",
+      "url": "https://news.skhynix.co.kr/fact-07/",
+      "resolved_url": "https://news.skhynix.co.kr/fact-07/",
+      "normalized_chars": 1693,
+      "source_units": 31,
+      "body_sha256": "3a10eda04b4ac2269fc1c8d007d07e9ee38cf0b5de973503597048052772954e",
+      "event_family": "SK hynix Chungcheong semiconductor and AI investment plan",
+      "focus_units": [
+        {
+          "source_id": "s4",
+          "sampling_role": "SELF_CONTAINED"
+        },
+        {
+          "source_id": "s5",
+          "sampling_role": "LOCAL_REQUIRED"
+        },
+        {
+          "source_id": "s6",
+          "sampling_role": "LOCAL_REQUIRED"
+        },
+        {
+          "source_id": "s21",
+          "sampling_role": "SELF_CONTAINED"
+        }
+      ]
+    },
+    {
+      "article_id": "N02",
+      "title": "삼성전자, SAFE 포럼 2026 한국 개최",
+      "publisher": "Samsung Newsroom Korea",
+      "url": "https://news.samsung.com/kr/%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90-%EC%84%B8%EC%9D%B4%ED%94%84-%ED%8F%AC%EB%9F%BC-2026-%ED%95%9C%EA%B5%AD-%EA%B0%9C%EC%B5%9Cai-%EB%B0%98%EB%8F%84%EC%B2%B4-%EC%83%9D%ED%83%9C%EA%B3%84",
+      "resolved_url": "https://news.samsung.com/kr/%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90-%EC%84%B8%EC%9D%B4%ED%94%84-%ED%8F%AC%EB%9F%BC-2026-%ED%95%9C%EA%B5%AD-%EA%B0%9C%EC%B5%9Cai-%EB%B0%98%EB%8F%84%EC%B2%B4-%EC%83%9D%ED%83%9C%EA%B3%84",
+      "normalized_chars": 3186,
+      "source_units": 36,
+      "body_sha256": "467c313a33a1f7a63fba5df00a7594b3fb9c4006ad73dac3677be9bbc92e6866",
+      "event_family": "Samsung SAFE Forum 2026 Korea",
+      "focus_units": [
+        {
+          "source_id": "s14",
+          "sampling_role": "SELF_CONTAINED"
+        },
+        {
+          "source_id": "s22",
+          "sampling_role": "LOCAL_REQUIRED"
+        },
+        {
+          "source_id": "s28",
+          "sampling_role": "SELF_CONTAINED"
+        },
+        {
+          "source_id": "s31",
+          "sampling_role": "LOCAL_REQUIRED"
+        }
+      ]
+    },
+    {
+      "article_id": "N03",
+      "title": "CES 2026: NVIDIA Rubin 플랫폼·오픈 모델·자율주행",
+      "publisher": "NVIDIA Korea",
+      "url": "https://blogs.nvidia.co.kr/blog/2026-ces-special-presentation/",
+      "resolved_url": "https://blogs.nvidia.co.kr/blog/2026-ces-special-presentation/",
+      "normalized_chars": 4958,
+      "source_units": 74,
+      "body_sha256": "3d7efb38c664e65a958aeb0d69adca9f6a23faa457b60f099f0d475ff1f975dd",
+      "event_family": "NVIDIA CES 2026 Rubin and open models presentation",
+      "focus_units": [
+        {
+          "source_id": "s13",
+          "sampling_role": "SELF_CONTAINED"
+        },
+        {
+          "source_id": "s23",
+          "sampling_role": "LOCAL_REQUIRED"
+        },
+        {
+          "source_id": "s25",
+          "sampling_role": "LOCAL_REQUIRED"
+        },
+        {
+          "source_id": "s61",
+          "sampling_role": "SELF_CONTAINED"
+        }
+      ]
+    },
+    {
+      "article_id": "N04",
+      "title": "Intel Gaudi 3·Dell AI 플랫폼 발표",
+      "publisher": "Intel Korea",
+      "url": "https://www.intel.co.kr/content/www/kr/ko/newsroom/news/artificial-intelligence/intel-gaudi-3-expands-availability-to-drive-ai-innovation-at-scale.html",
+      "resolved_url": "https://www.intel.co.kr/content/www/kr/ko/newsroom/news/artificial-intelligence/intel-gaudi-3-expands-availability-to-drive-ai-innovation-at-scale.html",
+      "normalized_chars": 2414,
+      "source_units": 27,
+      "body_sha256": "f78ffcea050c5ac095a693dbc23bd5515969e85498da541060ebc1e0a70fb2b7",
+      "event_family": "Intel Gaudi 3 Dell AI Factory platform",
+      "focus_units": [
+        {
+          "source_id": "s1",
+          "sampling_role": "SELF_CONTAINED"
+        },
+        {
+          "source_id": "s4",
+          "sampling_role": "LOCAL_REQUIRED"
+        },
+        {
+          "source_id": "s6",
+          "sampling_role": "SELF_CONTAINED"
+        },
+        {
+          "source_id": "s25",
+          "sampling_role": "LOCAL_REQUIRED"
+        }
+      ]
+    }
+  ]
+}

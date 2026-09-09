@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": 139,
+  "model": "qwen3.7-flash-2026-07-15",
+  "region": "Singapore",
+  "calls": 2,
+  "estimated_or_reserved_usd": 0.00015395,
+  "cap_usd": 0.005,
+  "interpretation": "API and local schema compatibility only; not semantic or operational quality"
+}

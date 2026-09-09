@@ -1,0 +1,34 @@
+{
+  "N01:r1": [
+    "adjacent",
+    "control"
+  ],
+  "N01:r2": [
+    "control",
+    "adjacent"
+  ],
+  "N02:r1": [
+    "control",
+    "adjacent"
+  ],
+  "N02:r2": [
+    "control",
+    "adjacent"
+  ],
+  "N03:r1": [
+    "adjacent",
+    "control"
+  ],
+  "N03:r2": [
+    "adjacent",
+    "control"
+  ],
+  "N04:r1": [
+    "adjacent",
+    "control"
+  ],
+  "N04:r2": [
+    "control",
+    "adjacent"
+  ]
+}
