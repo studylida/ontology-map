@@ -129,6 +129,19 @@ it("Relation 선택 때만 공용 근거 창을 열고 cursor를 그대로 전�
     ),
   ).toBe("opaque +/?");
   const dialog = screen.getByRole("dialog");
+  const first = screen.getByRole("button", { name: "근거 창 닫기" });
+  const last = screen.getByRole("link", { name: "발표 자료 원문 열기" });
+  // jsdom에는 레이아웃이 없어 현재 표시된 두 조작 요소의 영역을 제공한다.
+  for (const element of [first, last]) {
+    vi.spyOn(element, "getClientRects").mockReturnValue([
+      new DOMRect(0, 0, 44, 44),
+    ] as unknown as DOMRectList);
+  }
+  last.focus();
+  fireEvent.keyDown(last, { key: "Tab" });
+  expect(document.activeElement).toBe(first);
+  fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
+  expect(document.activeElement).toBe(last);
   vi.spyOn(dialog, "getBoundingClientRect").mockReturnValue(
     new DOMRect(100, 100, 400, 300),
   );

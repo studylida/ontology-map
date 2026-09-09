@@ -183,8 +183,21 @@ export function useModalDialog(onClose: () => void) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = dialogRef.current;
+    if (!dialog) return;
     const opener = document.activeElement;
-    dialog?.showModal();
+    dialog.showModal();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const stops = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), a[href], [tabindex="0"]',
+        ),
+      ).filter((element) => element.getClientRects().length > 0);
+      const edge = event.shiftKey ? stops[0] : stops.at(-1);
+      if (document.activeElement !== edge) return;
+      event.preventDefault();
+      (event.shiftKey ? stops.at(-1) : stops[0])?.focus();
+    };
     const onClick = (event: MouseEvent) => {
       if (!dialog || event.target !== dialog) return;
       const rect = dialog.getBoundingClientRect();
@@ -197,7 +210,9 @@ export function useModalDialog(onClose: () => void) {
         close();
     };
     dialog?.addEventListener("click", onClick);
+    dialog.addEventListener("keydown", onKeyDown);
     return () => {
+      dialog.removeEventListener("keydown", onKeyDown);
       dialog?.removeEventListener("click", onClick);
       dialog?.close();
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
