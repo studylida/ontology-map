@@ -171,7 +171,7 @@ PostgreSQL의 `bigint` ID는 JavaScript 정밀도 손실을 막기 위해 모든
 
 공통 오류 본문은 `{"error":{"code":"...","retryable":false}}`다. 잘못된 ID, query, limit, time window와 cursor는 `422 INVALID_REQUEST`다. 공개 node가 없으면 exploration·peripheral·Relation 목록은 `404 NODE_NOT_FOUND`, 공개 Relation 근거가 없으면 Evidence Trace는 `404 RELATION_NOT_FOUND`를 반환한다. node는 공개 가능하지만 필요한 READY 결과가 없으면 exploration·peripheral·Relation 목록은 `503 PUBLICATION_NOT_READY`와 `retryable: true`를 반환한다.
 
-일반 사용자 조회에는 현재 공개 가능한 최신 READY 결과만 포함한다. `promotion_status = COMMITTED`, `publication_status = READY`, 지식 상태 `EVIDENCE_VERIFIED | HUMAN_VERIFIED`와 열린 `BLOCKING` lint 부재를 다시 확인한다. selected 검색 문서의 모든 `search_document_basis`가 계속 공개 가능한지 재검증하는 것은 제품 불변성이다. 현재 search와 저장 인사이트 경로는 이 basis 재검증을 수행하지만 exploration, peripheral, node Relation과 Relation Evidence Trace가 사용하는 공통 공개 경로에는 아직 같은 검사가 없으며 이 구현 gap은 #120이 소유한다. 새 publication이 실패해도 이전 READY 결과가 있으면 계속 제공한다.
+일반 사용자 조회에는 현재 공개 가능한 최신 READY 결과만 포함한다. `promotion_status = COMMITTED`, `publication_status = READY`, 지식 상태 `EVIDENCE_VERIFIED | HUMAN_VERIFIED`와 열린 `BLOCKING` lint 부재를 다시 확인한다. selected 검색 문서의 모든 `search_document_basis`가 계속 공개 가능한지 재검증하는 것은 제품 불변성이다. search와 저장 인사이트 경로뿐 아니라 exploration, peripheral, node Relation과 Relation Evidence Trace가 사용하는 공통 공개 경로도 이 basis 재검증을 수행한다. 새 publication이 실패해도 이전 READY 결과가 있으면 계속 제공한다.
 
 현재 search는 alias 정확 일치를 첫 bucket으로 반환한 뒤 `identity_text`와 `knowledge_text`를 함께 사용한 PostgreSQL `simple` FTS 결과를 이어서 반환하고 HTTP 응답과 web에 `match_reasons`를 노출한다. 아직 구현되지 않은 frozen node embedding 저장 계약과 pgvector·READY embedding 의존성은 #121에서 제거한다. 그 뒤 #117은 exact alias → identity FTS → knowledge FTS의 세 bucket을 고정하고 `match_reasons`와 검색 이유 표시를 제거한다. 실제 한국어 단어 FTS 누락 사례가 확인될 때만 #80에서 tokenizer, `pg_trgm` 또는 BM25 같은 확장을 다시 검토한다.
 

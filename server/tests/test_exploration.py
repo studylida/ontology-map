@@ -212,7 +212,7 @@ def test_repository_keeps_previous_ready_when_newer_publication_fails() -> None:
     assert result.center_node_id == node_ids["sk_hynix"]
 
 
-def test_repository_rechecks_relation_state_and_distinct_evidence_groups() -> None:
+def test_repository_counts_distinct_evidence_then_rechecks_relation_basis() -> None:
     _created, node_ids = load_hbf_fixture()
     with rollback_session() as session:
         relation_id, claim_id, evidence_group_id = hbf_relation_evidence_ids(
@@ -281,17 +281,13 @@ def test_repository_rechecks_relation_state_and_distinct_evidence_groups() -> No
             .where(knowledge_item.c.knowledge_item_id == relation_id)
             .values(current_state="ON_HOLD")
         )
-        filtered = get_exploration(
-            session, node_ids["sk_hynix"], TimeWindow.RECENT_90_DAYS, now=NOW
-        )
-
-    assert all(
-        relation.relation_id != relation_id for relation in filtered.graph.relations
-    )
-    assert all(node.node_id != node_ids["hbf"] for node in filtered.graph.nodes)
+        with pytest.raises(PublicationNotReadyError):
+            get_exploration(
+                session, node_ids["sk_hynix"], TimeWindow.RECENT_90_DAYS, now=NOW
+            )
 
 
-def test_repository_excludes_open_blocking_lint_finding() -> None:
+def test_repository_rejects_open_blocking_lint_in_selected_basis() -> None:
     _created, node_ids = load_hbf_fixture()
     with rollback_session() as session:
         relation_id, _claim_id, _evidence_group_id = hbf_relation_evidence_ids(
@@ -328,14 +324,10 @@ def test_repository_excludes_open_blocking_lint_finding() -> None:
             )
         )
 
-        result = get_exploration(
-            session, node_ids["sk_hynix"], TimeWindow.RECENT_90_DAYS, now=NOW
-        )
-
-    assert all(
-        relation.relation_id != relation_id for relation in result.graph.relations
-    )
-    assert all(node.node_id != node_ids["hbf"] for node in result.graph.nodes)
+        with pytest.raises(PublicationNotReadyError):
+            get_exploration(
+                session, node_ids["sk_hynix"], TimeWindow.RECENT_90_DAYS, now=NOW
+            )
 
 
 def test_repository_reports_public_conflict_separately() -> None:

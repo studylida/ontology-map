@@ -22,6 +22,9 @@ from ontology_map.db.schema import (
     conflict_set,
     evidence_group,
     knowledge_item,
+    lint_finding,
+    lint_policy_rule,
+    lint_run,
     observation,
     promotion_batch,
     publication_affected_node,
@@ -30,7 +33,12 @@ from ontology_map.db.schema import (
     source_document,
 )
 from ontology_map.db.session import get_engine
-from ontology_map.exploration import PublicationNotReadyError
+from ontology_map.exploration import (
+    PublicationNotReadyError,
+    TimeWindow,
+    get_exploration,
+    list_peripheral_nodes,
+)
 from ontology_map.main import app
 from ontology_map.pagination import InvalidCursorError, encode_cursor
 from ontology_map.relations import (
@@ -286,6 +294,111 @@ def test_repository_lists_relations_and_traces_from_current_ready_data() -> None
     )
 
 
+@pytest.mark.parametrize("invalidation", ["state", "blocking_lint"])
+def test_repository_revalidates_every_selected_basis_item(
+    invalidation: str,
+) -> None:
+    _created, node_ids = load_hbf_fixture()
+    with rollback_session() as session:
+        relation_id, _support_claim_id, _group_id = hbf_relation_ids(session, node_ids)
+        search_document_id = current_search_document_id(session, node_ids["sk_hynix"])
+        current_basis_ids = set(
+            session.scalars(
+                sa.select(search_document_basis.c.knowledge_item_id).where(
+                    search_document_basis.c.node_search_document_id
+                    == search_document_id
+                )
+            )
+        )
+        unrelated_basis_id = session.scalar(
+            sa.select(knowledge_item.c.knowledge_item_id)
+            .where(
+                knowledge_item.c.item_kind == "CLAIM",
+                knowledge_item.c.current_state.in_(
+                    ("EVIDENCE_VERIFIED", "HUMAN_VERIFIED")
+                ),
+                knowledge_item.c.knowledge_item_id.not_in(current_basis_ids),
+            )
+            .order_by(knowledge_item.c.knowledge_item_id)
+            .limit(1)
+        )
+        assert unrelated_basis_id is not None
+        session.execute(
+            search_document_basis.insert().values(
+                node_search_document_id=search_document_id,
+                knowledge_item_id=unrelated_basis_id,
+            )
+        )
+        assert any(
+            item.relation_id == relation_id
+            for item in list_node_relations(
+                session, node_ids["sk_hynix"], cursor=None, limit=20
+            ).items
+        )
+        assert list_relation_evidence(session, relation_id, cursor=None, limit=10).items
+
+        if invalidation == "state":
+            session.execute(
+                knowledge_item.update()
+                .where(knowledge_item.c.knowledge_item_id == unrelated_basis_id)
+                .values(current_state="ON_HOLD")
+            )
+        else:
+            policy_rule = session.execute(
+                sa.select(
+                    lint_policy_rule.c.lint_policy_rule_id,
+                    lint_policy_rule.c.lint_policy_version_id,
+                )
+                .where(lint_policy_rule.c.severity == "BLOCKING")
+                .limit(1)
+            ).one()
+            run_id = session.execute(
+                lint_run.insert()
+                .values(
+                    lint_policy_version_id=policy_rule.lint_policy_version_id,
+                    status="SUCCESS",
+                    started_at=NOW - timedelta(seconds=1),
+                    completed_at=NOW,
+                )
+                .returning(lint_run.c.lint_run_id)
+            ).scalar_one()
+            session.execute(
+                lint_finding.insert().values(
+                    finding_key=sha256(
+                        f"relation-basis-test:{unrelated_basis_id}".encode()
+                    ).digest(),
+                    knowledge_item_id=unrelated_basis_id,
+                    lint_policy_rule_id=policy_rule.lint_policy_rule_id,
+                    first_detected_run_id=run_id,
+                    latest_detected_run_id=run_id,
+                    first_detected_at=NOW,
+                    last_detected_at=NOW,
+                    message="선택된 검색 문서 basis 회귀 검사 차단 finding",
+                )
+            )
+
+        with pytest.raises(PublicationNotReadyError):
+            get_exploration(
+                session,
+                node_ids["sk_hynix"],
+                TimeWindow.RECENT_90_DAYS,
+                now=NOW,
+            )
+        with pytest.raises(PublicationNotReadyError):
+            list_peripheral_nodes(
+                session,
+                node_ids["sk_hynix"],
+                TimeWindow.RECENT_90_DAYS,
+                cursor=None,
+                limit=20,
+                now=NOW,
+            )
+        with pytest.raises(PublicationNotReadyError):
+            list_node_relations(session, node_ids["sk_hynix"], cursor=None, limit=20)
+        with pytest.raises(RelationEvidenceNotFoundError):
+            list_relation_evidence(session, relation_id, cursor=None, limit=10)
+
+
 def test_repository_separates_trace_count_support_groups_and_conflict() -> None:
     _created, node_ids = load_hbf_fixture()
     with rollback_session() as session:
@@ -402,18 +515,10 @@ def test_repository_separates_trace_count_support_groups_and_conflict() -> None:
             .where(knowledge_item.c.knowledge_item_id == dispute_claim_id)
             .values(current_state="ON_HOLD")
         )
-        filtered_relations = list_node_relations(
-            session, node_ids["sk_hynix"], cursor=None, limit=20
-        )
-        filtered_evidence = list_relation_evidence(
-            session, relation_id, cursor=None, limit=10
-        )
-
-    filtered_item = next(
-        item for item in filtered_relations.items if item.relation_id == relation_id
-    )
-    assert filtered_item.has_conflict is False
-    assert filtered_evidence.trace_count == 3
+        with pytest.raises(PublicationNotReadyError):
+            list_node_relations(session, node_ids["sk_hynix"], cursor=None, limit=20)
+        with pytest.raises(RelationEvidenceNotFoundError):
+            list_relation_evidence(session, relation_id, cursor=None, limit=10)
 
 
 def test_repository_uses_scoped_keyset_cursors_and_public_filters() -> None:
@@ -457,13 +562,10 @@ def test_repository_uses_scoped_keyset_cursors_and_public_filters() -> None:
             .where(knowledge_item.c.knowledge_item_id == claim_id)
             .values(current_state="ON_HOLD")
         )
-        filtered = list_node_relations(
-            session, node_ids["sk_hynix"], cursor=None, limit=20
-        )
+        with pytest.raises(PublicationNotReadyError):
+            list_node_relations(session, node_ids["sk_hynix"], cursor=None, limit=20)
         with pytest.raises(RelationEvidenceNotFoundError):
             list_relation_evidence(session, relation_id, cursor=None, limit=10)
-
-    assert all(item.relation_id != relation_id for item in filtered.items)
 
 
 def test_http_contract_returns_string_ids_and_hides_internal_ids() -> None:
