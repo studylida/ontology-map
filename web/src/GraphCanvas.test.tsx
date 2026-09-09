@@ -1284,6 +1284,66 @@ it("추가 page가 기본 밝기를 갱신해도 WebGL 프레임 전에 거리�
   expect(visual("5").visible).toBe(false);
 });
 
+it("이웃 hover는 숨겨진 연결 노드를 발광 없이 드러내고 해제 시 복귀한다", () => {
+  const data = {
+    ...view,
+    nodes: [
+      ...view.nodes,
+      ...["3", "4"].map((id) => ({
+        ...node(id, "ambient"),
+        tier: "twoHop" as const,
+      })),
+    ],
+    relations: [
+      {
+        id: "neighbor",
+        source: "2",
+        target: "3",
+        label: "연결",
+        tier: "twoHop" as const,
+        directionality: "DIRECTED" as const,
+        evidenceGroupCount: 1,
+        conflict: false,
+      },
+    ],
+  };
+  render(
+    <GraphCanvas
+      {...props()}
+      view={data}
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(32));
+  const { camera, scene } = harness;
+  if (!camera || !scene) throw new Error("graph가 없습니다.");
+  const draw = () =>
+    Reflect.apply(scene.onBeforeRender, scene, [null, scene, camera, null]);
+  draw();
+  const position = camera.position.clone();
+  expect(visual("3").visible).toBe(false);
+  act(() => harness.options.get("onNodeHover")?.(data.nodes[1] as never));
+  act(() => vi.advanceTimersByTime(200));
+  draw();
+  expect(visual("3").visible).toBe(true);
+  expect(visual("3").userData.reveal).toBeGreaterThan(0);
+  expect(visual("3").userData.reveal).toBeLessThan(1);
+  act(() => vi.advanceTimersByTime(250));
+  draw();
+  expect(visual("3").userData.reveal).toBe(1);
+  expect(visual("3").userData.hoverOpacity).toBe(0);
+  expect(visual("3").userData.label.visible).toBe(false);
+  expect(visual("4").visible).toBe(false);
+  expect(harness.links.get("neighbor")?.userData.reveal).toBe(1);
+  expect(camera.position).toEqual(position);
+  act(() => harness.options.get("onNodeHover")?.(null as never));
+  act(() => vi.advanceTimersByTime(450));
+  draw();
+  expect(visual("3").visible).toBe(false);
+});
+
 it("먼 노드는 hover에서 본체와 이름도 서서히 선명해지고 해제·필터 적용 시 복귀한다", () => {
   const callbacks = props();
   const data = { ...view, nodes: [...view.nodes, node("3", "ambient")] };
