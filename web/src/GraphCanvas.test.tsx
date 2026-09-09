@@ -362,7 +362,7 @@ it("대기 중 재선택·오류 종료는 떠 움직임을 정리하고 reduced
   rerender(<GraphCanvas {...callbacks} introStarted />);
   act(() => vi.advanceTimersByTime(2000));
   rerender(<GraphCanvas {...callbacks} introStarted pendingNodeId="2" />);
-  act(() => vi.advanceTimersByTime(200));
+  act(() => vi.advanceTimersByTime(300));
   const selected = visual("1").position.clone();
   rerender(<GraphCanvas {...callbacks} introStarted pendingNodeId="1" />);
   act(() => vi.advanceTimersByTime(200));
@@ -462,7 +462,7 @@ it("미리보기 준비 이동은 2단위 이내에서 멈추고 응답 순간 �
   rerender(
     <GraphCanvas {...callbacks} designPreview introStarted pendingNodeId="2" />,
   );
-  act(() => vi.advanceTimersByTime(80));
+  act(() => vi.advanceTimersByTime(200));
   const position = visual("1").position.clone();
   const velocity = visual("1").userData.velocity.clone();
   expect(position.distanceTo(origin)).toBeGreaterThan(0);
@@ -808,22 +808,28 @@ it("hover는 현재 밝기에서 강조로 전환한 뒤 유지하고 테마 변
   act(() => vi.advanceTimersByTime(16));
   const visual = harness.nodes.get("2");
   const camera = harness.camera;
-  if (!visual || !camera) throw new Error("graph가 없습니다.");
+  const scene = harness.scene;
+  if (!visual || !camera || !scene) throw new Error("graph가 없습니다.");
+  const draw = () =>
+    Reflect.apply(scene.onBeforeRender, scene, [null, scene, camera, null]);
   act(() => harness.options.get("onNodeHover")?.({ id: "2" } as never));
   act(() => vi.advanceTimersByTime(16));
-  expect(visual.userData.shell.material.opacity).toBe(0);
-  act(() => vi.advanceTimersByTime(80));
-  const opacity = visual.userData.shell.material.opacity;
-  expect(opacity).toBeGreaterThan(0);
-  expect(opacity).toBeLessThan(0.2);
-  expect(visual.userData.shell.visible).toBe(true);
+  draw();
+  expect(visual.userData.shell.material.opacity).toBeCloseTo(0.15);
   act(() => vi.advanceTimersByTime(300));
+  draw();
+  const opacity = visual.userData.shell.material.opacity;
+  expect(opacity).toBeGreaterThan(0.15);
+  expect(opacity).toBeLessThan(0.5);
+  expect(visual.userData.shell.visible).toBe(true);
+  act(() => vi.advanceTimersByTime(200));
+  draw();
   expect(visual.userData.shell.material.opacity).not.toBe(opacity);
-  act(() => vi.advanceTimersByTime(100));
-  expect(visual.userData.shell.material.opacity).toBe(1);
+  expect(visual.userData.shell.material.opacity).toBe(0.5);
   const scale = visual.userData.shell.scale.clone();
   act(() => vi.advanceTimersByTime(1500));
-  expect(visual.userData.shell.material.opacity).toBe(1);
+  draw();
+  expect(visual.userData.shell.material.opacity).toBe(0.5);
   expect(visual.userData.shell.scale).toEqual(scale);
   expect(vi.getTimerCount()).toBe(0);
   const position = camera.position.clone();
@@ -836,26 +842,34 @@ it("hover는 현재 밝기에서 강조로 전환한 뒤 유지하고 테마 변
       theme="light"
     />,
   );
+  draw();
   expect(harness.camera).toBe(camera);
   expect(camera.position).toEqual(position);
   expect(visual.userData.occluder.material.color.getHexString()).toBe("f5f7fa");
+  expect(visual.userData.shell.material.opacity).toBe(0.22);
   act(() => harness.options.get("onNodeHover")?.(null as never));
   act(() => vi.advanceTimersByTime(200));
+  draw();
   const fading = visual.userData.shell.material.opacity;
-  expect(fading).toBeGreaterThan(0);
-  expect(fading).toBeLessThan(1);
+  expect(fading).toBeGreaterThan(0.066);
+  expect(fading).toBeLessThan(0.22);
   act(() => harness.options.get("onNodeHover")?.({ id: "2" } as never));
   act(() => vi.advanceTimersByTime(16));
+  draw();
   expect(visual.userData.shell.material.opacity).toBe(fading);
   act(() => vi.advanceTimersByTime(420));
-  expect(visual.userData.shell.material.opacity).toBe(1);
+  draw();
+  expect(visual.userData.shell.material.opacity).toBe(0.22);
   act(() => harness.options.get("onNodeHover")?.(null as never));
   act(() => vi.advanceTimersByTime(420));
-  expect(visual.userData.shell.visible).toBe(false);
+  draw();
+  expect(visual.userData.shell.material.opacity).toBeCloseTo(0.066);
+  expect(visual.userData.shell.visible).toBe(true);
   vi.stubGlobal("matchMedia", () => ({ matches: true }));
   act(() => harness.options.get("onNodeHover")?.({ id: "2" } as never));
   act(() => vi.advanceTimersByTime(16));
-  expect(visual.userData.shell.material.opacity).toBe(1);
+  draw();
+  expect(visual.userData.shell.material.opacity).toBe(0.22);
   expect(vi.getTimerCount()).toBe(0);
 });
 
@@ -1291,6 +1305,7 @@ it("먼 노드는 hover에서 본체와 이름도 서서히 선명해지고 해�
   const opacity = () => visual("3").userData.surface.material.opacity as number;
   draw();
   const baseline = opacity();
+  const neighborShellScale = visual("2").userData.shell.scale.clone();
   const material = visual("3").userData.surface.material;
   const neutral = material.emissive.clone();
   expect(neutral.getHexString()).toBe("808080");
@@ -1300,6 +1315,8 @@ it("먼 노드는 hover에서 본체와 이름도 서서히 선명해지고 해�
   expect(opacity()).toBe(baseline);
   act(() => vi.advanceTimersByTime(200));
   draw();
+  expect(visual("2").userData.shell.scale).toEqual(neighborShellScale);
+  expect(visual("2").userData.hoverOpacity).toBe(0);
   expect(opacity()).toBeGreaterThan(baseline);
   expect(opacity()).toBeLessThan(1);
   act(() => vi.advanceTimersByTime(250));
@@ -1334,4 +1351,31 @@ it("먼 노드는 hover에서 본체와 이름도 서서히 선명해지고 해�
   );
   draw();
   expect(visual("3").visible).toBe(false);
+});
+
+it("라이트 모드 hover 외곽선이 유형 색을 가리지 않는다", () => {
+  const data = { ...view, nodes: [...view.nodes, node("3", "ambient")] };
+  render(
+    <GraphCanvas
+      {...props()}
+      view={data}
+      theme="light"
+      designPreview
+      introStarted
+      introCompleted
+    />,
+  );
+  act(() => vi.advanceTimersByTime(32));
+  const { camera, target, scene } = harness;
+  if (!camera || !target || !scene) throw new Error("graph가 없습니다.");
+  camera.position.sub(target).multiplyScalar(2).add(target);
+  const draw = () =>
+    Reflect.apply(scene.onBeforeRender, scene, [null, scene, camera, null]);
+  act(() => harness.options.get("onNodeHover")?.(data.nodes[2] as never));
+  act(() => vi.advanceTimersByTime(450));
+  draw();
+  expect(visual("3").userData.shell.material.opacity).toBeCloseTo(0.22);
+  expect(visual("3").userData.surface.material.color.getHexString()).not.toBe(
+    visual("3").userData.shell.material.color.getHexString(),
+  );
 });
