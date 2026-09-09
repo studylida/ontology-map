@@ -164,7 +164,7 @@ const nodeStyles: Record<NodeTier, NodeStyle> = {
 
 const relationOpacity = {
   direct: 0.9,
-  twoHop: 0.18,
+  twoHop: 0.32,
   threeHop: 0.22,
   ambient: 0.12,
 } as const;
@@ -248,7 +248,6 @@ function paintPreviewNode(
   visual: NodeVisual,
   node: RuntimeNode,
   reveal: number,
-  secondHopLabel: number,
 ) {
   const { style, hoverOpacity: focus } = visual.userData;
   const base = styleFor(node.tier, true);
@@ -256,7 +255,7 @@ function paintPreviewNode(
   const near = node.tier === "center" || node.tier === "direct";
   const distanceOpacity = near ? 1 : reveal;
   const opacity = distanceOpacity + (1 - distanceOpacity) * focus;
-  const baseLabel = near ? 1 : node.tier === "twoHop" ? secondHopLabel : 0;
+  const baseLabel = near ? 1 : 0;
   const labelOpacity = baseLabel + (1 - baseLabel) * focus;
   visual.userData.reveal = opacity;
   visual.userData.surface.material.opacity =
@@ -571,8 +570,8 @@ function previewLinkColor(link: RuntimeLink, focused = false, light = false) {
       ? "#245ac1"
       : "#72A7FF"
     : light
-      ? "#657180"
-      : "#7B8797";
+      ? "#576d83"
+      : "#829bb5";
 }
 
 const previewNodeStyles = Object.fromEntries(
@@ -580,6 +579,8 @@ const previewNodeStyles = Object.fromEntries(
     tier,
     {
       ...style,
+      opacity: tier === "direct" ? 0.98 : style.opacity,
+      shellOpacity: tier === "direct" ? 0.3 : 0,
       labelOpacity: {
         center: 1,
         direct: 0.98,
@@ -834,20 +835,9 @@ export function GraphCanvas({
           closeView = close;
           graphRef.current?.linkVisibility(linkIsVisible);
         }
-        const secondHopLabel = easeInOutCubic(
-          Math.min(
-            1,
-            Math.max(
-              0,
-              (1.8 -
-                camera.position.distanceTo(controls.target) / near.distance) /
-                0.5,
-            ),
-          ),
-        );
         for (const [id, visual] of nodeVisualsRef.current) {
           const node = nodesRef.current.get(id);
-          if (node) paintPreviewNode(visual, node, reveal, secondHopLabel);
+          if (node) paintPreviewNode(visual, node, reveal);
         }
       }
       const pulse = filterPulse(
@@ -864,11 +854,14 @@ export function GraphCanvas({
           Math.max(
             visual.userData.hoverOpacity,
             pulse,
-            designPreview ? 0 : visual.userData.style.shellOpacity,
+            visual.userData.style.shellOpacity,
           ) * visual.userData.reveal;
         shell.visible = shell.material.opacity > 0;
         shell.material.blending = THREE.NormalBlending;
-        shell.scale.setScalar(visual.userData.radius * 1.3);
+        shell.scale.setScalar(
+          visual.userData.radius *
+            (1.08 + 0.22 * Math.max(visual.userData.hoverOpacity, pulse)),
+        );
       }
       for (const [id, visual] of linkVisualsRef.current) {
         const link = linksRef.current.get(id);

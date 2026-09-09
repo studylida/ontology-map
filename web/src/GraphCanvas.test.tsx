@@ -417,7 +417,7 @@ it("미리보기는 중심·초점 연결을 파란색으로, 충돌을 우선 �
   const color = (id: string) =>
     harness.links.get(id)?.userData.lines[0].material.color.getHexString();
   expect(color("direct")).toBe("72a7ff");
-  expect(color("remote")).toBe("7b8797");
+  expect(color("remote")).toBe("829bb5");
   expect(color("conflict")).toBe("f26d78");
   expect(harness.links.get("direct")?.userData.lines).toHaveLength(3);
   expect(
@@ -431,7 +431,7 @@ it("미리보기는 중심·초점 연결을 파란색으로, 충돌을 우선 �
   act(() => getByRole("button", { name: "3 · 기술" }).focus());
   expect(isVisible()?.(remote as never)).toBe(true);
   expect(isVisible()?.(conflict as never)).toBe(true);
-  expect(color("remote")).toBe("7b8797");
+  expect(color("remote")).toBe("829bb5");
   act(() => vi.advanceTimersByTime(450));
   const recreate = harness.options.get("linkThreeObject");
   if (!recreate) throw new Error("간선 생성기가 없습니다.");
@@ -446,7 +446,7 @@ it("미리보기는 중심·초점 연결을 파란색으로, 충돌을 우선 �
   act(() => getByRole("button", { name: "3 · 기술" }).blur());
   act(() => vi.advanceTimersByTime(450));
   expect(isVisible()?.(remote as never)).toBe(false);
-  expect(revealedColor()).toBe("7b8797");
+  expect(revealedColor()).toBe("829bb5");
   expect(color("direct")).toBe("72a7ff");
 });
 
@@ -683,7 +683,7 @@ it("근접 조망에서 숨긴 2단계는 축소하면 같은 좌표로 나타�
   expect(second.position).toEqual(position);
 });
 
-it("이름은 단계와 배율로 줄이되 node·간선 hover와 초점에서는 다시 표시한다", () => {
+it("2단계 이후 이름은 배율과 무관하게 숨기고 node·간선 초점에서만 표시한다", () => {
   const page = {
     ...view,
     nodes: [
@@ -721,17 +721,17 @@ it("이름은 단계와 배율로 줄이되 node·간선 hover와 초점에서�
   const draw = () => labels.render(scene, camera);
   camera.position.z = near * 1.3;
   draw();
-  expect(visual("3").userData.label.visible).toBe(true);
+  expect(visual("3").userData.label.visible).toBe(false);
+  expect(visual("2").userData.surface.material.opacity).toBeGreaterThan(
+    visual("3").userData.surface.material.opacity,
+  );
+  expect(visual("2").userData.shell.visible).toBe(true);
+  expect(visual("3").userData.shell.visible).toBe(false);
   expect(visual("4").visible).toBe(true);
   expect(visual("4").userData.label.visible).toBe(false);
   camera.position.z = near * 1.55;
   draw();
-  expect(
-    Number(visual("3").userData.label.element.style.opacity),
-  ).toBeGreaterThan(0);
-  expect(Number(visual("3").userData.label.element.style.opacity)).toBeLessThan(
-    visual("3").userData.style.labelOpacity,
-  );
+  expect(visual("3").userData.label.visible).toBe(false);
   camera.position.z = near * 2;
   draw();
   expect(visual("3").userData.label.visible).toBe(false);
@@ -1082,8 +1082,8 @@ it("2단계 간선과 화살표는 이동·확대 중 노드와 같은 진행률
   draw(1.1);
   const partial = opacity();
   expect(partial).toBeGreaterThan(0);
-  expect(partial).toBeLessThan(0.18);
-  expect(partial / 0.18).toBeCloseTo(
+  expect(partial).toBeLessThan(0.32);
+  expect(partial / 0.32).toBeCloseTo(
     visual("3").userData.surface.material.opacity /
       visual("3").userData.style.opacity,
   );
@@ -1091,7 +1091,7 @@ it("2단계 간선과 화살표는 이동·확대 중 노드와 같은 진행률
     partial,
   );
   draw(1.3);
-  expect(opacity()).toBeCloseTo(0.18);
+  expect(opacity()).toBeCloseTo(0.32);
   draw(1.1);
   expect(opacity()).toBeCloseTo(partial);
   draw(1);
