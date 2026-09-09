@@ -3,8 +3,8 @@
 ## 문서 상태
 
 - 상태: 현재 구현과 승인된 변경·시험 구성을 구분한 기술 기준
-- 확인일: 2026-09-08
-- 구현 기준: `main`의 `ffbca386a875b517137412d385b3eea36719521e` (#157 병합 후)
+- 확인일: 2026-09-09
+- 구현 기준: `main`의 `997fd2a` (패널·지도 PR #161~#183 및 문서 #160 병합 후)
 - 근거 대응: [#158](https://github.com/studylida/ontology-map/issues/158)
 - 실행 안내: [DB 운영](../operations/database.md)
 - 코드 규칙: [code-conventions.md](code-conventions.md)
@@ -86,7 +86,7 @@ LangChain과 provider integration은 설치되어 있지 않다. 제품 구현�
 | 지식 후보 작성 / `KNOWLEDGE_EXTRACTION` | 본문에서 의미·근거를 보존한 지식 후보 작성. Claim·Relation·attribute·event 대응은 상세 계약 검토 중 | Flash로 출발. 선정·작성 분리와 Selection의 Plus 사용은 아래 시험 구성 | [#127](https://github.com/studylida/ontology-map/issues/127) |
 | Node 동일 대상 판정 / `ENTITY_RESOLUTION_PROPOSAL` | 일반 코드가 제공한 저장 Node 후보와 원문 안에서 판정. 이름·alias 일치만으로 확정하지 않음 | Plus 시험 방향. 제품 DTO·후보 조회 계약과 최종 모델 미확정 | [#128](https://github.com/studylida/ontology-map/issues/128) |
 | Claim 의미 판정 | 정확한 재처리 중복은 코드로 처리하고 그 외 후보의 동일 의미를 판정. 코드 검증 후 기존 Claim 재사용·근거 추가 | Plus 시험 방향. 정확한 입력·출력과 task kind 매핑 미확정 | [#125](https://github.com/studylida/ontology-map/issues/125) |
-| `FOLLOWUP_QUESTIONS` | 코드가 결정한 두 target마다 질문 문장만 생성. target을 다시 고르지 않음 | 역할별 최종 모델 미확정 | [#113](https://github.com/studylida/ontology-map/issues/113), [#129](https://github.com/studylida/ontology-map/issues/129) |
+| `FOLLOWUP_QUESTIONS` | 현재 node의 공개 node·Relation·Claim을 바탕으로 이해를 돕는 질문과 근거가 연결된 짧은 답변을 사전 생성하는 방향. 고정 총개수 없이 기간별로 저장하고 4개씩 읽음 | 생성 worker·모델·상세 출력 검증은 보류. #113의 이동형 두 질문은 #162로 대체 | [#162](https://github.com/studylida/ontology-map/issues/162), [#129](https://github.com/studylida/ontology-map/issues/129) |
 | `NODE_CONTEXT`, `NODE_INSIGHT` | 공개 지식의 맥락·인사이트를 사전 생성. 현재 읽기 경로와 생성 구현을 구별 | 생성 adapter·모델 미확정. `NODE_CONTEXT`는 #129 범위 밖이며 후속 구현 소유 범위도 검토 필요 | [#124](https://github.com/studylida/ontology-map/issues/124), [#68](https://github.com/studylida/ontology-map/issues/68) |
 | 충돌 후보 판정·`CONFLICT_SUMMARY` | 중복·관점·시점 차이와 모순의 구분 및 요약 필요성 검토 | 알고리즘·모델 배정 미승인 | [#130](https://github.com/studylida/ontology-map/issues/130) |
 | `EVIDENCE_LINEAGE_PROPOSAL` | 독립 원문 계보 판정 계약 검토 | schema의 작업 종류는 있으나 실행 코드·모델 배정 없음 | [#64](https://github.com/studylida/ontology-map/issues/64), [#124](https://github.com/studylida/ontology-map/issues/124) |
@@ -124,14 +124,16 @@ ontology-map/
 │   ├── Dockerfile
 │   ├── alembic.ini
 │   ├── migrations/
-│   │   └── versions/0001_create_frozen_schema.py
+│   │   └── versions/ (0001 frozen schema, 0002 panel reading)
 │   ├── src/ontology_map/
 │   │   ├── main.py
 │   │   ├── api.py
+│   │   ├── panel_api.py
 │   │   ├── exploration.py
 │   │   ├── search.py
 │   │   ├── relations.py
 │   │   ├── insights.py
+│   │   ├── panel.py
 │   │   ├── pagination.py
 │   │   ├── settings.py
 │   │   └── db/
@@ -141,7 +143,9 @@ ontology-map/
 │   │       ├── search.py
 │   │       ├── relations.py
 │   │       ├── insights.py
+│   │       ├── panel.py
 │   │       ├── fixture.py
+│   │       ├── panel_fixture.py
 │   │       └── review_fixture.py
 │   └── tests/
 └── web/
@@ -150,7 +154,7 @@ ontology-map/
     └── vite.config.ts
 ```
 
-`main.py`는 application 생성과 시작 시 DB 연결 확인을 담당한다. `api.py`는 HTTP parsing, Pydantic DTO, 오류 변환과 application-service 호출만 담당한다. `exploration.py`, `search.py`, `relations.py`, `insights.py`와 `pagination.py`는 같은 Python 프로세스에서 use case를 조합한다. `db/` 모듈은 SQLAlchemy session, 명시적인 SQL query, metadata와 개발 fixture를 소유한다.
+`main.py`는 application 생성과 시작 시 DB 연결 확인을 담당한다. `api.py`와 `panel_api.py`는 HTTP parsing, Pydantic DTO, 오류 변환과 application-service 호출만 담당한다. `exploration.py`, `search.py`, `relations.py`, `insights.py`, `panel.py`와 `pagination.py`는 같은 Python 프로세스에서 use case를 조합한다. `db/` 모듈은 SQLAlchemy session, 명시적인 SQL query, metadata와 개발 fixture를 소유한다.
 
 의존 방향은 다음과 같다.
 
@@ -208,7 +212,7 @@ Compose는 `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`와 `POSTGRES_PORT
 | 검색 | alias 정확 일치 뒤 `identity_text`·`knowledge_text`를 합친 `simple` FTS, 응답에 `match_reasons` 포함 | [#117](https://github.com/studylida/ontology-map/issues/117): alias → identity FTS → knowledge FTS, 이유 필드 제거. #121 뒤 구현 |
 | embedding·pgvector | schema·migration·의존성과 합성 fixture에 남아 있으나 검색 실행 경로와 실제 모델 호출은 없음 | [#121](https://github.com/studylida/ontology-map/issues/121): 초기 baseline 교체와 개발 DB 재생성으로 제거. Qwen vector·RRF 도입안은 대체됐고 #81은 종료 |
 | 한국어 검색 확장 | 외부 엔진·별도 tokenizer 없음 | [#80](https://github.com/studylida/ontology-map/issues/80): 실제 단어 FTS 누락이 재현될 때만 검토 |
-| 공개 읽기 | exploration·검색·Relation·Evidence·peripheral·저장 인사이트 연동 | [#120](https://github.com/studylida/ontology-map/issues/120): 공통 READY 조회의 selected search-document basis 재검증 gap. 인사이트의 별도 검사와 구별 |
+| 공개 읽기 | exploration·검색·Relation·Evidence·peripheral·질문 답변·Claim·종합보고서 연동. #120의 selected search-document basis 재검증도 main에 반영됨 | [#180](https://github.com/studylida/ontology-map/issues/180): 무효화된 READY 파생 결과의 자동 재생성·publication 복구는 후속 작업 |
 | 입력 자료 | HBF와 별도 100-node 합성 개발 fixture | [#111](https://github.com/studylida/ontology-map/issues/111)은 작은 자료의 Agent 입력 경계, #112는 GDELT 적합성, #131은 외부 자료 수집. 운영 수집 platform이나 publication 전체의 구현 Issue가 아님 |
 | 생성·공개 | 저장된 context·질문·인사이트를 읽음 | 질문 생성은 #129, 인사이트 생성·품질은 #68. 수집→추출→판정→저장→READY의 실제 연동은 미완료 |
 
