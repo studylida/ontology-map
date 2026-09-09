@@ -61,6 +61,7 @@ export function ReportDialog({
         {report && (
           <>
             <PeriodNote range={timeRange} asOf={report.asOf} />
+            <h3>핵심 해석</h3>
             <p className={styles.dialogSummary}>{report.summary}</p>
             <p className={styles.panelMeta}>
               기간 내 독립 근거 {report.evidenceGroupCount}개
@@ -85,7 +86,11 @@ export function ReportDialog({
                 className={styles.reportSection}
               >
                 <h3>{section.title}</h3>
-                <h4>근거가 되는 주장</h4>
+                <div className={styles.reportInterpretation}>
+                  <h4>해석과 판단</h4>
+                  <p>{section.synthesis}</p>
+                </div>
+                <h4>이 해석의 근거</h4>
                 {section.claims.map((claim) => (
                   <ClaimCard
                     key={claim.id}
@@ -98,16 +103,17 @@ export function ReportDialog({
                     range={timeRange}
                   />
                 ))}
-                <h4>종합 해석</h4>
-                <p>{section.synthesis}</p>
                 {section.caveat && (
-                  <p className={styles.panelCaveat}>{section.caveat}</p>
+                  <>
+                    <h4>해석의 한계</h4>
+                    <p className={styles.panelCaveat}>{section.caveat}</p>
+                  </>
                 )}
               </section>
             ))}
             {report.conclusion && (
               <section>
-                <h3>종합</h3>
+                <h3>종합 판단</h3>
                 <p>{report.conclusion}</p>
               </section>
             )}
@@ -145,6 +151,7 @@ export function InsightPanel({
         <>
           <PeriodNote range={timeRange} asOf={report.asOf} />
           <h3>{report.title}</h3>
+          <h4>핵심 해석</h4>
           <p>{report.summary}</p>
           <p className={styles.panelMeta}>
             기간 내 독립 근거 {report.evidenceGroupCount}개
@@ -162,7 +169,7 @@ export function InsightPanel({
             ))}
           </div>
           <button type="button" onClick={() => onReport("")}>
-            보고서 처음부터 읽기
+            종합보고서 읽기
           </button>
         </>
       )}

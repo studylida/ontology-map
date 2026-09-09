@@ -161,7 +161,7 @@ export function EvidenceDialog({
         <article key={trace.key} className={styles.evidenceEntry}>
           <span>{trace.stance === "SUPPORT" ? "지지 근거" : "반박 근거"}</span>
           <h3>{trace.claimText}</h3>
-          <TraceContent trace={trace} />
+          <TraceContent trace={trace} claimText={trace.claimText} />
         </article>
       ))}
       <PageNotice {...page} empty={!page.items.length} onRetry={page.retry} />
@@ -206,10 +206,23 @@ export function useModalDialog(onClose: () => void) {
   return dialogRef;
 }
 
-export function TraceContent({ trace }: { trace: SourceTrace }) {
+function normalizedText(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+export function TraceContent({
+  trace,
+  claimText,
+}: {
+  trace: SourceTrace;
+  claimText?: string;
+}) {
+  const repeatsClaim =
+    claimText !== undefined &&
+    normalizedText(trace.quote) === normalizedText(claimText);
   return (
     <>
-      <blockquote>{trace.quote}</blockquote>
+      {!repeatsClaim && <blockquote>{trace.quote}</blockquote>}
       <p>
         {trace.publisher} · {publicationLabel(trace)}
       </p>
