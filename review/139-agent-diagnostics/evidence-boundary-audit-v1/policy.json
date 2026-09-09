@@ -1,0 +1,38 @@
+{
+  "version": "evidence-boundary-audit-v1",
+  "scope": {
+    "articles": 4,
+    "attempts": 8,
+    "claims": 384,
+    "fact_ratings": 42
+  },
+  "model_calls": 0,
+  "api_cost_usd": 0,
+  "review_basis": "각 Claim statement와 그 Claim이 반환한 source_ids의 원문만 대조한 수동 감사",
+  "claim_axes": [
+    "source_support",
+    "modality",
+    "atomicity",
+    "selection"
+  ],
+  "claim_rule": "다른 Claim의 내용이나 source_ids로 현재 Claim의 부족을 보충하지 않는다.",
+  "source_document_context_rule": "확인된 source_document 발행 주체는 그 회사의 생략 표현을 한정할 수 있지만 다른 회사·인물·제품·사업부의 선행 문맥은 대신하지 않는다.",
+  "fact_pass_rule": "모든 필수 의미를 함께 덮는 Claim 부분집합이 있고 그 Claim들이 네 축을 모두 통과할 때만 PASS다.",
+  "preservation": "기존 gold, review, score와 20/42 점수는 수정하지 않는다.",
+  "interpretation": "점수 변화는 같은 모델 출력에 대한 평가 교정이며 모델 개선이나 회귀가 아니다.",
+  "excluded_work": [
+    "model call",
+    "product worker",
+    "database or schema change",
+    "automatic repair or retry",
+    "HTML structure experiment"
+  ],
+  "input_sha256": {
+    "private_review_packet": "5574e6bc086393cf74cb98d8c2bdaec84d84cec791eb521513689fd7733294f3",
+    "private_review": "acfe7f342eb80d58463ba66d9082b3e20bccb984eafb34767edeade95fa1f85b",
+    "public_gold": "ad79f082f044164d34154d78dc1046284d38e297cd4bc2a045dffbf14910c44b",
+    "public_review": "acfe7f342eb80d58463ba66d9082b3e20bccb984eafb34767edeade95fa1f85b",
+    "public_score": "defba547a265953059dd990ee386e4d14e0b937e4e2b52755b2def1bc9f043a9",
+    "frozen_sources": "8814bf257ad47b7b20009dd99ec24253574f18045e1595ce0d6946b78d628150"
+  }
+}

@@ -1,0 +1,887 @@
+[
+  {
+    "key": "M01:r1:M01-F01",
+    "article_id": "M01",
+    "repeat": 1,
+    "fact_id": "M01-F01",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "MODALITY_OR_ATTRIBUTION_MISMATCH"
+    ],
+    "mapped_claim_nos": [
+      6,
+      7,
+      8,
+      9
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "수치와 전년 대비 배율은 보존했지만 이를 설명한 곽 사장의 발언 귀속을 제거했다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M01:r1:M01-F02",
+    "article_id": "M01",
+    "repeat": 1,
+    "fact_id": "M01-F02",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "REQUIRED_MEANING_OMITTED"
+    ],
+    "mapped_claim_nos": [
+      17
+    ],
+    "eligible_claim_nos": [
+      17
+    ],
+    "covering_claim_nos": [],
+    "reason": "HBM4 양산 체계 구축 완료를 '구축을 위한 기술적 성과'로 약화했다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M01:r1:M01-F03",
+    "article_id": "M01",
+    "repeat": 1,
+    "fact_id": "M01-F03",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "REQUIRED_MEANING_OMITTED"
+    ],
+    "mapped_claim_nos": [
+      18
+    ],
+    "eligible_claim_nos": [
+      18
+    ],
+    "covering_claim_nos": [],
+    "reason": "1c DDR5 D램 양산 완료를 '양산을 위한 기술적 성과'로 약화했다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M01:r1:M01-F04",
+    "article_id": "M01",
+    "repeat": 1,
+    "fact_id": "M01-F04",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      26
+    ],
+    "eligible_claim_nos": [
+      26
+    ],
+    "covering_claim_nos": [
+      26
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M01:r1:M01-F05",
+    "article_id": "M01",
+    "repeat": 1,
+    "fact_id": "M01-F05",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "REQUIRED_MEANING_OMITTED"
+    ],
+    "mapped_claim_nos": [
+      49,
+      50,
+      51
+    ],
+    "eligible_claim_nos": [
+      49,
+      50,
+      51
+    ],
+    "covering_claim_nos": [],
+    "reason": "계획과 발언자는 보존했지만 재무 건전성과 주주환원 사이의 균형이라는 관계를 온전히 표현하지 못했다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M01:r2:M01-F01",
+    "article_id": "M01",
+    "repeat": 2,
+    "fact_id": "M01-F01",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "MODALITY_OR_ATTRIBUTION_MISMATCH"
+    ],
+    "mapped_claim_nos": [
+      6,
+      7,
+      8,
+      9
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "수치와 전년 대비 배율은 보존했지만 이를 설명한 곽 사장의 발언 귀속을 제거했다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M01:r2:M01-F02",
+    "article_id": "M01",
+    "repeat": 2,
+    "fact_id": "M01-F02",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "REQUIRED_MEANING_OMITTED"
+    ],
+    "mapped_claim_nos": [
+      19
+    ],
+    "eligible_claim_nos": [
+      19
+    ],
+    "covering_claim_nos": [],
+    "reason": "HBM4 양산 체계 구축 완료를 '구축을 위한 기술적 성과'로 약화했다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M01:r2:M01-F03",
+    "article_id": "M01",
+    "repeat": 2,
+    "fact_id": "M01-F03",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "REQUIRED_MEANING_OMITTED"
+    ],
+    "mapped_claim_nos": [
+      20
+    ],
+    "eligible_claim_nos": [
+      20
+    ],
+    "covering_claim_nos": [],
+    "reason": "1c DDR5 D램 양산 완료를 '양산을 위한 기술적 성과'로 약화했다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M01:r2:M01-F04",
+    "article_id": "M01",
+    "repeat": 2,
+    "fact_id": "M01-F04",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      29,
+      30,
+      31
+    ],
+    "eligible_claim_nos": [
+      29,
+      30,
+      31
+    ],
+    "covering_claim_nos": [
+      29,
+      30,
+      31
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M01:r2:M01-F05",
+    "article_id": "M01",
+    "repeat": 2,
+    "fact_id": "M01-F05",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "REQUIRED_MEANING_OMITTED"
+    ],
+    "mapped_claim_nos": [
+      55,
+      56,
+      57,
+      58
+    ],
+    "eligible_claim_nos": [
+      55,
+      56,
+      57,
+      58
+    ],
+    "covering_claim_nos": [],
+    "reason": "계획과 발언자는 보존했지만 재무 건전성과 주주환원 사이의 균형이라는 관계를 온전히 표현하지 못했다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M02:r1:M02-F01",
+    "article_id": "M02",
+    "repeat": 1,
+    "fact_id": "M02-F01",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      1
+    ],
+    "eligible_claim_nos": [
+      1
+    ],
+    "covering_claim_nos": [
+      1
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M02:r1:M02-F02",
+    "article_id": "M02",
+    "repeat": 1,
+    "fact_id": "M02-F02",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      13
+    ],
+    "eligible_claim_nos": [
+      13
+    ],
+    "covering_claim_nos": [
+      13
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M02:r1:M02-F03",
+    "article_id": "M02",
+    "repeat": 1,
+    "fact_id": "M02-F03",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      14
+    ],
+    "eligible_claim_nos": [
+      14
+    ],
+    "covering_claim_nos": [
+      14
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M02:r1:M02-F04",
+    "article_id": "M02",
+    "repeat": 1,
+    "fact_id": "M02-F04",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "EVIDENCE_INSUFFICIENT"
+    ],
+    "mapped_claim_nos": [
+      36
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "계획은 보존했지만 s29만으로는 주체가 메모리 사업임을 확인할 수 없어 s27 또는 s28의 선행 근거가 필요하다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M02:r1:M02-F05",
+    "article_id": "M02",
+    "repeat": 1,
+    "fact_id": "M02-F05",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      57
+    ],
+    "eligible_claim_nos": [
+      57
+    ],
+    "covering_claim_nos": [
+      57
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M02:r2:M02-F01",
+    "article_id": "M02",
+    "repeat": 2,
+    "fact_id": "M02-F01",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      1
+    ],
+    "eligible_claim_nos": [
+      1
+    ],
+    "covering_claim_nos": [
+      1
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M02:r2:M02-F02",
+    "article_id": "M02",
+    "repeat": 2,
+    "fact_id": "M02-F02",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      13
+    ],
+    "eligible_claim_nos": [
+      13
+    ],
+    "covering_claim_nos": [
+      13
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M02:r2:M02-F03",
+    "article_id": "M02",
+    "repeat": 2,
+    "fact_id": "M02-F03",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      14
+    ],
+    "eligible_claim_nos": [
+      14
+    ],
+    "covering_claim_nos": [
+      14
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M02:r2:M02-F04",
+    "article_id": "M02",
+    "repeat": 2,
+    "fact_id": "M02-F04",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "EVIDENCE_INSUFFICIENT"
+    ],
+    "mapped_claim_nos": [
+      34
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "삼성전자라는 상위 조직 표현만으로 의미 확대를 확정하지 않는다. 다만 s29만으로는 메모리 사업의 계획임을 확인할 수 없다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M02:r2:M02-F05",
+    "article_id": "M02",
+    "repeat": 2,
+    "fact_id": "M02-F05",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      54
+    ],
+    "eligible_claim_nos": [
+      54
+    ],
+    "covering_claim_nos": [
+      54
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M03:r1:M03-F01",
+    "article_id": "M03",
+    "repeat": 1,
+    "fact_id": "M03-F01",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "EVIDENCE_INSUFFICIENT"
+    ],
+    "mapped_claim_nos": [
+      6
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "제품과 협력 내용은 남았지만 s6만으로는 이를 소개한 주체가 삼성전자임을 확인할 수 없다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M03:r1:M03-F02",
+    "article_id": "M03",
+    "repeat": 1,
+    "fact_id": "M03-F02",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "EVIDENCE_INSUFFICIENT"
+    ],
+    "mapped_claim_nos": [
+      7,
+      8,
+      9
+    ],
+    "eligible_claim_nos": [
+      7
+    ],
+    "covering_claim_nos": [],
+    "reason": "발표 사실은 지원되지만 후속 소개 내용 Claim은 자기 근거에 발언자 선행 원문을 연결하지 않았다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M03:r1:M03-F03",
+    "article_id": "M03",
+    "repeat": 1,
+    "fact_id": "M03-F03",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      10,
+      11
+    ],
+    "eligible_claim_nos": [
+      10,
+      11
+    ],
+    "covering_claim_nos": [
+      10,
+      11
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M03:r1:M03-F04",
+    "article_id": "M03",
+    "repeat": 1,
+    "fact_id": "M03-F04",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "MODALITY_OR_ATTRIBUTION_MISMATCH"
+    ],
+    "mapped_claim_nos": [
+      17,
+      18
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "협력 확대와 목표는 보존했지만 확정된 현재 사실이 아닌 계획을 FACT로 분류했다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M03:r1:M03-F05",
+    "article_id": "M03",
+    "repeat": 1,
+    "fact_id": "M03-F05",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      19
+    ],
+    "eligible_claim_nos": [
+      19
+    ],
+    "covering_claim_nos": [
+      19
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M03:r2:M03-F01",
+    "article_id": "M03",
+    "repeat": 2,
+    "fact_id": "M03-F01",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "REQUIRED_MEANING_OMITTED"
+    ],
+    "mapped_claim_nos": [
+      6,
+      7
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "제품과 NVIDIA 협력은 남겼지만 이를 소개한 주체인 삼성전자를 Claim에서 누락했다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M03:r2:M03-F02",
+    "article_id": "M03",
+    "repeat": 2,
+    "fact_id": "M03-F02",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "EVIDENCE_INSUFFICIENT"
+    ],
+    "mapped_claim_nos": [
+      8,
+      9,
+      10
+    ],
+    "eligible_claim_nos": [
+      8
+    ],
+    "covering_claim_nos": [],
+    "reason": "발표 사실은 지원되지만 후속 소개 내용 Claim은 자기 근거에 발언자 선행 원문을 연결하지 않았다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M03:r2:M03-F03",
+    "article_id": "M03",
+    "repeat": 2,
+    "fact_id": "M03-F03",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      11,
+      12
+    ],
+    "eligible_claim_nos": [
+      11,
+      12
+    ],
+    "covering_claim_nos": [
+      11,
+      12
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M03:r2:M03-F04",
+    "article_id": "M03",
+    "repeat": 2,
+    "fact_id": "M03-F04",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "MODALITY_OR_ATTRIBUTION_MISMATCH"
+    ],
+    "mapped_claim_nos": [
+      18,
+      19
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "협력 확대와 목표는 보존했지만 확정된 현재 사실이 아닌 계획을 FACT로 분류했다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M03:r2:M03-F05",
+    "article_id": "M03",
+    "repeat": 2,
+    "fact_id": "M03-F05",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      20
+    ],
+    "eligible_claim_nos": [
+      20
+    ],
+    "covering_claim_nos": [
+      20
+    ],
+    "reason": "",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M04:r1:M04-F01",
+    "article_id": "M04",
+    "repeat": 1,
+    "fact_id": "M04-F01",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "ATOMICITY"
+    ],
+    "mapped_claim_nos": [
+      2
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "Claim 2에서 제품 공개·용도와 별도의 18A 공정 속성을 한 문장에 묶었다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M04:r1:M04-F02",
+    "article_id": "M04",
+    "repeat": 1,
+    "fact_id": "M04-F02",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "ATOMICITY"
+    ],
+    "mapped_claim_nos": [
+      3
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "Claim 3에서 제품 공개·용도와 별도의 18A 공정 속성을 한 문장에 묶었다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M04:r1:M04-F03",
+    "article_id": "M04",
+    "repeat": 1,
+    "fact_id": "M04-F03",
+    "review_status": "REVIEWED",
+    "original_verdict": "PASS",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "ATOMICITY"
+    ],
+    "mapped_claim_nos": [
+      4
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "Claim 4에서 제품 공개·용도와 별도의 18A 공정 속성을 한 문장에 묶었다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M04:r1:M04-F04",
+    "article_id": "M04",
+    "repeat": 1,
+    "fact_id": "M04-F04",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "MODALITY_OR_ATTRIBUTION_MISMATCH",
+      "EVIDENCE_INSUFFICIENT"
+    ],
+    "mapped_claim_nos": [
+      5,
+      6
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "발언자의 견해를 FACT로 분류했고, 뒤 절 Claim은 자기 근거만으로 발언자를 확인할 수 없다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M04:r1:M04-F05",
+    "article_id": "M04",
+    "repeat": 1,
+    "fact_id": "M04-F05",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "EVIDENCE_INSUFFICIENT"
+    ],
+    "mapped_claim_nos": [
+      25
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "s17은 사양 행만 담아 크레센트 아일랜드의 사양임을 확인할 선행 근거가 없다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M04:r1:M04-F06",
+    "article_id": "M04",
+    "repeat": 1,
+    "fact_id": "M04-F06",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      29
+    ],
+    "eligible_claim_nos": [
+      29
+    ],
+    "covering_claim_nos": [
+      29
+    ],
+    "reason": "교정된 gold에서 s20만으로 제품명과 17 TOPS NPU의 결합을 모두 확인할 수 있다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M04:r2:M04-F01",
+    "article_id": "M04",
+    "repeat": 2,
+    "fact_id": "M04-F01",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "ATOMICITY"
+    ],
+    "mapped_claim_nos": [
+      2
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "세 아키텍처의 서로 다른 용도를 하나의 Claim으로 묶었다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M04:r2:M04-F02",
+    "article_id": "M04",
+    "repeat": 2,
+    "fact_id": "M04-F02",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "ATOMICITY"
+    ],
+    "mapped_claim_nos": [
+      2
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "세 아키텍처의 서로 다른 용도를 하나의 Claim으로 묶었다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M04:r2:M04-F03",
+    "article_id": "M04",
+    "repeat": 2,
+    "fact_id": "M04-F03",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "ATOMICITY"
+    ],
+    "mapped_claim_nos": [
+      2
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "세 아키텍처의 서로 다른 용도를 하나의 Claim으로 묶었다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M04:r2:M04-F04",
+    "article_id": "M04",
+    "repeat": 2,
+    "fact_id": "M04-F04",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "MODALITY_OR_ATTRIBUTION_MISMATCH",
+      "EVIDENCE_INSUFFICIENT"
+    ],
+    "mapped_claim_nos": [
+      3,
+      4
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "발언자의 견해를 FACT로 분류했고, 뒤 절 Claim은 자기 근거만으로 발언자를 확인할 수 없다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M04:r2:M04-F05",
+    "article_id": "M04",
+    "repeat": 2,
+    "fact_id": "M04-F05",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PARTIAL",
+    "error_types": [
+      "EVIDENCE_INSUFFICIENT"
+    ],
+    "mapped_claim_nos": [
+      24
+    ],
+    "eligible_claim_nos": [],
+    "covering_claim_nos": [],
+    "reason": "s17은 사양 행만 담아 크레센트 아일랜드의 사양임을 확인할 선행 근거가 없다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  },
+  {
+    "key": "M04:r2:M04-F06",
+    "article_id": "M04",
+    "repeat": 2,
+    "fact_id": "M04-F06",
+    "review_status": "REVIEWED",
+    "original_verdict": "PARTIAL",
+    "verdict": "PASS",
+    "error_types": [],
+    "mapped_claim_nos": [
+      28
+    ],
+    "eligible_claim_nos": [
+      28
+    ],
+    "covering_claim_nos": [
+      28
+    ],
+    "reason": "교정된 gold에서 s20만으로 제품명과 17 TOPS NPU의 결합을 모두 확인할 수 있다.",
+    "gold_version": "minimal-whole-article-gold-v1+evidence-boundary-audit-v1"
+  }
+]

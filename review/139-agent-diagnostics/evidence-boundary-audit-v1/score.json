@@ -1,0 +1,58 @@
+{
+  "version": "evidence-boundary-audit-v1",
+  "status": "AUDIT_COMPLETE_MINIMAL_6K_QUALITY_CANDIDATE_REMAINS_REJECTED",
+  "model_calls": 0,
+  "api_cost_usd": 0,
+  "fact_scores": {
+    "original_frozen": {
+      "pass": 20,
+      "total": 42
+    },
+    "gold_correction_only": {
+      "pass": 22,
+      "total": 42
+    },
+    "claim_boundary_audit_before_gold_correction": {
+      "pass": 14,
+      "total": 42
+    },
+    "claim_boundary_audit_after_gold_correction": {
+      "pass": 16,
+      "total": 42
+    },
+    "verdict_transitions": {
+      "PARTIAL->PARTIAL": 20,
+      "PARTIAL->PASS": 2,
+      "PASS->PARTIAL": 6,
+      "PASS->PASS": 14
+    }
+  },
+  "claim_axes": {
+    "source_support": {
+      "FAIL": 93,
+      "PASS": 291
+    },
+    "modality": {
+      "FAIL": 24,
+      "PASS": 360
+    },
+    "atomicity": {
+      "FAIL": 6,
+      "PASS": 378
+    },
+    "selection": {
+      "EXCLUDED": 34,
+      "IN_SCOPE": 350
+    },
+    "eligible_all_axes": {
+      "pass": 240,
+      "total": 384
+    }
+  },
+  "interpretation": [
+    "같은 출력에 대한 평가 교정이며 모델 성능의 개선·회귀가 아니다.",
+    "source support FAIL은 연결 근거 부족을 포함하므로 환각률이 아니다.",
+    "네 Claim 축은 겹칠 수 있으므로 실패 수를 합산하지 않는다.",
+    "현재 최소 6,000-token 구성의 제품 계약·자동 저장·worker를 승인하지 않는다."
+  ]
+}

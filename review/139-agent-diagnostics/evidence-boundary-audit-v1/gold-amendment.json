@@ -1,0 +1,16 @@
+{
+  "version": "minimal-whole-article-gold-v1-amendment-1",
+  "original_gold_sha256": "ad79f082f044164d34154d78dc1046284d38e297cd4bc2a045dffbf14910c44b",
+  "original_is_unchanged": true,
+  "amendments": [
+    {
+      "fact_id": "M04-F06",
+      "operation": "ADD_SUFFICIENT_EVIDENCE_SET",
+      "added_set": [
+        "s20"
+      ],
+      "reason": "s20 한 단위에 와일드캣 레이크, 하이브리드 AI와 최대 17 TOPS NPU가 모두 명시돼 있다.",
+      "score_effect": "두 반복의 PARTIAL을 PASS로 재분류한다. 모델 출력 변화가 아니다."
+    }
+  ]
+}
