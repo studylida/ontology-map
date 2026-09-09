@@ -227,14 +227,30 @@ describe("exploration API 화면", () => {
   it("유형을 여러 개 선택·해제해도 API를 다시 요청하거나 중심을 이동하지 않는다", async () => {
     render(<App />);
     await screen.findByRole("heading", { name: "SK하이닉스" });
-    fireEvent.click(screen.getByText("노드 유형 · 전체 표시"));
+    fireEvent.click(screen.getByRole("button", { name: "범례" }));
     const before = fetchMock.mock.calls.length;
     const url = window.location.href;
     fireEvent.click(screen.getByRole("button", { name: "전체 해제" }));
-    for (const checkbox of screen.getAllByRole("checkbox"))
-      expect((checkbox as HTMLInputElement).checked).toBe(false);
-    fireEvent.click(screen.getByRole("checkbox", { name: "사람" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "회사" }));
+    for (const name of ["사람", "회사", "기술", "주제", "사건"])
+      expect(
+        screen.getByRole("button", { name }).getAttribute("aria-pressed"),
+      ).toBe("false");
+    expect(screen.queryByText("노드 유형 · 전체 표시")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "사람" }));
+    fireEvent.click(
+      screen
+        .getByRole("button", { name: "회사" })
+        .querySelector("i") as HTMLElement,
+    );
+    expect(
+      screen.getByRole("button", { name: "회사" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+    fireEvent.click(
+      screen.getByRole("button", { name: "범례 · 필터 적용 중" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "범례 · 필터 적용 중" }),
+    );
     expect(
       screen.getByRole("region", { name: "동적 지식맵" }).dataset.hiddenKinds,
     ).toBe("TECHNOLOGY,TOPIC,EVENT");
