@@ -82,6 +82,27 @@ public_nodes AS (
             AND lf.resolved_at IS NULL
             AND lpr.severity = 'BLOCKING'
       )
+      AND NOT EXISTS (
+          SELECT 1
+          FROM search_document_basis AS sdb
+          JOIN knowledge_item AS bki
+            ON bki.knowledge_item_id = sdb.knowledge_item_id
+          WHERE sdb.node_search_document_id = rr.node_search_document_id
+            AND (
+                bki.current_state NOT IN (
+                    'EVIDENCE_VERIFIED', 'HUMAN_VERIFIED'
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM lint_finding AS blf
+                    JOIN lint_policy_rule AS blpr
+                      ON blpr.lint_policy_rule_id = blf.lint_policy_rule_id
+                    WHERE blf.knowledge_item_id = bki.knowledge_item_id
+                      AND blf.resolved_at IS NULL
+                      AND blpr.severity = 'BLOCKING'
+                )
+            )
+      )
 )
 """
 
