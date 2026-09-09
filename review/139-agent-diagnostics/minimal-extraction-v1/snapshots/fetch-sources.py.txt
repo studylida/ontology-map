@@ -1,0 +1,41 @@
+"""Freeze four official Korean articles for the local #139 contract comparison."""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+import sys
+
+
+ROOT = Path(__file__).resolve().parent
+PRIOR = ROOT.parent / "model-studio-adjacent-context-v1" / "fetch_sources.py"
+spec = importlib.util.spec_from_file_location("prior_source_fetch", PRIOR)
+if not spec or not spec.loader:
+    raise RuntimeError("PRIOR_FETCH_IMPORT_FAILED")
+prior = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = prior
+spec.loader.exec_module(prior)
+
+prior.ROOT = ROOT
+prior.OUTPUT = ROOT / "sources-frozen.json"
+prior.SOURCES = (
+    ("M01", "SK hynix", "https://news.skhynix.co.kr/78th-annual-general-meeting/", {"post-contents"}),
+    (
+        "M02",
+        "Samsung Newsroom Korea",
+        "https://news.samsung.com/kr/%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90-2026%EB%85%84-1%EB%B6%84%EA%B8%B0-%EC%8B%A4%EC%A0%81-%EB%B0%9C%ED%91%9C",
+        {"single_contents"},
+    ),
+    ("M03", "NVIDIA Korea", "https://blogs.nvidia.co.kr/blog/gtc-2026-korea-partnership/", {"entry-content"}),
+    (
+        "M04",
+        "Intel Korea",
+        "https://www.intel.co.kr/content/www/kr/ko/newsroom/news/client-computing/"
+        "intel-outlines-architectures-for-agentic-ai-at-hot-chips-2026.html",
+        {"text", "cmp-text--longform"},
+    ),
+)
+
+
+if __name__ == "__main__":
+    prior.main()
