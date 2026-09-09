@@ -440,13 +440,16 @@ it("미리보기는 중심·초점 연결을 파란색으로, 충돌을 우선 �
     (
       (revealed.children[0] as THREE.Line).material as THREE.LineBasicMaterial
     ).color.getHexString();
-  expect(revealedColor()).toBe("72a7ff");
-  expect(color("remote")).toBe("72a7ff");
+  expect(revealedColor()).not.toBe("72a7ff");
+  expect(color("remote")).toBe(revealedColor());
+  expect(revealed.userData.glows[0].material.opacity).toBeGreaterThan(0);
+  expect(revealed.userData.glows[0].material.opacity).toBeLessThan(0.2);
   expect(color("conflict")).toBe("f26d78");
   act(() => getByRole("button", { name: "3 · 기술" }).blur());
   act(() => vi.advanceTimersByTime(450));
   expect(isVisible()?.(remote as never)).toBe(false);
   expect(revealedColor()).toBe("829bb5");
+  expect(revealed.userData.glows[0].visible).toBe(false);
   expect(color("direct")).toBe("72a7ff");
 });
 
