@@ -164,12 +164,17 @@ function MapLegend({
   designPreview,
   open,
   onToggle,
+  nodeTypes,
+  hiddenKinds,
+  onFilter,
 }: {
   designPreview: boolean;
   open: boolean;
   onToggle: () => void;
+  nodeTypes: Map<string, string>;
+  hiddenKinds: readonly string[];
+  onFilter: (hidden: string[]) => void;
 }) {
-  const kinds = ["사람", "회사", "기술", "주제", "사건"];
   return (
     <aside className={styles.legend} aria-label="지식맵 범례">
       <button
@@ -179,23 +184,50 @@ function MapLegend({
         onClick={onToggle}
       >
         <span className={styles.legendDots} aria-hidden="true">
-          {kinds.map((kind) => (
-            <i key={kind} data-kind={kind} />
+          {[...nodeTypes].map(([code, name]) => (
+            <i
+              key={code}
+              data-kind={name}
+              data-hidden={hiddenKinds.includes(code)}
+            />
           ))}
         </span>
-        <strong>범례</strong>
+        <strong>범례{hiddenKinds.length > 0 && " · 필터 적용 중"}</strong>
         <span aria-hidden="true">{open ? "⌄" : "⌃"}</span>
       </button>
       {open && (
         <div className={styles.legendContent}>
           <h2>노드 유형</h2>
           <div className={styles.nodeTypes}>
-            {kinds.map((kind) => (
-              <span key={kind} data-kind={kind}>
-                <i />
-                {kind}
-              </span>
+            {[...nodeTypes].map(([code, name]) => (
+              <button
+                type="button"
+                key={code}
+                data-kind={name}
+                aria-pressed={!hiddenKinds.includes(code)}
+                onClick={() =>
+                  onFilter(
+                    hiddenKinds.includes(code)
+                      ? hiddenKinds.filter((kind) => kind !== code)
+                      : [...hiddenKinds, code],
+                  )
+                }
+              >
+                <i aria-hidden="true" />
+                {name}
+              </button>
             ))}
+          </div>
+          <div className={styles.legendActions}>
+            <button type="button" onClick={() => onFilter([])}>
+              전체 표시
+            </button>
+            <button
+              type="button"
+              onClick={() => onFilter([...nodeTypes.keys()])}
+            >
+              전체 해제
+            </button>
           </div>
           <div className={styles.legendLine}>
             {designPreview && (
@@ -581,46 +613,14 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                     최근 1년
                   </button>
                 </fieldset>
-                <details className={styles.typeFilter}>
-                  <summary>
-                    노드 유형 ·{" "}
-                    {hiddenKinds.length ? "필터 적용 중" : "전체 표시"}
-                  </summary>
-                  <fieldset>
-                    <legend>표시할 유형 (여러 개 선택 가능)</legend>
-                    {[...nodeTypes].map(([code, name]) => (
-                      <label key={code}>
-                        <input
-                          type="checkbox"
-                          checked={!hiddenKinds.includes(code)}
-                          onChange={(event) =>
-                            setHiddenKinds((previous) =>
-                              event.target.checked
-                                ? previous.filter((kind) => kind !== code)
-                                : [...previous, code],
-                            )
-                          }
-                        />
-                        {name}
-                      </label>
-                    ))}
-                    <button type="button" onClick={() => setHiddenKinds([])}>
-                      전체 표시
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setHiddenKinds([...nodeTypes.keys()])}
-                    >
-                      전체 해제
-                    </button>
-                  </fieldset>
-                  <p>위치와 확대배율을 유지한 채 선택한 유형만 표시합니다.</p>
-                </details>
               </div>
 
               <MapLegend
                 designPreview={designPreview}
                 open={legendOpen}
+                nodeTypes={nodeTypes}
+                hiddenKinds={hiddenKinds}
+                onFilter={setHiddenKinds}
                 onToggle={() => setLegendOpen((open) => !open)}
               />
 
