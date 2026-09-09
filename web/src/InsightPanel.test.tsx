@@ -145,6 +145,11 @@ it("목차에서 보고서를 열고 복수 근거를 비교한 뒤 원래 초�
   opener.focus();
   fireEvent.click(opener);
   await screen.findByText("근거를 종합한 해석");
+  expect(
+    [...screen.getByRole("dialog").querySelectorAll("h4")].map(
+      (heading) => heading.textContent,
+    ),
+  ).toEqual(["해석과 판단", "이 해석의 근거"]);
   fireEvent.click(screen.getByRole("button", { name: /근거 문장 1/ }));
   fireEvent.click(screen.getByRole("button", { name: /근거 문장 2/ }));
   await waitFor(() =>
