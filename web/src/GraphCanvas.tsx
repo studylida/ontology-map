@@ -2,9 +2,6 @@ import ForceGraph3D, { type ForceGraph3DInstance } from "3d-force-graph";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { Line2 } from "three/examples/jsm/lines/Line2.js";
-import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
-import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import {
   CSS2DObject,
@@ -99,8 +96,6 @@ type LinkVisual = THREE.Group & {
   userData: {
     linkId: string;
     lines: THREE.Line[];
-    glows: Line2[];
-    glow: number;
     opacity: number;
     reveal: number;
     filamentMix: number;
@@ -396,7 +391,6 @@ function makeNodeVisual(node: RuntimeNode, designPreview: boolean): NodeVisual {
 function makeLinkVisual(link: RuntimeLink, designPreview: boolean): LinkVisual {
   const group = new THREE.Group() as LinkVisual;
   const opacity = relationOpacity[link.tier];
-  const glows: Line2[] = [];
   const lines = Array.from(
     { length: Math.max(1, Math.round(link.evidenceGroupCount)) },
     () => {
@@ -430,26 +424,6 @@ function makeLinkVisual(link: RuntimeLink, designPreview: boolean): LinkVisual {
         if (group.visible && material.opacity > 0.001) raycast(raycaster, hits);
       };
       group.add(line);
-      if (designPreview && !link.conflict) {
-        const glow = new Line2(
-          new LineGeometry(),
-          new LineMaterial({
-            color: "#bad8ff",
-            linewidth: 4,
-            transparent: true,
-            opacity: 0,
-            depthTest: true,
-            depthWrite: false,
-            toneMapped: false,
-          }),
-        );
-        glow.visible = false;
-        glow.raycast = () => {};
-        glow.renderOrder = 0;
-        glow.frustumCulled = false;
-        group.add(glow);
-        glows.push(glow);
-      }
       return line;
     },
   );
@@ -457,8 +431,6 @@ function makeLinkVisual(link: RuntimeLink, designPreview: boolean): LinkVisual {
   group.userData = {
     linkId: link.id,
     lines,
-    glows,
-    glow: 0,
     opacity,
     reveal: 1,
     filamentMix: Number(expanded),
@@ -517,9 +489,6 @@ function updateLinkPosition(
     if (line.geometry.getAttribute("position")?.count === 0)
       line.geometry.deleteAttribute("position");
     line.geometry.setFromPoints(curve.getPoints(14));
-    group.userData.glows[index]?.geometry.setPositions(
-      Array.from(line.geometry.getAttribute("position").array),
-    );
     if (
       index === Math.floor((group.userData.lines.length - 1) / 2) &&
       group.userData.arrow
@@ -568,13 +537,6 @@ function paintLinkOpacity(
       opacity * (index === representative ? 1 : visual.userData.filamentMix);
   const material = visual.userData.lines[0]
     ?.material as THREE.LineBasicMaterial;
-  for (const [index, glow] of visual.userData.glows.entries()) {
-    const lineMaterial = visual.userData.lines[index]
-      ?.material as THREE.LineBasicMaterial;
-    glow.material.color.copy(lineMaterial.color);
-    glow.material.opacity = lineMaterial.opacity * visual.userData.glow * 0.14;
-    glow.visible = glow.material.opacity > 0.001;
-  }
   if (visual.userData.arrow && material) {
     visual.userData.arrow.material.color.copy(material.color);
     visual.userData.arrow.material.opacity = opacity;
@@ -1090,7 +1052,6 @@ export function GraphCanvas({
         return {
           visual,
           focused,
-          glowFrom: visual?.userData.glow ?? 0,
           expanded: !designPreview || link.tier === "direct" || focused,
           colors:
             visual?.userData.lines.map((line) =>
@@ -1142,9 +1103,6 @@ export function GraphCanvas({
               );
           }
           target.visual.userData.opacity = opacity;
-          target.visual.userData.glow =
-            target.glowFrom +
-            (Number(target.focused) - target.glowFrom) * eased;
           paintLinkOpacity(
             target.visual,
             target.visual.userData.reveal,
