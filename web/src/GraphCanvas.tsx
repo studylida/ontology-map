@@ -864,12 +864,15 @@ export function GraphCanvas({
           visual.userData.reveal > 0.001 &&
           visual.userData.style.opacity > 0.001;
         const shell = visual.userData.shell;
+        const shellEmphasis = Math.max(
+          visual.userData.hoverOpacity,
+          pulse,
+          visual.userData.style.shellOpacity,
+        );
         shell.material.opacity =
-          Math.max(
-            visual.userData.hoverOpacity,
-            pulse,
-            visual.userData.style.shellOpacity,
-          ) * visual.userData.reveal;
+          shellEmphasis *
+          (visual.userData.lightMode ? 0.22 : 0.5) *
+          visual.userData.reveal;
         shell.visible = shell.material.opacity > 0;
         shell.material.blending = THREE.NormalBlending;
         shell.scale.setScalar(
@@ -1062,17 +1065,9 @@ export function GraphCanvas({
         const eased = progress * progress * (3 - 2 * progress);
         for (const target of nodeTargets) {
           if (!target.visual) continue;
-          if (designPreview) {
-            target.visual.userData.shell.scale.setScalar(
-              target.visual.userData.radius * 1.3,
-            );
+          if (designPreview)
             target.visual.userData.hoverOpacity =
               target.shellFrom + (target.shellTo - target.shellFrom) * eased;
-            target.visual.userData.shell.material.opacity =
-              target.visual.userData.hoverOpacity;
-            if (progress === 1)
-              target.visual.userData.shell.visible = target.shellTo > 0;
-          }
           (
             target.visual.userData.halo.material as THREE.SpriteMaterial
           ).opacity = target.from + (target.to - target.from) * eased;
