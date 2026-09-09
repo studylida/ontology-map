@@ -1,11 +1,12 @@
 # ontology-map 프론트 통합 인계
 
-> 확인일: 2026-09-09. 통합 기준은 `main`의 `997fd2a`다. 이후 상태는 GitHub와 실제 commit을 다시 확인한다.
+> 확인일: 2026-09-09. 통합 기준은 `main`의 `8d69538`이며, 팝업 최종 검증의 후속 수정은 `fix/164-dialog-tab-cycle`에 있다. 이후 상태는 GitHub와 실제 commit을 다시 확인한다.
 
 - 사용자 요청으로 PR #183 → #182 → #179 → #178 → #176 → #174 → #172 → #170 → #168 → #166 → #165 → #161을 순서대로 상위 브랜치와 main에 병합한 뒤 문서 PR #160도 병합했다. 저장소가 허용하는 Rebase merge를 사용했다. 기존 백엔드 #120도 main에 포함되어 있다.
 - 현재 기술·모델 구성은 [구현 스택](docs/development/implementation-stack.md), 화면 계약은 [제품 설계](docs/product/design.md), 실행·개발 fixture는 [DB 운영](docs/operations/database.md)을 따른다. 후속 질문은 #162가 기준이며 #113의 이동형 두 질문 계약은 대체됐다.
 - 패널의 실제 PostgreSQL/API 회귀 검사 39개가 통과했다. 프론트는 병합 전 최종 코드의 75개 테스트·타입·빌드가 통과했고 병합된 web 코드가 동일함을 확인했다. 합성 fixture를 실제 모델 생성 품질의 증거로 사용하지 않는다.
-- [#164](https://github.com/studylida/ontology-map/issues/164)에 빈 결과·기간 및 탭 빠른 전환·충돌 근거 비교의 실제 API 화면 검증과 남은 실제 입력 확인을 구분해 기록한다. [#162](https://github.com/studylida/ontology-map/issues/162)는 하위 검증 완료 전까지 열어둔다. 실제 시연 데이터의 정보 구성·문체·내용 유용성 개선은 [#181](https://github.com/studylida/ontology-map/issues/181)에서 준비될 때 진행한다.
+- [#164](https://github.com/studylida/ontology-map/issues/164)의 빈 결과·빠른 기간/탭/중심 전환·충돌 근거 비교는 기존 실제 API 검증을 유지한다. 후속 실제 입력 검증에서 보고서 마지막 요소의 Tab 초점 이탈을 확인해 공용 팝업의 양 끝 순환을 수정했다. 보고서·관계 팝업의 trusted Tab·Shift+Tab·Escape, 내부 클릭 유지·바깥 클릭 닫힘·원래 버튼 초점 복귀와 패널 방향키 전환을 확인했고, 수정 후 web 75개 테스트·타입·빌드가 통과했다.
+- GitHub 자동 승인 검토가 #164 검증 댓글 게시를 목적지·게시 내용의 명시적 승인 부족으로 거절했다. 후속 커밋의 push·PR·Issue 완료 기록은 사용자 확인 뒤 진행한다. [#162](https://github.com/studylida/ontology-map/issues/162)·#164의 원격 상태는 아직 열려 있다. 실제 시연 데이터의 정보 구성·문체·내용 유용성 개선은 [#181](https://github.com/studylida/ontology-map/issues/181)에서 준비될 때 진행한다.
 - 지도·범례·가독성은 #106·#167·#169·#171·#173·#175에서 최신 사용자 결정과 완료 근거를 확인한다. 2단계 이름을 다시 표시하거나 간선 두께 차이·발광 장식·화면 밖 안내를 새 작업으로 되살리지 않는다.
 - #139와 백엔드·에이전트 작업은 다른 세션이 맡는다. #121·#117은 기준 commit에 미적용이며 #180의 자동 재생성·publication 복구도 남아 있다. #68·#129의 생성과 #136의 cache·장면 정리 보류를 유지한다.
 - 배포·tag·release는 수행하지 않았다. 다른 worktree·세션 기록·시험 자료·미커밋 변경은 보존한다. 후속 수정은 현재 main과 Git 상태를 다시 확인한 뒤 승인된 범위에서 진행한다.
