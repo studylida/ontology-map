@@ -335,8 +335,14 @@
   gap: 10px 14px;
 }
 
-.nodeTypes span {
+.nodeTypes button {
   display: flex;
+  min-height: 32px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
   align-items: center;
   color: var(--text-secondary);
   font-size: 11px;
@@ -1430,32 +1436,34 @@
   margin-top: 20px;
 }
 
-.typeFilter {
-  margin-top: 14px;
-  font-size: 13px;
+/* 유형 색을 지워도 누름 상태와 취소선으로 숨김을 구분한다. */
+.nodeTypes button[aria-pressed="false"],
+.legendDots i[data-hidden="true"] {
+  --kind-color: var(--text-muted);
+  color: var(--text-muted);
 }
-.typeFilter summary {
-  cursor: pointer;
-  padding: 8px 0;
+.nodeTypes button[aria-pressed="false"] {
+  text-decoration: line-through;
 }
-.typeFilter fieldset {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin: 8px 0 0;
-  padding: 10px;
-  border: 1px solid var(--border);
+.nodeTypes button:focus-visible,
+.legendActions button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
-.typeFilter label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-}
-.typeFilter button {
-  color: var(--text-primary);
+.nodeTypes button:hover {
   background: var(--surface-elevated);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 10px;
+}
+.legendActions {
+  display: flex;
+  gap: 12px;
+  margin: 10px 0;
+}
+.legendActions button {
+  padding: 4px;
+  min-height: 28px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 11px;
 }
