@@ -518,9 +518,9 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
   );
 
   const loadedNodes = peripheral.graphView?.nodes ?? [];
-  const filteredNodeCount = loadedNodes.filter(
-    (node) => !hiddenKinds.includes(node.kindCode),
-  ).length;
+  const allNodesFiltered =
+    loadedNodes.length > 0 &&
+    loadedNodes.every((node) => hiddenKinds.includes(node.kindCode));
   const nodeTypes = new Map([
     ["PERSON", "사람"],
     ["COMPANY", "회사"],
@@ -589,9 +589,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                 <label htmlFor="node-search">노드 검색</label>
                 <NodeSearch onSelect={selectNode} />
                 <div className={styles.scopeSummary}>
-                  <strong>
-                    {currentNode.name} 주변 · 노드 {filteredNodeCount}개
-                  </strong>
+                  <strong>{currentNode.name} 주변</strong>
                 </div>
                 <fieldset
                   className={styles.rangeControl}
@@ -613,6 +611,14 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                     최근 1년
                   </button>
                 </fieldset>
+                {allNodesFiltered && (
+                  <div className={styles.filterNotice} role="status">
+                    <span>유형 필터로 노드가 숨겨져 있습니다.</span>
+                    <button type="button" onClick={() => setHiddenKinds([])}>
+                      전체 표시
+                    </button>
+                  </div>
+                )}
               </div>
 
               <MapLegend

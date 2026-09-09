@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
@@ -230,6 +231,15 @@ describe("exploration API 화면", () => {
     fireEvent.click(screen.getByRole("button", { name: "범례" }));
     const before = fetchMock.mock.calls.length;
     const url = window.location.href;
+    const filterMessage = "유형 필터로 노드가 숨겨져 있습니다.";
+    expect(screen.queryByText(filterMessage)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "전체 해제" }));
+    const notice = screen.getByText(filterMessage).parentElement;
+    fireEvent.click(notice?.querySelector("button") as HTMLButtonElement);
+    expect(screen.queryByText(filterMessage)).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "동적 지식맵" }).dataset.hiddenKinds,
+    ).toBe("");
     fireEvent.click(screen.getByRole("button", { name: "전체 해제" }));
     for (const name of ["사람", "회사", "기술", "주제", "사건"])
       expect(
@@ -254,7 +264,11 @@ describe("exploration API 화면", () => {
     expect(
       screen.getByRole("region", { name: "동적 지식맵" }).dataset.hiddenKinds,
     ).toBe("TECHNOLOGY,TOPIC,EVENT");
-    fireEvent.click(screen.getByRole("button", { name: "전체 표시" }));
+    fireEvent.click(
+      within(screen.getByLabelText("지식맵 범례")).getByRole("button", {
+        name: "전체 표시",
+      }),
+    );
     expect(
       screen.getByRole("region", { name: "동적 지식맵" }).dataset.hiddenKinds,
     ).toBe("");
