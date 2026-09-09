@@ -1502,3 +1502,17 @@
   cursor: pointer;
   font-size: 11px;
 }
+
+@media (max-height: 700px) {
+  .app[data-design-preview="true"] .panelHeader {
+    padding-block: 12px;
+  }
+
+  .detailPanel .tabPanel {
+    padding-block: 12px;
+  }
+
+  .detailPanel .panelContext {
+    margin-bottom: 16px;
+  }
+}
