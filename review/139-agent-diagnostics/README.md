@@ -2,6 +2,10 @@
 
 이 자료는 [#139](https://github.com/studylida/ontology-map/issues/139)의 한국어 지식 추출·검증 시험을 WEB GPT에서 독립적으로 검토하기 위한 것이다. 결과 댓글은 이미 GitHub에 있었지만 시험용 prompt와 코드 대부분은 로컬의 Git 제외 폴더에만 있었다. 이 branch에는 공개 검토에 필요한 부분만 모았다. 제품 구현이나 정식 계약으로 병합하기 위한 변경이 아니다.
 
+## 후속 비교 자료
+
+[원문 보존형 추출 비교](original-preserving-v1/README.md)는 이 자료에 대한 첫 독립 검토의 추천을 받아, 기존 R7 조건과 원문 보존 문구 하나만 추가한 조건을 새 공식 한국어 기사 8건에서 비교한 후속 시험이다. 집계와 비식별 평가 원장은 공개하지만 기사 전문과 모델 원응답은 공개하지 않는다. 후속 검토는 [전용 검토 요청](original-preserving-v1/REVIEW_PROMPT.md)을 기준으로 한다.
+
 ## 시작점
 
 검토자는 [검토 질문 전체](REVIEW_PROMPT.md)를 먼저 읽고, [수행 과정과 결과](EXPERIMENTS.md), [재구성 사례](CASES.md), 실제 prompt·계약·코드 순으로 확인한다. 자료를 전달한 메시지에 적힌 commit을 기준으로 판단하고 이후 변경과 섞지 않는다.
