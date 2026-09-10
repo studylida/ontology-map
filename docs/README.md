@@ -11,6 +11,7 @@
 | 수용된 결정 | [ADR 색인](architecture/decisions/README.md) | 영향이 크고 되돌리기 어려운 결정만 기록한다. |
 | 제품·화면 계약 | [제품 설계](product/design.md) | 사용자 흐름과 시각·상호작용 의미를 기록한다. |
 | 도메인 의미 | [논리 스키마](data/logical-schema.md) | ERD, 의미, 관계, 소유권과 수명주기를 사람이 관리한다. |
+| 출처·lint 적재 | [출처·lint 적재 정책](data/source-intake-policy.md) | 허용 자료, 재처리, 승격 전·저장 그래프 lint와 READY 경계를 기록한다. |
 | 독립 근거 계보 | [근거 계보 판정 정책](data/evidence-lineage-policy.md) | 준비 문서가 기존 또는 새 Evidence Group을 선택하는 규칙을 기록한다. |
 | PostgreSQL 표현 | [물리 스키마](data/physical-schema.md) | 공통 자료형, 이름, 불변성과 변경 규칙을 사람이 관리한다. |
 | 실제 DB 객체 | [스키마 참고 문서](data/schema-reference.md) | SQLAlchemy metadata에서 생성하며 수동으로 수정하지 않는다. |
