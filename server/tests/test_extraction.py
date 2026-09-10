@@ -1,4 +1,5 @@
 import json
+import re
 import runpy
 import socket
 from decimal import Decimal
@@ -195,6 +196,16 @@ def test_fixed_pipeline_request_contract_and_own_evidence(monkeypatch, caplog, c
         data = json.loads(payload["messages"][1]["content"])
         if name == "BodySelection":
             assert payload["model"] == FLASH
+            pattern = schema["json_schema"]["schema"]["properties"]["source_ids"][
+                "items"
+            ]["pattern"]
+            for value in ("s17", "COLLABORATES_WITH", "  공동 개발\n계획이다. 😀  "):
+                assert re.fullmatch(pattern, value)
+                assert BodySelection(source_ids=[value]).source_ids == [value]
+            for value in ("", " \t\n"):
+                assert not re.fullmatch(pattern, value)
+                with pytest.raises(ValidationError):
+                    BodySelection(source_ids=[value])
             answer = {"source_ids": ["s1", "s0"]}
         elif name == "KnowledgeProposals":
             assert payload["model"] == FLASH

@@ -9,7 +9,8 @@ from unicodedata import normalize
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-Text = Annotated[str, StringConstraints(pattern=r"\S")]
+# Preserve the same nonblank contract under search and full-string matching.
+Text = Annotated[str, StringConstraints(pattern=r"^[\s\S]*\S[\s\S]*$")]
 NodeType = Literal["COMPANY", "PERSON", "TECHNOLOGY", "EVENT", "TOPIC"]
 Modality = Literal[
     "FACT", "PLAN_OR_TARGET", "PREDICTION_OR_ESTIMATE", "OPINION_OR_EVALUATION"
