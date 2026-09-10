@@ -3,13 +3,14 @@
 ## 문서 상태
 
 - 상태: 현재 구현과 승인된 변경·시험 구성을 구분한 기술 기준
-- 확인일: 2026-09-09
-- 구현 기준: `main`의 `997fd2a` (패널·지도 PR #161~#183 및 문서 #160 병합 후)
+- 확인일: 2026-09-10
+- 화면·읽기 API 기준: `main`의 `997fd2a` (패널·지도 PR #161~#183 및 문서 #160 병합 후)
+- 추출 실행 코드 기준: `main`의 `c035dbc`에서 시작한 #127 변경. DB·사이트 연결은 미구현
 - 근거 대응: [#158](https://github.com/studylida/ontology-map/issues/158)
 - 실행 안내: [DB 운영](../operations/database.md)
 - 코드 규칙: [code-conventions.md](code-conventions.md)
 
-이 문서는 실제 런타임·직접 의존성·프로세스와 코드 구조, 승인된 에이전트 역할과 모델 시험 구성을 설명한다. `현재 구현`은 위 commit과 lockfile, `승인·미구현`은 사용자 결정, `시험`은 제한된 실험을 뜻한다. 시험 모델·설정을 제품의 최종 고정 버전이나 품질 보증으로 해석하지 않는다. 상세 진행 이력과 미결정 사항은 연결된 Issue에서 관리한다.
+이 문서는 실제 런타임·직접 의존성·프로세스와 코드 구조, 승인된 에이전트 역할과 모델 시험 구성을 설명한다. `현재 구현`은 이 문서와 함께 관리하는 코드·lockfile, `승인·미구현`은 사용자 결정, `시험`은 제한된 실험을 뜻한다. 고정된 역할별 모델 배정과 아직 검증하지 않은 실제 품질을 구별한다. 과거 비교 실험이 역할별 배정을 바꾸지는 않는다. 상세 진행 이력과 미결정 사항은 연결된 Issue에서 관리한다.
 
 ## 기본 원칙
 
@@ -66,34 +67,60 @@ Relation·Evidence Trace, peripheral과 저장 인사이트 목록·상세는 se
 | migration | Alembic | 1.19.1 |
 | PostgreSQL driver | psycopg | 3.3.4 |
 | 입력·출력 검증 | Pydantic | 2.13.5 |
+| 역할별 Structured Output | langchain-core, langchain-openai | 1.6.2, 1.6.2 |
+| provider HTTP 경계·무호출 검증 | httpx | 0.28.1 |
+| 호출별 외부 tracing 비활성화 | langsmith | 0.12.4 |
 | 설정 | pydantic-settings | 2.15.0 |
 | Python vector type | pgvector | 0.5.0 |
 | test | pytest | 9.1.1 |
 | format·lint | Ruff | 0.16.5 |
 | typecheck | mypy | 2.3.1 |
 
-LangChain과 provider integration은 설치되어 있지 않다. 제품 구현에는 LangChain의 필요한 최소 기능을 사용하기로 승인했으며 LangGraph·memory·자유로운 tool loop·별도 orchestrator는 도입하지 않는다. 이 프로젝트의 역할·실행 경계 결정은 [#125](https://github.com/studylida/ontology-map/issues/125)를 따른다. 제품 adapter 구현 시 최종 모델·호출 계약과 필요한 의존성을 확정한다.
+LangChain은 아래 추출 실행 코드의 model·prompt·Structured Output 결합에만 사용한다. 일반 함수가 실행 순서와 검증을 맡으며 LangGraph·memory·자유로운 tool loop·자동 repair·fallback은 없다. API와 DB 모듈은 provider class를 import하지 않는다. LangSmith는 LangChain의 전이 의존성이기도 하며, 외부 서비스를 사용하기 위해서가 아니라 `tracing_context(enabled=False)`를 직접 호출해 tracing을 끄기 위해 직접 의존성으로 명시한다. [LangChain의 모델 연동](https://docs.langchain.com/oss/python/integrations/chat/openai)과 [호출별 tracing 설정](https://docs.langchain.com/langsmith/conditional-tracing)을 사용한다. 버전의 선언과 잠금 파일을 함께 관리하며 [#127의 구현 승인](https://github.com/studylida/ontology-map/issues/127#issuecomment-5611360679)을 따른다.
 
 ## 에이전트 역할과 모델
 
+### 제품 재사용용 추출 실행 코드
+
+`ontology_map.extraction.extract_knowledge()`는 정규화 원문 → Flash 본문 선택 → Flash 지식 후보 생성 → 코드 검사 → Plus Claim 근거 판정 → Plus 의미 연결 판정 → 실패·의존 연결 제외 → 검증된 runtime 후보 반환을 수행한다. 실행 순서는 일반 Python 함수이며 별도 실행 framework나 실험 플랫폼이 아니다. 아래 코드의 반환은 DB 승격·저장·공개 완료를 뜻하지 않는다.
+
+| 구현 위치 | 현재 책임 |
+| --- | --- |
+| `extraction_contracts.py` | 불변 원문·Unicode slice·인용문·hash, Claim·원문 언급과 관계·속성·사건시간 제안의 runtime 타입 |
+| `extraction.py` | 역할별 prompt·입력·출력과 고정 실행 순서, 허용 ontology 검사·의존 연결 제외 |
+| `model_studio.py` | Model Studio 싱가포르 호출, Structured Output, 전송 직전 요청 크기·호출·비용 예약과 안전한 실패 반환 |
+| `extraction_metrics.py` | 모델에 제공하지 않는 유한 독립 검토 결과로 보존율·오류율·비중복 산출량·빈 결과 집계 |
+
+본문 추출·지식 생성은 `qwen3.7-flash-2026-07-15`, Claim 근거·의미 연결 판정은 `qwen3.7-plus-2026-05-26`으로 고정한다. endpoint는 `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`이며 JSON Schema strict, 비스트리밍, thinking 비활성화와 자동 재시도 0회를 사용한다. `max_tokens`는 모델의 `extra_body`에 설정해 실제 전송한다. [Model Studio의 Structured Output 계약](https://www.alibabacloud.com/help/en/model-studio/qwen-structured-output)을 사용하되, 이 설정의 무호출 전송 검증과 두 snapshot의 실제 API 호환성·의미 품질 검증은 서로 다르다.
+
+Claim은 statement·modality·자기 source_ids, 원문 대상 언급과 필요한 여러 의미 연결을 함께 제안한다. 개발·협력·발표·투자는 허용된 직접 관계를 우선 사용하며 EVENT는 원문에서 구체적인 사건을 식별할 수 있을 때만 제안한다. 관계는 code·양쪽 언급·stance, 속성은 code·대상 언급·타입이 있는 값·필요 단위, 사건 시간은 사건 언급·시간·정밀도를 제안한다. 모델이 영속 Node ID나 revision ID를 만들지 않는다. 코드가 호출자가 제공한 허용 code의 정확한 revision, endpoint·단위·값 종류를 검사한다. Claim 근거 판정에는 그 Claim의 자기 근거만 전달하며 전체 문서·형제 Claim·gold를 제공하지 않는다. 의미 연결 판정은 같은 자기 근거와 남길 연결을 별도의 prompt·출력 계약으로 검사한다.
+
+모든 의미 연결이 없으면 `ONTOLOGY_UNREPRESENTABLE`, 제안된 연결이 코드 검사에서 모두 제외되면 `INVALID_BINDING_DEPENDENCY`로 구분한다. 표현하지 못한 사실도 자기 근거 판정과 생성 품질 평가 대상이며 최종 보존율 분모에는 남긴다. 일부 연결을 제외할 때는 남은 연결이 공동 행위·귀속 등의 필수 의미를 온전히 유지한다는 Plus 판정이 있어야 Claim을 반환한다. FALSE·UNRESOLVED는 수정하거나 재호출하지 않는다. 검증된 사용처가 없는 대상 언급도 최종 후보에서 제거한다.
+
+`SourceDocument.sources`는 원문의 비공백 범위를 빠짐없이 덮는 원문 순서의 정확한 projection이어야 한다. `paragraph_id`는 호출자가 재현한 정규화 묶음이며 HTML section·목록·표로 추측하지 않는다. `include_structure`는 생성 입력에 이 묶음 정보를 제공할지 결정한다. `extract_body()`, `generate_knowledge()`, `judge_proposals()`를 나눠 호출하면 본문 선택 결과를 동일하게 고정하고 생성 조건 하나만 비교할 수 있다.
+
+`ExtractionResult.generated`·`verified`는 메모리에만 존재한다. `support_verdicts`, `meaning_verdicts`, `exclusions`, `duplicates`, 실패 단계·오류 코드를 따로 반환한다. 정상 빈 본문·빈 생성 결과·모두 제외·호출 실패를 구분하며 중단 전에 검증한 독립 후보는 반환 결과에 남긴다. 같은 입력의 정확한 재처리는 호출자가 소유한 process-local `completed` dictionary로 막을 수 있다. 문서 ID·원문·구조·ontology·모델·prompt·schema·상한이 key에 들어가며 실패한 실행은 캐시하지 않는다. 이는 영속 `model_task` 캐시나 기술적 retry 정책의 구현이 아니다.
+
+실제 DB의 Node 후보 조회·동일 대상 판정·정확하지 않은 Claim의 의미 중복·재사용·alias 추가·transaction·publication은 아직 연결되지 않았다. 현재 정확 중복 제거는 후보 payload가 같은 경우에만 적용한다. Node 동일 대상 판정과 의미 중복 판정을 Claim 근거 판정으로 대체하지 않는다. `verified`를 DB 저장 가능 신호로 바로 사용해서는 안 되며 #124·#126·#127·#128의 연결 결정과 검증이 필요하다. 정확한 실행 방법과 비용·보안 경계는 [로컬 검사](../operations/database.md#추출-실행-코드의-로컬-검사)를 따른다.
+
 ### 승인된 역할과 제품 구현 상태
 
-에이전트는 주어진 입력으로 생성·판정하고 일반 코드가 조회·실행 순서·검증·저장을 담당한다. 역할 하나가 별도 프로세스나 영속 `model_task` 하나라는 뜻은 아니다. 아래 역할은 제품 worker로 구현되지 않았다.
+에이전트는 주어진 입력으로 생성·판정하고 일반 코드가 조회·실행 순서·검증·저장을 담당한다. 역할 하나가 별도 프로세스나 영속 `model_task` 하나라는 뜻은 아니다. 위 추출 실행 함수를 제외한 제품 연결과 아래 파생 작업의 worker는 구현되지 않았다. 아래 표는 고정된 Flash·Plus 배정과 역할별 미구현 범위를 구분한다.
 
-| 역할·작업 | 입력과 책임 | 모델 선택 상태 | 근거 |
+| 역할·작업 | 입력과 책임 | 고정 모델·구현 상태 | 근거 |
 | --- | --- | --- | --- |
-| 본문 추출 | 입력 자료에서 분석할 본문만 추출하며 요약·번역·재작성하지 않음 | Flash 시험 방향. 최근 지식 추출 진단의 평가 대상에서는 제외 | [#111](https://github.com/studylida/ontology-map/issues/111), [#125](https://github.com/studylida/ontology-map/issues/125) |
-| 지식 후보 작성 / `KNOWLEDGE_EXTRACTION` | 본문에서 의미·근거를 보존한 지식 후보 작성. Claim·Relation·attribute·event 대응은 상세 계약 검토 중 | Flash로 출발. 선정·작성 분리와 Selection의 Plus 사용은 아래 시험 구성 | [#127](https://github.com/studylida/ontology-map/issues/127) |
-| Node 동일 대상 판정 / `ENTITY_RESOLUTION_PROPOSAL` | 일반 코드가 제공한 저장 Node 후보와 원문 안에서 판정. 이름·alias 일치만으로 확정하지 않음 | Plus 시험 방향. 제품 DTO·후보 조회 계약과 최종 모델 미확정 | [#128](https://github.com/studylida/ontology-map/issues/128) |
-| Claim 의미 판정 | 정확한 재처리 중복은 코드로 처리하고 그 외 후보의 동일 의미를 판정. 코드 검증 후 기존 Claim 재사용·근거 추가 | Plus 시험 방향. 정확한 입력·출력과 task kind 매핑 미확정 | [#125](https://github.com/studylida/ontology-map/issues/125) |
-| `FOLLOWUP_QUESTIONS` | 현재 node의 공개 node·Relation·Claim을 바탕으로 이해를 돕는 질문과 근거가 연결된 짧은 답변을 사전 생성하는 방향. 고정 총개수 없이 기간별로 저장하고 4개씩 읽음 | 생성 worker·모델·상세 출력 검증은 보류. #113의 이동형 두 질문은 #162로 대체 | [#162](https://github.com/studylida/ontology-map/issues/162), [#129](https://github.com/studylida/ontology-map/issues/129) |
-| `NODE_CONTEXT`, `NODE_INSIGHT` | 공개 지식의 맥락·인사이트를 사전 생성. 현재 읽기 경로와 생성 구현을 구별 | 생성 adapter·모델 미확정. `NODE_CONTEXT`는 #129 범위 밖이며 후속 구현 소유 범위도 검토 필요 | [#124](https://github.com/studylida/ontology-map/issues/124), [#68](https://github.com/studylida/ontology-map/issues/68) |
-| 충돌 후보 판정·`CONFLICT_SUMMARY` | 중복·관점·시점 차이와 모순의 구분 및 요약 필요성 검토 | 알고리즘·모델 배정 미승인 | [#130](https://github.com/studylida/ontology-map/issues/130) |
-| `EVIDENCE_LINEAGE_PROPOSAL` | 독립 원문 계보 판정 계약 검토 | schema의 작업 종류는 있으나 실행 코드·모델 배정 없음 | [#64](https://github.com/studylida/ontology-map/issues/64), [#124](https://github.com/studylida/ontology-map/issues/124) |
+| 본문 추출 | 입력 자료에서 분석할 본문만 추출하며 요약·번역·재작성하지 않음 | Flash. 로컬 실행 함수 구현, 실제 품질 미검증 | [#111](https://github.com/studylida/ontology-map/issues/111), [#125](https://github.com/studylida/ontology-map/issues/125) |
+| 지식 후보 작성 / `KNOWLEDGE_EXTRACTION` | 본문에서 Claim과 타입이 있는 관계·속성·사건시간 연결을 함께 제안 | Flash. 로컬 실행 함수 구현, 영속 작업 매핑 미결정 | [#127](https://github.com/studylida/ontology-map/issues/127) |
+| Node 동일 대상 판정 / `ENTITY_RESOLUTION_PROPOSAL` | 일반 코드가 제공한 저장 Node 후보와 원문 안에서 판정. 이름·alias 일치만으로 확정하지 않음 | Plus. 제품 DTO·후보 조회 상세 계약과 실행 코드 미완료 | [#128](https://github.com/studylida/ontology-map/issues/128) |
+| Claim 의미 중복 판정 | 정확한 재처리 중복은 코드로 처리하고 그 외 후보의 동일 의미를 판정. 코드 검증 후 기존 Claim 재사용·근거 추가 | Plus. Claim 근거 판정과 별개이며 입력·출력과 영속 작업 매핑 미결정 | [#125](https://github.com/studylida/ontology-map/issues/125) |
+| `FOLLOWUP_QUESTIONS` | 현재 node의 공개 node·Relation·Claim을 바탕으로 이해를 돕는 질문과 근거가 연결된 짧은 답변을 사전 생성하는 방향. 고정 총개수 없이 기간별로 저장하고 4개씩 읽음 | Flash. 생성 worker·상세 출력 검증 미구현. #113의 이동형 두 질문은 #162로 대체 | [#162](https://github.com/studylida/ontology-map/issues/162), [#129](https://github.com/studylida/ontology-map/issues/129) |
+| `NODE_CONTEXT`, `NODE_INSIGHT` | 공개 지식의 맥락·인사이트를 사전 생성. 현재 읽기 경로와 생성 구현을 구별 | Flash. 생성 worker 미구현. `NODE_CONTEXT`는 #129 범위 밖이며 후속 구현 소유 범위도 검토 필요 | [#124](https://github.com/studylida/ontology-map/issues/124), [#68](https://github.com/studylida/ontology-map/issues/68) |
+| 충돌 후보 판정·`CONFLICT_SUMMARY` | 중복·관점·시점 차이와 모순의 구분 및 요약 필요성 검토 | 판정 Plus·요약 생성 Flash. 알고리즘·제품 계약 미승인 | [#130](https://github.com/studylida/ontology-map/issues/130) |
+| `EVIDENCE_LINEAGE_PROPOSAL` | 독립 원문 계보 판정 계약 검토 | 판정 Plus. schema의 작업 종류는 있으나 실행 코드 없음 | [#64](https://github.com/studylida/ontology-map/issues/64), [#124](https://github.com/studylida/ontology-map/issues/124) |
 
 ### 제한된 모델 시험
 
-[#139](https://github.com/studylida/ontology-map/issues/139)는 Alibaba Cloud Model Studio 싱가포르의 OpenAI 호환 endpoint에서 `qwen3.7-flash-2026-07-15`와 `qwen3.7-plus-2026-05-26` snapshot을 시험했다. 제품의 provider 방향과 시험 snapshot을 구별하며, 특정 제품 작업에 모델을 최종 고정한 것은 아니다. 원문·형식·의미 검증의 한계가 남아 자동 저장과 제품 worker는 완료되지 않았다.
+아래는 과거 시험 구성이다. [#139](https://github.com/studylida/ontology-map/issues/139)의 Flash·Plus 생성 비교는 진단적 model ablation이며 생성 모델 선택 시험이나 Plus 판정기 검증이 아니다. [해석 정정](https://github.com/studylida/ontology-map/issues/139#issuecomment-5611111153)에 따라 제품 진행 불가 결론을 철회하고 위 역할별 고정 배정을 유지한다. 과거 점수·gold·원시 판정·manifest는 수정하지 않는다. 원문·형식·의미 품질이 실제로 개선됐는지는 별도 시험으로 확인해야 하며 자동 저장과 제품 worker는 완료되지 않았다.
 
 | 시험용 역할 | 담당하는 일 | 배정·실행 상태 |
 | --- | --- | --- |
@@ -104,7 +131,7 @@ LangChain과 provider integration은 설치되어 있지 않다. 제품 구현�
 
 최근 네 역할 시험과 그 이전 Plus 오류 검증기를 구별한다. 이전 검증기는 알려진 의미 오류를 통과시킨 사례가 있으며 원문 ID 검사의 통과는 의미 오류 탐지 성공을 뜻하지 않는다. R8의 표본은 7개 지정 지점의 두 반복이고, 점수에는 의미 판단과 내부 표현 규칙이 섞여 있었다. `FACT` 값만으로 발언을 객관적 진실로 바꿨다고 단정하거나 이 표본으로 모델·thinking의 일반 성능을 결론 내리지 않는다. 점수와 후속 해석 정정은 [#139의 근거 보완](https://github.com/studylida/ontology-map/issues/139#issuecomment-5580299907)을 따른다.
 
-승인된 후속 시험은 저장 출력의 평가 정리, Composer의 추가 효용, 정답표를 입력하지 않는 검증, 코드의 표 구조 지원 비교다. Selection 전체 통과가 다른 역할 시험을 막지 않도록 하고, 효과가 확인된 구성만 통합·새 장문 평가 대상으로 삼는다. 네 역할의 제품 유지 여부는 아직 정하지 않았다. 상세 라운드·점수·비용·실행 상태는 #139에서 관리한다.
+당시 후속 시험 계획에는 저장 출력의 평가 정리, Composer의 추가 효용, 정답표를 입력하지 않는 검증, 코드의 표 구조 지원 비교가 있었다. 이는 과거 계획이며 현재 실행 승인이나 제품 역할 계약을 뜻하지 않는다. 현재 작업은 위 고정 역할의 최소 실행 경로이며 새 유료 호출은 별도 비용 승인이 필요하다. 상세 라운드·점수·비용·실행 상태는 #139에서 관리한다.
 
 초기 strict JSON Schema 시험과 최근 JSON Object·로컬 검증 시험은 서로 다른 호출 구성이다. `temperature`, thinking, 출력 상한도 라운드별 기록을 따르며 한 설정을 제품 기본값으로 옮기지 않는다. 특히 R8의 제한된 thinking은 대조 조건이며 후속 계획의 추가 thinking·streaming은 보류다. 시험 실행기는 제품 LangChain adapter가 아니다.
 
@@ -136,6 +163,10 @@ ontology-map/
 │   │   ├── panel.py
 │   │   ├── pagination.py
 │   │   ├── settings.py
+│   │   ├── extraction.py
+│   │   ├── extraction_contracts.py
+│   │   ├── extraction_metrics.py
+│   │   ├── model_studio.py
 │   │   └── db/
 │   │       ├── schema.py
 │   │       ├── session.py
@@ -175,7 +206,8 @@ browser
 | PostgreSQL | 구현 | `docker compose up -d db` |
 | FastAPI | 구현 | `ontology_map.main:app` 또는 Compose `api` |
 | web | 구현 | `web/`의 `npm run dev` |
-| agent/worker | 미구현 | 없음 |
+| 추출 실행 함수 | 로컬 구현, 실제 모델 품질·DB 연결 미검증 | `ontology_map.extraction.extract_knowledge` |
+| 영속 agent/worker | 미구현 | 없음 |
 
 개발 환경 설정부터 fixture, smoke check와 종료까지의 정확한 명령은 [DB 운영](../operations/database.md)을 따른다. API 컨테이너는 migration을 자동 실행하지 않으므로 migration과 fixture를 명시적으로 적용한 뒤 시작한다.
 
