@@ -1,0 +1,446 @@
+{
+  "version": "evidence-boundary-audit-v1",
+  "exact_key_counts": {
+    "claims": 384,
+    "fact_ratings": 42,
+    "all_claims_reviewed": true,
+    "all_facts_reviewed": true
+  },
+  "fact_verdict_changes": [
+    {
+      "key": "M03:r1:M03-F01",
+      "from": "PASS",
+      "to": "PARTIAL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ]
+    },
+    {
+      "key": "M03:r1:M03-F02",
+      "from": "PASS",
+      "to": "PARTIAL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ]
+    },
+    {
+      "key": "M03:r2:M03-F02",
+      "from": "PASS",
+      "to": "PARTIAL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ]
+    },
+    {
+      "key": "M04:r1:M04-F01",
+      "from": "PASS",
+      "to": "PARTIAL",
+      "error_types": [
+        "ATOMICITY"
+      ]
+    },
+    {
+      "key": "M04:r1:M04-F02",
+      "from": "PASS",
+      "to": "PARTIAL",
+      "error_types": [
+        "ATOMICITY"
+      ]
+    },
+    {
+      "key": "M04:r1:M04-F03",
+      "from": "PASS",
+      "to": "PARTIAL",
+      "error_types": [
+        "ATOMICITY"
+      ]
+    },
+    {
+      "key": "M04:r1:M04-F06",
+      "from": "PARTIAL",
+      "to": "PASS",
+      "error_types": []
+    },
+    {
+      "key": "M04:r2:M04-F06",
+      "from": "PARTIAL",
+      "to": "PASS",
+      "error_types": []
+    }
+  ],
+  "fact_record_changes": [
+    {
+      "key": "M02:r2:M02-F04",
+      "verdict": {
+        "from": "PARTIAL",
+        "to": "PARTIAL"
+      },
+      "error_types": {
+        "from": [
+          "UNSUPPORTED_OR_CHANGED_MEANING",
+          "EVIDENCE_INSUFFICIENT"
+        ],
+        "to": [
+          "EVIDENCE_INSUFFICIENT"
+        ]
+      },
+      "reason_changed": true
+    },
+    {
+      "key": "M03:r1:M03-F01",
+      "verdict": {
+        "from": "PASS",
+        "to": "PARTIAL"
+      },
+      "error_types": {
+        "from": [],
+        "to": [
+          "EVIDENCE_INSUFFICIENT"
+        ]
+      },
+      "reason_changed": true
+    },
+    {
+      "key": "M03:r1:M03-F02",
+      "verdict": {
+        "from": "PASS",
+        "to": "PARTIAL"
+      },
+      "error_types": {
+        "from": [],
+        "to": [
+          "EVIDENCE_INSUFFICIENT"
+        ]
+      },
+      "reason_changed": true
+    },
+    {
+      "key": "M03:r2:M03-F01",
+      "verdict": {
+        "from": "PARTIAL",
+        "to": "PARTIAL"
+      },
+      "error_types": {
+        "from": [
+          "MODALITY_OR_ATTRIBUTION_MISMATCH"
+        ],
+        "to": [
+          "REQUIRED_MEANING_OMITTED"
+        ]
+      },
+      "reason_changed": true
+    },
+    {
+      "key": "M03:r2:M03-F02",
+      "verdict": {
+        "from": "PASS",
+        "to": "PARTIAL"
+      },
+      "error_types": {
+        "from": [],
+        "to": [
+          "EVIDENCE_INSUFFICIENT"
+        ]
+      },
+      "reason_changed": true
+    },
+    {
+      "key": "M04:r1:M04-F01",
+      "verdict": {
+        "from": "PASS",
+        "to": "PARTIAL"
+      },
+      "error_types": {
+        "from": [],
+        "to": [
+          "ATOMICITY"
+        ]
+      },
+      "reason_changed": true
+    },
+    {
+      "key": "M04:r1:M04-F02",
+      "verdict": {
+        "from": "PASS",
+        "to": "PARTIAL"
+      },
+      "error_types": {
+        "from": [],
+        "to": [
+          "ATOMICITY"
+        ]
+      },
+      "reason_changed": true
+    },
+    {
+      "key": "M04:r1:M04-F03",
+      "verdict": {
+        "from": "PASS",
+        "to": "PARTIAL"
+      },
+      "error_types": {
+        "from": [],
+        "to": [
+          "ATOMICITY"
+        ]
+      },
+      "reason_changed": true
+    },
+    {
+      "key": "M04:r1:M04-F04",
+      "verdict": {
+        "from": "PARTIAL",
+        "to": "PARTIAL"
+      },
+      "error_types": {
+        "from": [
+          "MODALITY_OR_ATTRIBUTION_MISMATCH"
+        ],
+        "to": [
+          "MODALITY_OR_ATTRIBUTION_MISMATCH",
+          "EVIDENCE_INSUFFICIENT"
+        ]
+      },
+      "reason_changed": true
+    },
+    {
+      "key": "M04:r1:M04-F06",
+      "verdict": {
+        "from": "PARTIAL",
+        "to": "PASS"
+      },
+      "error_types": {
+        "from": [
+          "EVIDENCE_INSUFFICIENT"
+        ],
+        "to": []
+      },
+      "reason_changed": true
+    },
+    {
+      "key": "M04:r2:M04-F04",
+      "verdict": {
+        "from": "PARTIAL",
+        "to": "PARTIAL"
+      },
+      "error_types": {
+        "from": [
+          "MODALITY_OR_ATTRIBUTION_MISMATCH"
+        ],
+        "to": [
+          "MODALITY_OR_ATTRIBUTION_MISMATCH",
+          "EVIDENCE_INSUFFICIENT"
+        ]
+      },
+      "reason_changed": true
+    },
+    {
+      "key": "M04:r2:M04-F06",
+      "verdict": {
+        "from": "PARTIAL",
+        "to": "PASS"
+      },
+      "error_types": {
+        "from": [
+          "EVIDENCE_INSUFFICIENT"
+        ],
+        "to": []
+      },
+      "reason_changed": true
+    }
+  ],
+  "new_source_support_failures": {
+    "count": 19,
+    "keys": [
+      "M01:r1:c11",
+      "M01:r1:c15",
+      "M01:r1:c16",
+      "M01:r1:c35",
+      "M01:r1:c36",
+      "M01:r1:c37",
+      "M01:r1:c38",
+      "M01:r2:c11",
+      "M01:r2:c17",
+      "M01:r2:c18",
+      "M01:r2:c40",
+      "M01:r2:c41",
+      "M01:r2:c42",
+      "M01:r2:c43",
+      "M03:r1:c6",
+      "M03:r1:c12",
+      "M03:r1:c13",
+      "M03:r2:c13",
+      "M03:r2:c14"
+    ]
+  },
+  "source_error_type_corrections": [
+    "M02:r2:c34",
+    "M02:r2:c35"
+  ],
+  "atomicity_reclassification": {
+    "prior_error_count": 10,
+    "audited_error_count": 6,
+    "removed": [
+      "M02:r1:c56",
+      "M02:r1:c61",
+      "M02:r2:c53",
+      "M02:r2:c58"
+    ],
+    "added": []
+  },
+  "selection_categories": {
+    "CEREMONIAL_REMARK": 2,
+    "DUPLICATE_EXTRA": 2,
+    "EDITORIAL_SUMMARY": 4,
+    "GENERAL_DEFINITION": 20,
+    "GENERAL_EVALUATION": 2,
+    "OVERLAPPING_EXTRA": 1,
+    "SECTION_SUMMARY": 1,
+    "SUBJECT_MISSING": 2
+  },
+  "repeated_fact_failures": [
+    {
+      "article_id": "M01",
+      "fact_id": "M01-F01",
+      "verdicts": [
+        "PARTIAL",
+        "PARTIAL"
+      ],
+      "common_error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ]
+    },
+    {
+      "article_id": "M01",
+      "fact_id": "M01-F02",
+      "verdicts": [
+        "PARTIAL",
+        "PARTIAL"
+      ],
+      "common_error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ]
+    },
+    {
+      "article_id": "M01",
+      "fact_id": "M01-F03",
+      "verdicts": [
+        "PARTIAL",
+        "PARTIAL"
+      ],
+      "common_error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ]
+    },
+    {
+      "article_id": "M01",
+      "fact_id": "M01-F05",
+      "verdicts": [
+        "PARTIAL",
+        "PARTIAL"
+      ],
+      "common_error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ]
+    },
+    {
+      "article_id": "M02",
+      "fact_id": "M02-F04",
+      "verdicts": [
+        "PARTIAL",
+        "PARTIAL"
+      ],
+      "common_error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ]
+    },
+    {
+      "article_id": "M03",
+      "fact_id": "M03-F01",
+      "verdicts": [
+        "PARTIAL",
+        "PARTIAL"
+      ],
+      "common_error_types": []
+    },
+    {
+      "article_id": "M03",
+      "fact_id": "M03-F02",
+      "verdicts": [
+        "PARTIAL",
+        "PARTIAL"
+      ],
+      "common_error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ]
+    },
+    {
+      "article_id": "M03",
+      "fact_id": "M03-F04",
+      "verdicts": [
+        "PARTIAL",
+        "PARTIAL"
+      ],
+      "common_error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ]
+    },
+    {
+      "article_id": "M04",
+      "fact_id": "M04-F01",
+      "verdicts": [
+        "PARTIAL",
+        "PARTIAL"
+      ],
+      "common_error_types": [
+        "ATOMICITY"
+      ]
+    },
+    {
+      "article_id": "M04",
+      "fact_id": "M04-F02",
+      "verdicts": [
+        "PARTIAL",
+        "PARTIAL"
+      ],
+      "common_error_types": [
+        "ATOMICITY"
+      ]
+    },
+    {
+      "article_id": "M04",
+      "fact_id": "M04-F03",
+      "verdicts": [
+        "PARTIAL",
+        "PARTIAL"
+      ],
+      "common_error_types": [
+        "ATOMICITY"
+      ]
+    },
+    {
+      "article_id": "M04",
+      "fact_id": "M04-F04",
+      "verdicts": [
+        "PARTIAL",
+        "PARTIAL"
+      ],
+      "common_error_types": [
+        "EVIDENCE_INSUFFICIENT",
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ]
+    },
+    {
+      "article_id": "M04",
+      "fact_id": "M04-F05",
+      "verdicts": [
+        "PARTIAL",
+        "PARTIAL"
+      ],
+      "common_error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ]
+    }
+  ],
+  "no_sibling_evidence_borrowing": true
+}

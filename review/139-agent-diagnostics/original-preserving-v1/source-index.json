@@ -1,0 +1,74 @@
+[
+  {
+    "id": "P01",
+    "publisher": "SK hynix",
+    "url": "https://news.skhynix.co.kr/mass-production-hbm-4/",
+    "resolved_url": "https://news.skhynix.co.kr/mass-production-hbm-4/",
+    "chars": 2062,
+    "sha256": "15218e7716028bbd4bbba2a58bee4bee50c7f8b4869b1bd37eee5d0fae388dc0",
+    "source_unit_count": 22
+  },
+  {
+    "id": "P02",
+    "publisher": "SK hynix",
+    "url": "https://news.skhynix.co.kr/2025-business-results/",
+    "resolved_url": "https://news.skhynix.co.kr/2025-business-results/",
+    "chars": 3117,
+    "sha256": "12999687438732bfe0722ac0ef2fda5db0eb87ccfe1a70a4c4f0f5986ab61023",
+    "source_unit_count": 90
+  },
+  {
+    "id": "P03",
+    "publisher": "SK hynix",
+    "url": "https://news.skhynix.co.kr/gtc-2025/",
+    "resolved_url": "https://news.skhynix.co.kr/gtc-2025/",
+    "chars": 3059,
+    "sha256": "4f97c63fa6e078886ef9d5548ed9fbfbd3448f0b2baad7cca004ee53ec417c1f",
+    "source_unit_count": 35
+  },
+  {
+    "id": "P04",
+    "publisher": "NVIDIA Korea",
+    "url": "https://blogs.nvidia.co.kr/blog/sk-group-ai-factory/",
+    "resolved_url": "https://blogs.nvidia.co.kr/blog/sk-group-ai-factory/",
+    "chars": 2603,
+    "sha256": "7b447fe5d244b102adf3d829f43e45ec9013d4b7f39f0a50e548c1ab699fa683",
+    "source_unit_count": 31
+  },
+  {
+    "id": "P05",
+    "publisher": "NVIDIA Korea",
+    "url": "https://blogs.nvidia.co.kr/blog/nvlink-fusion-nvhbm-custom-high-bandwidth-memory/",
+    "resolved_url": "https://blogs.nvidia.co.kr/blog/nvlink-fusion-nvhbm-custom-high-bandwidth-memory/",
+    "chars": 1922,
+    "sha256": "731bbad4dd15ebd85433e7d8aa5cd67ab32aae0909e75b194a6d29f399f75483",
+    "source_unit_count": 23
+  },
+  {
+    "id": "P06",
+    "publisher": "Intel Korea",
+    "url": "https://newsroom.intel.com/ko/%EC%9D%B8%EA%B3%B5-%EC%A7%80%EB%8A%A5/%EC%9D%B8%ED%85%94-%EC%A0%9C%EC%98%A8-6-%ED%94%84%EB%A1%9C%EC%84%B8%EC%84%9C-%EC%8B%A0%EC%A0%9C%ED%92%88-3%EC%A2%85-%EC%B6%9C%EC%8B%9C-gpu-%EA%B0%80%EC%86%8D-ai-%EC%84%B1%EB%8A%A5-%EA%B7%B9%EB%8C%80",
+    "resolved_url": "https://www.intel.co.kr/content/www/kr/ko/newsroom/news/artificial-intelligence/new-intel-xeon-6-cpus-to-maximize-gpu-accelerated-ai-performance.html",
+    "chars": 1492,
+    "sha256": "f8b743e308484d7accddaf4652ffc254da74cd49d1e44ab32403f83abfb07444",
+    "source_unit_count": 17
+  },
+  {
+    "id": "P07",
+    "publisher": "Intel Korea",
+    "url": "https://newsroom.intel.com/ko/%EC%9E%90%EB%8F%99%EC%B0%A8/%EC%9D%B8%ED%85%94-%EC%B0%A8%EC%84%B8%EB%8C%80-soc-%EB%B0%8F-%ED%8C%8C%ED%8A%B8%EB%84%88%EC%8B%AD%EC%9C%BC%EB%A1%9C-%EC%86%8C%ED%94%84%ED%8A%B8%EC%9B%A8%EC%96%B4-%EC%A0%95%EC%9D%98-%EC%B0%A8%EB%9F%89",
+    "resolved_url": "https://www.intel.co.kr/content/www/kr/ko/newsroom/news/corporate/intel-accelerates-software-defined-vehicles-with-next-gen-soc-and-partners.html",
+    "chars": 2248,
+    "sha256": "0f784d97d652681f43449100f862a5bfc65edfcd39fd4a124f5ea70982e1ed64",
+    "source_unit_count": 29
+  },
+  {
+    "id": "P08",
+    "publisher": "Intel Korea",
+    "url": "https://newsroom.intel.com/ko/%EC%9D%B8%EA%B3%B5-%EC%A7%80%EB%8A%A5/%EC%9D%B8%ED%85%94-%EA%B0%9C%EB%B0%A9%ED%98%95-%EC%83%9D%ED%83%9C%EA%B3%84-%ED%86%B5%ED%95%B4-%EC%97%A3%EC%A7%80-ai-%EA%B0%80%EC%86%8D%ED%99%94",
+    "resolved_url": "https://www.intel.co.kr/content/www/kr/ko/newsroom/news/artificial-intelligence/intel-accelerates-ai-at-the-edge-through-an-open-ecosystem.html",
+    "chars": 2742,
+    "sha256": "635836e8f208e513861187997604defef2692c636b3cb4dd8f7413695edbd91c",
+    "source_unit_count": 28
+  }
+]

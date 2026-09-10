@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "issue": 139,
+  "base_main": "ffbca386a875b517137412d385b3eea36719521e",
+  "execution_authorization_comment": 5594701965,
+  "historical_results_preserved": true,
+  "raw_article_or_provider_output_published": false,
+  "files": {
+    "README.md": "26f95aa4fc7ac40972f5611205347f5179ac1825c87770ae348a0a989d7892a4",
+    "REPORT.md": "889d05c17f153d75f1b85174574c2bdb764e3525c54ff13aa9d598a2f23991c2",
+    "blind-map.json": "209f8ae9bbc94c0d17555e25564cb95fd2cd3c3e70ee0935716c6a5019ead8f6",
+    "blind-review.json": "c7d8eeea27fe6635c435f9c1a74e526c109504fdd586162a4e5e435efeac4ff3",
+    "call-metadata.json": "84d02ce8e4e2a9a9ecab8f167da03440128fde8ec71c1e585cdb5b88c5877d6c",
+    "gold.json": "25fa1b5abe3108d64555d6d79e5bd62acc14a675b996116c1cfc94050ac4ac64",
+    "input-contract.json": "ea5d91c32f89490bce27ec7e2306e1033256f06c8ca0198a93b207df3f68f4a1",
+    "manifest.json": "a321341a7b3450da862e11dd9e06332c52693fdda9e6dbebed24724b0bc92a73",
+    "score.json": "9080d6b9d99d853b1256b6a434a57065ef559d2921a420b22d28397767a4a27a",
+    "snapshots/experiment.py.txt": "503d82b03150bcf2a8f16949e52cb43cfc636ae539e163232958cd0632f5ccac",
+    "snapshots/fetch_sources.py.txt": "7dad72e5e78437b8f96ffdaa50ce96fd611107405376cea66124269246e9f633",
+    "snapshots/record_review.py.txt": "183c186348fbe6765a4777b273c5eda8e66c2eaec0261177ee1f0285b11d7d4d",
+    "snapshots/test_experiment.py.txt": "bcf9c20bc49806e3d94c368f62abe3b813eb9636da805463e637532feec41554",
+    "source-index.json": "9a8ef44de45a69382f17869fdf8941d2a15cfafda3b40b5dd68113ef9eda8d1e",
+    "strict-call-metadata.json": "6fab03029f5a2325160a6569cb556786cbf92554d8b6e21f7960137f84c96c08",
+    "strict-score.json": "4e95583727778c41f62c7f38b2efe63b7d0690402543534fa0e5a7c55ca98c27"
+  }
+}

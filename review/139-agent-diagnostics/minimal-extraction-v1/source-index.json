@@ -1,0 +1,38 @@
+[
+  {
+    "article_id": "M01",
+    "publisher": "SK hynix",
+    "url": "https://news.skhynix.co.kr/78th-annual-general-meeting/",
+    "resolved_url": "https://news.skhynix.co.kr/78th-annual-general-meeting/",
+    "sha256": "b3130bf2d3810e1543ae6ea1cf56b07c8c9abcb644c42faa1d2fb5010534d076",
+    "chars": 3082,
+    "source_units": 32
+  },
+  {
+    "article_id": "M02",
+    "publisher": "Samsung Newsroom Korea",
+    "url": "https://news.samsung.com/kr/%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90-2026%EB%85%84-1%EB%B6%84%EA%B8%B0-%EC%8B%A4%EC%A0%81-%EB%B0%9C%ED%91%9C",
+    "resolved_url": "https://news.samsung.com/kr/%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90-2026%EB%85%84-1%EB%B6%84%EA%B8%B0-%EC%8B%A4%EC%A0%81-%EB%B0%9C%ED%91%9C",
+    "sha256": "5bd23be82026b8d3989d1015eb05083fae2d6b91381f511dce9dcd5ae2f84ebf",
+    "chars": 3531,
+    "source_units": 64
+  },
+  {
+    "article_id": "M03",
+    "publisher": "NVIDIA Korea",
+    "url": "https://blogs.nvidia.co.kr/blog/gtc-2026-korea-partnership/",
+    "resolved_url": "https://blogs.nvidia.co.kr/blog/gtc-2026-korea-partnership/",
+    "sha256": "44480f45d0acc5dd60560a9a5481c4b6e08f4bbdd3605acc54a0fd67b99763b1",
+    "chars": 2357,
+    "source_units": 27
+  },
+  {
+    "article_id": "M04",
+    "publisher": "Intel Korea",
+    "url": "https://www.intel.co.kr/content/www/kr/ko/newsroom/news/client-computing/intel-outlines-architectures-for-agentic-ai-at-hot-chips-2026.html",
+    "resolved_url": "https://www.intel.co.kr/content/www/kr/ko/newsroom/news/client-computing/intel-outlines-architectures-for-agentic-ai-at-hot-chips-2026.html",
+    "sha256": "58a2802d34476ae1ea1ad6e25f1d05807f331aae067d881f8715da8b4e1bca14",
+    "chars": 2433,
+    "source_units": 27
+  }
+]

@@ -1,0 +1,138 @@
+{
+  "status": "APPROVED_STAGES_FINISHED_WITH_FAILURE_GATES_STOPPING_FURTHER_CALLS",
+  "scope": "Development diagnosis only; frozen evaluation.json is separate from historical gold and scores.",
+  "review_policy": "Verdict, reason and actual decision basis reviewed separately. Transport PASS is not semantic PASS. Missing source facts are Preservation's responsibility, not automatic Evidence or Atomicity errors.",
+  "original_pilots": {
+    "evidence_full": {
+      "calls": 6,
+      "correct_verdicts": 4,
+      "correct_verdict_reason_and_basis": 2,
+      "estimated_usd": 0.009984
+    },
+    "evidence_selected": {
+      "calls": 6,
+      "correct_verdicts": 6,
+      "correct_verdict_reason_and_basis": 1,
+      "estimated_usd": 0.0025096
+    },
+    "evidence_notes": [
+      "Both full-article A5 fault Claims were false passes; selected-only caught both.",
+      "Both scopes returned only s19 for both A5 controls, omitting necessary s18 from their decision basis.",
+      "Selected-only A1 fault and both A5 faults returned correct FAIL reasons but no IDs for the actual inspected sources. This is incomplete decision reporting, not another semantic false negative."
+    ],
+    "atomic_verdict": {
+      "packets": 4,
+      "claims": 7,
+      "correct_packets": 2,
+      "correct_claims": 5,
+      "estimated_usd": 0.0068928
+    },
+    "atomic_units": {
+      "packets": 4,
+      "claims": 7,
+      "correct_packets": 3,
+      "correct_claims": 6,
+      "estimated_usd": 0.0077088
+    },
+    "atomic_notes": [
+      "Both methods misclassified A4 fault c2 as a splitting failure based on a missing joint participant; it is one nonduplicate actual Claim.",
+      "Verdict-only missed A6 merged product specifications. Units output correctly split the two product models while preserving all original specifications.",
+      "All units outputs preserved their input Claim content, including the intentionally incomplete A4 Claim; no automatic semantic repair occurred."
+    ]
+  },
+  "amended_pilots": {
+    "evidence_selected": {
+      "calls": 6,
+      "correct_verdicts": 6,
+      "correct_verdict_reason_and_basis": 6,
+      "estimated_usd": 0.0030016
+    },
+    "evidence_notes": [
+      "A5 controls now cite s18 and s19. A5 faults cite only the actually provided s19 and explain the missing identity evidence.",
+      "A1 plan/enacted contrast remains correct and both verdicts cite s24.",
+      "Only the prompt changed; no claim, source input, output schema, model or token limit changed."
+    ],
+    "atomic_units": {
+      "packets": 4,
+      "claims": 7,
+      "correct_packets": 3,
+      "correct_claims": 6,
+      "estimated_usd": 0.0079296
+    },
+    "atomic_notes": [
+      "A4 fault c2 remains a false splitting failure; reason still asserts an unexpressed exclusive/solo act and uses a Preservation defect to fail Atomicity.",
+      "A6 split detection remains correct; all decomposed statements preserve actual input content.",
+      "No further atomicity amendment, expansion or repetition is authorized in this batch after the failed one-amendment retest."
+    ]
+  },
+  "expanded_evidence": {
+    "calls": 19,
+    "correct_verdicts": 17,
+    "correct_verdict_and_basis": 17,
+    "estimated_usd": 0.009984,
+    "false_negative_identities": [
+      "amended-evidence-selected-A3-fault-c2-1",
+      "amended-evidence-selected-A7-fault-c2-1"
+    ],
+    "notes": [
+      "A3 reason supports the company plan but ignores that an attributed superlative has become an unqualified assessment. This is a new candidate and cannot be scored as an old-model regression.",
+      "A7 reason moves the 14-inch 2230-only table constraint to the 16-inch model despite both header and row being present. Prior amended Fidelity caught this same Claim; this is an observed configuration regression, not proof of which change caused it.",
+      "A4 weak participation Claim is now correctly Evidence PASS. Atomicity's false positive on that Claim remains separately unresolved.",
+      "A2-fault-c2 reaches the right status-mismatch verdict but quotes a word not present in the actual Claim. Count this as a reason fidelity defect, not another verdict error."
+    ],
+    "strict_reason_defect_identity": "amended-evidence-selected-A2-fault-c2-1",
+    "correct_verdict_reason_and_basis": 16
+  },
+  "final_evidence_candidate": {
+    "claims": 25,
+    "correct_verdicts": 23,
+    "correct_verdict_and_basis": 23,
+    "correct_verdict_reason_and_basis": 22,
+    "intended_errors": 7,
+    "detected_errors": 5,
+    "normal_claims": 18,
+    "correct_normals": 18,
+    "independent_evaluation": false
+  },
+  "common_claim_comparison": {
+    "unchanged_claims_and_selected_evidence": 23,
+    "prior_evidence_correct": 20,
+    "current_evidence_correct": 22,
+    "corrected": [
+      "A4-fault-c2",
+      "A5-fault-c1",
+      "A5-fault-c2"
+    ],
+    "regressed": [
+      "A7-fault-c2"
+    ],
+    "single_change_causal_claim": false
+  },
+  "github": {
+    "issue_139_comment_id": 5581222036,
+    "issue_127_comment_id": 5581227461,
+    "exact_comment_readback_verified": true,
+    "issue_body_title_state_labels_assignees_unchanged": true
+  },
+  "stopped_or_deferred": {
+    "evidence_repeat_25": "Not run: final candidate has two verdict misses and one inaccurate reason.",
+    "atomic_expand_10_and_repeat_14": "Not run: A4 false positive remains after the one allowed amendment.",
+    "preservation_basis_15_unique_over_26": "Expectations reviewed before calls, but calls not run because no fully passing evidence checker was obtained. Existing missing s18 facts were not repaired.",
+    "new_long_article_heldout": "Previously deferred; not revived by partial verifier improvement.",
+    "additional_prompt_or_schema_revision": "Not run: exhausted the one evidence-based amendment per role within this batch."
+  },
+  "budget": {
+    "new_calls": 49,
+    "inherited_calls": 177,
+    "new_usage_estimate_usd": 0.0480104,
+    "development_cumulative_usd": 0.40380878,
+    "development_cap_usd": 0.6,
+    "remaining_development_usd": 0.19619122,
+    "historical_reserved_or_estimated_usd": 0.44794615,
+    "overall_reserved_or_estimated_usd": 0.85175493,
+    "heldout_used_usd": 0,
+    "pending": null
+  },
+  "history": "Original 103-call and 74-call results, old gold and prior review artifacts remain immutable. A3 historical warning reclassification is policy-change effect, not model improvement.",
+  "heldout": "Deferred; passing these controls is not operational quality or independent evaluation."
+}

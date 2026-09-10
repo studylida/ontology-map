@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "issue": 139,
+  "contract_pass_calls": 8,
+  "fact_verdicts": {
+    "PARTIAL": 22,
+    "PASS": 20
+  },
+  "fact_errors": {
+    "MODALITY_OR_ATTRIBUTION_MISMATCH": 7,
+    "REQUIRED_MEANING_OMITTED": 6,
+    "EVIDENCE_INSUFFICIENT": 6,
+    "UNSUPPORTED_OR_CHANGED_MEANING": 1,
+    "ATOMICITY": 3
+  },
+  "claim_verdicts": {
+    "SUPPORTED": 302,
+    "UNSUPPORTED": 74,
+    "OVERMERGED": 8
+  },
+  "unsupported_claim_rate": 0.1927,
+  "repeated_material_fact_errors": [
+    {
+      "fact_id": "M01-F01",
+      "errors": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ]
+    },
+    {
+      "fact_id": "M02-F04",
+      "errors": [
+        "EVIDENCE_INSUFFICIENT"
+      ]
+    },
+    {
+      "fact_id": "M03-F04",
+      "errors": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ]
+    },
+    {
+      "fact_id": "M04-F04",
+      "errors": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ]
+    },
+    {
+      "fact_id": "M04-F05",
+      "errors": [
+        "EVIDENCE_INSUFFICIENT"
+      ]
+    },
+    {
+      "fact_id": "M04-F06",
+      "errors": [
+        "EVIDENCE_INSUFFICIENT"
+      ]
+    }
+  ],
+  "decision": "REJECT_MINIMAL_6K_QUALITY_CANDIDATE",
+  "cost": {
+    "experiment_usd": 0.00425141,
+    "historical_reserved_or_estimated_usd": 0.87786156,
+    "cumulative_usd": 0.88211297
+  },
+  "interpretation_limit": "The output ceiling was selected after length failures. These articles are development evidence, not a new independent comparison."
+}

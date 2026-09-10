@@ -1,0 +1,68 @@
+"""One prompt-only amendment per role; preserve original pilots and outputs."""
+
+import argparse
+import json
+import os
+from pathlib import Path
+
+import trial_residual as trial
+
+ADDENDUM = """
+basis_source_ids는 긍정 증거만 모으는 필드가 아니라 이번 판정에 실제 사용한 연결 원문 전체다. FAIL도 검사한 연결 원문이 있으면 해당 ID를 적는다. 연결 원문이 전혀 없을 때만 빈 목록을 사용한다. 없는 선행 문장의 ID를 추측해서 추가하지 않는다.
+PASS를 반환할 때는 문장의 행위·상태를 지지하는 근거뿐 아니라 Claim의 구체적 주체와 대상의 정체를 확인한 선행 근거, 표 머리글까지 basis_source_ids에 모두 포함한다. 지시어를 구체적 대상으로 해석하는 데 연결 원문 여러 개를 사용했다면 그 ID들을 함께 반환한다. reason에서도 각 근거가 지원하는 내용을 짧게 구분한다. Claim에 쓰인 이름은 그 이름을 뒷받침하는 원문 근거가 아니다.
+"""
+
+ATOMIC_ADDENDUM = """
+분리 판정의 대상은 원문 전체가 아니라 현재 Claim에 실제 들어 있는 독립 사실이다. independent_statements를 확인한 뒤, 여러 독립 사실이 들어 있거나 다른 Claim에 같은 독립 사실이 중복된 경우에만 FAIL을 반환한다. 독립 사실 하나이고 다른 Claim과 중복되지 않으면 PASS다. 공동 주체·발언 귀속·조건 등 원문 정보가 Claim에서 빠졌는지는 별도 보존 검사의 책임이며 그 누락만으로 분리 FAIL을 반환하지 않는다. 원문과 다른 의미, 모호한 표현, 근거 부족만으로 독립 사실의 수를 늘리거나 중복을 만들어내지 않는다. 누락된 내용을 보충해 분해하지 않고 실제 Claim 그대로 판단한다.
+"""
+
+
+def amended_jobs(phase, role="evidence"):
+    if role == "atomic":
+        jobs = trial.atomic_jobs("units", phase)
+    elif phase == "preservation-basis":
+        jobs = trial.basis_jobs()
+    else:
+        jobs = [job for job in trial.evidence_jobs(phase) if job[0].startswith("evidence-selected-")]
+    addition = ATOMIC_ADDENDUM if role == "atomic" else ADDENDUM
+    return [("amended-" + identity, model, shape, prompt + addition, inputs, maximum, thinking, validator)
+            for identity, model, shape, prompt, inputs, maximum, thinking, validator in jobs]
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", choices=["prepare", "plan", "run"])
+    parser.add_argument("phase", choices=["pilot", "expand", "repeat", "preservation-basis"])
+    parser.add_argument("--role", choices=["evidence", "atomic"], default="evidence")
+    parser.add_argument("--paid", action="store_true")
+    parser.add_argument("--comment-id", type=int)
+    args = parser.parse_args()
+    trial.verify()
+    frozen = trial.ROOT / "amendment-frozen.json"
+    current = {"sha256": trial.base.digest(Path(__file__)),
+               "change": "One prompt-only amendment per role; model/input/schema/limits unchanged"}
+    if args.command == "prepare":
+        trial.base.save_once(frozen, current)
+        return
+    if trial.base.read(frozen) != current:
+        raise ValueError("AMENDMENT_CHANGED")
+    phase = "amended-" + args.role + "-" + args.phase
+    jobs = amended_jobs(args.phase, args.role)
+    trial.jobs_for = lambda selected: jobs if selected == phase else []
+    if args.command == "plan":
+        print(json.dumps(trial.manifest(phase), indent=2))
+    elif args.paid and args.comment_id and args.comment_id > 0:
+        trial.run_phase(phase, args.comment_id)
+    else:
+        raise ValueError("EXPLICIT_PAID_FLAG_AND_COMMENT_REQUIRED")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as error:  # noqa: BLE001 - suppress credential-bearing tracebacks
+        print(json.dumps({"status": "STOPPED", "error_type": type(error).__name__,
+                          "reason": str(error) if isinstance(error, ValueError) else "details suppressed"}))
+        raise SystemExit(1) from None
+    finally:
+        os.environ.pop("DASHSCOPE_API_KEY", None)

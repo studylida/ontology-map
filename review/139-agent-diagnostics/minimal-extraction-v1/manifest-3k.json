@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "issue": 139,
+  "purpose": "Compare rich diagnostic and minimal runtime outputs during whole-article original-preserving extraction",
+  "model": "qwen3.7-flash-2026-07-15",
+  "settings": {
+    "temperature": 0,
+    "enable_thinking": false,
+    "stream": false,
+    "max_tokens": 3000,
+    "strict_json_schema": true
+  },
+  "arms": {
+    "rich": "statement, modality, critical elements, main/context source IDs",
+    "minimal": "statement, modality, undifferentiated source IDs"
+  },
+  "articles": 4,
+  "pre_frozen_required_facts": 21,
+  "repeats": [
+    1,
+    2
+  ],
+  "planned_calls": 16,
+  "planned_reservation_usd": 0.01477068,
+  "historical_reserved_or_estimated_usd": 0.87038814,
+  "cap_usd": 0.025,
+  "maximum_cumulative_usd": 0.89538814,
+  "source_exposure_check": {
+    "comparison_docs": 20,
+    "exact_hash_matches": [],
+    "exact_url_matches": [],
+    "event_family_review": "Four distinct official events; manually checked against the previous twenty article families",
+    "event_family_matches": []
+  },
+  "success_criteria": {
+    "comparable_articles_minimum": 3,
+    "minimal_net_strict_fact_pass_minimum": 5,
+    "new_minimal_material_regressions": 0,
+    "unsupported_claim_rate_must_not_increase": true
+  },
+  "dependency_hashes": {
+    "sources-frozen.json": "8814bf257ad47b7b20009dd99ec24253574f18045e1595ce0d6946b78d628150",
+    "gold.json": "ad79f082f044164d34154d78dc1046284d38e297cd4bc2a045dffbf14910c44b",
+    "preserve-addendum.txt": "71bfec1e6e1b6fa860e95b47fc039b35bf0a49a5e5cd6001818d64872adb7aae",
+    "experiment.py": "31b8b580f607ed68249cfe83b45add025efd88e0471c8f1cfe86bae83a78f691",
+    "trial.py": "585a62b9edefa368d3e43e691e4f415cb4b4f2b7398634492ba0f75ec665c9fc"
+  },
+  "requests": [
+    {
+      "identity": "minimal-extraction-v1-M01-r1-rich",
+      "request_sha256": "ea09aa4f70008bef21865b738f90a3911f82cd74f57374fd4344dc691012eb69",
+      "reservation_usd": 0.00093861
+    },
+    {
+      "identity": "minimal-extraction-v1-M01-r1-minimal",
+      "request_sha256": "2af3705e6f5c88a3bb4f7d6587761cb7710a0fcae2e9f11f61780893a36b691a",
+      "reservation_usd": 0.00090489
+    },
+    {
+      "identity": "minimal-extraction-v1-M01-r2-minimal",
+      "request_sha256": "2af3705e6f5c88a3bb4f7d6587761cb7710a0fcae2e9f11f61780893a36b691a",
+      "reservation_usd": 0.00090489
+    },
+    {
+      "identity": "minimal-extraction-v1-M01-r2-rich",
+      "request_sha256": "ea09aa4f70008bef21865b738f90a3911f82cd74f57374fd4344dc691012eb69",
+      "reservation_usd": 0.00093861
+    },
+    {
+      "identity": "minimal-extraction-v1-M02-r1-minimal",
+      "request_sha256": "49428e9797e562ef73c5513454273955ad2adc89ea4f9a2ba81b73694d4239e5",
+      "reservation_usd": 0.00102309
+    },
+    {
+      "identity": "minimal-extraction-v1-M02-r1-rich",
+      "request_sha256": "297c020320dc0b7bdbb4e1e1c296258e0835b1a62e1f7ad6417c50acf9841970",
+      "reservation_usd": 0.00105681
+    },
+    {
+      "identity": "minimal-extraction-v1-M02-r2-rich",
+      "request_sha256": "297c020320dc0b7bdbb4e1e1c296258e0835b1a62e1f7ad6417c50acf9841970",
+      "reservation_usd": 0.00105681
+    },
+    {
+      "identity": "minimal-extraction-v1-M02-r2-minimal",
+      "request_sha256": "49428e9797e562ef73c5513454273955ad2adc89ea4f9a2ba81b73694d4239e5",
+      "reservation_usd": 0.00102309
+    },
+    {
+      "identity": "minimal-extraction-v1-M03-r1-rich",
+      "request_sha256": "1caef4da34460787e2e454298c080c5cd1e77f9e7e2aaae37807f827190b90cc",
+      "reservation_usd": 0.00087603
+    },
+    {
+      "identity": "minimal-extraction-v1-M03-r1-minimal",
+      "request_sha256": "d54222804952469f196cf815fcf77b0e8de87f640cdfdfda2f8be84284f0aee0",
+      "reservation_usd": 0.00084231
+    },
+    {
+      "identity": "minimal-extraction-v1-M03-r2-minimal",
+      "request_sha256": "d54222804952469f196cf815fcf77b0e8de87f640cdfdfda2f8be84284f0aee0",
+      "reservation_usd": 0.00084231
+    },
+    {
+      "identity": "minimal-extraction-v1-M03-r2-rich",
+      "request_sha256": "1caef4da34460787e2e454298c080c5cd1e77f9e7e2aaae37807f827190b90cc",
+      "reservation_usd": 0.00087603
+    },
+    {
+      "identity": "minimal-extraction-v1-M04-r1-minimal",
+      "request_sha256": "89b9f2a0b66cfc5e688c2900f3a99f6a14260d09e2f8dbec6894a02b39e31fc7",
+      "reservation_usd": 0.00085494
+    },
+    {
+      "identity": "minimal-extraction-v1-M04-r1-rich",
+      "request_sha256": "821bd07e8f84367f49b259dfca2d550701cd97df30cfac3314fcdf40a535412a",
+      "reservation_usd": 0.00088866
+    },
+    {
+      "identity": "minimal-extraction-v1-M04-r2-rich",
+      "request_sha256": "821bd07e8f84367f49b259dfca2d550701cd97df30cfac3314fcdf40a535412a",
+      "reservation_usd": 0.00088866
+    },
+    {
+      "identity": "minimal-extraction-v1-M04-r2-minimal",
+      "request_sha256": "89b9f2a0b66cfc5e688c2900f3a99f6a14260d09e2f8dbec6894a02b39e31fc7",
+      "reservation_usd": 0.00085494
+    }
+  ],
+  "stop_rules": [
+    "Never repair or retry a failed request",
+    "Continue only after an isolated output or local validation contract error with known usage",
+    "Stop on authentication, transport, provider shape, unknown cost, budget, frozen input, or source integrity failure",
+    "Do not tune against these outputs and recount the articles as independent evaluation",
+    "Do not count omission or unresolved output as PASS",
+    "Do not infer a product contract, worker, automatic persistence, or operational quality"
+  ]
+}

@@ -1,0 +1,134 @@
+"""Build the frozen, model-blinded review packet after the paid calls."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent
+
+
+def read(path: str) -> object:
+    return json.loads((ROOT / path).read_text(encoding="utf-8"))
+
+
+def write_once(path: str, value: object) -> None:
+    target = ROOT / path
+    encoded = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
+    if target.exists() and target.read_text(encoding="utf-8") != encoded:
+        raise ValueError(f"FROZEN_FILE_CHANGED:{path}")
+    if not target.exists():
+        target.write_text(encoded, encoding="utf-8")
+
+
+def results() -> dict[str, dict]:
+    rows = [json.loads(line) for line in (ROOT / "results.jsonl").read_text(encoding="utf-8").splitlines()]
+    if len(rows) != 16 or any(row["status"] != "PASS" for row in rows):
+        raise ValueError("RESULT_SET_NOT_REVIEWABLE")
+    return {row["identity"]: row for row in rows}
+
+
+def candidate_order(article_id: str, repeat: int) -> list[str]:
+    models = ["flash", "plus"]
+    if int(hashlib.sha256(f"{article_id}:r{repeat}:flash-plus-v1".encode()).hexdigest(), 16) % 2:
+        models.reverse()
+    return models
+
+
+def main() -> None:
+    docs = read("sources-frozen.json")
+    gold = read("gold.json")
+    rows = results()
+    attempts, mapping = [], {}
+    for doc in docs:
+        article_id = doc["id"]
+        for repeat in (1, 2):
+            order = candidate_order(article_id, repeat)
+            mapping[f"{article_id}:r{repeat}"] = order
+            attempt = {"article_id": article_id, "repeat": repeat}
+            for candidate_no, model in enumerate(order, 1):
+                row = rows[f"flash-plus-v1-{article_id}-r{repeat}-{model}"]
+                attempt[f"candidate_{candidate_no}"] = row["normalized"]
+            attempts.append(attempt)
+    packet = {
+        "instructions": "모델 이름을 보지 않고 각 Claim은 자기 source_ids의 원문만으로 네 축을 판정한 뒤, 유효 Claim 집합으로 필수 사실을 판정한다.",
+        "sources": {
+            doc["id"]: {
+                "url": doc["url"],
+                "article": [
+                    {
+                        "source_id": unit["block_id"],
+                        "start_char": unit["start_char"],
+                        "end_char": unit["end_char"],
+                        "text": unit["text"],
+                    }
+                    for unit in doc["sentences"]
+                ],
+            }
+            for doc in docs
+        },
+        "gold": gold,
+        "attempts": attempts,
+    }
+    write_once("blind-packet.json", packet)
+    write_once("blind-map.json", mapping)
+    claim_rows = []
+    for attempt in attempts:
+        for candidate_no in (1, 2):
+            for claim in attempt[f"candidate_{candidate_no}"]["claims"]:
+                claim_rows.append({
+                    "key": f"{attempt['article_id']}:r{attempt['repeat']}:k{candidate_no}:c{claim['claim_no']}",
+                    "article_id": attempt["article_id"],
+                    "repeat": attempt["repeat"],
+                    "candidate": candidate_no,
+                    "claim_no": claim["claim_no"],
+                    "review_status": "PENDING",
+                    "source_support": {"verdict": "PENDING", "error_types": [], "reason": ""},
+                    "modality": {"verdict": "PENDING", "reason": ""},
+                    "atomicity": {"verdict": "PENDING", "reason": ""},
+                    "selection": {"verdict": "PENDING", "category": "", "reason": ""},
+                    "duplicate_of_claim_no": None,
+                })
+    fact_rows = []
+    fact_lookup = {article["article_id"]: article["facts"] for article in gold["articles"]}
+    for attempt in attempts:
+        for candidate_no in (1, 2):
+            fact_rows.extend({
+                "key": f"{attempt['article_id']}:r{attempt['repeat']}:k{candidate_no}:{fact['fact_id']}",
+                "article_id": attempt["article_id"],
+                "repeat": attempt["repeat"],
+                "candidate": candidate_no,
+                "fact_id": fact["fact_id"],
+                "review_status": "PENDING",
+                "verdict": "PENDING",
+                "error_types": [],
+                "mapped_claim_nos": [],
+                "covering_claim_nos": [],
+                "reason": "",
+            } for fact in fact_lookup[attempt["article_id"]])
+    write_once("review-template.json", {
+        "reviewer": "Codex semantic review against pre-frozen gold",
+        "conditions_revealed": False,
+        "policy": {
+            "fact_pass": "자기 근거·modality·귀속·원자성·선정 검사를 통과한 비중복 Claim 집합이 필수 의미를 온전히 보존한다.",
+            "fact_partial": "대응 Claim이 있으나 필수 요소 일부, modality·귀속 또는 충분 근거가 빠졌다.",
+            "fact_fail": "대응 Claim이 핵심 주체·대상·시점·수량·상태·부정의 의미를 바꾸거나 원문이 지원하지 않는 의미를 추가했다.",
+            "fact_missing": "대응 Claim이 없다.",
+            "source_support": "각 Claim의 statement 전체를 그 Claim의 source_ids만으로 확인한다.",
+            "selection": "동결한 ontology-map POC 범위와 일반 정의·홍보·법적 고지·중복 제외 규칙을 적용한다.",
+        },
+        "fact_ratings": fact_rows,
+        "claim_ratings": claim_rows,
+    })
+    print(json.dumps({
+        "status": "BLIND_PACKET_READY",
+        "attempts": len(attempts),
+        "fact_ratings": len(fact_rows),
+        "claim_ratings": len(claim_rows),
+    }, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

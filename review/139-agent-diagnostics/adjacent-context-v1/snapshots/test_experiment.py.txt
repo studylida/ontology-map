@@ -1,0 +1,67 @@
+from copy import deepcopy
+from decimal import Decimal
+import importlib.util
+import json
+from pathlib import Path
+import sys
+
+
+spec = importlib.util.spec_from_file_location("adjacent_trial", Path(__file__).with_name("experiment.py"))
+assert spec and spec.loader
+trial = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = trial
+spec.loader.exec_module(trial)
+
+
+def test_frozen_sources_gold_and_single_variable_jobs():
+    docs = trial.source_docs()
+    cases = trial.cases()
+    assert trial.prior_overlap()["exact_hash_matches"] == []
+    assert trial.prior_overlap()["exact_url_matches"] == []
+    assert sum(len(item["units"]) for item in cases) == 16
+    jobs = trial.jobs()
+    assert len(jobs) == 16 == len({job["identity"] for job in jobs})
+    grouped = {}
+    for job in jobs:
+        article_id = job["identity"].split("-")[-3]
+        repeat = job["identity"].split("-")[-2]
+        grouped.setdefault((article_id, repeat), {})[job["identity"].rsplit("-", 1)[1]] = job
+        assert job["prompt"] == trial.prompt()
+        assert job["model"] == trial.MODEL and job["maximum"] == 3000 and job["thinking"] is False
+    assert len(grouped) == 8
+    for pair in grouped.values():
+        control, adjacent = pair["control"], pair["adjacent"]
+        left, right = deepcopy(control["inputs"]), deepcopy(adjacent["inputs"])
+        left_groups = left.pop("adjacent_source_id_groups")
+        right_groups = right.pop("adjacent_source_id_groups")
+        assert left == right
+        assert [group["focus_source_id"] for group in left_groups] == [group["focus_source_id"] for group in right_groups]
+        assert all(group["source_ids"] == [group["focus_source_id"]] for group in left_groups)
+        assert all(1 <= len(group["source_ids"]) <= 5 and group["focus_source_id"] in group["source_ids"] for group in right_groups)
+    assert set(docs) == {"N01", "N02", "N03", "N04"}
+
+
+def test_manifest_budget_repeats_and_strict_probe_cap():
+    manifest = trial.manifest()
+    assert manifest["planned_calls"] == 16
+    assert Decimal(str(manifest["planned_reservation_usd"])) <= trial.SEMANTIC_CAP_USD
+    assert Decimal(str(manifest["maximum_cumulative_usd"])) < Decimal("1")
+    hashes = [row["request_sha256"] for row in manifest["requests"]]
+    assert len(set(hashes)) == 8
+    assert all(hashes.count(value) == 2 for value in set(hashes))
+    strict_reservation = Decimal(0)
+    for job in trial.strict_jobs():
+        _, data = trial.strict_payload(job["identity"], job["shape"], job["system"], job["user"], job["maximum"])
+        strict_reservation += trial.base.reservation(data, trial.MODEL, job["maximum"])
+    assert strict_reservation <= trial.STRICT_CAP_USD
+
+
+def test_only_known_output_contract_failures_continue():
+    assert trial.continuable_contract_failure({"status": "CONTRACT_ERROR", "error_type": "ValidationError"})
+    assert trial.continuable_contract_failure({"status": "CONTRACT_ERROR", "error_type": "ValueError", "reason": "INVALID_SOURCE_EVIDENCE_IDS"})
+    assert not trial.continuable_contract_failure({"status": "CONTRACT_ERROR", "error_type": "ValueError", "reason": "USAGE_UNKNOWN"})
+    assert not trial.continuable_contract_failure({"status": "HTTP_ERROR", "error_type": "HTTPError"})
+    results = trial.ROOT / "results.jsonl"
+    if results.exists():
+        assert len(results.read_text(encoding="utf-8").splitlines()) == 16
+        assert len({json.loads(line)["identity"] for line in results.read_text(encoding="utf-8").splitlines()}) == 16

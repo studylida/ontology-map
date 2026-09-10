@@ -1,0 +1,425 @@
+{
+  "version": 1,
+  "purpose": "원문 보존 조건에서 위치상 인접 원문 ID 표시가 필요한 근거 연결을 개선하는지 비교한다.",
+  "evaluation_policy": {
+    "PASS": "필수 의미·조건·귀속·허용 modality가 모두 보존되고, 선택한 원문 ID에 충분한 근거 조합이 포함된다.",
+    "PARTIAL": "작성한 내용은 모두 원문에 의해 지지되지만 분리 가능한 필수 사실이 빠졌거나, 문장은 상태를 보존했지만 modality 필드만 허용값과 다르다.",
+    "FAIL": "의미·상태·귀속을 추가하거나 바꾸었거나, 작성한 지식이 선택한 원문 ID만으로 충분히 지지되지 않는다.",
+    "UNRESOLVED": "모델이 UNRESOLVED를 반환했다. 통과로 계산하지 않는다.",
+    "CONTRACT_ERROR": "호출 단위 출력 계약을 통과하지 못해 의미 판정을 수행할 수 없다.",
+    "OVERCITATION": "충분한 근거 조합에 필요하지 않은 원문 ID까지 선택했다. 의미 판정과 별도로 기록한다."
+  },
+  "cases": [
+    {
+      "article_id": "N01",
+      "event_family": "SK hynix Chungcheong semiconductor and AI investment plan",
+      "units": [
+        {
+          "source_id": "s4",
+          "sampling_role": "SELF_CONTAINED",
+          "context_reason": "발언자, 행사와 발표 대상이 같은 원문 단위에 있다.",
+          "requirements": [
+            {
+              "requirement_id": "N01-s4-r1",
+              "required_semantics": [
+                "SK하이닉스 곽노정 대표이사 사장이 충청권 첨단산업 발전비전 국민보고회에서 충청권 반도체-AI 투자 계획을 발표했다.",
+                "계획의 목적은 충청권을 기반으로 대한민국의 미래 경쟁력을 강화하는 것이다."
+              ],
+              "accepted_modalities": [
+                "FACT",
+                "PLAN_OR_TARGET"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s4"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "source_id": "s5",
+          "sampling_role": "LOCAL_REQUIRED",
+          "context_reason": "‘곽 사장’의 전체 이름·소속·직책은 바로 앞의 s4에서 확인해야 한다.",
+          "requirements": [
+            {
+              "requirement_id": "N01-s5-r1",
+              "required_semantics": [
+                "곽노정 SK하이닉스 대표이사 사장의 발언이라는 귀속을 유지한다.",
+                "낸드 수요가 빠르게 증가하지만 공급이 부족해 일정 규모 증설이 필요하다는 평가를 유지한다.",
+                "청주가 낸드 팹을 빠르고 효율적으로 건설할 수 있는 거점이라는 평가를 유지한다."
+              ],
+              "accepted_modalities": [
+                "OPINION_OR_EVALUATION"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s4",
+                  "s5"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "source_id": "s6",
+          "sampling_role": "LOCAL_REQUIRED",
+          "context_reason": "‘이어’의 발언자를 곽노정 사장으로 확정하려면 s4와 s5가 함께 필요하다.",
+          "requirements": [
+            {
+              "requirement_id": "N01-s6-r1",
+              "required_semantics": [
+                "곽노정 SK하이닉스 대표이사 사장의 발언이라는 귀속을 유지한다.",
+                "청주에 총 100조 원을 투자할 계획이며 M17에 80조 원, P&T7 등에 20조 원을 배분한다.",
+                "청주를 대한민국 메모리 반도체 산업 경쟁력을 견인하는 핵심 거점으로 만들겠다는 목표를 유지한다."
+              ],
+              "accepted_modalities": [
+                "PLAN_OR_TARGET"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s4",
+                  "s5",
+                  "s6"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "source_id": "s21",
+          "sampling_role": "SELF_CONTAINED",
+          "context_reason": "대상, 착공 시점, 가동 목표와 추진 상태가 같은 원문 단위에 있다.",
+          "requirements": [
+            {
+              "requirement_id": "N01-s21-r1",
+              "required_semantics": [
+                "M17 팹은 내년에 착공할 계획이다.",
+                "2029년 상반기 가동을 목표로 추진 중이다."
+              ],
+              "accepted_modalities": [
+                "PLAN_OR_TARGET"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s21"
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "article_id": "N02",
+      "event_family": "Samsung SAFE Forum 2026 Korea",
+      "units": [
+        {
+          "source_id": "s14",
+          "sampling_role": "SELF_CONTAINED",
+          "context_reason": "발언자, 이미 완료한 개발과 향후 협력 계획이 같은 원문 단위에 있다.",
+          "requirements": [
+            {
+              "requirement_id": "N02-s14-r1",
+              "required_semantics": [
+                "리벨리온 박성현 CEO의 발언이라는 귀속을 유지한다.",
+                "리벨리온이 삼성전자 4나노 파운드리 공정과 첨단 패키징 등을 기반으로 리벨100 NPU를 개발했다."
+              ],
+              "accepted_modalities": [
+                "FACT"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s14"
+                ]
+              ]
+            },
+            {
+              "requirement_id": "N02-s14-r2",
+              "required_semantics": [
+                "박성현 CEO가 향후 AI 반도체 영역에서 협력해 소버린 AI를 구축하겠다고 밝혔다."
+              ],
+              "accepted_modalities": [
+                "PLAN_OR_TARGET"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s14"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "source_id": "s22",
+          "sampling_role": "LOCAL_REQUIRED",
+          "context_reason": "소개 주체와 앞서 제시한 공정·설계 혁신 전략은 s20에서 확인해야 한다.",
+          "requirements": [
+            {
+              "requirement_id": "N02-s22-r1",
+              "required_semantics": [
+                "삼성전자가 AI 반도체 성능 향상의 핵심 요소로 주목받는 SRAM 기술 경쟁력 강화 방안을 소개했다."
+              ],
+              "accepted_modalities": [
+                "FACT"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s20",
+                  "s22"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "source_id": "s28",
+          "sampling_role": "SELF_CONTAINED",
+          "context_reason": "두 참여·추진 사실의 주체와 대상이 같은 원문 단위에 있다.",
+          "requirements": [
+            {
+              "requirement_id": "N02-s28-r1",
+              "required_semantics": [
+                "삼성전자가 산업통상부의 제조 AI 전환 얼라이언스에 참여하고 있다."
+              ],
+              "accepted_modalities": [
+                "FACT"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s28"
+                ]
+              ]
+            },
+            {
+              "requirement_id": "N02-s28-r2",
+              "required_semantics": [
+                "삼성전자 파운드리사업부가 자동차·가전·로봇·방산용 저전력·고성능 온디바이스 AI 반도체 개발을 추진 중이다."
+              ],
+              "accepted_modalities": [
+                "PLAN_OR_TARGET"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s28"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "source_id": "s31",
+          "sampling_role": "LOCAL_REQUIRED",
+          "context_reason": "생략된 주체를 삼성전자로 확인하려면 앞의 s29가 필요하다.",
+          "requirements": [
+            {
+              "requirement_id": "N02-s31-r1",
+              "required_semantics": [
+                "삼성전자가 디자인 솔루션 협력 체계를 통해 국내 AI 반도체 생태계 기반을 넓혀가고 있다."
+              ],
+              "accepted_modalities": [
+                "FACT"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s29",
+                  "s31"
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "article_id": "N03",
+      "event_family": "NVIDIA CES 2026 Rubin and open models presentation",
+      "units": [
+        {
+          "source_id": "s13",
+          "sampling_role": "SELF_CONTAINED",
+          "context_reason": "발언자, Rubin의 명칭과 생산 상태가 같은 원문 단위에 있다.",
+          "requirements": [
+            {
+              "requirement_id": "N03-s13-r1",
+              "required_semantics": [
+                "NVIDIA 젠슨 황 CEO가 Rubin의 명명 배경을 설명했다.",
+                "젠슨 황 CEO가 Rubin이 본격적인 생산에 들어갔다고 발표했다."
+              ],
+              "accepted_modalities": [
+                "FACT"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s13"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "source_id": "s23",
+          "sampling_role": "LOCAL_REQUIRED",
+          "context_reason": "‘그’의 발언자와 설명 대상은 바로 앞의 s22에서 확인해야 한다.",
+          "requirements": [
+            {
+              "requirement_id": "N03-s23-r1",
+              "required_semantics": [
+                "젠슨 황 NVIDIA CEO의 발언이라는 귀속을 유지한다.",
+                "모든 구성 요소를 함께 설계하는 공동 설계가 병목 제거와 훈련·추론 비용 절감에 필수라는 평가를 유지한다."
+              ],
+              "accepted_modalities": [
+                "OPINION_OR_EVALUATION"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s22",
+                  "s23"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "source_id": "s25",
+          "sampling_role": "LOCAL_REQUIRED",
+          "context_reason": "‘이는’이 NVIDIA 추론 컨텍스트 메모리 스토리지 플랫폼을 뜻한다는 점은 s24가 필요하다.",
+          "requirements": [
+            {
+              "requirement_id": "N03-s25-r1",
+              "required_semantics": [
+                "NVIDIA 추론 컨텍스트 메모리 스토리지 플랫폼은 AI 네이티브 KV 캐시 계층이다.",
+                "초당 토큰 처리량, TCO 달러당 성능과 전력 효율성이 각각 5배 개선돼 긴 컨텍스트 추론을 가속한다는 주장이다."
+              ],
+              "accepted_modalities": [
+                "FACT"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s24",
+                  "s25"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "source_id": "s61",
+          "sampling_role": "SELF_CONTAINED",
+          "context_reason": "발언자, 플랫폼, 적용 대상과 예측 상태가 같은 원문 단위에 있다.",
+          "requirements": [
+            {
+              "requirement_id": "N03-s61-r1",
+              "required_semantics": [
+                "젠슨 황 NVIDIA CEO가 NVIDIA DRIVE 기반 Alpamayo를 적용한 첫 양산 승용차가 신형 메르세데스-벤츠 CLA라고 밝혔다.",
+                "해당 차량을 조만간 도로에서 볼 수 있을 것이라는 예측을 유지한다."
+              ],
+              "accepted_modalities": [
+                "PREDICTION_OR_ESTIMATE"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s61"
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "article_id": "N04",
+      "event_family": "Intel Gaudi 3 Dell AI Factory platform",
+      "units": [
+        {
+          "source_id": "s1",
+          "sampling_role": "SELF_CONTAINED",
+          "context_reason": "발표일, 발표 주체, 제품과 공개 행위가 같은 원문 단위에 있다.",
+          "requirements": [
+            {
+              "requirement_id": "N04-s1-r1",
+              "required_semantics": [
+                "인텔이 2025년 5월 21일 델이 최신 Dell AI Factory 포트폴리오에 Intel Gaudi 3를 탑재한 인텔 기반 Dell AI 플랫폼을 공개했다고 밝혔다."
+              ],
+              "accepted_modalities": [
+                "FACT"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s1"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "source_id": "s4",
+          "sampling_role": "LOCAL_REQUIRED",
+          "context_reason": "‘이 플랫폼’의 대상과 발언자는 바로 앞의 s3에서 확인해야 한다.",
+          "requirements": [
+            {
+              "requirement_id": "N04-s4-r1",
+              "required_semantics": [
+                "인텔의 사우라브 쿨카니 담당자 발언이라는 귀속을 유지한다.",
+                "인텔 기반 Dell AI 플랫폼이 LLM부터 엣지 추론까지 최신 AI 요구를 충족하도록 최적화됐으며 기업에 유연성과 개방성을 제공한다는 평가를 유지한다."
+              ],
+              "accepted_modalities": [
+                "OPINION_OR_EVALUATION"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s3",
+                  "s4"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "source_id": "s6",
+          "sampling_role": "SELF_CONTAINED",
+          "context_reason": "제품, 비교 대상, 모델과 수치가 같은 원문 단위에 있다.",
+          "requirements": [
+            {
+              "requirement_id": "N04-s6-r1",
+              "required_semantics": [
+                "인텔 기반 Dell AI 플랫폼의 Intel Gaudi 3가 NVIDIA H100보다 Llama 3 80B 추론 처리량에서 약 70% 우수한 가격 대비 성능을 보인다는 주장이다."
+              ],
+              "accepted_modalities": [
+                "FACT"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s6"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "source_id": "s25",
+          "sampling_role": "LOCAL_REQUIRED",
+          "context_reason": "‘해당 툴킷’이 Dell Omnia를 뜻한다는 점은 바로 앞의 s24가 필요하다.",
+          "requirements": [
+            {
+              "requirement_id": "N04-s25-r1",
+              "required_semantics": [
+                "Dell Omnia가 유연한 자원 할당으로 IT팀과 개발자의 워크로드 대응·최적화를 지원한다.",
+                "Dell Omnia가 구축 시간 단축과 생산성 향상을 이끈다는 주장이다."
+              ],
+              "accepted_modalities": [
+                "FACT"
+              ],
+              "sufficient_evidence_sets": [
+                [
+                  "s24",
+                  "s25"
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+from decimal import Decimal
+import importlib.util
+from pathlib import Path
+import sys
+
+
+spec = importlib.util.spec_from_file_location("minimal_extraction_6k", Path(__file__).with_name("experiment.py"))
+assert spec and spec.loader
+trial6 = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = trial6
+spec.loader.exec_module(trial6)
+
+
+def test_only_output_ceiling_changes_and_budget_stays_bounded():
+    jobs = trial6.jobs()
+    assert len(jobs) == len({job["identity"] for job in jobs}) == 8
+    assert all(job["shape"] is trial6.trial.MinimalOutput for job in jobs)
+    assert all(job["maximum"] == 6000 and job["thinking"] is False for job in jobs)
+    assert all(job["prompt"] == trial6.trial.prompts()["minimal"] for job in jobs)
+    manifest = trial6.manifest()
+    assert manifest["changed_axis"].startswith("Only max_tokens changes")
+    assert Decimal(str(manifest["planned_reservation_usd"])) <= trial6.trial.CAP_USD
+    assert Decimal(str(manifest["maximum_cumulative_usd"])) < Decimal("1")
+    hashes = [request["request_sha256"] for request in manifest["requests"]]
+    assert len(set(hashes)) == 4 and all(hashes.count(value) == 2 for value in set(hashes))
+
+
+def test_repeated_material_errors_require_both_repeats():
+    ratings = [
+        {"fact_id": "f1", "error_types": ["EVIDENCE_INSUFFICIENT"]},
+        {"fact_id": "f1", "error_types": ["EVIDENCE_INSUFFICIENT", "REQUIRED_MEANING_OMITTED"]},
+        {"fact_id": "f2", "error_types": ["MODALITY_OR_ATTRIBUTION_MISMATCH"]},
+        {"fact_id": "f2", "error_types": []},
+    ]
+    assert trial6.repeated_material_errors(ratings) == [{"fact_id": "f1", "errors": ["EVIDENCE_INSUFFICIENT"]}]

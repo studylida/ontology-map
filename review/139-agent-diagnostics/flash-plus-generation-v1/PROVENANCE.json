@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "issue": 139,
+  "scope": "Sanitized review packet; source bodies, model outputs, credentials, workspace host and private settings excluded",
+  "files": {
+    "README.md": "18bf68ed3f665f1c9f03237fc8daaccc1cf65dbf4c83040450daaf8c5b6ad2b1",
+    "REPORT.md": "3bad18e629592a11e485dd170dfa96e33ab87b0304e13864d2b9b05a7ed2045a",
+    "REVIEW_PROMPT.md": "abc2aaa3ba3dcf3473b03ce71e4060746eddea9e5fea5934456e27b886759e40",
+    "blind-map.json": "75efd56ca1dcb36fa829351aa06491a265d21f59b95740312089f1aec74f2ea0",
+    "blind-review.json": "f77932be78970857894cdf6c46945daa8870ad123311204c35b79ef051fead54",
+    "call-metadata.json": "7fd8de5e28e11c6e8b4025a20cfa191edbb7272bf36a49296af6c56abd3bcffb",
+    "gold.json": "5a1ff5ab1b8f727f772fcca268b1876817e35799e535e9401eeffaebf834abe0",
+    "input-contract.json": "40b3a58016eb8307694952c585bac1fa4653762dcb6fdc41f8bdd78ee4b6787e",
+    "ledger.json": "dcdc6ee972916ba063e17990b6f0a57e961a6f08588f9850d868aa441da9e593",
+    "manifest.json": "87c7d73cf3631b9afa30a59f3dd4738d244a674bb580a0cad7d30507fb960934",
+    "preserve-addendum.txt": "71bfec1e6e1b6fa860e95b47fc039b35bf0a49a5e5cd6001818d64872adb7aae",
+    "score.json": "b08dbff03f1cb74a14b131afb7ec7ea61fb4db76dc956c33f5c30f3a9db857d1",
+    "snapshots/experiment.py.txt": "ad728dab7e75668b78e14123fa1527d7f62ee899124c0dde0eadf5137359d5cc",
+    "snapshots/fetch_sources.py.txt": "3fb50d457a5adc107afa7cddca01160e5cc4417e212b06b10c180210289f78f3",
+    "snapshots/make_packet.py.txt": "d16096bc5e51446f85ae79d115a02e5dbdd9dc6d15fe044cb0770b99b3a07dca",
+    "snapshots/review.py.txt": "29fb733fa6a1efacb3bb889abb7acbe457acbb67de07bb5dcaf557902ddb75bb",
+    "snapshots/score.py.txt": "99f7f09da051a842c8475c9cc91584bab936a0a12ea3404cf98e457134472776",
+    "snapshots/test_score.py.txt": "8bc6950211bd2d1c6c273752a2c289e5a26bf7c99d02c8f8e87cfbb337dc5574",
+    "source-index.json": "2e1d63caf83c44944d4d71a414e1cadb7c5c1389e2913c06367d0a7218558504"
+  }
+}

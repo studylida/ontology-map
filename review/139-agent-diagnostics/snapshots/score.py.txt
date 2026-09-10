@@ -1,0 +1,63 @@
+"""Offline frozen-label scoring; reasons and decompositions still need review."""
+
+import json
+from decimal import Decimal
+from pathlib import Path
+import re
+
+ROOT = Path(__file__).resolve().parent
+
+
+def score_call(row, axes):
+    identity = row["identity"]
+    match = re.search(r"-(A[1-7])-(control|fault)(?:-c(\d+))?-", identity)
+    if not match:
+        raise ValueError("UNSUPPORTED_SCORE_IDENTITY")
+    axis_id, kind, number = match.groups()
+    variant = next(item for item in axes[axis_id]["variants"] if item["kind"].lower() == kind)
+    is_evidence = "evidence" in identity
+    check = "EVIDENCE_SUFFICIENCY" if is_evidence else "ATOMICITY"
+    expected = {item["claim_id"]: item["verdict"] for item in variant["expected"]["fidelity"]
+                if item["check"] == check}
+    indexes = [int(number) - 1] if is_evidence else list(range(len(variant["claims"])))
+    output = row.get("output", {})
+    actual = {"c1": output} if is_evidence else {item["claim_id"]: item for item in output.get("claims", [])}
+    reviews = []
+    for index in indexes:
+        claim = variant["claims"][index]
+        observed = actual.get("c1" if is_evidence else f"c{index + 1}", {})
+        record = {"claim_id": claim["claim_id"], "expected": expected[claim["claim_id"]],
+                  "observed": observed.get("verdict"), "transport_status": row["status"]}
+        record["verdict_match"] = row["status"] == "PASS" and record["expected"] == record["observed"]
+        if is_evidence:
+            # These fixed controls need all selected units; not a general citation scoring policy.
+            needed = set(claim["main_source_ids"] + claim["context_source_ids"])
+            record["decision_basis_match"] = set(observed.get("basis_source_ids", [])) == needed
+        reviews.append(record)
+    return {"identity": identity, "reviews": reviews,
+            "packet_match": all(item["verdict_match"] for item in reviews)}
+
+
+def main():
+    axes = {axis["axis_id"]: axis for axis in json.loads((ROOT / "evaluation.json").read_text())["axes"]}
+    rows = {row["identity"]: row for row in (
+        json.loads(line) for line in (ROOT / "results.jsonl").read_text().splitlines())}
+    phases = []
+    for path in sorted(ROOT.glob("manifest-*.json")):
+        plan = json.loads(path.read_text())
+        completed = [rows[call["identity"]] for call in plan["calls"] if call["identity"] in rows]
+        reviewed = [score_call(row, axes) for row in completed]
+        checks = [item for packet in reviewed for item in packet["reviews"]]
+        phases.append({"phase": plan["phase"], "planned": plan["expected_calls"], "completed": len(completed),
+                       "correct_packets": sum(item["packet_match"] for item in reviewed),
+                       "claims": len(checks), "correct_claims": sum(item["verdict_match"] for item in checks),
+                       "correct_verdict_and_basis": (sum(item["verdict_match"] and item["decision_basis_match"]
+                                                        for item in checks) if checks and "decision_basis_match" in checks[0] else None),
+                       "estimated_usd": str(sum((Decimal(str(row["estimated_usd"])) for row in completed), Decimal(0))),
+                       "records": reviewed})
+    print(json.dumps({"scope": "Frozen-label agreement, not independent semantic proof", "phases": phases},
+                     ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()

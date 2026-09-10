@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "issue": 139,
+  "purpose": "Check minimal whole-article extraction after the frozen 3000-token run exposed output truncation",
+  "model": "qwen3.7-flash-2026-07-15",
+  "settings": {
+    "temperature": 0,
+    "enable_thinking": false,
+    "stream": false,
+    "max_tokens": 6000,
+    "strict_json_schema": true
+  },
+  "changed_axis": "Only max_tokens changes from 3000 to 6000; prompt, schema, sources, gold and validation stay frozen",
+  "articles": 4,
+  "pre_frozen_required_facts": 21,
+  "repeats": [
+    1,
+    2
+  ],
+  "planned_calls": 8,
+  "planned_reservation_usd": 0.01037046,
+  "historical_reserved_or_estimated_usd": 0.87786156,
+  "cap_usd": 0.015,
+  "maximum_cumulative_usd": 0.89286156,
+  "source_exposure_check": {
+    "comparison_docs": 20,
+    "exact_hash_matches": [],
+    "exact_url_matches": [],
+    "event_family_review": "Four distinct official events; manually checked against the previous twenty article families",
+    "event_family_matches": []
+  },
+  "candidate_criteria": {
+    "contract_pass_calls": 8,
+    "strict_required_fact_pass_minimum": 30,
+    "unsupported_claim_rate_maximum": 0.05,
+    "repeated_material_fact_errors": 0
+  },
+  "dependency_hashes": {
+    "sources-frozen.json": "8814bf257ad47b7b20009dd99ec24253574f18045e1595ce0d6946b78d628150",
+    "gold.json": "ad79f082f044164d34154d78dc1046284d38e297cd4bc2a045dffbf14910c44b",
+    "preserve-addendum.txt": "71bfec1e6e1b6fa860e95b47fc039b35bf0a49a5e5cd6001818d64872adb7aae",
+    "3k-experiment.py": "31b8b580f607ed68249cfe83b45add025efd88e0471c8f1cfe86bae83a78f691",
+    "experiment.py": "e39266ae970de33ec3fd8e389fb9de0045927c950acda322e601a830cefe74ab"
+  },
+  "requests": [
+    {
+      "identity": "minimal-extraction-6k-v1-M01-r1",
+      "request_sha256": "1f6256c9e813ca29bad0198d38e9eebe688a9a71e1650b265fe3183a668798e5",
+      "reservation_usd": 0.00129489
+    },
+    {
+      "identity": "minimal-extraction-6k-v1-M01-r2",
+      "request_sha256": "1f6256c9e813ca29bad0198d38e9eebe688a9a71e1650b265fe3183a668798e5",
+      "reservation_usd": 0.00129489
+    },
+    {
+      "identity": "minimal-extraction-6k-v1-M02-r1",
+      "request_sha256": "2a7953caa3c0dd29a7c091c5738cadd65229924a43c7a673206d6c78aa39e805",
+      "reservation_usd": 0.00141309
+    },
+    {
+      "identity": "minimal-extraction-6k-v1-M02-r2",
+      "request_sha256": "2a7953caa3c0dd29a7c091c5738cadd65229924a43c7a673206d6c78aa39e805",
+      "reservation_usd": 0.00141309
+    },
+    {
+      "identity": "minimal-extraction-6k-v1-M03-r1",
+      "request_sha256": "a8048f6bebc13c7cdc8140576c2dfcb0d78a16dc15221a49587082d711b11c38",
+      "reservation_usd": 0.00123231
+    },
+    {
+      "identity": "minimal-extraction-6k-v1-M03-r2",
+      "request_sha256": "a8048f6bebc13c7cdc8140576c2dfcb0d78a16dc15221a49587082d711b11c38",
+      "reservation_usd": 0.00123231
+    },
+    {
+      "identity": "minimal-extraction-6k-v1-M04-r1",
+      "request_sha256": "dbfde81afcc25d25a56c8a078315df7f478999b8ba4517dfb6b235cabb28a1f9",
+      "reservation_usd": 0.00124494
+    },
+    {
+      "identity": "minimal-extraction-6k-v1-M04-r2",
+      "request_sha256": "dbfde81afcc25d25a56c8a078315df7f478999b8ba4517dfb6b235cabb28a1f9",
+      "reservation_usd": 0.00124494
+    }
+  ],
+  "stop_rules": [
+    "This is a new ceiling check, not a repair or retry of an individual failed response",
+    "Never repair or retry a failed request",
+    "Stop on authentication, transport, provider shape, unknown cost, budget, frozen input, or source integrity failure",
+    "Do not tune against these outputs and recount the articles as independent evaluation",
+    "Do not count omission or unresolved output as PASS",
+    "Do not infer a product contract, worker, automatic persistence, or operational quality"
+  ]
+}
