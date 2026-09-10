@@ -37,6 +37,9 @@ GENERATION_PROMPT = """ontology-map의 지식 생성 역할이다. 입력은 지
 각 Claim은 실제 필요한 자기 source_ids만 선택한다. 지시 대상의 원문 언급과 타입,
 허용 ontology의 관계·속성·사건시간 연결을 함께 제안하라. 공동 사실은 Claim 하나와
 필요한 여러 연결로 유지한다. mention.text는 해당 근거에 실제로 나타나는 표현이다.
+TOPIC 언급은 원문 표현 text와 승인 목록의 topic_name을 구분한다. 그 외 유형의
+topic_name은 null이다. 원문 표현과 명칭이 달라도 자기 근거가 지원하는 Topic만
+제안하라. 새 Topic이나 상위 Topic을 자동 추가하지 마라.
 개발·협력·발표·투자는 허용된 직접 관계를 우선 제안한다. 모든 행위를 EVENT로
 만들지 마라. EVENT는 원문에서 구체적인 사건을 식별할 수 있을 때만 제안한다.
 ID는 이 응답 안에서만 사용하는 참조이며 영속 ID를 만들지 마라. 임의 PRODUCT 유형을
@@ -206,7 +209,7 @@ def _invalid_mentions(
     for mention in claim.mentions:
         if mention.node_type not in ontology.node_types:
             invalid.add(mention.mention_id)
-        elif mention.node_type == "TOPIC" and mention.text not in ontology.topics:
+        elif mention.node_type == "TOPIC" and mention.topic_name not in ontology.topics:
             invalid.add(mention.mention_id)
         elif not mention.source_ids or not set(mention.source_ids) <= evidence.keys():
             invalid.add(mention.mention_id)

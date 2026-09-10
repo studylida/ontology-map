@@ -83,6 +83,13 @@ class Mention(Contract):
     text: Text
     node_type: NodeType
     source_ids: list[Text]
+    topic_name: Text | None
+
+    @model_validator(mode="after")
+    def validate_topic(self) -> "Mention":
+        if (self.node_type == "TOPIC") != (self.topic_name is not None):
+            raise ValueError("TOPIC_REFERENCE")
+        return self
 
 
 class TemporalPoint(Contract):
@@ -233,7 +240,8 @@ class MeaningSupport(Contract):
 
 class RelationRule(Contract):
     code: Text
-    revision_id: int = Field(gt=0)
+    version_no: int = Field(gt=0)
+    revision_id: int | None = Field(gt=0)
     description: Text
     direction: Literal["DIRECTED", "SYMMETRIC"]
     endpoints: tuple[tuple[NodeType, NodeType], ...]
@@ -241,7 +249,8 @@ class RelationRule(Contract):
 
 class AttributeRule(Contract):
     code: Text
-    revision_id: int = Field(gt=0)
+    version_no: int = Field(gt=0)
+    revision_id: int | None = Field(gt=0)
     description: Text
     node_type: NodeType
     value_kind: Literal["STRING", "NUMBER", "BOOLEAN", "DATE", "PERIOD"]

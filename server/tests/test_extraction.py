@@ -39,7 +39,7 @@ from ontology_map.model_studio import (
 
 
 def source_document():
-    quotes = ["한빛과 푸른은 공동 개발할 계획이다. 😀", "한빛은 새 제품을 발표했다."]
+    quotes = ["한빛과 푸른은 공동 개발할 계획이다. 😀", "한빛은 AI 제품을 발표했다."]
     body = "\n".join(quotes)
     spans = []
     start = 0
@@ -69,6 +69,7 @@ def ontology():
         relations=(
             RelationRule(
                 code="COLLABORATES_WITH",
+                version_no=1,
                 revision_id=1,
                 description="두 대상의 공동 행위",
                 direction="SYMMETRIC",
@@ -90,12 +91,14 @@ def candidate(candidate_id="c1", source="s0"):
                 "text": "한빛",
                 "node_type": "COMPANY",
                 "source_ids": [source],
+                "topic_name": None,
             },
             {
                 "mention_id": "m2",
                 "text": "푸른",
                 "node_type": "COMPANY",
                 "source_ids": [source],
+                "topic_name": None,
             },
         ],
         "bindings": [
@@ -195,7 +198,7 @@ def test_fixed_pipeline_request_contract_and_own_evidence(monkeypatch, caplog, c
         else:
             assert payload["model"] == PLUS
             assert [s["source_id"] for s in data["evidence"]] == ["s0"]
-            assert "한빛은 새 제품을 발표했다" not in payload["messages"][1]["content"]
+            assert doc.sources[1].quote not in payload["messages"][1]["content"]
             assert "gold" not in data
             answer = {"verdict": "TRUE"}
         return provider_response(request, json.dumps(answer, ensure_ascii=False))
@@ -255,6 +258,7 @@ def test_bad_candidates_do_not_remove_independent_valid_knowledge(change):
                 "text": "미승인 주제",
                 "node_type": "TOPIC",
                 "source_ids": ["s0"],
+                "topic_name": "미승인 주제",
             }
         )
         bad["bindings"].append(
@@ -507,6 +511,7 @@ def test_attribute_units_types_and_precision_aware_time_bounds():
             "attributes": (
                 AttributeRule(
                     code="COUNT",
+                    version_no=1,
                     revision_id=2,
                     description="개수",
                     node_type="COMPANY",
@@ -549,3 +554,62 @@ def test_attribute_units_types_and_precision_aware_time_bounds():
         TemporalPoint.model_validate_json(
             '{"value":"2026-06-02T00:00:00Z","precision":"MONTH"}', strict=True
         )
+
+
+def test_literal_topic_mention_requires_catalog_and_separate_meaning_judgment():
+    rules = ontology().model_copy(
+        update={
+            "topics": ("인공지능",),
+            "relations": (
+                RelationRule(
+                    code="HAS_TOPIC",
+                    version_no=1,
+                    revision_id=None,
+                    description="자기 근거가 지원하는 Topic 연결",
+                    direction="DIRECTED",
+                    endpoints=(("COMPANY", "TOPIC"),),
+                ),
+            ),
+        }
+    )
+    proposal = candidate(source="s1")
+    proposal["statement"] = "한빛은 AI 제품을 발표했다."
+    proposal["modality"] = "FACT"
+    proposal["mentions"][1].update(text="AI", node_type="TOPIC", topic_name="인공지능")
+    proposal["bindings"][0]["code"] = "HAS_TOPIC"
+    meaning_calls = []
+
+    def handle(request):
+        payload = json.loads(request.content)
+        name = payload["response_format"]["json_schema"]["name"]
+        data = json.loads(payload["messages"][1]["content"])
+        if name == "BodySelection":
+            answer = {"source_ids": ["s1"]}
+        elif name == "KnowledgeProposals":
+            answer = {"claims": [proposal]}
+        else:
+            if name == "MeaningSupport":
+                meaning_calls.append(data)
+            answer = {"verdict": "TRUE"}
+        return provider_response(request, json.dumps(answer, ensure_ascii=False))
+
+    client = ModelStudio(
+        SecretStr("offline"),
+        Budget(8, Decimal("3")),
+        transport=httpx.MockTransport(handle),
+    )
+    try:
+        accepted = extract_knowledge(
+            source_document(), rules, client, limits(), include_structure=True
+        )
+        proposal["mentions"][1]["topic_name"] = "미승인 주제"
+        rejected = extract_knowledge(
+            source_document(), rules, client, limits(), include_structure=True
+        )
+    finally:
+        client.close()
+    assert len(accepted.verified) == 1 and not rejected.verified
+    assert len(meaning_calls) == 1
+    assert meaning_calls[0]["claim"]["mentions"][1]["text"] == "AI"
+    assert meaning_calls[0]["claim"]["mentions"][1]["topic_name"] == "인공지능"
+    assert rejected.exclusions[0].code == "INVALID_BINDING_DEPENDENCY"

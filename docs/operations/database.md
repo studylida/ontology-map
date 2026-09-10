@@ -15,7 +15,9 @@ uv run --frozen mypy src
 
 원문·typed 후보 계약은 `ontology_map.extraction_contracts`, 일반 함수 실행 경로는 `ontology_map.extraction`, Model Studio 경계는 `ontology_map.model_studio`에 있다. API를 시작하지 않고 같은 모듈을 application 코드에서 import할 수 있다. `extract_knowledge(document, ontology, models, limits, include_structure=..., completed=...)`에 검증한 `SourceDocument`, 호출자가 승인 목록으로 만든 `Ontology`, `ModelStudio`, `ExtractionLimits`를 전달한다. `completed`는 선택적인 process-local 정확 재처리 캐시이며 영속 작업 상태가 아니다.
 
-`SourceDocument`는 문서 ID·NFC/LF 정규화 본문·UTF-8 SHA-256과 원문 ID별 `[start,end)`·정확한 quote·quote hash·선택적인 정규화 문단 묶음을 받는다. 비공백 원문을 projection에서 누락하거나 위치·인용을 바꾸면 모델 호출 전에 실패한다. 입력 ontology에는 활성 유형, 허용 Topic, 관계 code·정확한 revision·방향·endpoint와 속성 code·revision·단일 대상 유형·값 종류·허용 단위를 명시한다. 이 DTO는 제품 DB의 새 schema나 ontology 목록 승인이 아니다.
+`SourceDocument`는 문서 ID·NFC/LF 정규화 본문·UTF-8 SHA-256과 원문 ID별 `[start,end)`·정확한 quote·quote hash·선택적인 정규화 문단 묶음을 받는다. 비공백 원문을 projection에서 누락하거나 위치·인용을 바꾸면 모델 호출 전에 실패한다. 입력 ontology에는 활성 유형, 허용 Topic, 관계 code·정의 version·방향·endpoint와 속성 code·정의 version·단일 대상 유형·값 종류·허용 단위를 명시한다. `revision_id`는 실제 DB revision을 조회하지 않은 로컬 입력에서는 `null`이며 가짜 영속 ID를 만들지 않는다. DB 연결 시에는 실제 revision·version과 활성 상태를 조회·검증해야 한다. 이 runtime DTO는 제품 DB의 새 schema가 아니다.
+
+TOPIC 언급은 원문에 실제로 있는 `text`와 승인 목록의 `topic_name`을 구분한다. 다른 유형의 `topic_name`은 `null`이다. 코드가 원문 표현·허용 명칭·endpoint를 검사한 뒤 Plus의 별도 의미 연결 판정을 거친다. 원문의 `AI`를 승인 Topic `인공지능`에 제안할 수 있지만 이름 대응만으로 통과시키거나 새 Topic·상위 Topic을 자동 추가하지 않는다.
 
 `ModelStudio`는 `SecretStr` 키와 명시적인 `Budget(max_calls, max_usd)`를 받는다. 키 파일을 직접 읽거나 복사하지 않으며 application 실행 프로세스가 키를 주입해야 한다. 사용 후 `close()`로 HTTP client를 닫는다. 무호출 검사에서는 `httpx.MockTransport`와 가짜 키만 사용하고 실제 socket 연결·LangSmith 업로드를 차단한다. 실제 호출은 역할별 호출 수·상한·예산·중단 조건을 승인받은 별도 실행에서만 허용한다. 예산이 0이면 전송하지 않는다.
 
@@ -28,6 +30,8 @@ uv run --frozen mypy src
 평가에는 `extraction_metrics.summarize(result, required_fact_ids, reviews, final_reviews=...)`를 사용한다. 모든 생성 후보와 최종 반환 후보를 각각 유한 독립 검토하며 이 검토를 모델에 보내지 않는다. 연결이 일부 제외된 최종 후보에 생성 단계의 검토를 자동 재사용하지 않는다. `evidence_supported`는 statement·modality·귀속의 자기 근거 충분성, `correct`는 해당 단계 후보의 의미 보존을 평가한다. 생성 단계에서 ontology 미지원 자체는 사실 오류로 세지 않지만 최종 보존율에서는 누락으로 센다. Claim 근거 판정의 오승인·오거절은 `support_*`로, 최종 오류·산출량은 `final_*`로 구별한다. 오류가 발견된 최종 Claim을 분모에서 빼지 않고, 비중복 Claim 하나에 중대 오류가 여러 개여도 한 번 센다. 빈 결과의 오류율은 0%가 아니라 평가 불가이며 데모 관문 통과로 해석하지 않는다. 함수는 데모 승인 신호를 반환하지 않는다.
 
 현재 검증은 반환 후보까지다. 실제 모델의 품질, 독립 자료의 보존율 70% 이상·중대 오류율 1% 미만, 반복 중대 오류 사실군 차단, Node 동일 대상·Claim 의미 중복 판정과 DB 정합화·저장·publication·사이트 연결은 별도 검증이 필요하다. 실제 시험 자료·후보 수·비용·검토 기준은 정식 문서에 복제하지 않고 #127·#139에서 동결한다. 고정 모델·의존성 버전과 구현 경계는 [구현 스택](../development/implementation-stack.md#제품-재사용용-추출-실행-코드)을 따른다.
+
+`server/run_role_harness_trial.py`는 #139에서 승인한 개발 비교를 위 함수로 실행하는 한정된 실행기다. `server/`에서 `PYTHONPATH=src uv run --frozen python run_role_harness_trial.py --sources <기존 sources-frozen.json> --gold <기존 gold.json> --output-dir <접근 제한 임시 디렉터리>`를 실행하면 키·네트워크 없이 입력을 검사하고 manifest를 동결한다. 승인한 유료 실행에만 같은 명령에 `--execute`를 붙인다. 실행기는 동결된 입력·코드가 바뀌었거나 이미 실행한 디렉터리이면 호출하지 않는다. 실제 시험 프로세스 안에서만 기존 키 파일을 읽고 환경 변수로 주입한 뒤 제거한다. provider 원시 응답·reasoning은 저장하지 않는다. 유한 평가에 필요한 parsed 후보와 판정은 해당 임시 디렉터리에만 제한 보관하며 Git·제품 DB·로그·외부 tracing으로 보내지 않는다. 이 실행기는 제품의 artifact 보존 기능이나 일반 시험 플랫폼이 아니다.
 
 ## 요구 버전
 
