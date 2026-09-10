@@ -2,9 +2,9 @@
 
 > 상태: Logical Schema v1.2 — Frozen
 >
-> 변경 기준일: 2026-09-03
+> 변경 기준일: 2026-09-10
 >
-> 관련 변경: Issue #41, #69, #91
+> 관련 변경: Issue #41, #64, #69, #91, #110
 >
 > 제품 기준: 공개 자료를 근거와 시간축이 있는 지식그래프로 축적하고, 검색한 노드를 중심으로 탐색하는 HBF POC
 
@@ -30,7 +30,7 @@ Logical Schema v1.2는 다음 원칙을 고정한다.
 
 ```text
 자료 준비 레이어의 정규화 문서
-→ source_key·문서 버전·evidence group 확정
+→ source_key·문서 버전·Evidence Group 확정
 → 불변 source_document 저장
 → 버전이 고정된 Structured Output 계약으로 모델 작업 실행
 → 메모리에서 계약·원문 위치·온톨로지·동일 대상·중복·lint 검사
@@ -175,7 +175,7 @@ erDiagram
 
 ### 5.1 `evidence_group`
 
-복제·재게시·확인된 번역 자료를 독립 근거 하나로 세기 위한 최소 식별자다. 대표 문서·대표 해시·표시 이름·문서 수·신뢰도 점수를 저장하지 않는다.
+복제·재게시·확인된 번역 자료를 독립 근거 하나로 세기 위한 최소 식별자다. 대표 문서·대표 해시·표시 이름·문서 수·신뢰도 점수를 저장하지 않는다. 저장 전 계보 판정은 [독립 근거 계보 판정 정책](evidence-lineage-policy.md)을 따른다.
 
 | 필드 | 의미 |
 |---|---|
@@ -184,7 +184,7 @@ erDiagram
 
 ### 5.2 `source_document`
 
-제품 밖에서 준비한 정규화 문서 한 버전이다.
+제품 밖에서 준비한 정규화 문서 한 버전이다. 저장 전 허용 자료와 재처리 경계는 [출처·lint 적재 정책](source-intake-policy.md)을 따른다.
 
 | 필드 | 의미 |
 |---|---|
@@ -203,7 +203,7 @@ erDiagram
 
 `source_key + version_no`는 고유하다. 본문 또는 Evidence Trace에 영향을 주는 버전 메타데이터가 바뀌면 새 행을 만들고, 같으면 마지막 확인 정보만 갱신한다. 별도 `version_fingerprint`는 만들지 않는다.
 
-모든 문서는 생성 시 기존 `evidence_group`을 선택하거나 새 묶음을 만든 뒤 저장한다. 판정 오류는 승인된 정정 경로가 `evidence_group_id`를 직접 수정하고 과거 재분류 이력은 보존하지 않는다. 묶음 판정 알고리즘은 #64가 담당한다. 수집 방법·GDELT 응답·HTTP 시도는 저장하지 않는다.
+모든 문서는 생성 시 기존 `evidence_group`을 선택하거나 새 묶음을 만든 뒤 저장한다. 판정 오류는 승인된 정정 경로가 `evidence_group_id`를 직접 수정하고 과거 재분류 이력은 보존하지 않는다. 신호 우선순위, 모호성 처리와 반복 처리 규칙은 [독립 근거 계보 판정 정책](evidence-lineage-policy.md)이 담당한다. 수집 방법·GDELT 응답·HTTP 시도는 저장하지 않는다.
 
 ### 5.3 `observation`
 
@@ -269,6 +269,8 @@ fingerprint
 위 조합이 고유하다. 경고, 계약 위반과 모델 장애는 이 테이블에 넣지 않는다.
 
 ### 5.5 lint
+
+실제 승격 전·저장 그래프 검사 항목과 `BLOCKING | WARNING` 처리는 [출처·lint 적재 정책](source-intake-policy.md)이 정한다.
 
 - `lint_rule`: 안정된 규칙 코드, 표시 이름, 설명과 평가 범위 `PRE_PROMOTION | PERSISTED_GRAPH | BOTH`
 - `lint_policy_version`: 함께 적용할 규칙 선택의 불변 정책 버전
