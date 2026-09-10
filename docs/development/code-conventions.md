@@ -9,7 +9,7 @@
 - Git 규칙: [CONTRIBUTING.md](../../CONTRIBUTING.md)
 - PostgreSQL 물리 규칙: [물리 스키마](../data/physical-schema.md)
 
-이 문서는 ontology-map의 TypeScript·React·CSS와 Python·FastAPI·SQLAlchemy·Alembic 코드에 적용할 최소 규칙을 정한다. `web/`에는 실제 FastAPI adapter를 사용하는 React 화면이 있고 `server/`에는 읽기 API, SQLAlchemy query, frozen schema migration과 개발 fixture가 있다. agent/worker는 아직 구현되지 않았으므로 해당 절은 구현할 때 지킬 경계만 정한다.
+이 문서는 ontology-map의 TypeScript·React·CSS와 Python·FastAPI·SQLAlchemy·Alembic 코드에 적용할 최소 규칙을 정한다. `web/`에는 실제 FastAPI adapter를 사용하는 React 화면이 있고 `server/`에는 읽기 API, SQLAlchemy query, frozen schema migration과 개발 fixture가 있다. 추출·생성·판정의 로컬 실행 코드는 있으나 영속 worker와 제품 저장 경로는 아직 연결되지 않았다.
 
 ## 공통 원칙
 
@@ -99,7 +99,7 @@ ontology-map/
 
 ## Agent와 모델 호출
 
-현재 agent/worker와 model provider dependency는 구현되어 있지 않다. 아래 규칙은 #125의 승인된 역할 경계를 #127·#128·#129·#68 등의 제품 구현에 적용할 때 따른다. 모델 배정·시험 상태는 [구현 스택](implementation-stack.md#에이전트-역할과-모델)을 참조하며 임시 시험 실행기를 제품 진입점으로 취급하지 않는다.
+현재 제품에서 재사용할 추출·생성·판정 함수와 최소 provider 의존성은 있으며 영속 worker는 구현되지 않았다. 아래 규칙은 #125의 승인된 역할 경계를 #127·#128·#129·#68 등의 제품 구현에 적용할 때 따른다. 모델 배정·검증 상태는 [구현 스택](implementation-stack.md#제품-재사용용-추출-실행-코드)을 참조하며 로컬 실행 코드의 검증을 사이트 연동 완료로 취급하지 않는다.
 
 - provider 선택과 `provider:model` 해석은 `agent` 경계 안에 둔다. provider 전용 class를 API나 데이터베이스 모듈에 노출하지 않는다.
 - 모델 출력은 작업별 Pydantic structured output으로 검증한다. 실제 응답 JSON과 후보 payload는 기준 데이터베이스에 저장하지 않는다.

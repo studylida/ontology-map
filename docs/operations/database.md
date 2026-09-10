@@ -2,6 +2,45 @@
 
 이 문서는 PostgreSQL, migration, 개발용 HBF fixture, FastAPI와 web을 한 번에 실행하는 기준 절차다. 브라우저는 Vite proxy를 통해 FastAPI만 호출하며 PostgreSQL에 직접 접근하지 않는다.
 
+## 추출 실행 코드의 로컬 검사
+
+이 검사는 DB·실제 모델·외부 tracing을 사용하지 않는다. `server/`에서 실행하며 DB 설정 파일이나 provider 키를 읽을 필요가 없다.
+
+```bash
+uv sync --frozen
+uv run --frozen pytest -q tests/test_extraction.py
+uv run --frozen ruff check .
+uv run --frozen mypy src
+```
+
+원문·typed 후보 계약은 `ontology_map.extraction_contracts`, 일반 함수 실행 경로는 `ontology_map.extraction`, Model Studio 경계는 `ontology_map.model_studio`에 있다. API를 시작하지 않고 같은 모듈을 application 코드에서 import할 수 있다. `extract_knowledge(document, ontology, models, limits, include_structure=..., completed=...)`에 검증한 `SourceDocument`, 호출자가 승인 목록으로 만든 `Ontology`, `ModelStudio`, `ExtractionLimits`를 전달한다. `completed`는 선택적인 process-local 정확 재처리 캐시이며 영속 작업 상태가 아니다.
+
+`SourceDocument`는 문서 ID·NFC/LF 정규화 본문·UTF-8 SHA-256과 원문 ID별 `[start,end)`·정확한 quote·quote hash·선택적인 정규화 문단 묶음을 받는다. 비공백 원문을 projection에서 누락하거나 위치·인용을 바꾸면 모델 호출 전에 실패한다. 입력 ontology에는 활성 유형, 허용 Topic, 관계 code·정의 version·방향·endpoint와 속성 code·정의 version·단일 대상 유형·값 종류·허용 단위를 명시한다. `revision_id`는 실제 DB revision을 조회하지 않은 로컬 입력에서는 `null`이며 가짜 영속 ID를 만들지 않는다. DB 연결 시에는 실제 revision·version과 활성 상태를 조회·검증해야 한다. 이 runtime DTO는 제품 DB의 새 schema가 아니다.
+
+TOPIC 언급은 원문에 실제로 있는 `text`와 승인 목록의 `topic_name`을 구분한다. 다른 유형의 `topic_name`은 `null`이다. 코드가 원문 표현·허용 명칭·endpoint를 검사한 뒤 Plus의 별도 의미 연결 판정을 거친다. 원문의 `AI`를 승인 Topic `인공지능`에 제안할 수 있지만 이름 대응만으로 통과시키거나 새 Topic·상위 Topic을 자동 추가하지 않는다.
+
+`ModelStudio`는 `SecretStr` 키, 명시적인 `Budget(max_calls, max_usd)`와 필수 keyword 인자 `base_url`을 받는다. 키 파일을 직접 읽거나 복사하지 않으며 application 실행 프로세스가 기존 설정의 키와 싱가포르 workspace endpoint를 주입해야 한다. 허용되지 않은 주소는 `UNAPPROVED_ENDPOINT`, 주입한 주소와 실제 전송 대상의 불일치는 `ENDPOINT_CONTRACT_ERROR`로 차단한다. 사용 후 `close()`로 HTTP client를 닫는다. 무호출 검사에서는 `httpx.MockTransport`와 가짜 키·가짜 workspace 주소만 사용하고 실제 socket 연결·LangSmith 업로드를 차단한다. 실제 호출은 역할별 호출 수·상한·예산·중단 조건을 승인받은 별도 실행에서만 허용한다. 예산이 0이면 전송하지 않는다.
+
+각 역할에 `CallLimits(max_input_tokens, max_output_tokens, max_request_bytes)`를 제공한다. 실제 직렬화된 요청의 byte 상한은 전송 직전에 검사하고, 출력은 provider의 `max_tokens`로 제한한다. 입력 token 상한은 provider가 반환한 usage로 확인하는 사후 중단 기준이다. Qwen tokenizer가 없는 상태에서 문자 수를 정확한 token 수로 취급하지 않는다.
+
+비용은 요청마다 문서화된 입력 최대 1,000,000 tokens와 해당 출력 상한, [Model Studio 싱가포르 최대 구간 단가](https://www.alibabacloud.com/help/en/model-studio/model-pricing)를 먼저 예약한다. 알려진 정상 usage를 받으면 같은 최대 단가로 계산한 보수적 비용으로 정산해 나머지 예약을 반환한다. 이는 실제 청구액이 아니라 상한 추정치다. 다음 호출의 전체 예약까지 예산 안에 들어와야 전송할 수 있다. 실패·잘림 등으로 usage가 불명확하면 예약을 유지하고 중단한다. token 기준 초과·인증·transport·응답 모델 불일치도 중단하며, 확정된 usage가 있는 출력 계약 오류에는 repair·fallback·자동 재호출을 하지 않는다. 한 실행의 client·budget은 순차적으로만 사용한다.
+
+키·본문·인용·prompt·모델 응답·reasoning은 로그에 남기지 않는다. 호출 기록은 역할·모델·요청 hash·성공/오류 code·알려진 token 수·예약/상한 비용·시간만 메모리에 보유한다. 새 context와 `tracing_context(enabled=False, parent=False)`로 상위 LangChain callback·trace를 배제한다. LangChain debug/verbose 또는 provider의 DEBUG 로깅이 켜져 있으면 호출 전에 실패한다. 시스템 전체에서 원문을 기록하는 임의 logger나 외부 callback을 이 경로에 추가하지 않는다.
+
+평가에는 `extraction_metrics.summarize(result, required_fact_ids, reviews, final_reviews=...)`를 사용한다. 모든 생성 후보와 최종 반환 후보를 각각 유한 독립 검토하며 이 검토를 모델에 보내지 않는다. 연결이 일부 제외된 최종 후보에 생성 단계의 검토를 자동 재사용하지 않는다. `evidence_supported`는 statement·modality·귀속의 자기 근거 충분성, `correct`는 해당 단계 후보의 의미 보존을 평가한다. 생성 단계에서 ontology 미지원 자체는 사실 오류로 세지 않지만 최종 보존율에서는 누락으로 센다. Claim 근거 판정의 오승인·오거절은 `support_*`로, 최종 오류·산출량은 `final_*`로 구별한다. 오류가 발견된 최종 Claim을 분모에서 빼지 않고, 비중복 Claim 하나에 중대 오류가 여러 개여도 한 번 센다. 빈 결과의 오류율은 0%가 아니라 평가 불가이며 데모 관문 통과로 해석하지 않는다. 함수는 데모 승인 신호를 반환하지 않는다.
+
+현재 검증은 반환 후보까지다. 실제 모델의 품질, 독립 자료의 보존율 70% 이상·중대 오류율 1% 미만, 반복 중대 오류 사실군 차단, Node 동일 대상·Claim 의미 중복 판정과 DB 정합화·저장·publication·사이트 연결은 별도 검증이 필요하다. 실제 시험 자료·후보 수·비용·검토 기준은 정식 문서에 복제하지 않고 #127·#139에서 동결한다. 고정 모델·의존성 버전과 구현 경계는 [구현 스택](../development/implementation-stack.md#제품-재사용용-추출-실행-코드)을 따른다.
+
+`server/run_role_harness_trial.py`는 #139에서 승인한 개발 비교를 위 함수로 실행하는 한정된 실행기다. `server/`에서 `PYTHONPATH=src uv run --frozen python run_role_harness_trial.py --sources <기존 sources-frozen.json> --gold <기존 gold.json> --output-dir <접근 제한 임시 디렉터리>`를 실행하면 모델 전송 없이 입력과 기존 credential 파일의 권한·endpoint를 검사하고 manifest를 동결한다. 설정은 시험 프로세스 안에서만 읽으며 manifest에는 개별 endpoint 값 대신 SHA-256만 남긴다. 승인한 유료 실행에만 같은 명령에 `--execute`를 붙인다. 실행기는 동결된 입력·코드·endpoint hash가 바뀌었거나 이미 실행한 디렉터리이면 호출하지 않는다. 키는 실제 실행 프로세스의 환경 변수로만 주입한 뒤 제거한다. provider 원시 응답·reasoning은 저장하지 않는다. 유한 평가에 필요한 parsed 후보와 판정은 해당 임시 디렉터리에만 제한 보관하며 Git·제품 DB·로그·외부 tracing으로 보내지 않는다. 이 실행기는 제품의 artifact 보존 기능이나 일반 시험 플랫폼이 아니다.
+
+실행기는 #139에서 확인한 이전 유료 실행의 hash·역할별 호출 수·보수적 비용을 manifest에 포함하고, 전체 승인 한도에서 기존 사용량을 뺀 `Budget`으로 시작한다. 실행 결과에는 이번 실행과 누적 호출·비용을 구분한다. 역할별 허용량보다 전체 호출·비용 한도가 우선하며 이전 실패를 이유로 예산을 초기화하지 않는다. 고정된 네 문서·두 조건·후보 상한이 역할별 호출 범위를 제한한다. 이 실행기는 승인된 새 동결 실행 한 번만을 위한 것이며 다른 임시 디렉터리에서 반복해도 된다는 뜻이 아니다. 추가 실행에는 갱신한 누적 사용량과 승인이 필요하며 자동 재개 기능은 없다.
+
+본문 선택의 중복 ID는 `BODY_SELECTION_DUPLICATE_ID`, 입력에 없는 ID는 `BODY_SELECTION_UNKNOWN_ID`, 둘 다 있으면 `BODY_SELECTION_DUPLICATE_AND_UNKNOWN_ID`로 반환한다. 일반 실행 함수의 `error_code`와 시험 실행기의 중단 기록에 이 code를 유지하며 후속 생성·판정을 호출하지 않는다. Claim의 기존 원문 참조 검증·오류 계약은 바꾸지 않는다.
+
+공통 비공백 문자열은 `^[\s\S]*\S[\s\S]*$`로 정의해 로컬의 부분 일치와 provider의 전체 문자열 제약 양쪽에서 여러 글자·공백·줄바꿈을 같은 의미로 허용한다. 빈 문자열과 공백만 있는 값은 계속 거절하며 입력 ID의 실제 존재·중복은 별도로 검사한다. 반환된 ID를 보정하거나 원문을 재작성하지 않는다. 이는 전송 schema의 해석 차이를 줄이는 변경이며 실제 provider 내부 원인 확인이나 생성 품질 개선의 증거가 아니다. 이전 동결 실행의 schema·기록은 변경하지 않고 새 유료 실행에는 별도 승인·동결을 적용한다.
+
+시험 실행기는 이 실패에 한해 접근 제한 임시 디렉터리의 `body-selection-error.json`에 문서 ID와 선택된 ID·중복 ID·입력에 없는 ID의 개수 및 제한된 목록을 남긴다. 목록별 최대 32개와 생략 개수를 기록하고, 64자 이하의 ASCII 영문·숫자·`_ . : -` 식별자만 표시한다. 그 외 값은 `id=null`과 SHA-256으로 남겨 원문이나 장문이 ID 자리에 반환돼도 복사하지 않는다. 이 제한은 진단 표시 범위이며 모델 입력·출력 schema나 ID 유효성 규칙을 바꾸지 않는다. 파일은 0600·배타 생성으로 만들고 기존 파일을 덮어쓰지 않는다. 예외 문자열·표준 출력·일반 실행 결과에는 구체 ID를 넣지 않는다. 이전 실패의 선택 ID를 복구하거나 원인을 소급 확정하는 기능은 아니다.
+
 ## 요구 버전
 
 | 항목 | 버전 |

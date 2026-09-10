@@ -1,0 +1,768 @@
+import json
+import re
+import runpy
+import socket
+from decimal import Decimal
+from pathlib import Path
+from types import SimpleNamespace
+
+import httpx
+import pytest
+from pydantic import SecretStr, ValidationError
+
+from ontology_map.extraction import (
+    ExtractionLimits,
+    ExtractionResult,
+    _binding_valid,
+    extract_knowledge,
+)
+from ontology_map.extraction_contracts import (
+    AttributeProposal,
+    AttributeRule,
+    BodySelection,
+    ClaimProposal,
+    ClaimSupport,
+    Ontology,
+    PeriodValue,
+    RelationRule,
+    SourceDocument,
+    SourceSpan,
+    TemporalPoint,
+    digest,
+)
+from ontology_map.extraction_metrics import CandidateReview, summarize
+from ontology_map.model_studio import (
+    FLASH,
+    PLUS,
+    Budget,
+    CallFailed,
+    CallLimits,
+    ModelStudio,
+    validate_base_url,
+)
+
+BASE_URL = "https://ws-offline-test.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+
+
+def source_document():
+    quotes = ["한빛과 푸른은 공동 개발할 계획이다. 😀", "한빛은 AI 제품을 발표했다."]
+    body = "\n".join(quotes)
+    spans = []
+    start = 0
+    for i, quote in enumerate(quotes):
+        spans.append(
+            SourceSpan(
+                source_id=f"s{i}",
+                start=start,
+                end=start + len(quote),
+                quote=quote,
+                quote_hash=digest(quote),
+                paragraph_id=f"p{i}",
+            )
+        )
+        start += len(quote) + 1
+    return SourceDocument(
+        document_id="d1", body=body, body_hash=digest(body), sources=tuple(spans)
+    )
+
+
+def ontology():
+    # Synthetic runtime input, not an approved product ontology or DB fixture.
+    return Ontology(
+        node_types=("COMPANY", "TOPIC"),
+        topics=(),
+        attributes=(),
+        relations=(
+            RelationRule(
+                code="COLLABORATES_WITH",
+                version_no=1,
+                revision_id=1,
+                description="두 대상의 공동 행위",
+                direction="SYMMETRIC",
+                endpoints=(("COMPANY", "COMPANY"),),
+            ),
+        ),
+    )
+
+
+def candidate(candidate_id="c1", source="s0"):
+    return {
+        "candidate_id": candidate_id,
+        "statement": "한빛과 푸른은 공동 개발할 계획이다.",
+        "modality": "PLAN_OR_TARGET",
+        "source_ids": [source],
+        "mentions": [
+            {
+                "mention_id": "m1",
+                "text": "한빛",
+                "node_type": "COMPANY",
+                "source_ids": [source],
+                "topic_name": None,
+            },
+            {
+                "mention_id": "m2",
+                "text": "푸른",
+                "node_type": "COMPANY",
+                "source_ids": [source],
+                "topic_name": None,
+            },
+        ],
+        "bindings": [
+            {
+                "kind": "RELATION",
+                "binding_id": "r1",
+                "code": "COLLABORATES_WITH",
+                "source_mention": "m1",
+                "target_mention": "m2",
+                "stance": "SUPPORT",
+            }
+        ],
+    }
+
+
+def provider_response(request, content, usage=True, finish="stop"):
+    return httpx.Response(
+        200,
+        json={
+            "id": "offline",
+            "object": "chat.completion",
+            "created": 0,
+            "model": json.loads(request.content)["model"],
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": finish,
+                    "message": {"role": "assistant", "content": content},
+                }
+            ],
+            **(
+                {
+                    "usage": {
+                        "prompt_tokens": 100,
+                        "completion_tokens": 20,
+                        "total_tokens": 120,
+                    }
+                }
+                if usage
+                else {}
+            ),
+        },
+    )
+
+
+def limits():
+    call = CallLimits(
+        max_input_tokens=2000, max_output_tokens=1024, max_request_bytes=100_000
+    )
+    return ExtractionLimits(body=call, generation=call, judgment=call, max_candidates=8)
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    attempts = []
+
+    def forbidden(*args, **kwargs):
+        attempts.append("unexpected network or tracing")
+        raise AssertionError("NETWORK_IS_FORBIDDEN")
+
+    monkeypatch.setattr(socket.socket, "connect", forbidden)
+    # A configured trace must not even reach the upload path.
+    from langsmith import Client
+
+    monkeypatch.setattr(Client, "request_with_retries", forbidden)
+    yield
+    assert not attempts
+
+
+def test_fixed_pipeline_request_contract_and_own_evidence(monkeypatch, caplog, capsys):
+    monkeypatch.setenv("LANGSMITH_TRACING", "true")
+    calls = []
+    doc = source_document()
+
+    def handle(request):
+        payload = json.loads(request.content)
+        calls.append(payload)
+        assert str(request.url) == BASE_URL + "/chat/completions"
+        assert payload["max_tokens"] == 1024
+        assert "max_completion_tokens" not in payload
+        assert payload["enable_thinking"] is False
+        assert payload["stream"] is False
+        assert not {"tools", "tool_choice", "stream_options"} & payload.keys()
+        schema = payload["response_format"]
+        assert schema["type"] == "json_schema"
+        assert schema["json_schema"]["strict"] is True
+        assert schema["json_schema"]["schema"]["additionalProperties"] is False
+        name = schema["json_schema"]["name"]
+        data = json.loads(payload["messages"][1]["content"])
+        if name == "BodySelection":
+            assert payload["model"] == FLASH
+            pattern = schema["json_schema"]["schema"]["properties"]["source_ids"][
+                "items"
+            ]["pattern"]
+            for value in ("s17", "COLLABORATES_WITH", "  공동 개발\n계획이다. 😀  "):
+                assert re.fullmatch(pattern, value)
+                assert BodySelection(source_ids=[value]).source_ids == [value]
+            for value in ("", " \t\n"):
+                assert not re.fullmatch(pattern, value)
+                with pytest.raises(ValidationError):
+                    BodySelection(source_ids=[value])
+            answer = {"source_ids": ["s1", "s0"]}
+        elif name == "KnowledgeProposals":
+            assert payload["model"] == FLASH
+            assert [s["source_id"] for s in data["sources"]] == ["s0", "s1"]
+            answer = {"claims": [candidate(), candidate("c2")]}
+        else:
+            assert payload["model"] == PLUS
+            assert [s["source_id"] for s in data["evidence"]] == ["s0"]
+            assert doc.sources[1].quote not in payload["messages"][1]["content"]
+            assert "gold" not in data
+            answer = {"verdict": "TRUE"}
+        return provider_response(request, json.dumps(answer, ensure_ascii=False))
+
+    budget = Budget(max_calls=10, max_usd=Decimal("3"))
+    client = ModelStudio(
+        SecretStr("offline-test-key"),
+        budget,
+        base_url=BASE_URL,
+        transport=httpx.MockTransport(handle),
+    )
+    try:
+        result = extract_knowledge(
+            doc, ontology(), client, limits(), include_structure=True
+        )
+    finally:
+        client.close()
+    assert result.status == "SUCCESS", result
+    assert [c.candidate_id for c in result.verified] == ["c1"]
+    assert result.duplicates == {"c2": "c1"}
+    assert len(result.verified[0].mentions) == 2
+    assert [r.role for r in budget.records] == [
+        "body",
+        "generation",
+        "claim_support",
+        "meaning_support",
+    ]
+    assert len(calls) == 4
+    assert budget.charged_upper_usd < Decimal("0.001")
+    assert "offline-test-key" not in caplog.text
+    assert doc.body not in caplog.text + capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "field,value", [("body_hash", "0" * 64), ("body", "다른 본문")]
+)
+def test_source_integrity(field, value):
+    data = source_document().model_dump()
+    data[field] = value
+    with pytest.raises(ValidationError):
+        SourceDocument.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    "change",
+    ["unknown_source", "unresolved", "bad_endpoint", "no_ontology", "lost_joint_actor"],
+)
+def test_bad_candidates_do_not_remove_independent_valid_knowledge(change):
+    bad, good = candidate("bad"), candidate("good")
+    if change == "unknown_source":
+        bad["source_ids"] = ["absent"]
+    if change == "bad_endpoint":
+        bad["bindings"][0]["target_mention"] = "absent"
+    if change == "no_ontology":
+        bad["bindings"] = []
+    if change == "lost_joint_actor":
+        bad["mentions"].append(
+            {
+                "mention_id": "topic",
+                "text": "미승인 주제",
+                "node_type": "TOPIC",
+                "source_ids": ["s0"],
+                "topic_name": "미승인 주제",
+            }
+        )
+        bad["bindings"].append(
+            {**bad["bindings"][0], "binding_id": "r2", "target_mention": "topic"}
+        )
+    # Exact-duplicate suppression must not hide the independently judged example.
+    good["statement"] += " 두 회사가 함께 추진한다."
+    current = "bad"
+
+    def handle(request):
+        nonlocal current
+        payload = json.loads(request.content)
+        name = payload["response_format"]["json_schema"]["name"]
+        data = json.loads(payload["messages"][1]["content"])
+        if name == "BodySelection":
+            answer = {"source_ids": ["s0", "s1"]}
+        elif name == "KnowledgeProposals":
+            answer = {"claims": [bad, good]}
+        elif name == "ClaimSupport":
+            current = "good" if "두 회사가" in data["statement"] else "bad"
+            answer = {
+                "verdict": "UNRESOLVED"
+                if current == "bad" and change == "unresolved"
+                else "TRUE"
+            }
+        else:
+            answer = {"verdict": "FALSE" if current == "bad" else "TRUE"}
+        return provider_response(request, json.dumps(answer, ensure_ascii=False))
+
+    client = ModelStudio(
+        SecretStr("offline"),
+        Budget(10, Decimal("3")),
+        base_url=BASE_URL,
+        transport=httpx.MockTransport(handle),
+    )
+    try:
+        result = extract_knowledge(
+            source_document(), ontology(), client, limits(), include_structure=False
+        )
+    finally:
+        client.close()
+    assert [c.candidate_id for c in result.verified] == ["good"]
+    assert any(e.candidate_id == "bad" for e in result.exclusions)
+
+
+@pytest.mark.parametrize("failure", ["http", "usage", "schema", "truncated"])
+def test_no_retry_and_uncertain_cost_is_reserved(failure):
+    calls = 0
+
+    def handle(request):
+        nonlocal calls
+        calls += 1
+        if failure == "http":
+            return httpx.Response(
+                503, json={"error": {"message": "private provider body"}}
+            )
+        content = (
+            '{"source_ids": []}' if failure != "schema" else '{"source_ids": [123]}'
+        )
+        return provider_response(
+            request,
+            content,
+            usage=failure != "usage",
+            finish="length" if failure == "truncated" else "stop",
+        )
+
+    budget = Budget(2, Decimal("2"))
+    client = ModelStudio(
+        SecretStr("offline"),
+        budget,
+        base_url=BASE_URL,
+        transport=httpx.MockTransport(handle),
+    )
+    try:
+        with pytest.raises(CallFailed) as error:
+            client.call(
+                "body",
+                "prompt",
+                BodySelection(source_ids=[]),
+                BodySelection,
+                limits().body,
+            )
+        assert "private provider body" not in str(error.value)
+        assert calls == 1
+        assert len(budget.records) == 1
+        # SDK parse raises on length before exposing usage to this call boundary.
+        if failure in ("http", "usage", "truncated"):
+            assert budget.stopped
+            assert budget.charged_upper_usd == budget.records[0].reserved_usd
+        else:
+            assert error.value.code == "OUTPUT_CONTRACT_ERROR"
+    finally:
+        client.close()
+
+
+def test_zero_budget_blocks_before_network():
+    def forbidden(request):
+        pytest.fail("A zero budget must not reach even the fake provider")
+
+    client = ModelStudio(
+        SecretStr("offline"),
+        Budget(0, Decimal(0)),
+        base_url=BASE_URL,
+        transport=httpx.MockTransport(forbidden),
+    )
+    try:
+        with pytest.raises(CallFailed, match="CALL_LIMIT"):
+            client.call(
+                "body",
+                "prompt",
+                BodySelection(source_ids=[]),
+                ClaimSupport,
+                limits().body,
+            )
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("start", 1),
+        ("end", 999),
+        ("quote", "틀린 인용"),
+        ("quote_hash", "0" * 64),
+        ("source_id", "s1"),
+    ],
+)
+def test_span_offsets_quotes_hashes_and_ids(field, value):
+    data = source_document().model_dump()
+    data["sources"][0][field] = value
+    with pytest.raises(ValidationError):
+        SourceDocument.model_validate(data)
+
+
+def test_metrics_preserve_missing_ontology_and_error_denominators():
+    good = ClaimProposal.model_validate(candidate("good"))
+    unsupported = ClaimProposal.model_validate(
+        {**candidate("unsupported"), "bindings": []}
+    )
+    wrong = ClaimProposal.model_validate(candidate("wrong"))
+    result = ExtractionResult(
+        generated=[good, unsupported, wrong],
+        verified=[good, wrong],
+        support_verdicts={"good": "TRUE", "unsupported": "TRUE", "wrong": "TRUE"},
+    )
+    reviews = [
+        CandidateReview("good", True, True, frozenset({"f1"}), "g1", frozenset()),
+        CandidateReview(
+            "unsupported", True, True, frozenset({"f2"}), "g2", frozenset()
+        ),
+        CandidateReview(
+            "wrong", False, False, frozenset(), "g3", frozenset({"ACTOR", "PLAN"})
+        ),
+    ]
+    score = summarize(
+        result, frozenset({"f1", "f2"}), reviews, final_reviews=[reviews[0], reviews[2]]
+    )
+    assert score["generated_retention"] == 1
+    assert score["final_retention"] == 0.5
+    assert score["final_nonduplicate_claims"] == 2
+    assert score["final_critical_claims"] == 1
+    assert score["final_critical_error_rate"] == 0.5
+    assert score["support_false_accept_rate"] == 1
+    with pytest.raises(ValueError, match="REVIEW_COVERAGE"):
+        summarize(result, frozenset({"f1", "f2"}), reviews, final_reviews=[])
+    empty = summarize(ExtractionResult(), frozenset({"f1"}), [], final_reviews=[])
+    assert empty["empty_final"] is True
+    assert empty["final_retention"] == 0
+    assert empty["final_critical_error_rate"] is None
+
+
+def test_exact_reprocessing_cache_uses_contract_and_document_identity():
+    calls = 0
+
+    def handle(request):
+        nonlocal calls
+        calls += 1
+        return provider_response(request, '{"source_ids": []}')
+
+    client = ModelStudio(
+        SecretStr("offline"),
+        Budget(3, Decimal("2")),
+        base_url=BASE_URL,
+        transport=httpx.MockTransport(handle),
+    )
+    completed = {}
+    document = source_document()
+    try:
+        for _ in range(2):
+            result = extract_knowledge(
+                document,
+                ontology(),
+                client,
+                limits(),
+                include_structure=True,
+                completed=completed,
+            )
+            assert result.status == "EMPTY_BODY"
+        assert calls == 1
+        changed = document.model_copy(update={"document_id": "another-document"})
+        extract_knowledge(
+            changed,
+            ontology(),
+            client,
+            limits(),
+            include_structure=True,
+            completed=completed,
+        )
+        assert calls == 2
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize(
+    "boundary", ["request_bytes", "cost", "input_tokens", "output_tokens"]
+)
+def test_request_and_token_cost_limits(boundary):
+    calls = 0
+
+    def handle(request):
+        nonlocal calls
+        calls += 1
+        return provider_response(request, '{"source_ids": []}')
+
+    budget = Budget(2, Decimal("0.01") if boundary == "cost" else Decimal("2"))
+    call_limit = CallLimits(
+        max_input_tokens=50 if boundary == "input_tokens" else 2000,
+        max_output_tokens=10 if boundary == "output_tokens" else 1024,
+        max_request_bytes=1 if boundary == "request_bytes" else 100_000,
+    )
+    client = ModelStudio(
+        SecretStr("offline"),
+        budget,
+        base_url=BASE_URL,
+        transport=httpx.MockTransport(handle),
+    )
+    try:
+        with pytest.raises(CallFailed):
+            client.call(
+                "body",
+                "prompt",
+                BodySelection(source_ids=[]),
+                BodySelection,
+                call_limit,
+            )
+        if boundary in ("request_bytes", "cost"):
+            assert calls == 0 and budget.charged_upper_usd == 0
+        else:
+            assert calls == 1 and budget.stopped
+            assert budget.charged_upper_usd == budget.records[0].reserved_usd
+    finally:
+        client.close()
+
+
+def test_attribute_units_types_and_precision_aware_time_bounds():
+    rules = ontology().model_copy(
+        update={
+            "attributes": (
+                AttributeRule(
+                    code="COUNT",
+                    version_no=1,
+                    revision_id=2,
+                    description="개수",
+                    node_type="COMPANY",
+                    value_kind="NUMBER",
+                    units=("COUNT",),
+                ),
+            )
+        }
+    )
+    claim = ClaimProposal.model_validate(candidate())
+    binding = AttributeProposal.model_validate_json(
+        json.dumps(
+            {
+                "kind": "ATTRIBUTE",
+                "binding_id": "a1",
+                "code": "COUNT",
+                "target_mention": "m1",
+                "value": {"kind": "NUMBER", "value": "2.5", "unit": "COUNT"},
+            }
+        )
+    )
+    assert _binding_valid(binding, claim, rules)
+    wrong_unit = binding.model_copy(
+        update={"value": binding.value.model_copy(update={"unit": "USD"})}
+    )
+    assert not _binding_valid(wrong_unit, claim, rules)
+    assert not _binding_valid(
+        binding.model_copy(update={"code": "UNKNOWN"}), claim, rules
+    )
+    period = {
+        "kind": "PERIOD",
+        "start": {"kind": "DATE", "value": "2026-06-01", "precision": "DAY"},
+        "end": {"kind": "DATE", "value": "2026-01-01", "precision": "YEAR"},
+    }
+    PeriodValue.model_validate_json(json.dumps(period), strict=True)
+    period["end"]["value"] = "2025-01-01"
+    with pytest.raises(ValidationError):
+        PeriodValue.model_validate_json(json.dumps(period), strict=True)
+    with pytest.raises(ValidationError):
+        TemporalPoint.model_validate_json(
+            '{"value":"2026-06-02T00:00:00Z","precision":"MONTH"}', strict=True
+        )
+
+
+def test_literal_topic_mention_requires_catalog_and_separate_meaning_judgment():
+    rules = ontology().model_copy(
+        update={
+            "topics": ("인공지능",),
+            "relations": (
+                RelationRule(
+                    code="HAS_TOPIC",
+                    version_no=1,
+                    revision_id=None,
+                    description="자기 근거가 지원하는 Topic 연결",
+                    direction="DIRECTED",
+                    endpoints=(("COMPANY", "TOPIC"),),
+                ),
+            ),
+        }
+    )
+    proposal = candidate(source="s1")
+    proposal["statement"] = "한빛은 AI 제품을 발표했다."
+    proposal["modality"] = "FACT"
+    proposal["mentions"][1].update(text="AI", node_type="TOPIC", topic_name="인공지능")
+    proposal["bindings"][0]["code"] = "HAS_TOPIC"
+    meaning_calls = []
+
+    def handle(request):
+        payload = json.loads(request.content)
+        name = payload["response_format"]["json_schema"]["name"]
+        data = json.loads(payload["messages"][1]["content"])
+        if name == "BodySelection":
+            answer = {"source_ids": ["s1"]}
+        elif name == "KnowledgeProposals":
+            answer = {"claims": [proposal]}
+        else:
+            if name == "MeaningSupport":
+                meaning_calls.append(data)
+            answer = {"verdict": "TRUE"}
+        return provider_response(request, json.dumps(answer, ensure_ascii=False))
+
+    client = ModelStudio(
+        SecretStr("offline"),
+        Budget(8, Decimal("3")),
+        base_url=BASE_URL,
+        transport=httpx.MockTransport(handle),
+    )
+    try:
+        accepted = extract_knowledge(
+            source_document(), rules, client, limits(), include_structure=True
+        )
+        proposal["mentions"][1]["topic_name"] = "미승인 주제"
+        rejected = extract_knowledge(
+            source_document(), rules, client, limits(), include_structure=True
+        )
+    finally:
+        client.close()
+    assert len(accepted.verified) == 1 and not rejected.verified
+    assert len(meaning_calls) == 1
+    assert meaning_calls[0]["claim"]["mentions"][1]["text"] == "AI"
+    assert meaning_calls[0]["claim"]["mentions"][1]["topic_name"] == "인공지능"
+    assert rejected.exclusions[0].code == "INVALID_BINDING_DEPENDENCY"
+
+
+def test_endpoint_injection_is_singapore_only_and_wire_must_match():
+    assert validate_base_url(BASE_URL) == BASE_URL
+    for invalid in (
+        BASE_URL.replace("https:", "http:"),
+        BASE_URL.replace("ap-southeast-1", "cn-beijing"),
+        BASE_URL.replace(".com/", ".com.attacker.example/"),
+        BASE_URL.replace("https://", "https://user@"),
+        BASE_URL + "?redirect=elsewhere",
+    ):
+        with pytest.raises(CallFailed, match="UNAPPROVED_ENDPOINT"):
+            ModelStudio(SecretStr("offline"), Budget(0, Decimal(0)), base_url=invalid)
+    client = ModelStudio(SecretStr("offline"), Budget(0, Decimal(0)), base_url=BASE_URL)
+    try:
+        with pytest.raises(CallFailed, match="ENDPOINT_CONTRACT_ERROR"):
+            client._check_request(
+                httpx.Request(
+                    "POST",
+                    BASE_URL.replace("ws-offline-test", "ws-another")
+                    + "/chat/completions",
+                )
+            )
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize("failure", ["duplicate", "unknown", "both", "bounded"])
+def test_body_selection_diagnostics_are_private_bounded_and_stop_execution(
+    failure, tmp_path, monkeypatch, capsys, caplog
+):
+    private_text = "민감한 원문이 ID 자리에 반환된 경우"
+    long_id = "x" * 65
+    selections = {
+        "duplicate": (["s0", "s0"], "BODY_SELECTION_DUPLICATE_ID"),
+        "unknown": (["missing"], "BODY_SELECTION_UNKNOWN_ID"),
+        "both": (["s0", "s0", "missing"], "BODY_SELECTION_DUPLICATE_AND_UNKNOWN_ID"),
+        "bounded": (
+            [private_text, long_id, *[f"missing{i}" for i in range(40)]],
+            "BODY_SELECTION_UNKNOWN_ID",
+        ),
+    }
+    selected, expected = selections[failure]
+    requests = []
+    budgets = []
+
+    def handle(request):
+        requests.append(request)
+        payload = json.loads(request.content)
+        assert payload["response_format"]["json_schema"]["name"] == "BodySelection"
+        return provider_response(request, json.dumps({"source_ids": selected}))
+
+    def models(key, budget, *, base_url):
+        budgets.append(budget)
+        return ModelStudio(
+            key, budget, base_url=base_url, transport=httpx.MockTransport(handle)
+        )
+
+    # Load only definitions; do not run CLI preflight or read a credential file.
+    trial = runpy.run_path(str(Path(__file__).parents[1] / "run_role_harness_trial.py"))
+    execute = trial["execute"]
+    monkeypatch.setitem(execute.__globals__, "ModelStudio", models)
+    execute(
+        SimpleNamespace(output_dir=tmp_path),
+        {},
+        [source_document()],
+        ontology(),
+        SecretStr("offline-diagnostic-key"),
+        BASE_URL,
+    )
+    assert len(requests) == 1  # No generation, judgment, or retry after the failure.
+    diagnostic_path = tmp_path / "body-selection-error.json"
+    diagnostic_text = diagnostic_path.read_text()
+    diagnostic = json.loads(diagnostic_text)
+    report = json.loads((tmp_path / "execution.json").read_text())
+    assert budgets[0].max_calls == 395
+    assert budgets[0].max_usd == Decimal("2.9994946")
+    assert report["calls"] == 1 and report["cumulative_calls"] == 2
+    assert Decimal(report["cumulative_charged_upper_usd"]) == (
+        Decimal("0.0005054") + Decimal(report["charged_upper_usd"])
+    )
+    assert diagnostic["document_id"] == "d1"
+    assert diagnostic["error_code"] == report["error_code"] == expected
+    assert report["status"] == "STOPPED" and report["last_stage"] == "body"
+    assert diagnostic["available_count"] == 2
+    assert diagnostic["selected"]["count"] == len(selected)
+    assert diagnostic_path.stat().st_mode & 0o777 == 0o600
+    for group in ("selected", "duplicate", "unknown"):
+        preview = diagnostic[group]
+        assert len(preview["items"]) <= 32
+        assert len(preview["items"]) + preview["omitted"] == preview["count"]
+    if failure == "bounded":
+        assert diagnostic["selected"]["omitted"] == 10
+        assert diagnostic["unknown"]["items"][0] == {
+            "id": None,
+            "sha256": digest(private_text),
+        }
+        assert diagnostic["unknown"]["items"][1]["id"] is None
+    else:
+        assert [item["id"] for item in diagnostic["selected"]["items"]] == selected
+        assert diagnostic["duplicate"]["count"] == int(failure != "unknown")
+        assert diagnostic["unknown"]["count"] == int(failure != "duplicate")
+    with pytest.raises(FileExistsError):
+        trial["write_private"](diagnostic_path, {})
+    assert diagnostic_path.read_text() == diagnostic_text
+
+    client = models(SecretStr("offline"), Budget(4, Decimal("3")), base_url=BASE_URL)
+    try:
+        result = extract_knowledge(
+            source_document(), ontology(), client, limits(), include_structure=False
+        )
+    finally:
+        client.close()
+    assert result.error_code == expected and result.failed_stage == "body"
+    assert not result.generated and not result.verified
+    public = capsys.readouterr().out + caplog.text + repr(result)
+    for hidden in (
+        private_text,
+        long_id,
+        "offline-diagnostic-key",
+        source_document().body,
+    ):
+        assert hidden not in public + diagnostic_text
+    assert '"selected"' not in public
