@@ -1,12 +1,22 @@
-# ontology-map 프론트 통합 인계
+# ontology-map #131 수집 인계
 
-> 확인일: 2026-09-09. 통합 기준은 `main`의 `8d69538`이며, 팝업 최종 검증의 후속 수정은 `fix/164-dialog-tab-cycle`에 있다. 이후 상태는 GitHub와 실제 commit을 다시 확인한다.
+> 확인일: 2026-09-10. 작업 기준은 `main`의 `9a42d94fac3406de3a3a582d224f109744b65558`이며, 이후 상태는 GitHub와 실제 commit을 다시 확인한다.
 
-- 사용자 요청으로 PR #183 → #182 → #179 → #178 → #176 → #174 → #172 → #170 → #168 → #166 → #165 → #161을 순서대로 상위 브랜치와 main에 병합한 뒤 문서 PR #160도 병합했다. 저장소가 허용하는 Rebase merge를 사용했다. 기존 백엔드 #120도 main에 포함되어 있다.
-- 현재 기술·모델 구성은 [구현 스택](docs/development/implementation-stack.md), 화면 계약은 [제품 설계](docs/product/design.md), 실행·개발 fixture는 [DB 운영](docs/operations/database.md)을 따른다. 후속 질문은 #162가 기준이며 #113의 이동형 두 질문 계약은 대체됐다.
-- 패널의 실제 PostgreSQL/API 회귀 검사 39개가 통과했다. 프론트는 병합 전 최종 코드의 75개 테스트·타입·빌드가 통과했고 병합된 web 코드가 동일함을 확인했다. 합성 fixture를 실제 모델 생성 품질의 증거로 사용하지 않는다.
-- [#164](https://github.com/studylida/ontology-map/issues/164)의 빈 결과·빠른 기간/탭/중심 전환·충돌 근거 비교는 기존 실제 API 검증을 유지한다. 후속 실제 입력 검증에서 보고서 마지막 요소의 Tab 초점 이탈을 확인해 공용 팝업의 양 끝 순환을 수정했다. 보고서·관계 팝업의 trusted Tab·Shift+Tab·Escape, 내부 클릭 유지·바깥 클릭 닫힘·원래 버튼 초점 복귀와 패널 방향키 전환을 확인했고, 수정 후 web 75개 테스트·타입·빌드가 통과했다.
-- GitHub 자동 승인 검토가 #164 검증 댓글 게시를 목적지·게시 내용의 명시적 승인 부족으로 거절했다. 후속 커밋의 push·PR·Issue 완료 기록은 사용자 확인 뒤 진행한다. [#162](https://github.com/studylida/ontology-map/issues/162)·#164의 원격 상태는 아직 열려 있다. 실제 시연 데이터의 정보 구성·문체·내용 유용성 개선은 [#181](https://github.com/studylida/ontology-map/issues/181)에서 준비될 때 진행한다.
-- 지도·범례·가독성은 #106·#167·#169·#171·#173·#175에서 최신 사용자 결정과 완료 근거를 확인한다. 2단계 이름을 다시 표시하거나 간선 두께 차이·발광 장식·화면 밖 안내를 새 작업으로 되살리지 않는다.
-- #139와 백엔드·에이전트 작업은 다른 세션이 맡는다. #121·#117은 기준 commit에 미적용이며 #180의 자동 재생성·publication 복구도 남아 있다. #68·#129의 생성과 #136의 cache·장면 정리 보류를 유지한다.
-- 배포·tag·release는 수행하지 않았다. 다른 worktree·세션 기록·시험 자료·미커밋 변경은 보존한다. 후속 수정은 현재 main과 Git 상태를 다시 확인한 뒤 승인된 범위에서 진행한다.
+## 검증된 결과
+
+- [#131](https://github.com/studylida/ontology-map/issues/131)의 일회성 시연 corpus를 `2026-06-11T00:00:00Z <= published_at < 2026-09-09T00:00:00Z` 범위에서 만들었다. GDELT 후보 6,640행을 canonical URL 기준 6,513개로 병합하고, 실제 한국어 본문 1,000건을 선택했다.
+- 공개 snapshot ID는 `6db4f34db3fa7573`이다. 결과·분포·BigQuery 작업 ID·재현 명령은 [수집 결과](review/131-gdelt-collection/README.md), 공개 레코드는 [manifest](review/131-gdelt-collection/manifest.jsonl), 수동 판단은 [감사 결과](review/131-gdelt-collection/audit.csv)에 있다.
+- 최종 1,000건의 canonical URL과 본문 SHA-256은 각각 모두 고유하고 제목 공백은 없다. 삼성전자·Intel·NVIDIA와 SK하이닉스가 같은 원문 맥락에 있는 예약 자료는 기업별 3건씩이다.
+- 고정 표본 100건을 실제 본문으로 확인한 결과 발행일·한국어·본문 추출은 각각 100/100, 직접 관련성은 94/100, 파트너 맥락은 9/9였다. 개발 fixture나 모델 산출물의 품질 검증 결과가 아니다.
+
+## 외부 보관과 범위
+
+- 후보 CSV, 원문 gzip, 수집 checkpoint와 private audit 원본은 Git 저장소 밖 접근 제한 경로 `~/.local/share/ontology-map/gdelt/2026-06-11_2026-09-09`에 있다. 공개 manifest의 `artifact_key`가 원문을 가리키며 대량 원문은 Git·Issue·PR에 게시하지 않는다.
+- 게시일 메타데이터 생략과 제목 누락을 발견한 이전 실행 기록은 같은 외부 경로의 `failed-smoke-metadata-disabled`와 `failed-full-missing-title`에 보존했다. 최종 snapshot은 두 결함을 수정한 새 checkpoint에서 생성했다.
+- 이 수집기는 다음 시연을 위한 고정 범위 일회성 도구다. 운영 수집 platform, scheduler, 제품 API·DB 적재, schema·migration, Agent·모델 호출은 추가하지 않았다. 향후 제품 입력은 다른 주체가 모집·제공한 자료를 받는다.
+
+## 다음 작업
+
+- 사용자가 지정한 다음 작업은 [#110](https://github.com/studylida/ontology-map/issues/110)이다. #131 자료를 대표 예시로 사용해 허용 자료, lint 적용 대상, 원문에서 Evidence Trace까지의 적재·publication 정책을 정하되 수집기나 적재 코드를 구현하는 Issue로 바꾸지 않는다.
+- [#111](https://github.com/studylida/ontology-map/issues/111)은 #131의 검증 자료 중 작은 집합을 본문 추출 Agent 입력 경계로 넘긴다. #111은 #110·#64·#124에 의존하므로 최신 결정과 선행 상태를 다시 확인한다.
+- #110 이후에도 #127의 지식 후보 작성, #128의 Node 동일 대상 판정, 실제 저장·publication 구현은 각각의 승인 범위로 남긴다. #68·#129의 생성 작업과 #139의 추가 모델 시험을 이번 결과로 재개하지 않는다.
