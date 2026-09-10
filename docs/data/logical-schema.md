@@ -4,7 +4,7 @@
 >
 > 변경 기준일: 2026-09-10
 >
-> 관련 변경: Issue #41, #64, #69, #91
+> 관련 변경: Issue #41, #64, #69, #91, #110
 >
 > 제품 기준: 공개 자료를 근거와 시간축이 있는 지식그래프로 축적하고, 검색한 노드를 중심으로 탐색하는 HBF POC
 
@@ -184,7 +184,7 @@ erDiagram
 
 ### 5.2 `source_document`
 
-제품 밖에서 준비한 정규화 문서 한 버전이다.
+제품 밖에서 준비한 정규화 문서 한 버전이다. 저장 전 허용 자료와 재처리 경계는 [출처·lint 적재 정책](source-intake-policy.md)을 따른다.
 
 | 필드 | 의미 |
 |---|---|
@@ -269,6 +269,8 @@ fingerprint
 위 조합이 고유하다. 경고, 계약 위반과 모델 장애는 이 테이블에 넣지 않는다.
 
 ### 5.5 lint
+
+실제 승격 전·저장 그래프 검사 항목과 `BLOCKING | WARNING` 처리는 [출처·lint 적재 정책](source-intake-policy.md)이 정한다.
 
 - `lint_rule`: 안정된 규칙 코드, 표시 이름, 설명과 평가 범위 `PRE_PROMOTION | PERSISTED_GRAPH | BOTH`
 - `lint_policy_version`: 함께 적용할 규칙 선택의 불변 정책 버전
