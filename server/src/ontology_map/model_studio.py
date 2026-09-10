@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from contextvars import Context
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -19,7 +20,6 @@ from ontology_map.extraction_contracts import digest
 
 FLASH = "qwen3.7-flash-2026-07-15"
 PLUS = "qwen3.7-plus-2026-05-26"
-BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
 Role = Literal["body", "generation", "claim_support", "meaning_support"]
 
 # Singapore list-price upper tiers, checked 2026-09-10. No cache/promo credit.
@@ -86,6 +86,16 @@ class CallFailed(Exception):
         self.fatal = fatal
 
 
+def validate_base_url(base_url: str) -> str:
+    if not re.fullmatch(
+        r"https://[a-z0-9]+(?:-[a-z0-9]+)*\.ap-southeast-1\.maas\.aliyuncs\.com"
+        r"/compatible-mode/v1",
+        base_url,
+    ):
+        raise CallFailed("UNAPPROVED_ENDPOINT", fatal=True)
+    return base_url
+
+
 def token_cost(model: str, input_tokens: int, output_tokens: int) -> Decimal:
     input_rate, output_rate = RATES[model]
     return (input_rate * input_tokens + output_rate * output_tokens) / 1_000_000
@@ -123,8 +133,10 @@ class ModelStudio:
         api_key: SecretStr,
         budget: Budget,
         *,
+        base_url: str,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
+        self._base_url = validate_base_url(base_url)
         self.budget = budget
         self._request_limit = 0
         self._request_sent = False
@@ -141,7 +153,7 @@ class ModelStudio:
             model: ChatOpenAI(
                 model=model,
                 api_key=api_key,
-                base_url=BASE_URL,
+                base_url=self._base_url,
                 http_client=self._http,
                 max_retries=0,
                 timeout=60,
@@ -160,7 +172,7 @@ class ModelStudio:
         self._http.close()
 
     def _check_request(self, request: httpx.Request) -> None:
-        if str(request.url) != BASE_URL + "/chat/completions":
+        if str(request.url) != self._base_url + "/chat/completions":
             self._request_error = "ENDPOINT_CONTRACT_ERROR"
             raise CallFailed("ENDPOINT_CONTRACT_ERROR", fatal=True)
         if len(request.content) > self._request_limit:

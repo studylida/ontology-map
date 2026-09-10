@@ -40,7 +40,6 @@ from ontology_map.extraction_contracts import (
     digest,
 )
 from ontology_map.model_studio import (
-    BASE_URL,
     FLASH,
     PLUS,
     RATES,
@@ -48,6 +47,7 @@ from ontology_map.model_studio import (
     CallFailed,
     CallLimits,
     ModelStudio,
+    validate_base_url,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -202,7 +202,7 @@ def write_private(path, value):
         handle.write(encoded(value) + "\n")
 
 
-def manifest(args, docs, ontology):
+def manifest(args, docs, ontology, base_url):
     tracked = subprocess.check_output(
         ["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT, text=True
     )
@@ -214,7 +214,7 @@ def manifest(args, docs, ontology):
     if [len(a["facts"]) for a in gold["articles"]] != [6, 6, 6, 6]:
         raise ValueError("GOLD_FACT_SET")
     return {
-        "trial": "139-role-harness-paragraph-v1",
+        "trial": "139-role-harness-paragraph-v1-endpoint-correction",
         "scope": "development-regression",
         "commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
@@ -247,7 +247,8 @@ def manifest(args, docs, ontology):
             t.__name__: digest(encoded(t.model_json_schema()))
             for t in (BodySelection, KnowledgeProposals, ClaimSupport, MeaningSupport)
         },
-        "endpoint": BASE_URL,
+        "endpoint_kind": "Singapore workspace-dedicated",
+        "endpoint_sha256": digest(base_url),
         "models": [FLASH, PLUS],
         "rates_per_million": RATES,
         "limits": asdict(LIMITS),
@@ -292,7 +293,7 @@ def manifest(args, docs, ontology):
     }
 
 
-def load_key():
+def load_credentials():
     # Reuse the earlier trial's restricted reader, without importing its executor.
     with os.fdopen(os.open(KEY_FILE, os.O_RDONLY | os.O_NOFOLLOW)) as handle:
         info = os.fstat(handle.fileno())
@@ -301,16 +302,14 @@ def load_key():
         if stat.S_IMODE(info.st_mode) != 0o600:
             raise ValueError("CREDENTIAL_FILE_PERMISSIONS")
         settings = dotenv_values(stream=handle, interpolate=False)
-    if settings.get("MODEL_STUDIO_BASE_URL") != BASE_URL:
-        raise ValueError("UNAPPROVED_ENDPOINT")
+    base_url = validate_base_url(settings.get("MODEL_STUDIO_BASE_URL") or "")
     key = settings.get("DASHSCOPE_API_KEY") or ""
     if not key or any(c.isspace() for c in key):
         raise ValueError("KEY_NOT_CONFIGURED")
-    os.environ["DASHSCOPE_API_KEY"] = key
-    return SecretStr(key)
+    return SecretStr(key), base_url
 
 
-def execute(args, frozen, docs, ontology):
+def execute(args, frozen, docs, ontology, key, base_url):
     # Exclusive marker prevents replaying ambiguous calls, including a crashed run.
     write_private(
         args.output_dir / "started.json", {"manifest_sha256": digest(encoded(frozen))}
@@ -320,7 +319,8 @@ def execute(args, frozen, docs, ontology):
     status, error_code = "INCOMPLETE", None
     stage = "credentials"
     try:
-        client = ModelStudio(load_key(), budget)
+        os.environ["DASHSCOPE_API_KEY"] = key.get_secret_value()
+        client = ModelStudio(key, budget, base_url=base_url)
         for doc in docs:
             stage = "body"
             print(f"{doc.document_id} body START", flush=True)
@@ -410,7 +410,8 @@ def main():
     if not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o700:
         raise ValueError("PRIVATE_DIRECTORY_REQUIRED")
     docs, ontology = documents(args.sources), approved_ontology()
-    frozen = manifest(args, docs, ontology)
+    key, base_url = load_credentials()
+    frozen = manifest(args, docs, ontology, base_url)
     path = args.output_dir / "manifest.json"
     if not args.execute:
         write_private(path, frozen)
@@ -418,11 +419,13 @@ def main():
         return
     if path.read_text().strip() != encoded(frozen):
         raise ValueError("FROZEN_INPUT_CHANGED")
-    execute(args, frozen, docs, ontology)
+    execute(args, frozen, docs, ontology, key, base_url)
 
 
 if __name__ == "__main__":
     try:
         main()
+    except CallFailed as error:
+        raise SystemExit(error.code) from None
     except Exception:
         raise SystemExit("TRIAL_PREFLIGHT_FAILED") from None

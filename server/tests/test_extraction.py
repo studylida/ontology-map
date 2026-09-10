@@ -28,14 +28,16 @@ from ontology_map.extraction_contracts import (
 )
 from ontology_map.extraction_metrics import CandidateReview, summarize
 from ontology_map.model_studio import (
-    BASE_URL,
     FLASH,
     PLUS,
     Budget,
     CallFailed,
     CallLimits,
     ModelStudio,
+    validate_base_url,
 )
+
+BASE_URL = "https://ws-offline-test.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
 
 
 def source_document():
@@ -205,7 +207,10 @@ def test_fixed_pipeline_request_contract_and_own_evidence(monkeypatch, caplog, c
 
     budget = Budget(max_calls=10, max_usd=Decimal("3"))
     client = ModelStudio(
-        SecretStr("offline-test-key"), budget, transport=httpx.MockTransport(handle)
+        SecretStr("offline-test-key"),
+        budget,
+        base_url=BASE_URL,
+        transport=httpx.MockTransport(handle),
     )
     try:
         result = extract_knowledge(
@@ -291,6 +296,7 @@ def test_bad_candidates_do_not_remove_independent_valid_knowledge(change):
     client = ModelStudio(
         SecretStr("offline"),
         Budget(10, Decimal("3")),
+        base_url=BASE_URL,
         transport=httpx.MockTransport(handle),
     )
     try:
@@ -326,7 +332,10 @@ def test_no_retry_and_uncertain_cost_is_reserved(failure):
 
     budget = Budget(2, Decimal("2"))
     client = ModelStudio(
-        SecretStr("offline"), budget, transport=httpx.MockTransport(handle)
+        SecretStr("offline"),
+        budget,
+        base_url=BASE_URL,
+        transport=httpx.MockTransport(handle),
     )
     try:
         with pytest.raises(CallFailed) as error:
@@ -357,6 +366,7 @@ def test_zero_budget_blocks_before_network():
     client = ModelStudio(
         SecretStr("offline"),
         Budget(0, Decimal(0)),
+        base_url=BASE_URL,
         transport=httpx.MockTransport(forbidden),
     )
     try:
@@ -437,6 +447,7 @@ def test_exact_reprocessing_cache_uses_contract_and_document_identity():
     client = ModelStudio(
         SecretStr("offline"),
         Budget(3, Decimal("2")),
+        base_url=BASE_URL,
         transport=httpx.MockTransport(handle),
     )
     completed = {}
@@ -485,7 +496,10 @@ def test_request_and_token_cost_limits(boundary):
         max_request_bytes=1 if boundary == "request_bytes" else 100_000,
     )
     client = ModelStudio(
-        SecretStr("offline"), budget, transport=httpx.MockTransport(handle)
+        SecretStr("offline"),
+        budget,
+        base_url=BASE_URL,
+        transport=httpx.MockTransport(handle),
     )
     try:
         with pytest.raises(CallFailed):
@@ -596,6 +610,7 @@ def test_literal_topic_mention_requires_catalog_and_separate_meaning_judgment():
     client = ModelStudio(
         SecretStr("offline"),
         Budget(8, Decimal("3")),
+        base_url=BASE_URL,
         transport=httpx.MockTransport(handle),
     )
     try:
@@ -613,3 +628,28 @@ def test_literal_topic_mention_requires_catalog_and_separate_meaning_judgment():
     assert meaning_calls[0]["claim"]["mentions"][1]["text"] == "AI"
     assert meaning_calls[0]["claim"]["mentions"][1]["topic_name"] == "인공지능"
     assert rejected.exclusions[0].code == "INVALID_BINDING_DEPENDENCY"
+
+
+def test_endpoint_injection_is_singapore_only_and_wire_must_match():
+    assert validate_base_url(BASE_URL) == BASE_URL
+    for invalid in (
+        BASE_URL.replace("https:", "http:"),
+        BASE_URL.replace("ap-southeast-1", "cn-beijing"),
+        BASE_URL.replace(".com/", ".com.attacker.example/"),
+        BASE_URL.replace("https://", "https://user@"),
+        BASE_URL + "?redirect=elsewhere",
+    ):
+        with pytest.raises(CallFailed, match="UNAPPROVED_ENDPOINT"):
+            ModelStudio(SecretStr("offline"), Budget(0, Decimal(0)), base_url=invalid)
+    client = ModelStudio(SecretStr("offline"), Budget(0, Decimal(0)), base_url=BASE_URL)
+    try:
+        with pytest.raises(CallFailed, match="ENDPOINT_CONTRACT_ERROR"):
+            client._check_request(
+                httpx.Request(
+                    "POST",
+                    BASE_URL.replace("ws-offline-test", "ws-another")
+                    + "/chat/completions",
+                )
+            )
+    finally:
+        client.close()

@@ -91,7 +91,7 @@ LangChain은 아래 추출 실행 코드의 model·prompt·Structured Output 결
 | `model_studio.py` | Model Studio 싱가포르 호출, Structured Output, 전송 직전 요청 크기·호출·비용 예약과 안전한 실패 반환 |
 | `extraction_metrics.py` | 모델에 제공하지 않는 유한 독립 검토 결과로 보존율·오류율·비중복 산출량·빈 결과 집계 |
 
-본문 추출·지식 생성은 `qwen3.7-flash-2026-07-15`, Claim 근거·의미 연결 판정은 `qwen3.7-plus-2026-05-26`으로 고정한다. endpoint는 `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`이며 JSON Schema strict, 비스트리밍, thinking 비활성화와 자동 재시도 0회를 사용한다. `max_tokens`는 모델의 `extra_body`에 설정해 실제 전송한다. [Model Studio의 Structured Output 계약](https://www.alibabacloud.com/help/en/model-studio/qwen-structured-output)을 사용하되, 이 설정의 무호출 전송 검증과 두 snapshot의 실제 API 호환성·의미 품질 검증은 서로 다르다.
+본문 추출·지식 생성은 `qwen3.7-flash-2026-07-15`, Claim 근거·의미 연결 판정은 `qwen3.7-plus-2026-05-26`으로 고정한다. 실행 프로세스가 기존 설정의 싱가포르 workspace 전용 `base_url`을 명시적으로 주입한다. HTTPS·싱가포르 domain·정확한 경로만 허용하며 실제 전송 대상은 주입한 endpoint와 같아야 한다. 개인 workspace 주소는 저장소나 문서에 복사하지 않는다. 공용 endpoint로 자동 대체하지 않는다. JSON Schema strict, 비스트리밍, thinking 비활성화와 자동 재시도 0회를 사용한다. `max_tokens`는 모델의 `extra_body`에 설정해 실제 전송한다. [Model Studio의 Structured Output 계약](https://www.alibabacloud.com/help/en/model-studio/qwen-structured-output)을 사용하되, 이 설정의 무호출 전송 검증과 두 snapshot의 실제 API 호환성·의미 품질 검증은 서로 다르다.
 
 Claim은 statement·modality·자기 source_ids, 원문 대상 언급과 필요한 여러 의미 연결을 함께 제안한다. 개발·협력·발표·투자는 허용된 직접 관계를 우선 사용하며 EVENT는 원문에서 구체적인 사건을 식별할 수 있을 때만 제안한다. 관계는 code·양쪽 언급·stance, 속성은 code·대상 언급·타입이 있는 값·필요 단위, 사건 시간은 사건 언급·시간·정밀도를 제안한다. 모델이 영속 Node ID나 revision ID를 만들지 않는다. 코드가 호출자가 제공한 허용 code의 정확한 revision, endpoint·단위·값 종류를 검사한다. Claim 근거 판정에는 그 Claim의 자기 근거만 전달하며 전체 문서·형제 Claim·gold를 제공하지 않는다. 의미 연결 판정은 같은 자기 근거와 남길 연결을 별도의 prompt·출력 계약으로 검사한다.
 

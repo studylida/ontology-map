@@ -19,7 +19,7 @@ uv run --frozen mypy src
 
 TOPIC 언급은 원문에 실제로 있는 `text`와 승인 목록의 `topic_name`을 구분한다. 다른 유형의 `topic_name`은 `null`이다. 코드가 원문 표현·허용 명칭·endpoint를 검사한 뒤 Plus의 별도 의미 연결 판정을 거친다. 원문의 `AI`를 승인 Topic `인공지능`에 제안할 수 있지만 이름 대응만으로 통과시키거나 새 Topic·상위 Topic을 자동 추가하지 않는다.
 
-`ModelStudio`는 `SecretStr` 키와 명시적인 `Budget(max_calls, max_usd)`를 받는다. 키 파일을 직접 읽거나 복사하지 않으며 application 실행 프로세스가 키를 주입해야 한다. 사용 후 `close()`로 HTTP client를 닫는다. 무호출 검사에서는 `httpx.MockTransport`와 가짜 키만 사용하고 실제 socket 연결·LangSmith 업로드를 차단한다. 실제 호출은 역할별 호출 수·상한·예산·중단 조건을 승인받은 별도 실행에서만 허용한다. 예산이 0이면 전송하지 않는다.
+`ModelStudio`는 `SecretStr` 키, 명시적인 `Budget(max_calls, max_usd)`와 필수 keyword 인자 `base_url`을 받는다. 키 파일을 직접 읽거나 복사하지 않으며 application 실행 프로세스가 기존 설정의 키와 싱가포르 workspace endpoint를 주입해야 한다. 허용되지 않은 주소는 `UNAPPROVED_ENDPOINT`, 주입한 주소와 실제 전송 대상의 불일치는 `ENDPOINT_CONTRACT_ERROR`로 차단한다. 사용 후 `close()`로 HTTP client를 닫는다. 무호출 검사에서는 `httpx.MockTransport`와 가짜 키·가짜 workspace 주소만 사용하고 실제 socket 연결·LangSmith 업로드를 차단한다. 실제 호출은 역할별 호출 수·상한·예산·중단 조건을 승인받은 별도 실행에서만 허용한다. 예산이 0이면 전송하지 않는다.
 
 각 역할에 `CallLimits(max_input_tokens, max_output_tokens, max_request_bytes)`를 제공한다. 실제 직렬화된 요청의 byte 상한은 전송 직전에 검사하고, 출력은 provider의 `max_tokens`로 제한한다. 입력 token 상한은 provider가 반환한 usage로 확인하는 사후 중단 기준이다. Qwen tokenizer가 없는 상태에서 문자 수를 정확한 token 수로 취급하지 않는다.
 
@@ -31,7 +31,7 @@ TOPIC 언급은 원문에 실제로 있는 `text`와 승인 목록의 `topic_nam
 
 현재 검증은 반환 후보까지다. 실제 모델의 품질, 독립 자료의 보존율 70% 이상·중대 오류율 1% 미만, 반복 중대 오류 사실군 차단, Node 동일 대상·Claim 의미 중복 판정과 DB 정합화·저장·publication·사이트 연결은 별도 검증이 필요하다. 실제 시험 자료·후보 수·비용·검토 기준은 정식 문서에 복제하지 않고 #127·#139에서 동결한다. 고정 모델·의존성 버전과 구현 경계는 [구현 스택](../development/implementation-stack.md#제품-재사용용-추출-실행-코드)을 따른다.
 
-`server/run_role_harness_trial.py`는 #139에서 승인한 개발 비교를 위 함수로 실행하는 한정된 실행기다. `server/`에서 `PYTHONPATH=src uv run --frozen python run_role_harness_trial.py --sources <기존 sources-frozen.json> --gold <기존 gold.json> --output-dir <접근 제한 임시 디렉터리>`를 실행하면 키·네트워크 없이 입력을 검사하고 manifest를 동결한다. 승인한 유료 실행에만 같은 명령에 `--execute`를 붙인다. 실행기는 동결된 입력·코드가 바뀌었거나 이미 실행한 디렉터리이면 호출하지 않는다. 실제 시험 프로세스 안에서만 기존 키 파일을 읽고 환경 변수로 주입한 뒤 제거한다. provider 원시 응답·reasoning은 저장하지 않는다. 유한 평가에 필요한 parsed 후보와 판정은 해당 임시 디렉터리에만 제한 보관하며 Git·제품 DB·로그·외부 tracing으로 보내지 않는다. 이 실행기는 제품의 artifact 보존 기능이나 일반 시험 플랫폼이 아니다.
+`server/run_role_harness_trial.py`는 #139에서 승인한 개발 비교를 위 함수로 실행하는 한정된 실행기다. `server/`에서 `PYTHONPATH=src uv run --frozen python run_role_harness_trial.py --sources <기존 sources-frozen.json> --gold <기존 gold.json> --output-dir <접근 제한 임시 디렉터리>`를 실행하면 모델 전송 없이 입력과 기존 credential 파일의 권한·endpoint를 검사하고 manifest를 동결한다. 설정은 시험 프로세스 안에서만 읽으며 manifest에는 개별 endpoint 값 대신 SHA-256만 남긴다. 승인한 유료 실행에만 같은 명령에 `--execute`를 붙인다. 실행기는 동결된 입력·코드·endpoint hash가 바뀌었거나 이미 실행한 디렉터리이면 호출하지 않는다. 키는 실제 실행 프로세스의 환경 변수로만 주입한 뒤 제거한다. provider 원시 응답·reasoning은 저장하지 않는다. 유한 평가에 필요한 parsed 후보와 판정은 해당 임시 디렉터리에만 제한 보관하며 Git·제품 DB·로그·외부 tracing으로 보내지 않는다. 이 실행기는 제품의 artifact 보존 기능이나 일반 시험 플랫폼이 아니다.
 
 ## 요구 버전
 
