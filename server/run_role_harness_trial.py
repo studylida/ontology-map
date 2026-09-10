@@ -53,6 +53,19 @@ from ontology_map.model_studio import (
 
 ROOT = Path(__file__).resolve().parent.parent
 KEY_FILE = Path("/home/studylida/.config/ontology-map/model-studio.env")
+# The one prior paid execution; #139 comments 5612600497 and 5612890817.
+# This finite runner does not discover/resume executions or reset their allowance.
+PRIOR_EXECUTION = {
+    "sha256": "c5eb5e62b287f44d5ed8964cb6df749c01d263368371a2e0808ea4780a83ca98",
+    "calls": 1,
+    "calls_by_role": {
+        "body": 1,
+        "generation": 0,
+        "claim_support": 0,
+        "meaning_support": 0,
+    },
+    "charged_upper_usd": Decimal("0.0005054"),
+}
 LIMITS = ExtractionLimits(
     body=CallLimits(32768, 2048, 131072),
     generation=CallLimits(32768, 12288, 131072),
@@ -216,7 +229,7 @@ def manifest(args, docs, ontology, base_url):
     if [len(a["facts"]) for a in gold["articles"]] != [6, 6, 6, 6]:
         raise ValueError("GOLD_FACT_SET")
     return {
-        "trial": "139-role-harness-paragraph-v1-endpoint-correction",
+        "trial": "139-role-harness-paragraph-v1-body-diagnostics",
         "scope": "development-regression",
         "commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
@@ -255,13 +268,14 @@ def manifest(args, docs, ontology, base_url):
         "rates_per_million": RATES,
         "limits": asdict(LIMITS),
         "max_calls_by_role": {
-            "body": 4,
+            "body": 5,
             "generation": 8,
             "claim_support": 192,
             "meaning_support": 192,
         },
         "max_calls": 396,
         "max_usd": "3.00",
+        "prior_execution": PRIOR_EXECUTION,
         "reservation_input_tokens": 1_000_000,
         "temperature": 0,
         "thinking": False,
@@ -278,6 +292,7 @@ def manifest(args, docs, ontology, base_url):
         "selection_approval": "139#5612152480",
         "catalog_approval": "126#5612152332",
         "budget_approval": "139#5611799845",
+        "body_limit_approval": "139#5612890817",
         "selection_criterion": {
             "final_required_retention": "strictly higher",
             "final_critical_rate": (
@@ -316,7 +331,11 @@ def execute(args, frozen, docs, ontology, key, base_url):
     write_private(
         args.output_dir / "started.json", {"manifest_sha256": digest(encoded(frozen))}
     )
-    budget, rows = Budget(396, Decimal("3.00")), []
+    budget = Budget(
+        396 - PRIOR_EXECUTION["calls"],
+        Decimal("3.00") - PRIOR_EXECUTION["charged_upper_usd"],
+    )
+    rows = []
     client = None
     status, error_code = "INCOMPLETE", None
     stage = "credentials"
@@ -400,6 +419,10 @@ def execute(args, frozen, docs, ontology, key, base_url):
             "records": [asdict(r) for r in budget.records],
             "calls": len(budget.records),
             "charged_upper_usd": budget.charged_upper_usd,
+            "cumulative_calls": PRIOR_EXECUTION["calls"] + len(budget.records),
+            "cumulative_charged_upper_usd": (
+                PRIOR_EXECUTION["charged_upper_usd"] + budget.charged_upper_usd
+            ),
             "manifest_sha256": digest(encoded(frozen)),
         }
         write_private(args.output_dir / "execution.json", report)

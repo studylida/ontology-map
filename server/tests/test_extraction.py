@@ -675,6 +675,7 @@ def test_body_selection_diagnostics_are_private_bounded_and_stop_execution(
     }
     selected, expected = selections[failure]
     requests = []
+    budgets = []
 
     def handle(request):
         requests.append(request)
@@ -683,6 +684,7 @@ def test_body_selection_diagnostics_are_private_bounded_and_stop_execution(
         return provider_response(request, json.dumps({"source_ids": selected}))
 
     def models(key, budget, *, base_url):
+        budgets.append(budget)
         return ModelStudio(
             key, budget, base_url=base_url, transport=httpx.MockTransport(handle)
         )
@@ -704,6 +706,12 @@ def test_body_selection_diagnostics_are_private_bounded_and_stop_execution(
     diagnostic_text = diagnostic_path.read_text()
     diagnostic = json.loads(diagnostic_text)
     report = json.loads((tmp_path / "execution.json").read_text())
+    assert budgets[0].max_calls == 395
+    assert budgets[0].max_usd == Decimal("2.9994946")
+    assert report["calls"] == 1 and report["cumulative_calls"] == 2
+    assert Decimal(report["cumulative_charged_upper_usd"]) == (
+        Decimal("0.0005054") + Decimal(report["charged_upper_usd"])
+    )
     assert diagnostic["document_id"] == "d1"
     assert diagnostic["error_code"] == report["error_code"] == expected
     assert report["status"] == "STOPPED" and report["last_stage"] == "body"

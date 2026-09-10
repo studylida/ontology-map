@@ -33,6 +33,8 @@ TOPIC 언급은 원문에 실제로 있는 `text`와 승인 목록의 `topic_nam
 
 `server/run_role_harness_trial.py`는 #139에서 승인한 개발 비교를 위 함수로 실행하는 한정된 실행기다. `server/`에서 `PYTHONPATH=src uv run --frozen python run_role_harness_trial.py --sources <기존 sources-frozen.json> --gold <기존 gold.json> --output-dir <접근 제한 임시 디렉터리>`를 실행하면 모델 전송 없이 입력과 기존 credential 파일의 권한·endpoint를 검사하고 manifest를 동결한다. 설정은 시험 프로세스 안에서만 읽으며 manifest에는 개별 endpoint 값 대신 SHA-256만 남긴다. 승인한 유료 실행에만 같은 명령에 `--execute`를 붙인다. 실행기는 동결된 입력·코드·endpoint hash가 바뀌었거나 이미 실행한 디렉터리이면 호출하지 않는다. 키는 실제 실행 프로세스의 환경 변수로만 주입한 뒤 제거한다. provider 원시 응답·reasoning은 저장하지 않는다. 유한 평가에 필요한 parsed 후보와 판정은 해당 임시 디렉터리에만 제한 보관하며 Git·제품 DB·로그·외부 tracing으로 보내지 않는다. 이 실행기는 제품의 artifact 보존 기능이나 일반 시험 플랫폼이 아니다.
 
+실행기는 #139에서 확인한 이전 유료 실행의 hash·역할별 호출 수·보수적 비용을 manifest에 포함하고, 전체 승인 한도에서 기존 사용량을 뺀 `Budget`으로 시작한다. 실행 결과에는 이번 실행과 누적 호출·비용을 구분한다. 역할별 허용량보다 전체 호출·비용 한도가 우선하며 이전 실패를 이유로 예산을 초기화하지 않는다. 고정된 네 문서·두 조건·후보 상한이 역할별 호출 범위를 제한한다. 이 실행기는 승인된 새 동결 실행 한 번만을 위한 것이며 다른 임시 디렉터리에서 반복해도 된다는 뜻이 아니다. 추가 실행에는 갱신한 누적 사용량과 승인이 필요하며 자동 재개 기능은 없다.
+
 본문 선택의 중복 ID는 `BODY_SELECTION_DUPLICATE_ID`, 입력에 없는 ID는 `BODY_SELECTION_UNKNOWN_ID`, 둘 다 있으면 `BODY_SELECTION_DUPLICATE_AND_UNKNOWN_ID`로 반환한다. 일반 실행 함수의 `error_code`와 시험 실행기의 중단 기록에 이 code를 유지하며 후속 생성·판정을 호출하지 않는다. Claim의 기존 원문 참조 검증·오류 계약은 바꾸지 않는다.
 
 시험 실행기는 이 실패에 한해 접근 제한 임시 디렉터리의 `body-selection-error.json`에 문서 ID와 선택된 ID·중복 ID·입력에 없는 ID의 개수 및 제한된 목록을 남긴다. 목록별 최대 32개와 생략 개수를 기록하고, 64자 이하의 ASCII 영문·숫자·`_ . : -` 식별자만 표시한다. 그 외 값은 `id=null`과 SHA-256으로 남겨 원문이나 장문이 ID 자리에 반환돼도 복사하지 않는다. 이 제한은 진단 표시 범위이며 모델 입력·출력 schema나 ID 유효성 규칙을 바꾸지 않는다. 파일은 0600·배타 생성으로 만들고 기존 파일을 덮어쓰지 않는다. 예외 문자열·표준 출력·일반 실행 결과에는 구체 ID를 넣지 않는다. 이전 실패의 선택 ID를 복구하거나 원인을 소급 확정하는 기능은 아니다.
