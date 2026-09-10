@@ -22,6 +22,7 @@ from ontology_map.extraction import (
     CLAIM_PROMPT,
     GENERATION_PROMPT,
     MEANING_PROMPT,
+    BodySelectionError,
     ExtractionLimits,
     extract_body,
     generate_knowledge,
@@ -198,7 +199,8 @@ def encoded(value):
 
 
 def write_private(path, value):
-    with path.open("x", encoding="utf-8") as handle:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         handle.write(encoded(value) + "\n")
 
 
@@ -377,6 +379,12 @@ def execute(args, frozen, docs, ontology, key, base_url):
         status = "COMPLETE"
     except CallFailed as error:
         status, error_code = "STOPPED", error.code
+    except BodySelectionError as error:
+        status, error_code = "STOPPED", error.code
+        write_private(
+            args.output_dir / "body-selection-error.json",
+            {"document_id": doc.document_id, **error.diagnostic},
+        )
     except Exception:
         # Never print exceptions containing credentials, source data, or outputs.
         status, error_code = "STOPPED", "LOCAL_CONTRACT_ERROR"

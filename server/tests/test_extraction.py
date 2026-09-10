@@ -1,6 +1,9 @@
 import json
+import runpy
 import socket
 from decimal import Decimal
+from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -653,3 +656,94 @@ def test_endpoint_injection_is_singapore_only_and_wire_must_match():
             )
     finally:
         client.close()
+
+
+@pytest.mark.parametrize("failure", ["duplicate", "unknown", "both", "bounded"])
+def test_body_selection_diagnostics_are_private_bounded_and_stop_execution(
+    failure, tmp_path, monkeypatch, capsys, caplog
+):
+    private_text = "민감한 원문이 ID 자리에 반환된 경우"
+    long_id = "x" * 65
+    selections = {
+        "duplicate": (["s0", "s0"], "BODY_SELECTION_DUPLICATE_ID"),
+        "unknown": (["missing"], "BODY_SELECTION_UNKNOWN_ID"),
+        "both": (["s0", "s0", "missing"], "BODY_SELECTION_DUPLICATE_AND_UNKNOWN_ID"),
+        "bounded": (
+            [private_text, long_id, *[f"missing{i}" for i in range(40)]],
+            "BODY_SELECTION_UNKNOWN_ID",
+        ),
+    }
+    selected, expected = selections[failure]
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        payload = json.loads(request.content)
+        assert payload["response_format"]["json_schema"]["name"] == "BodySelection"
+        return provider_response(request, json.dumps({"source_ids": selected}))
+
+    def models(key, budget, *, base_url):
+        return ModelStudio(
+            key, budget, base_url=base_url, transport=httpx.MockTransport(handle)
+        )
+
+    # Load only definitions; do not run CLI preflight or read a credential file.
+    trial = runpy.run_path(str(Path(__file__).parents[1] / "run_role_harness_trial.py"))
+    execute = trial["execute"]
+    monkeypatch.setitem(execute.__globals__, "ModelStudio", models)
+    execute(
+        SimpleNamespace(output_dir=tmp_path),
+        {},
+        [source_document()],
+        ontology(),
+        SecretStr("offline-diagnostic-key"),
+        BASE_URL,
+    )
+    assert len(requests) == 1  # No generation, judgment, or retry after the failure.
+    diagnostic_path = tmp_path / "body-selection-error.json"
+    diagnostic_text = diagnostic_path.read_text()
+    diagnostic = json.loads(diagnostic_text)
+    report = json.loads((tmp_path / "execution.json").read_text())
+    assert diagnostic["document_id"] == "d1"
+    assert diagnostic["error_code"] == report["error_code"] == expected
+    assert report["status"] == "STOPPED" and report["last_stage"] == "body"
+    assert diagnostic["available_count"] == 2
+    assert diagnostic["selected"]["count"] == len(selected)
+    assert diagnostic_path.stat().st_mode & 0o777 == 0o600
+    for group in ("selected", "duplicate", "unknown"):
+        preview = diagnostic[group]
+        assert len(preview["items"]) <= 32
+        assert len(preview["items"]) + preview["omitted"] == preview["count"]
+    if failure == "bounded":
+        assert diagnostic["selected"]["omitted"] == 10
+        assert diagnostic["unknown"]["items"][0] == {
+            "id": None,
+            "sha256": digest(private_text),
+        }
+        assert diagnostic["unknown"]["items"][1]["id"] is None
+    else:
+        assert [item["id"] for item in diagnostic["selected"]["items"]] == selected
+        assert diagnostic["duplicate"]["count"] == int(failure != "unknown")
+        assert diagnostic["unknown"]["count"] == int(failure != "duplicate")
+    with pytest.raises(FileExistsError):
+        trial["write_private"](diagnostic_path, {})
+    assert diagnostic_path.read_text() == diagnostic_text
+
+    client = models(SecretStr("offline"), Budget(4, Decimal("3")), base_url=BASE_URL)
+    try:
+        result = extract_knowledge(
+            source_document(), ontology(), client, limits(), include_structure=False
+        )
+    finally:
+        client.close()
+    assert result.error_code == expected and result.failed_stage == "body"
+    assert not result.generated and not result.verified
+    public = capsys.readouterr().out + caplog.text + repr(result)
+    for hidden in (
+        private_text,
+        long_id,
+        "offline-diagnostic-key",
+        source_document().body,
+    ):
+        assert hidden not in public + diagnostic_text
+    assert '"selected"' not in public

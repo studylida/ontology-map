@@ -1,6 +1,8 @@
 """Source-grounded proposals for later reconciliation; no DB or publication IO."""
 
 import json
+import re
+from collections import Counter
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 
@@ -119,6 +121,43 @@ class ExtractionResult:
     error_code: str | None = None
 
 
+def _source_id_preview(ids: list[str]) -> dict[str, object]:
+    # Diagnostic limits do not change which source IDs are valid model output.
+    return {
+        "count": len(ids),
+        "omitted": max(0, len(ids) - 32),
+        "items": [
+            {
+                "id": value if re.fullmatch(r"[A-Za-z0-9_.:-]{1,64}", value) else None,
+                "sha256": digest(value),
+            }
+            for value in ids[:32]
+        ],
+    }
+
+
+class BodySelectionError(ValueError):
+    """Safe exception text; bounded ID details are only for private local review."""
+
+    def __init__(self, selected: list[str], available: set[str]) -> None:
+        counts = Counter(selected)
+        duplicate = [i for i, count in counts.items() if count > 1]
+        unknown = [i for i in counts if i not in available]
+        self.code = (
+            "BODY_SELECTION_DUPLICATE_ID" if duplicate else "BODY_SELECTION_UNKNOWN_ID"
+        )
+        if duplicate and unknown:
+            self.code = "BODY_SELECTION_DUPLICATE_AND_UNKNOWN_ID"
+        super().__init__(self.code)
+        self.diagnostic = {
+            "error_code": self.code,
+            "available_count": len(available),
+            "selected": _source_id_preview(selected),
+            "duplicate": _source_id_preview(duplicate),
+            "unknown": _source_id_preview(unknown),
+        }
+
+
 def _select_sources(ids: list[str], sources: dict[str, SourceSpan]) -> list[SourceSpan]:
     if len(ids) != len(set(ids)) or not set(ids) <= sources.keys():
         raise ValueError("SOURCE_REFERENCE")
@@ -139,9 +178,11 @@ def extract_body(
         BodySelection,
         limits,
     )
-    return _select_sources(
-        selection.source_ids, {s.source_id: s for s in document.sources}
-    )
+    sources = {s.source_id: s for s in document.sources}
+    try:
+        return _select_sources(selection.source_ids, sources)
+    except ValueError:
+        raise BodySelectionError(selection.source_ids, set(sources)) from None
 
 
 def generate_knowledge(
@@ -361,7 +402,7 @@ def _extract_knowledge(
             body, ontology, models, limits, include_structure=include_structure
         )
         return judge_proposals(proposals, body, ontology, models, limits)
-    except CallFailed as error:
+    except (CallFailed, BodySelectionError) as error:
         return ExtractionResult(
             status="FAILED", failed_stage=stage, error_code=error.code
         )
