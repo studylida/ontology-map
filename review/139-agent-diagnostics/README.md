@@ -12,6 +12,8 @@
 
 [개별 Claim 근거 경계 무호출 감사](evidence-boundary-audit-v1/README.md)는 같은 384개 Claim과 42개 필수 사실을 다시 호출하지 않고 교차 감사한 결과다. 기존 점수를 보존하면서 형제 Claim의 근거 합집합으로 개별 Claim의 부족을 메우지 않는 기준과 M04-F06 gold 교정을 분리했다.
 
+[Flash·Plus 생성 비교](flash-plus-generation-v1/README.md)는 동결한 원문 보존형 최소 추출에서 모델 snapshot만 바꾼 네 번째 비교다. Flash는 필수 사실 보존이 높았지만 반복 중대 오류와 더 높은 근거 실패율 때문에 탈락했고, Plus도 낮은 보존율과 유효 산출량 때문에 탈락해 모델 후보를 선택하지 않았다.
+
 ## 시작점
 
 검토자는 [검토 질문 전체](REVIEW_PROMPT.md)를 먼저 읽고, [수행 과정과 결과](EXPERIMENTS.md), [재구성 사례](CASES.md), 실제 prompt·계약·코드 순으로 확인한다. 자료를 전달한 메시지에 적힌 commit을 기준으로 판단하고 이후 변경과 섞지 않는다.

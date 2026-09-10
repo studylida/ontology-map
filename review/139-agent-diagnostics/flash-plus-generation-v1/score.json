@@ -1,0 +1,227 @@
+{
+  "version": 1,
+  "issue": 139,
+  "method": "Frozen condition-concealed Codex semantic review; mapping revealed only after blind-review.json was written",
+  "limitations": [
+    "The reviewer designed and ran the experiment and is not an independent human evaluator.",
+    "Claim counts exposed model-linked output shapes before the blinded ledger was frozen; condition labels were still concealed in the ledger.",
+    "The four purposefully selected articles become development/regression data after this result.",
+    "This comparison does not approve a product output contract, worker, persistence, or operating quality."
+  ],
+  "input_hashes": {
+    "manifest.json": "87c7d73cf3631b9afa30a59f3dd4738d244a674bb580a0cad7d30507fb960934",
+    "gold.json": "5a1ff5ab1b8f727f772fcca268b1876817e35799e535e9401eeffaebf834abe0",
+    "blind-review.json": "f77932be78970857894cdf6c46945daa8870ad123311204c35b79ef051fead54",
+    "blind-map.json": "75efd56ca1dcb36fa829351aa06491a265d21f59b95740312089f1aec74f2ea0"
+  },
+  "calls": {
+    "per_model": {
+      "flash": {
+        "contract_success": 8,
+        "calls": 8,
+        "finish_reasons": {
+          "stop": 8
+        },
+        "claims": 328,
+        "actual_estimated_cost_usd": 0.00364863
+      },
+      "plus": {
+        "contract_success": 8,
+        "calls": 8,
+        "finish_reasons": {
+          "stop": 8
+        },
+        "claims": 173,
+        "actual_estimated_cost_usd": 0.0339208
+      }
+    },
+    "total_calls": 16,
+    "total_actual_estimated_cost_usd": 0.03756943
+  },
+  "facts": {
+    "flash": {
+      "counts": {
+        "FAIL": 2,
+        "PARTIAL": 14,
+        "PASS": 32
+      },
+      "pass": 32,
+      "total": 48,
+      "pass_rate_percent": 66.67,
+      "per_article": {
+        "C01": {
+          "pass": 6,
+          "total": 12,
+          "pass_by_repeat": {
+            "1": 3,
+            "2": 3
+          }
+        },
+        "C02": {
+          "pass": 10,
+          "total": 12,
+          "pass_by_repeat": {
+            "1": 5,
+            "2": 5
+          }
+        },
+        "C03": {
+          "pass": 8,
+          "total": 12,
+          "pass_by_repeat": {
+            "1": 4,
+            "2": 4
+          }
+        },
+        "C04": {
+          "pass": 8,
+          "total": 12,
+          "pass_by_repeat": {
+            "1": 3,
+            "2": 5
+          }
+        }
+      }
+    },
+    "plus": {
+      "counts": {
+        "PARTIAL": 30,
+        "PASS": 18
+      },
+      "pass": 18,
+      "total": 48,
+      "pass_rate_percent": 37.5,
+      "per_article": {
+        "C01": {
+          "pass": 4,
+          "total": 12,
+          "pass_by_repeat": {
+            "1": 3,
+            "2": 1
+          }
+        },
+        "C02": {
+          "pass": 6,
+          "total": 12,
+          "pass_by_repeat": {
+            "1": 3,
+            "2": 3
+          }
+        },
+        "C03": {
+          "pass": 4,
+          "total": 12,
+          "pass_by_repeat": {
+            "1": 2,
+            "2": 2
+          }
+        },
+        "C04": {
+          "pass": 4,
+          "total": 12,
+          "pass_by_repeat": {
+            "1": 2,
+            "2": 2
+          }
+        }
+      }
+    }
+  },
+  "claims": {
+    "flash": {
+      "total": 328,
+      "source_support_fail": 39,
+      "source_support_fail_rate_percent": 11.89,
+      "modality_or_attribution_fail": 45,
+      "atomicity_fail": 8,
+      "selection_excluded": 40,
+      "duplicates": 2,
+      "all_axes_pass_valid_nonduplicate": 217,
+      "all_axes_pass_valid_nonduplicate_rate_percent": 66.16,
+      "all_axes_pass_valid_nonduplicate_per_attempt": 27.12
+    },
+    "plus": {
+      "total": 173,
+      "source_support_fail": 5,
+      "source_support_fail_rate_percent": 2.89,
+      "modality_or_attribution_fail": 64,
+      "atomicity_fail": 35,
+      "selection_excluded": 16,
+      "duplicates": 2,
+      "all_axes_pass_valid_nonduplicate": 76,
+      "all_axes_pass_valid_nonduplicate_rate_percent": 43.93,
+      "all_axes_pass_valid_nonduplicate_per_attempt": 9.5
+    }
+  },
+  "paired": {
+    "fact_verdict_transitions_plus_to_flash": {
+      "PARTIAL→FAIL": 2,
+      "PARTIAL→PARTIAL": 14,
+      "PARTIAL→PASS": 14,
+      "PASS→PASS": 18
+    },
+    "repeatable_article_improvements": {
+      "flash": [
+        {
+          "article_id": "C02",
+          "pass_delta_by_repeat": {
+            "1": 2,
+            "2": 2
+          }
+        },
+        {
+          "article_id": "C03",
+          "pass_delta_by_repeat": {
+            "1": 2,
+            "2": 2
+          }
+        },
+        {
+          "article_id": "C04",
+          "pass_delta_by_repeat": {
+            "1": 1,
+            "2": 3
+          }
+        }
+      ],
+      "plus": []
+    },
+    "new_repeated_critical_regressions": {
+      "flash": [
+        {
+          "article_id": "C03",
+          "fact_id": "C03-F04",
+          "error_types": [
+            "UNSUPPORTED_OR_CHANGED_MEANING"
+          ],
+          "reason": "협력 계획의 행동 주체를 뉴욕증권거래소에서 레드판다로 바꿨다."
+        }
+      ],
+      "plus": []
+    }
+  },
+  "candidate_decision": {
+    "flash_minus_plus_strict_fact_pass_percentage_points": 29.17,
+    "checks": {
+      "flash": {
+        "comparable_articles_at_least_3": true,
+        "pass_advantage_at_least_10pp": true,
+        "repeatable_improvement_in_at_least_2_articles": true,
+        "no_new_repeated_critical_regression": false,
+        "source_support_fail_rate_not_worse": false,
+        "valid_nonduplicate_yield_not_lower": true
+      },
+      "plus": {
+        "comparable_articles_at_least_3": true,
+        "pass_advantage_at_least_10pp": false,
+        "repeatable_improvement_in_at_least_2_articles": false,
+        "no_new_repeated_critical_regression": true,
+        "source_support_fail_rate_not_worse": true,
+        "valid_nonduplicate_yield_not_lower": false
+      }
+    },
+    "selected_model": null,
+    "decision": "NO_MODEL_CANDIDATE_MEETS_FROZEN_CRITERIA",
+    "demo_gate": "NOT_EVALUATED_ON_SEPARATE_DEMO_GATE_DATA"
+  }
+}

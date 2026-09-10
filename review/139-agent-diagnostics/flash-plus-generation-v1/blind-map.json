@@ -1,0 +1,34 @@
+{
+  "C01:r1": [
+    "flash",
+    "plus"
+  ],
+  "C01:r2": [
+    "plus",
+    "flash"
+  ],
+  "C02:r1": [
+    "plus",
+    "flash"
+  ],
+  "C02:r2": [
+    "flash",
+    "plus"
+  ],
+  "C03:r1": [
+    "plus",
+    "flash"
+  ],
+  "C03:r2": [
+    "plus",
+    "flash"
+  ],
+  "C04:r1": [
+    "plus",
+    "flash"
+  ],
+  "C04:r2": [
+    "flash",
+    "plus"
+  ]
+}

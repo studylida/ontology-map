@@ -1,0 +1,38 @@
+[
+  {
+    "article_id": "C01",
+    "publisher": "SK hynix",
+    "url": "https://news.skhynix.co.kr/navercloud-ai-solution/",
+    "resolved_url": "https://news.skhynix.co.kr/navercloud-ai-solution/",
+    "normalized_body_sha256": "7a64728fbccd179f095a83069dcce29c4f2769797af1bfc5ad4576ff5830ff7a",
+    "normalized_body_chars": 1722,
+    "source_units": 17
+  },
+  {
+    "article_id": "C02",
+    "publisher": "Samsung Newsroom Korea",
+    "url": "https://news.samsung.com/kr/%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90%C2%B7%EB%B8%8C%EB%A1%9C%EB%93%9C%EC%BB%B4-2000%EC%96%B5-%EB%8B%AC%EB%9F%AC-%EA%B7%9C%EB%AA%A8-%EC%A0%84%EB%9E%B5%EC%A0%81-%ED%98%91%EB%A0%A5",
+    "resolved_url": "https://news.samsung.com/kr/%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90%C2%B7%EB%B8%8C%EB%A1%9C%EB%93%9C%EC%BB%B4-2000%EC%96%B5-%EB%8B%AC%EB%9F%AC-%EA%B7%9C%EB%AA%A8-%EC%A0%84%EB%9E%B5%EC%A0%81-%ED%98%91%EB%A0%A5",
+    "normalized_body_sha256": "e00e541a28478afec94c72ca431920daf2f5b0d9db8a4f32960dc185c011a160",
+    "normalized_body_chars": 1934,
+    "source_units": 19
+  },
+  {
+    "article_id": "C03",
+    "publisher": "NVIDIA Korea",
+    "url": "https://blogs.nvidia.co.kr/blog/nvidia-unveils-vera-the-cpu-for-agents/",
+    "resolved_url": "https://blogs.nvidia.co.kr/blog/nvidia-unveils-vera-the-cpu-for-agents/",
+    "normalized_body_sha256": "aaadfc7e03a27435dd829b31a986b988f2f53b94b5d2b6f5c31deccdf42694da",
+    "normalized_body_chars": 3629,
+    "source_units": 41
+  },
+  {
+    "article_id": "C04",
+    "publisher": "Intel Korea",
+    "url": "https://www.intel.co.kr/content/www/kr/ko/newsroom/news/corporate/intel-foundry-gathers-customers-and-partners-outlines-priorities.html",
+    "resolved_url": "https://www.intel.co.kr/content/www/kr/ko/newsroom/news/corporate/intel-foundry-gathers-customers-and-partners-outlines-priorities.html",
+    "normalized_body_sha256": "2a4a3edac478c9db6b00e84dd8e61f078786340e54c489320162d056fa22d111",
+    "normalized_body_chars": 5137,
+    "source_units": 71
+  }
+]

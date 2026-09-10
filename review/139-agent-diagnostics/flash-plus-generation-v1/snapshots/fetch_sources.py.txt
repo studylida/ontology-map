@@ -1,0 +1,50 @@
+"""Freeze four new official Korean articles for the #139 model comparison."""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+import sys
+
+
+ROOT = Path(__file__).resolve().parent
+PRIOR = ROOT.parent / "model-studio-adjacent-context-v1" / "fetch_sources.py"
+spec = importlib.util.spec_from_file_location("prior_source_fetch", PRIOR)
+if not spec or not spec.loader:
+    raise RuntimeError("PRIOR_FETCH_IMPORT_FAILED")
+prior = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = prior
+spec.loader.exec_module(prior)
+
+prior.ROOT = ROOT
+prior.OUTPUT = ROOT / "sources-frozen.json"
+prior.SOURCES = (
+    (
+        "C01",
+        "SK hynix",
+        "https://news.skhynix.co.kr/navercloud-ai-solution/",
+        {"post-contents"},
+    ),
+    (
+        "C02",
+        "Samsung Newsroom Korea",
+        "https://news.samsung.com/kr/%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90%C2%B7%EB%B8%8C%EB%A1%9C%EB%93%9C%EC%BB%B4-2000%EC%96%B5-%EB%8B%AC%EB%9F%AC-%EA%B7%9C%EB%AA%A8-%EC%A0%84%EB%9E%B5%EC%A0%81-%ED%98%91%EB%A0%A5",
+        {"single_contents"},
+    ),
+    (
+        "C03",
+        "NVIDIA Korea",
+        "https://blogs.nvidia.co.kr/blog/nvidia-unveils-vera-the-cpu-for-agents/",
+        {"entry-content"},
+    ),
+    (
+        "C04",
+        "Intel Korea",
+        "https://www.intel.co.kr/content/www/kr/ko/newsroom/news/corporate/intel-foundry-gathers-customers-and-partners-outlines-priorities.html",
+        {"text", "cmp-text--longform"},
+    ),
+)
+
+
+if __name__ == "__main__":
+    prior.main()

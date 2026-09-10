@@ -1,0 +1,306 @@
+"""Local-only #139 Flash-versus-Plus generation comparison."""
+
+from __future__ import annotations
+
+import argparse
+from decimal import Decimal
+import fcntl
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import sys
+
+
+ROOT = Path(__file__).resolve().parent
+PRIOR = ROOT.parent / "model-studio-minimal-extraction-v1"
+spec = importlib.util.spec_from_file_location("minimal_extraction", PRIOR / "experiment.py")
+if not spec or not spec.loader:
+    raise RuntimeError("PRIOR_EXPERIMENT_IMPORT_FAILED")
+trial = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = trial
+spec.loader.exec_module(trial)
+
+base = trial.base
+MODELS = (base.FLASH, base.PLUS)
+MODEL_NAMES = {base.FLASH: "flash", base.PLUS: "plus"}
+MAX_TOKENS = 6000
+REPEATS = (1, 2)
+CAP_USD = Decimal("0.30")
+HISTORICAL_USD = Decimal("0.88211297")
+SOURCES = ROOT / "sources-frozen.json"
+GOLD = ROOT / "gold.json"
+MANIFEST = ROOT / "manifest.json"
+AUTHORIZATION = ROOT / "authorization.json"
+
+trial.ROOT = ROOT
+trial.SOURCES = SOURCES
+trial.GOLD = GOLD
+trial.MAX_TOKENS = MAX_TOKENS
+trial.MANIFEST = MANIFEST
+trial.AUTHORIZATION = AUTHORIZATION
+
+
+def gold_articles() -> dict[str, dict]:
+    docs = trial.source_docs()
+    value = trial.read(GOLD)
+    articles = value["articles"]
+    if len(articles) != 4 or {item["article_id"] for item in articles} != set(docs):
+        raise ValueError("GOLD_ARTICLE_SET_CHANGED")
+    fact_ids = [
+        fact_id
+        for article in articles
+        for fact_id in trial.validate_gold_article(article, docs)
+    ]
+    if len(fact_ids) != 24 or len(fact_ids) != len(set(fact_ids)):
+        raise ValueError("GOLD_FACT_SET_CHANGED")
+    return {item["article_id"]: item for item in articles}
+
+
+def strict_payload(model: str, shape: type, prompt: str, inputs: dict, maximum: int, thinking: bool) -> dict:
+    if thinking or maximum != MAX_TOKENS or model not in MODELS or shape is not trial.MinimalOutput:
+        raise ValueError("MODEL_SETTINGS_CHANGED")
+    return {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": json.dumps(inputs, ensure_ascii=False)},
+        ],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "knowledge_extraction_minimal_v1",
+                "strict": True,
+                "schema": shape.model_json_schema(),
+            },
+        },
+        "enable_thinking": False,
+        "stream": False,
+        "max_tokens": maximum,
+        "temperature": 0,
+    }
+
+
+def jobs() -> list[dict]:
+    prompt = trial.prompts()["minimal"]
+    result = []
+    for article_index, doc in enumerate(trial.source_docs().values()):
+        for repeat in REPEATS:
+            models = MODELS if (article_index + repeat) % 2 else tuple(reversed(MODELS))
+            for model in models:
+                name = MODEL_NAMES[model]
+                result.append({
+                    "identity": f"flash-plus-v1-{doc['id']}-r{repeat}-{name}",
+                    "model": model,
+                    "shape": trial.MinimalOutput,
+                    "prompt": prompt,
+                    "inputs": trial.article_input(doc),
+                    "maximum": MAX_TOKENS,
+                    "thinking": False,
+                    "validator": trial.validate_minimal,
+                    "category": "heldout",
+                })
+    if len(result) != 16 or len({job["identity"] for job in result}) != 16:
+        raise ValueError("JOB_SET_CHANGED")
+    return result
+
+
+def request_record(job: dict) -> dict:
+    payload = strict_payload(
+        job["model"], job["shape"], job["prompt"], job["inputs"],
+        job["maximum"], job["thinking"],
+    )
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    return {
+        "identity": job["identity"],
+        "model": job["model"],
+        "request_sha256": hashlib.sha256(data).hexdigest(),
+        "reservation_usd": float(base.reservation(data, job["model"], job["maximum"])),
+    }
+
+
+def previous_sources() -> list[dict]:
+    docs = []
+    for path in sorted(ROOT.parent.glob("model-studio-*/sources-frozen.json")):
+        if path.parent != ROOT:
+            docs.extend(trial.read(path))
+    return docs
+
+
+def source_overlap() -> dict:
+    previous = previous_sources()
+    hashes = {doc["sha256"] for doc in previous}
+    urls = {doc.get("url") or (doc.get("metadata") or {}).get("url") for doc in previous}
+    current = trial.source_docs().values()
+    return {
+        "comparison_rows": len(previous),
+        "comparison_unique_hashes": len(hashes),
+        "exact_hash_matches": sorted(doc["id"] for doc in current if doc["sha256"] in hashes),
+        "exact_url_matches": sorted(doc["id"] for doc in current if doc["url"] in urls),
+        "event_family_review": "Four official Korean articles from distinct events not used by prior #139 rounds",
+        "event_family_matches": [],
+    }
+
+
+def manifest() -> dict:
+    planned = [request_record(job) for job in jobs()]
+    reservation = sum((Decimal(str(item["reservation_usd"])) for item in planned), Decimal(0))
+    overlap = source_overlap()
+    if any(overlap[key] for key in ("exact_hash_matches", "exact_url_matches", "event_family_matches")):
+        raise ValueError("PREVIOUS_SOURCE_EXPOSURE")
+    return {
+        "version": 1,
+        "issue": 139,
+        "purpose": "Compare Flash and Plus generation with the frozen original-preserving minimal extraction contract",
+        "models": list(MODELS),
+        "settings": {
+            "temperature": 0,
+            "enable_thinking": False,
+            "stream": False,
+            "max_tokens": MAX_TOKENS,
+            "strict_json_schema": True,
+        },
+        "changed_axis": "Only the model snapshot changes between paired requests",
+        "articles": 4,
+        "pre_frozen_required_facts": 24,
+        "repeats": list(REPEATS),
+        "planned_calls": 16,
+        "planned_reservation_usd": float(reservation),
+        "round_cap_usd": float(CAP_USD),
+        "historical_reserved_or_estimated_usd": float(HISTORICAL_USD),
+        "source_exposure_check": overlap,
+        "candidate_criteria": {
+            "comparable_articles_minimum": 3,
+            "strict_required_fact_pass_advantage_percentage_points": 10,
+            "repeatable_article_improvements_minimum": 2,
+            "new_repeated_critical_regressions": 0,
+            "unsupported_claim_rate_must_not_increase": True,
+            "valid_nonduplicate_yield_must_not_decrease": True,
+        },
+        "pricing_usd_per_million_tokens": {
+            base.FLASH: {"input_under_32k": 0.03, "output": 0.13},
+            base.PLUS: {"input_under_256k": 0.4, "output": 1.6},
+        },
+        "dependency_hashes": {
+            "sources-frozen.json": trial.digest(SOURCES),
+            "gold.json": trial.digest(GOLD),
+            "preserve-addendum.txt": trial.digest(trial.PRESERVE),
+            "experiment.py": trial.digest(ROOT / "experiment.py"),
+            "prior-minimal-experiment.py": trial.digest(PRIOR / "experiment.py"),
+            "transport.py": trial.digest(ROOT.parent / "model-studio-agent-pipeline" / "trial.py"),
+        },
+        "requests": planned,
+        "stop_rules": [
+            "Never repair or automatically retry a failed request",
+            "Record isolated contract or length failures and continue only when usage is known",
+            "Stop the round on authentication, transport, unknown usage or cost, budget, frozen input, or source integrity failure",
+            "Do not tune against these outputs and recount these sources as independent evaluation",
+            "Do not count omission or unresolved output as PASS",
+            "Do not infer a product contract, worker, automatic persistence, or operating quality",
+        ],
+    }
+
+
+def configure_ledger() -> None:
+    base.ROOT = ROOT
+    base.HISTORICAL_USD = HISTORICAL_USD
+    base.DEVELOPMENT_CAP_USD = Decimal("0")
+    base.HELDOUT_CAP_USD = CAP_USD
+    if not (ROOT / "ledger.json").exists():
+        trial.save_once(ROOT / "ledger.json", base.initial_ledger())
+
+
+def prepare() -> None:
+    gold_articles()
+    frozen = manifest()
+    if Decimal(str(frozen["planned_reservation_usd"])) > CAP_USD:
+        raise ValueError("BUDGET_STOP")
+    trial.save_once(MANIFEST, frozen)
+    configure_ledger()
+    print(json.dumps({
+        "status": "OFFLINE_READY",
+        "manifest_sha256": trial.digest(MANIFEST),
+        "planned_calls": frozen["planned_calls"],
+        "planned_reservation_usd": frozen["planned_reservation_usd"],
+        "round_cap_usd": frozen["round_cap_usd"],
+        "source_exposure_check": frozen["source_exposure_check"],
+    }, ensure_ascii=False, indent=2))
+
+
+def continuable_failure(row: dict) -> bool:
+    if row.get("status") != "CONTRACT_ERROR":
+        return False
+    if row.get("error_type") == "ValidationError":
+        return True
+    return row.get("error_type") == "ValueError" and row.get("reason") not in {
+        "USAGE_UNKNOWN", "USAGE_BOUND_EXCEEDED", "RESPONSE_MODEL_MISMATCH", "UNEXPECTED_THINKING",
+    }
+
+
+def run_job(job: dict) -> None:
+    expected = request_record(job)
+    previous = {row["identity"]: row for row in base.results()}.get(job["identity"])
+    if previous:
+        if previous.get("request_sha256") != expected["request_sha256"]:
+            raise ValueError(f"PREVIOUS_REQUEST_CHANGED:{job['identity']}")
+        return
+    try:
+        base.call(**job)
+    except ValueError as error:
+        row = {item["identity"]: item for item in base.results()}[job["identity"]]
+        if str(error) != "CALL_REQUIRES_REVIEW" or not continuable_failure(row):
+            raise
+
+
+def run(comment_id: int) -> None:
+    if comment_id <= 0:
+        raise ValueError("ISSUE_COMMENT_REQUIRED")
+    with (ROOT / "paid-run.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if trial.read(MANIFEST) != manifest():
+            raise ValueError("MANIFEST_CHANGED")
+        trial.save_once(AUTHORIZATION, {
+            "issue": 139,
+            "comment_id": comment_id,
+            "manifest_sha256": trial.digest(MANIFEST),
+        })
+        configure_ledger()
+        base.reconcile_pending()
+        base.credentials.load_key()
+        original_payload = base.build_payload
+        base.build_payload = strict_payload
+        try:
+            for job in jobs():
+                run_job(job)
+        finally:
+            base.build_payload = original_payload
+            os.environ.pop("DASHSCOPE_API_KEY", None)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", choices=("prepare", "run"))
+    parser.add_argument("--paid", action="store_true")
+    parser.add_argument("--comment-id", type=int)
+    args = parser.parse_args()
+    if args.command == "prepare":
+        prepare()
+    elif not args.paid or args.comment_id is None:
+        raise ValueError("EXPLICIT_PAID_FLAG_AND_COMMENT_REQUIRED")
+    else:
+        run(args.comment_id)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as error:  # noqa: BLE001 - suppress credential-bearing tracebacks
+        print(json.dumps({
+            "status": "STOPPED",
+            "error_type": type(error).__name__,
+            "reason": str(error) if isinstance(error, ValueError) else "details suppressed",
+        }, ensure_ascii=False))
+        raise SystemExit(1) from None
+    finally:
+        os.environ.pop("DASHSCOPE_API_KEY", None)
