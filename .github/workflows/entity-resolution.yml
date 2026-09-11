@@ -55,9 +55,9 @@ jobs:
             server/src/ontology_map/db/entity_resolution.py \
             server/tests/test_entity_resolution.py \
             server/tests/test_entity_resolution_postgres.py
-      - name: 요청한 mypy 명령
+      - name: 루트 경로에서 설정을 명시한 mypy
         if: ${{ !cancelled() }}
-        run: uv run --project server --frozen mypy server/src/ontology_map
+        run: uv run --project server --frozen mypy --config-file server/pyproject.toml server/src/ontology_map
       - name: 저장소 설정을 적용한 mypy
         if: ${{ !cancelled() }}
         working-directory: server
@@ -108,6 +108,43 @@ jobs:
           uv run --project server --frozen python scripts/check_docs.py --check
           git diff HEAD^ HEAD --check
           git diff --exit-code -- server/pyproject.toml server/uv.lock
+      - name: 고정 formatter의 수정 패치 확인
+        if: ${{ !cancelled() }}
+        run: |
+          uv run --project server --frozen python - <<'PY'
+          import ast
+          import base64
+          import difflib
+          import gzip
+          import hashlib
+          import subprocess
+          from pathlib import Path
+          paths = [
+              'server/src/ontology_map/entity_resolution.py',
+              'server/src/ontology_map/entity_resolution_contracts.py',
+              'server/src/ontology_map/db/entity_resolution.py',
+              'server/tests/test_entity_resolution.py',
+              'server/tests/test_entity_resolution_postgres.py',
+          ]
+          patch = []
+          for name in paths:
+              original = Path(name).read_text()
+              formatted = subprocess.run(
+                  ['uv', 'run', '--project', 'server', '--frozen', 'ruff',
+                   'format', '--stdin-filename', name, '-'],
+                  input=original, text=True, check=True, capture_output=True,
+              ).stdout
+              assert ast.dump(ast.parse(original)) == ast.dump(ast.parse(formatted))
+              patch.extend(difflib.unified_diff(
+                  original.splitlines(keepends=True),
+                  formatted.splitlines(keepends=True),
+                  fromfile='a/' + name, tofile='b/' + name,
+              ))
+          payload = ''.join(patch).encode()
+          print('ER128_FORMAT_PATCH_SHA256=' + hashlib.sha256(payload).hexdigest())
+          print('ER128_FORMAT_PATCH_GZIP_BASE64=' + base64.b64encode(gzip.compress(payload, mtime=0)).decode())
+          print('Formatter only: all five Python ASTs unchanged; working tree not modified.')
+          PY
       - name: 이번 run의 격리 DB 정리
         if: ${{ always() }}
         run: docker compose down --volumes
