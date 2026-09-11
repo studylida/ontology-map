@@ -93,6 +93,24 @@ flowchart LR
 
 Alembic은 metadata를 비교 기준으로 사용하고 migration revision을 DB에 적용한다. 개발 fixture는 같은 metadata의 table 객체를 사용하지만 migration을 대신하지 않으며 `development` 환경에서만 실행된다.
 
+### Entity Resolution 함수와 promotion 결합 경계
+
+[#128의 상세 승인](https://github.com/studylida/ontology-map/issues/128#issuecomment-5630696046)을 구현하는 독립 함수는 `server/src/ontology_map/entity_resolution.py`에 있고, 기존 identity 테이블 조회와 transaction 내부 쓰기는 `db/entity_resolution.py`에 있다. 이 함수의 존재는 #127 추출 worker, 영속 `model_task` 관리, provider 설정이나 publication 전체 실행이 연결됐다는 뜻이 아니다. 현재 HTTP API와 개발 fixture는 이 함수를 호출하지 않는다.
+
+`resolve_mention`은 불변 원문의 Unicode 범위와 SHA-256을 검증하고, 신뢰된 준비 메타데이터의 외부 식별자, exact alias, 동일 유형 alias FTS 순서로 저장된 Node를 조회한다. 공개 검색 문서나 READY 필터는 사용하지 않는다. 활성 redirect를 읽어 canonical Node로 중복을 제거한 뒤 최대 5개를 제공하고 6번째 후보로 잘림을 확인한다. 조회 실패나 잘못된 redirect는 정상적인 빈 결과가 아니다.
+
+단일 외부 식별 대상의 실제 Node type과 재사용 가능 상태를 검사한 뒤 코드만으로 SAME을 확정할 수 있다. 다른 경우에는 작업별 Structured Output 호출 함수를 `propose`로 전달받아 SAME, NEW, UNRESOLVED를 검증한다. Agent 입력은 후보의 저장된 식별 필드와 이번 mention의 검증된 원문 context로 제한하며 reasoning을 요청하거나 저장하지 않는다. 후보 0개도 이번 구현에서는 특정 대상인지 판정하는 호출을 거친다. 이는 #128이 허용한 선택이며, 빈 조회만으로 새 대상을 확정하지 않는다.
+
+`EntityMention.approved_topic_name`은 #126·#127에서 이미 선택·검증한 승인 Topic 이름을 받는 선택 필드다. 원문 표현인 `text`와 구별해 후보를 찾는 데만 사용하고 resolver가 Topic 이름을 생성하거나 새 Topic Node를 만들지 않는다. 일반 표현 차단 목록은 결정적인 부적격 사례를 거르는 보조 검사이며, 특정 대상임을 입증하는 의미 검증을 대체하지 않는다.
+
+`select_resolvable_knowledge`는 상위 추출·의미 검증을 통과한 의미상 분리 불가능한 단위별 mention 의존성을 받는다. unresolved mention에 의존하는 단위를 제외하되 다른 독립 단위는 유지한다. 이 함수가 binding 하나를 임의로 빼고 Claim 의미가 보존됐다고 판정하지는 않는다.
+
+`resolved_nodes_for_promotion`은 호출자가 이미 연 짧은 promotion transaction에 참여한다. 호출자는 최종 저장 가능한 지식에 필요한 mention만 전달하고, context body에서 반환된 Node·Observation ID로 검증된 Claim·Relation·attribute·event를 저장한다. 새 Node와 alias를 먼저 별도로 commit하지 않는다. 함수는 저장 전 원문·후보·외부 식별자 snapshot과 활성 유형을 재확인하고, 종료 전에 새 Node의 실제 Claim·Observation·의미 연결이 남았는지 검사한다. 이 연결 검사는 #110 lint나 #127의 의미·ontology 검증 전체를 대체하지 않는다.
+
+context body에서 모델 호출, commit 또는 오류를 삼키는 처리를 하지 않는다. 예외는 transaction 소유자까지 전달해 현재 승격 전체를 rollback하고, 소유자는 context가 정상 종료된 뒤에만 COMMITTED로 전환한다. 이 함수는 promotion/publication 상태, 영속 작업 상태, 외부 식별자 또는 node_merge를 쓰지 않는다. alias는 검증된 원문 표현만 연결하며 기존 alias·redirect 계열의 alias를 재사용하고 대표 이름을 바꾸지 않는다.
+
+검증은 `server/tests/test_entity_resolution.py`의 provider 없는 단위 테스트와 `test_entity_resolution_postgres.py`의 실제 schema 대상 테스트로 구분한다. PostgreSQL 테스트는 `ONTOLOGY_MAP_ER_TEST_DATABASE_URL`이 지정된 경우에만 실행하며, migration이 적용된 loopback의 별도 `_er128_test` DB만 허용한다. 이 테스트의 합성 자료는 rollback하고 기존 schema나 fixture를 초기화하지 않는다. 모델 의미 품질과 전체 Agent → DB → READY 실행은 이 테스트의 검증 대상이 아니다.
+
 ## 현재 실행과 배포
 
 | 실행 단위 | 현재 위치 | 상태 |
@@ -102,7 +120,8 @@ Alembic은 metadata를 비교 기준으로 사용하고 migration revision을 DB
 | PostgreSQL과 pgvector | Compose `db` | 구현 |
 | Alembic | 개발자가 `server/`에서 실행 | 구현 |
 | 개발 fixture | 개발자가 `server/`에서 실행 | 구현 |
-| Agent·worker | 진입점 없음 | 미구현 |
+| Entity Resolution | 후보 조회·판정 함수와 promotion 결합 경계 | 구현, 상위 호출자 연결 필요 |
+| Agent·worker | 전체 실행 진입점 없음 | 미구현 |
 
 cloud 배포, production network, scheduler와 별도 worker topology는 승인된 현재 구현이 아니므로 이 문서에서 정하지 않는다. 정확한 버전과 명령은 [구현 스택](../development/implementation-stack.md)과 [DB 운영](../operations/database.md)이 소유한다.
 
