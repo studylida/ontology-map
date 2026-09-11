@@ -113,9 +113,7 @@ jobs:
         run: |
           uv run --project server --frozen python - <<'PY'
           import ast
-          import base64
           import difflib
-          import gzip
           import hashlib
           import subprocess
           from pathlib import Path
@@ -141,10 +139,18 @@ jobs:
                   fromfile='a/' + name, tofile='b/' + name,
               ))
           payload = ''.join(patch).encode()
+          Path('er128-format.patch').write_bytes(payload)
           print('ER128_FORMAT_PATCH_SHA256=' + hashlib.sha256(payload).hexdigest())
-          print('ER128_FORMAT_PATCH_GZIP_BASE64=' + base64.b64encode(gzip.compress(payload, mtime=0)).decode())
-          print('Formatter only: all five Python ASTs unchanged; working tree not modified.')
+          print('Formatter only: all five Python ASTs unchanged; source files not modified.')
           PY
+      - name: 포맷 패치 전달
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: er128-format-patch
+          path: er128-format.patch
+          if-no-files-found: error
+          retention-days: 3
       - name: 이번 run의 격리 DB 정리
         if: ${{ always() }}
         run: docker compose down --volumes
