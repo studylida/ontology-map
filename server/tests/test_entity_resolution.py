@@ -28,27 +28,46 @@ BODY = "한빛전자는 신제품을 개발한다."
 
 def mention(**changes):
     values = {
-        "mention_id": "m1", "text": "한빛전자", "node_type": "COMPANY",
-        "source_ranges": (SourceRange(
-            source_document_id=1, start_char=0, end_char=len(BODY)
-        ),),
+        "mention_id": "m1",
+        "text": "한빛전자",
+        "node_type": "COMPANY",
+        "source_ranges": (
+            SourceRange(source_document_id=1, start_char=0, end_char=len(BODY)),
+        ),
     }
     values.update(changes)
     return EntityMention(**values)
 
 
 def record(node_id=10, node_type="COMPANY", *, usable=True, aliases=None):
-    return NodeRecord(NodeCandidate(
-        node_id=node_id, node_type=node_type, preferred_alias="한빛전자",
-        aliases=aliases or ("한빛전자",), external_identifiers=(),
-    ), node_type_id=1, usable=usable)
+    return NodeRecord(
+        NodeCandidate(
+            node_id=node_id,
+            node_type=node_type,
+            preferred_alias="한빛전자",
+            aliases=aliases or ("한빛전자",),
+            external_identifiers=(),
+        ),
+        node_type_id=1,
+        usable=usable,
+    )
 
 
 def contexts(text=BODY):
     digest = sha256(text.encode()).digest()
-    return (VerifiedContext(SourceContext(
-        source_document_id=1, start_char=0, end_char=len(text), quote_text=text,
-    ), digest, digest, "ko"),)
+    return (
+        VerifiedContext(
+            SourceContext(
+                source_document_id=1,
+                start_char=0,
+                end_char=len(text),
+                quote_text=text,
+            ),
+            digest,
+            digest,
+            "ko",
+        ),
+    )
 
 
 @pytest.fixture
@@ -68,19 +87,30 @@ def test_unique_external_identifier_resolves_without_agent(prepared):
     _, ids, names, _ = prepared
     ids.return_value = (record(),)
     agent = Mock(side_effect=AssertionError("must not call Agent"))
-    result = service.resolve_mention(Mock(), mention(external_identifiers=(
-        ExternalIdentifier(identifier_system="LEI", identifier_value="trusted-1"),
-    )), agent)
+    result = service.resolve_mention(
+        Mock(),
+        mention(
+            external_identifiers=(
+                ExternalIdentifier(
+                    identifier_system="LEI", identifier_value="trusted-1"
+                ),
+            )
+        ),
+        agent,
+    )
     assert (result.decision, result.node_id) == ("SAME", 10)
     names.assert_not_called()
     agent.assert_not_called()
 
 
-@pytest.mark.parametrize("matches", [
-    (record(node_type="PERSON"),),
-    (record(), record(11)),
-    (record(usable=False),),
-])
+@pytest.mark.parametrize(
+    "matches",
+    [
+        (record(node_type="PERSON"),),
+        (record(), record(11)),
+        (record(usable=False),),
+    ],
+)
 def test_external_conflict_cannot_fall_back_to_agent_or_new(prepared, matches):
     _, ids, names, _ = prepared
     ids.return_value = matches
@@ -99,11 +129,17 @@ def test_alias_match_requires_agent_and_only_identity_context_is_sent(prepared):
     assert messages[0] == ("system", service.SYSTEM_PROMPT)
     payload = json.loads(messages[1][1])
     assert set(payload) == {
-        "mention_text", "node_type", "context", "candidates",
+        "mention_text",
+        "node_type",
+        "context",
+        "candidates",
         "candidates_truncated",
     }
     assert set(payload["candidates"][0]) == {
-        "node_id", "node_type", "preferred_alias", "aliases",
+        "node_id",
+        "node_type",
+        "preferred_alias",
+        "aliases",
         "external_identifiers",
     }
     assert payload["context"][0]["quote_text"] == BODY
@@ -128,10 +164,14 @@ def test_unusable_saved_node_is_not_hidden_or_replaced_with_new(prepared):
     assert result.decision == "UNRESOLVED"
 
 
-@pytest.mark.parametrize("decision, selected, expected", [
-    ("NEW", None, "UNRESOLVED"), ("SAME", 10, "SAME"),
-    ("UNRESOLVED", None, "UNRESOLVED"),
-])
+@pytest.mark.parametrize(
+    "decision, selected, expected",
+    [
+        ("NEW", None, "UNRESOLVED"),
+        ("SAME", 10, "SAME"),
+        ("UNRESOLVED", None, "UNRESOLVED"),
+    ],
+)
 def test_truncation_allows_same_but_not_new(prepared, decision, selected, expected):
     prepared[2].return_value = CandidateSet(
         tuple(record(i) for i in range(10, 15)), True
@@ -154,9 +194,16 @@ def test_complete_zero_candidates_still_requires_specificity_judgment(prepared):
 
 def test_inactive_type_cannot_create_new(prepared):
     prepared[3].return_value = None
-    result = service.resolve_mention(Mock(), mention(), Mock(return_value={
-        "decision": "NEW", "node_id": None,
-    }))
+    result = service.resolve_mention(
+        Mock(),
+        mention(),
+        Mock(
+            return_value={
+                "decision": "NEW",
+                "node_id": None,
+            }
+        ),
+    )
     assert result.decision == "UNRESOLVED"
 
 
@@ -169,28 +216,45 @@ def test_generic_names_do_not_trigger_creation_or_name_judgment(prepared, name):
 
 
 def test_topic_reuses_only_approved_target_and_does_not_create(prepared):
-    prepared[2].return_value = CandidateSet((record(
-        node_type="TOPIC", aliases=("인공지능",)
-    ),), False)
+    prepared[2].return_value = CandidateSet(
+        (record(node_type="TOPIC", aliases=("인공지능",)),), False
+    )
     target = mention(text="AI", node_type="TOPIC", approved_topic_name="인공지능")
-    same = service.resolve_mention(Mock(), target, Mock(return_value={
-        "decision": "SAME", "node_id": 10,
-    }))
-    new = service.resolve_mention(Mock(), target, Mock(return_value={
-        "decision": "NEW", "node_id": None,
-    }))
+    same = service.resolve_mention(
+        Mock(),
+        target,
+        Mock(
+            return_value={
+                "decision": "SAME",
+                "node_id": 10,
+            }
+        ),
+    )
+    new = service.resolve_mention(
+        Mock(),
+        target,
+        Mock(
+            return_value={
+                "decision": "NEW",
+                "node_id": None,
+            }
+        ),
+    )
     assert same.decision == "SAME" and new.decision == "UNRESOLVED"
 
 
-@pytest.mark.parametrize("payload", [
-    {"decision": "AMBIGUOUS", "node_id": None},
-    {"decision": "NEW", "node_id": 10},
-    {"decision": "SAME", "node_id": None},
-    {"decision": "SAME", "node_id": "10"},
-    {"decision": "SAME", "node_id": True},
-    {"decision": "NEW", "node_id": None, "reasoning": "not stored"},
-    "not JSON",
-])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"decision": "AMBIGUOUS", "node_id": None},
+        {"decision": "NEW", "node_id": 10},
+        {"decision": "SAME", "node_id": None},
+        {"decision": "SAME", "node_id": "10"},
+        {"decision": "SAME", "node_id": True},
+        {"decision": "NEW", "node_id": None, "reasoning": "not stored"},
+        "not JSON",
+    ],
+)
 def test_invalid_structured_output_is_not_silently_turned_into_new(prepared, payload):
     with pytest.raises(ValidationError):
         service.resolve_mention(Mock(), mention(), Mock(return_value=payload))
@@ -203,7 +267,9 @@ def test_proposal_schema_is_strict_and_has_exactly_three_outcomes():
     assert schema["properties"]["decision"]["enum"] == ["SAME", "NEW", "UNRESOLVED"]
     with pytest.raises(ValidationError):
         ResolutionInput(
-            mention_text="x", node_type="COMPANY", context=(),
+            mention_text="x",
+            node_type="COMPANY",
+            context=(),
             candidates=tuple(record(i).candidate for i in range(1, 7)),
             candidates_truncated=True,
         )
@@ -219,13 +285,24 @@ def test_failures_propagate_instead_of_becoming_empty_candidates(prepared, which
 
 
 def test_dependency_filter_preserves_whole_claim_and_independent_results(prepared):
-    valid = service.resolve_mention(Mock(), mention(), Mock(return_value={
-        "decision": "NEW", "node_id": None,
-    }))
+    valid = service.resolve_mention(
+        Mock(),
+        mention(),
+        Mock(
+            return_value={
+                "decision": "NEW",
+                "node_id": None,
+            }
+        ),
+    )
     missing = replace(valid, mention=mention(mention_id="m2"), decision="UNRESOLVED")
-    selection = service.select_resolvable_knowledge((valid, missing), {
-        "joint-claim": ("m1", "m2"), "independent-claim": ("m1",),
-    })
+    selection = service.select_resolvable_knowledge(
+        (valid, missing),
+        {
+            "joint-claim": ("m1", "m2"),
+            "independent-claim": ("m1",),
+        },
+    )
     assert selection.accepted == ("independent-claim",)
     assert selection.excluded == ("joint-claim",)
     assert selection.mention_ids == {"m1"}
@@ -247,23 +324,36 @@ def source_session(body=BODY, stored_hash=None):
 
 def test_real_context_function_reconstructs_unicode_offsets_and_hash():
     body = "🐾 " + BODY
-    target = mention(source_ranges=(SourceRange(
-        source_document_id=1, start_char=2, end_char=len(body)
-    ),))
+    target = mention(
+        source_ranges=(
+            SourceRange(source_document_id=1, start_char=2, end_char=len(body)),
+        )
+    )
     result = db.verified_context(source_session(body), target)
     assert result[0].source.quote_text == BODY
     assert result[0].source.start_char == 2
     assert result[0].quote_hash == sha256(BODY.encode()).digest()
 
 
-@pytest.mark.parametrize("session, target, pattern", [
-    (source_session(stored_hash=b"x" * 32), mention(), "hash mismatch"),
-    (source_session(), mention(text="없는 회사"), "absent"),
-    (source_session(), mention(source_ranges=(SourceRange(
-        source_document_id=1, start_char=0, end_char=len(BODY) + 1
-    ),)), "exceeds"),
-    (source_session(BODY + "\r\n"), mention(), "NFC/LF"),
-])
+@pytest.mark.parametrize(
+    "session, target, pattern",
+    [
+        (source_session(stored_hash=b"x" * 32), mention(), "hash mismatch"),
+        (source_session(), mention(text="없는 회사"), "absent"),
+        (
+            source_session(),
+            mention(
+                source_ranges=(
+                    SourceRange(
+                        source_document_id=1, start_char=0, end_char=len(BODY) + 1
+                    ),
+                )
+            ),
+            "exceeds",
+        ),
+        (source_session(BODY + "\r\n"), mention(), "NFC/LF"),
+    ],
+)
 def test_source_context_rejects_invalid_originals(session, target, pattern):
     with pytest.raises(ValueError, match=pattern):
         db.verified_context(session, target)
@@ -282,7 +372,10 @@ def test_name_query_fetches_six_canonical_nodes_without_search_documents(monkeyp
     assert "reversed_at IS NULL" in sql and "w.cycle" in sql
     assert "plainto_tsquery('simple'" in sql
     for forbidden in (
-        "node_search_document", "identity_text", "knowledge_text", "READY"
+        "node_search_document",
+        "identity_text",
+        "knowledge_text",
+        "READY",
     ):
         assert forbidden not in sql
 
@@ -298,9 +391,16 @@ def test_corrupt_redirect_does_not_return_an_empty_lookup():
 
 @pytest.fixture
 def staged(prepared, monkeypatch):
-    result = service.resolve_mention(Mock(), mention(), Mock(return_value={
-        "decision": "NEW", "node_id": None,
-    }))
+    result = service.resolve_mention(
+        Mock(),
+        mention(),
+        Mock(
+            return_value={
+                "decision": "NEW",
+                "node_id": None,
+            }
+        ),
+    )
     pending = Mock()
     insert = Mock(return_value=100)
     observation = Mock(return_value=200)
@@ -325,9 +425,7 @@ def test_new_is_materialized_only_for_surviving_knowledge_and_never_commits(stag
         assert nodes["m1"].observation_ids == (200,)
         usage.assert_not_called()  # The owning writer runs in this body.
     insert.assert_called_once_with(session, 7, 1)
-    alias.assert_called_once_with(
-        session, 100, "한빛전자", "ko", 200, preferred=True
-    )
+    alias.assert_called_once_with(session, 100, "한빛전자", "ko", 200, preferred=True)
     usage.assert_called_once_with(session, 100, (200,))
     session.commit.assert_not_called()
     session.rollback.assert_not_called()
@@ -408,9 +506,16 @@ def test_unresolved_mention_cannot_be_forced_into_promotion(staged):
 
 def test_same_does_not_create_node_or_change_preferred_alias(prepared, staged):
     _, session, _, insert, _, alias, _ = staged
-    result = service.resolve_mention(session, mention(), Mock(return_value={
-        "decision": "SAME", "node_id": 10,
-    }))
+    result = service.resolve_mention(
+        session,
+        mention(),
+        Mock(
+            return_value={
+                "decision": "SAME",
+                "node_id": 10,
+            }
+        ),
+    )
     with service.resolved_nodes_for_promotion(
         session, 7, (result,), frozenset({"m1"})
     ) as nodes:
@@ -426,9 +531,7 @@ def test_generic_expression_resolved_by_identifier_is_not_added_as_alias(
     prepared[1].return_value = (record(),)
     result = service.resolve_mention(session, mention(text="이 회사"), Mock())
     assert result.decision == "SAME"
-    with service.resolved_nodes_for_promotion(
-        session, 7, (result,), frozenset({"m1"})
-    ):
+    with service.resolved_nodes_for_promotion(session, 7, (result,), frozenset({"m1"})):
         pass
     insert.assert_not_called()
     alias.assert_not_called()
@@ -449,7 +552,9 @@ def test_alias_reuses_existing_identity_family_without_new_alias_row():
 def test_existing_observation_is_not_silently_overwritten():
     session = Mock()
     session.execute.return_value.mappings.return_value.one.return_value = {
-        "observation_id": 3, "quote_text": "altered", "quote_hash": b"x" * 32,
+        "observation_id": 3,
+        "quote_text": "altered",
+        "quote_hash": b"x" * 32,
     }
     with pytest.raises(ValueError, match="does not match"):
         db._ensure_observation(session, contexts()[0])
@@ -462,9 +567,12 @@ def test_duplicate_or_cross_document_context_and_untrusted_identity_fields_rejec
     with pytest.raises(ValidationError, match="duplicate source"):
         mention(source_ranges=(location, location))
     with pytest.raises(ValidationError, match="one document"):
-        mention(source_ranges=(
-            location, location.model_copy(update={"source_document_id": 2})
-        ))
+        mention(
+            source_ranges=(
+                location,
+                location.model_copy(update={"source_document_id": 2}),
+            )
+        )
     with pytest.raises(ValidationError):
         ExternalIdentifier(identifier_system="invented", identifier_value="1")
     with pytest.raises(ValidationError):

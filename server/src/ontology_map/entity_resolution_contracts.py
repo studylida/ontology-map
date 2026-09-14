@@ -9,8 +9,15 @@ PositiveId = Annotated[int, Field(strict=True, gt=0)]
 Nonblank = Annotated[str, Field(strict=True, min_length=1, pattern=r"\S")]
 NodeTypeCode = Literal["COMPANY", "PERSON", "TECHNOLOGY", "EVENT", "TOPIC"]
 ApprovedTopic = Literal[
-    "반도체", "메모리 반도체", "첨단 패키징", "인공지능", "데이터센터",
-    "제조 공정", "투자", "상용화", "규제·정책",
+    "반도체",
+    "메모리 반도체",
+    "첨단 패키징",
+    "인공지능",
+    "데이터센터",
+    "제조 공정",
+    "투자",
+    "상용화",
+    "규제·정책",
 ]
 ResolutionStatus = Literal["SAME", "NEW", "UNRESOLVED"]
 CANDIDATE_LIMIT = 5

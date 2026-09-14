@@ -76,13 +76,17 @@ def verified_context(
     session: Session, mention: EntityMention
 ) -> tuple[VerifiedContext, ...]:
     document_id = mention.source_ranges[0].source_document_id
-    row = session.execute(
-        sa.text("""
+    row = (
+        session.execute(
+            sa.text("""
             SELECT normalized_body, body_hash, original_language
             FROM source_document WHERE source_document_id = :document_id
         """),
-        {"document_id": document_id},
-    ).mappings().one()
+            {"document_id": document_id},
+        )
+        .mappings()
+        .one()
+    )
     body = str(row["normalized_body"])
     digest = sha256(body.encode("utf-8")).digest()
     if digest != bytes(row["body_hash"]):
@@ -93,13 +97,15 @@ def verified_context(
     for location in mention.source_ranges:
         if location.end_char > len(body):
             raise ValueError("source range exceeds the immutable document")
-        text = body[location.start_char:location.end_char]
-        contexts.append(VerifiedContext(
-            source=SourceContext(**location.model_dump(), quote_text=text),
-            body_hash=digest,
-            quote_hash=sha256(text.encode("utf-8")).digest(),
-            language=str(row["original_language"]),
-        ))
+        text = body[location.start_char : location.end_char]
+        contexts.append(
+            VerifiedContext(
+                source=SourceContext(**location.model_dump(), quote_text=text),
+                body_hash=digest,
+                quote_hash=sha256(text.encode("utf-8")).digest(),
+                language=str(row["original_language"]),
+            )
+        )
     if not any(mention.text in item.source.quote_text for item in contexts):
         raise ValueError("mention is absent from its own verified context")
     return tuple(contexts)
@@ -109,7 +115,9 @@ def _load_records(session: Session, ids: Sequence[int]) -> tuple[NodeRecord, ...
     if not ids:
         return ()
     parameters = {"ids": list(ids)}
-    rows = session.execute(_ids_statement("""
+    rows = (
+        session.execute(
+            _ids_statement("""
         SELECT n.node_id, n.node_type_id, t.node_type_code,
                a.alias_text AS preferred_alias,
                (k.item_kind = 'NODE'
@@ -129,26 +137,43 @@ def _load_records(session: Session, ids: Sequence[int]) -> tuple[NodeRecord, ...
         JOIN promotion_batch b ON b.promotion_batch_id = k.promotion_batch_id
         LEFT JOIN node_alias a ON a.node_id = n.node_id AND a.is_preferred
         WHERE n.node_id IN :ids
-    """), parameters).mappings().all()
+    """),
+            parameters,
+        )
+        .mappings()
+        .all()
+    )
     aliases: dict[int, list[str]] = {node_id: [] for node_id in ids}
-    for row in session.execute(_ids_statement(_FAMILY + """
+    for row in session.execute(
+        _ids_statement(
+            _FAMILY
+            + """
         SELECT DISTINCT f.canonical_id, a.alias_text
         FROM family f JOIN node_alias a ON a.node_id = f.member_id
         ORDER BY f.canonical_id, a.alias_text
-    """), parameters).mappings():
+    """
+        ),
+        parameters,
+    ).mappings():
         aliases[int(row["canonical_id"])].append(str(row["alias_text"]))
-    identifiers: dict[int, list[ExternalIdentifier]] = {
-        node_id: [] for node_id in ids
-    }
-    for row in session.execute(_ids_statement(_FAMILY + """
+    identifiers: dict[int, list[ExternalIdentifier]] = {node_id: [] for node_id in ids}
+    for row in session.execute(
+        _ids_statement(
+            _FAMILY
+            + """
         SELECT DISTINCT f.canonical_id, e.identifier_system, e.identifier_value
         FROM family f JOIN external_identifier e ON e.node_id = f.member_id
         ORDER BY f.canonical_id, e.identifier_system, e.identifier_value
-    """), parameters).mappings():
-        identifiers[int(row["canonical_id"])].append(ExternalIdentifier(
-            identifier_system=row["identifier_system"],
-            identifier_value=row["identifier_value"],
-        ))
+    """
+        ),
+        parameters,
+    ).mappings():
+        identifiers[int(row["canonical_id"])].append(
+            ExternalIdentifier(
+                identifier_system=row["identifier_system"],
+                identifier_value=row["identifier_value"],
+            )
+        )
     records = {}
     for row in rows:
         node_id = int(row["node_id"])
@@ -180,22 +205,32 @@ def identifier_matches(
 ) -> tuple[NodeRecord, ...]:
     ids: set[int] = set()
     for identifier in mention.external_identifiers:
-        sql = """
+        sql = (
+            """
             WITH RECURSIVE matched AS (
                 SELECT node_id, 0 AS priority, 1.0 AS score
                 FROM external_identifier
                 WHERE identifier_system = :system AND identifier_value = :value
             )
-        """ + _RESOLVE_MATCHES
-        ids.update(_resolved_ids(session, sql, {
-            "system": identifier.identifier_system,
-            "value": identifier.identifier_value,
-        }))
+        """
+            + _RESOLVE_MATCHES
+        )
+        ids.update(
+            _resolved_ids(
+                session,
+                sql,
+                {
+                    "system": identifier.identifier_system,
+                    "value": identifier.identifier_value,
+                },
+            )
+        )
     return _load_records(session, sorted(ids))
 
 
 def name_candidates(session: Session, mention: EntityMention) -> CandidateSet:
-    sql = """
+    sql = (
+        """
         WITH RECURSIVE matched AS (
             SELECT a.node_id, 0 AS priority, 1.0 AS score
             FROM node_alias a WHERE a.alias_text = :name
@@ -209,12 +244,19 @@ def name_candidates(session: Session, mention: EntityMention) -> CandidateSet:
               AND to_tsvector('simple', a.alias_text)
                   @@ plainto_tsquery('simple', :name)
         )
-    """ + _RESOLVE_MATCHES + " LIMIT :limit"
-    ids = _resolved_ids(session, sql, {
-        "name": mention.approved_topic_name or mention.text,
-        "node_type": mention.node_type,
-        "limit": CANDIDATE_LIMIT + 1,
-    })
+    """
+        + _RESOLVE_MATCHES
+        + " LIMIT :limit"
+    )
+    ids = _resolved_ids(
+        session,
+        sql,
+        {
+            "name": mention.approved_topic_name or mention.text,
+            "node_type": mention.node_type,
+            "limit": CANDIDATE_LIMIT + 1,
+        },
+    )
     return CandidateSet(
         nodes=_load_records(session, ids[:CANDIDATE_LIMIT]),
         truncated=len(ids) > CANDIDATE_LIMIT,
@@ -222,88 +264,144 @@ def name_candidates(session: Session, mention: EntityMention) -> CandidateSet:
 
 
 def active_type_id(session: Session, code: str) -> int | None:
-    value = session.execute(sa.text("""
+    value = session.execute(
+        sa.text("""
         SELECT node_type_id FROM node_type
         WHERE node_type_code = :code AND is_active
-    """), {"code": code}).scalar_one_or_none()
+    """),
+        {"code": code},
+    ).scalar_one_or_none()
     return None if value is None else int(value)
 
 
 def require_pending_batch(session: Session, batch_id: int) -> None:
-    row = session.execute(sa.text("""
+    row = (
+        session.execute(
+            sa.text("""
         SELECT promotion_status, publication_status FROM promotion_batch
         WHERE promotion_batch_id = :batch_id FOR UPDATE
-    """), {"batch_id": batch_id}).mappings().one()
+    """),
+            {"batch_id": batch_id},
+        )
+        .mappings()
+        .one()
+    )
     if (row["promotion_status"], row["publication_status"]) != (
-        "PENDING", "NOT_STARTED"
+        "PENDING",
+        "NOT_STARTED",
     ):
         raise ValueError("entity writes require a pending promotion batch")
 
 
 def _insert_node(session: Session, batch_id: int, type_id: int) -> int:
-    node_id = int(session.execute(sa.text("""
+    node_id = int(
+        session.execute(
+            sa.text("""
         INSERT INTO knowledge_item (item_kind, current_state, promotion_batch_id)
         VALUES ('NODE', 'EVIDENCE_VERIFIED', :batch_id)
         RETURNING knowledge_item_id
-    """), {"batch_id": batch_id}).scalar_one())
-    session.execute(sa.text("""
+    """),
+            {"batch_id": batch_id},
+        ).scalar_one()
+    )
+    session.execute(
+        sa.text("""
         INSERT INTO node (node_id, node_type_id) VALUES (:node_id, :type_id)
-    """), {"node_id": node_id, "type_id": type_id})
+    """),
+        {"node_id": node_id, "type_id": type_id},
+    )
     return node_id
 
 
 def _ensure_observation(session: Session, context: VerifiedContext) -> int:
     values = context.source.model_dump()
     values.update(quote_hash=context.quote_hash)
-    session.execute(sa.text("""
+    session.execute(
+        sa.text("""
         INSERT INTO observation
             (source_document_id, start_char, end_char, quote_text,
              quote_hash, observed_at)
         VALUES (:source_document_id, :start_char, :end_char,
                 :quote_text, :quote_hash, CURRENT_TIMESTAMP)
         ON CONFLICT (source_document_id, start_char, end_char) DO NOTHING
-    """), values)
-    row = session.execute(sa.text("""
+    """),
+        values,
+    )
+    row = (
+        session.execute(
+            sa.text("""
         SELECT observation_id, quote_text, quote_hash FROM observation
         WHERE source_document_id = :source_document_id
           AND start_char = :start_char AND end_char = :end_char
-    """), values).mappings().one()
-    if (row["quote_text"] != context.source.quote_text
-            or bytes(row["quote_hash"]) != context.quote_hash):
+    """),
+            values,
+        )
+        .mappings()
+        .one()
+    )
+    if (
+        row["quote_text"] != context.source.quote_text
+        or bytes(row["quote_hash"]) != context.quote_hash
+    ):
         raise ValueError("existing observation does not match the source range")
     return int(row["observation_id"])
 
 
 def _ensure_alias(
-    session: Session, node_id: int, text: str, language: str,
-    observation_id: int, *, preferred: bool,
+    session: Session,
+    node_id: int,
+    text: str,
+    language: str,
+    observation_id: int,
+    *,
+    preferred: bool,
 ) -> None:
-    values = {"node_id": node_id, "text": text, "language": language,
-              "preferred": preferred, "observation_id": observation_id}
-    existing = session.execute(_ids_statement(_FAMILY + """
+    values = {
+        "node_id": node_id,
+        "text": text,
+        "language": language,
+        "preferred": preferred,
+        "observation_id": observation_id,
+    }
+    existing = session.execute(
+        _ids_statement(
+            _FAMILY
+            + """
         SELECT a.node_alias_id FROM family f
         JOIN node_alias a ON a.node_id = f.member_id
         WHERE a.alias_text = :text
         ORDER BY (a.node_id = :node_id) DESC,
                  (a.language = :language) DESC, a.node_alias_id
         LIMIT 1
-    """), {**values, "ids": [node_id]}).scalar_one_or_none()
+    """
+        ),
+        {**values, "ids": [node_id]},
+    ).scalar_one_or_none()
     if existing is None:
-        session.execute(sa.text("""
+        session.execute(
+            sa.text("""
             INSERT INTO node_alias (node_id, alias_text, language, is_preferred)
             VALUES (:node_id, :text, :language, :preferred)
             ON CONFLICT (node_id, alias_text, language) DO NOTHING
-        """), values)
-        existing = session.execute(sa.text("""
+        """),
+            values,
+        )
+        existing = session.execute(
+            sa.text("""
             SELECT node_alias_id FROM node_alias
             WHERE node_id = :node_id AND alias_text = :text
               AND language = :language
-        """), values).scalar_one()
-    session.execute(sa.text("""
+        """),
+            values,
+        ).scalar_one()
+    session.execute(
+        sa.text("""
         INSERT INTO node_alias_evidence (node_alias_id, observation_id)
         VALUES (:alias_id, :observation_id)
         ON CONFLICT (node_alias_id, observation_id) DO NOTHING
-    """), {"alias_id": int(existing), "observation_id": observation_id})
+    """),
+        {"alias_id": int(existing), "observation_id": observation_id},
+    )
 
 
 def has_evidenced_usage(
@@ -346,6 +444,12 @@ def has_evidenced_usage(
               )
         )
     """)
-    return bool(session.execute(statement, {
-        "node_id": node_id, "ids": list(observation_ids),
-    }).scalar_one())
+    return bool(
+        session.execute(
+            statement,
+            {
+                "node_id": node_id,
+                "ids": list(observation_ids),
+            },
+        ).scalar_one()
+    )

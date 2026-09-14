@@ -43,9 +43,16 @@ SAME이면 제공된 node_id 하나를 선택한다. 나머지 결과의 node_id
 
 # Deterministic negative guards, not a complete semantic name recognizer.
 # Positive specificity is still required by the validated input and judgment.
-_GENERIC_EXPRESSIONS = frozenset({
-    "회사", "업계", "관계자", "이 기술", "신기술", "이 회사",
-})
+_GENERIC_EXPRESSIONS = frozenset(
+    {
+        "회사",
+        "업계",
+        "관계자",
+        "이 기술",
+        "신기술",
+        "이 회사",
+    }
+)
 
 
 def _usable_name(text: str) -> bool:
@@ -61,20 +68,26 @@ def _topic_allowed(mention: EntityMention, record: NodeRecord) -> bool:
 
 
 def _same_node(
-    mention: EntityMention, selected_id: int | None,
+    mention: EntityMention,
+    selected_id: int | None,
     records: Sequence[NodeRecord],
 ) -> int | None:
     for record in records:
         candidate = record.candidate
-        if (candidate.node_id == selected_id and record.usable
-                and candidate.node_type == mention.node_type
-                and _topic_allowed(mention, record)):
+        if (
+            candidate.node_id == selected_id
+            and record.usable
+            and candidate.node_type == mention.node_type
+            and _topic_allowed(mention, record)
+        ):
             return candidate.node_id
     return None
 
 
 def _validate_proposal(
-    session: Session, mention: EntityMention, candidates: CandidateSet,
+    session: Session,
+    mention: EntityMention,
+    candidates: CandidateSet,
     proposal: ResolutionProposal,
 ) -> tuple[ResolutionStatus, int | None]:
     if proposal.decision == "SAME":
@@ -82,15 +95,19 @@ def _validate_proposal(
         return ("SAME", node_id) if node_id is not None else ("UNRESOLVED", None)
     if proposal.decision != "NEW":
         return "UNRESOLVED", None
-    if (candidates.truncated or mention.node_type == "TOPIC"
-            or not _usable_name(mention.text)
-            or queries.active_type_id(session, mention.node_type) is None):
+    if (
+        candidates.truncated
+        or mention.node_type == "TOPIC"
+        or not _usable_name(mention.text)
+        or queries.active_type_id(session, mention.node_type) is None
+    ):
         return "UNRESOLVED", None
     return "NEW", None
 
 
 def resolve_mention(
-    session: Session, mention: EntityMention,
+    session: Session,
+    mention: EntityMention,
     propose: Callable[[list[tuple[str, str]]], object],
 ) -> Resolution:
     """Read and judge only: no Node, Observation, task or alias writes.
@@ -108,9 +125,7 @@ def resolve_mention(
         # Recheck the unique canonical identity and actual stored type; a
         # mismatch is not delegated to an Agent and cannot fall back to NEW.
         if len(identifiers) == 1:
-            node_id = _same_node(
-                mention, identifiers[0].candidate.node_id, identifiers
-            )
+            node_id = _same_node(mention, identifiers[0].candidate.node_id, identifiers)
             decision = "SAME" if node_id is not None else "UNRESOLVED"
     else:
         candidates = queries.name_candidates(session, mention)
@@ -124,21 +139,23 @@ def resolve_mention(
             )
             # A zero-candidate path still asks for a specificity judgment.
             # #128 permits but does not require skipping this call.
-            raw = propose([
-                ("system", SYSTEM_PROMPT),
-                ("human", input_value.model_dump_json()),
-            ])
+            raw = propose(
+                [
+                    ("system", SYSTEM_PROMPT),
+                    ("human", input_value.model_dump_json()),
+                ]
+            )
             if isinstance(raw, ResolutionProposal):
                 raw = raw.model_dump()
-            proposal = (ResolutionProposal.model_validate_json(raw)
-                        if isinstance(raw, str)
-                        else ResolutionProposal.model_validate(raw))
+            proposal = (
+                ResolutionProposal.model_validate_json(raw)
+                if isinstance(raw, str)
+                else ResolutionProposal.model_validate(raw)
+            )
             decision, node_id = _validate_proposal(
                 session, mention, candidates, proposal
             )
-    return Resolution(
-        mention, decision, node_id, context, candidates, identifiers
-    )
+    return Resolution(mention, decision, node_id, context, candidates, identifiers)
 
 
 def _by_mention_id(resolutions: Sequence[Resolution]) -> dict[str, Resolution]:
@@ -165,9 +182,7 @@ def select_resolvable_knowledge(
     for knowledge_id, mentions in dependencies.items():
         if set(mentions) - by_id.keys():
             raise ValueError("knowledge references an unknown mention_id")
-        unresolved = any(
-            by_id[key].decision == "UNRESOLVED" for key in mentions
-        )
+        unresolved = any(by_id[key].decision == "UNRESOLVED" for key in mentions)
         if not mentions or unresolved:
             excluded.append(knowledge_id)
         else:
@@ -184,16 +199,23 @@ def _revalidate(session: Session, result: Resolution) -> None:
     identifiers = queries.identifier_matches(session, result.mention)
     if identifiers != result.identifier_nodes:
         raise ValueError("external identity changed after resolution")
-    current = (CandidateSet((), False) if identifiers
-               else queries.name_candidates(session, result.mention))
+    current = (
+        CandidateSet((), False)
+        if identifiers
+        else queries.name_candidates(session, result.mention)
+    )
     if current != result.candidates:
         raise ValueError("candidate snapshot changed after resolution")
     if result.decision == "SAME":
         records = identifiers or current.nodes
         if _same_node(result.mention, result.node_id, records) is None:
             raise ValueError("resolved existing node is no longer usable")
-    elif (current.truncated or identifiers or result.mention.node_type == "TOPIC"
-          or not _usable_name(result.mention.text)):
+    elif (
+        current.truncated
+        or identifiers
+        or result.mention.node_type == "TOPIC"
+        or not _usable_name(result.mention.text)
+    ):
         raise ValueError("NEW no longer satisfies the creation boundary")
 
 
@@ -212,19 +234,27 @@ def _materialize(
     for item in result.context:
         observation_id = queries._ensure_observation(session, item)
         observations.append(observation_id)
-        if (_usable_name(result.mention.text)
-                and result.mention.text in item.source.quote_text):
+        if (
+            _usable_name(result.mention.text)
+            and result.mention.text in item.source.quote_text
+        ):
             queries._ensure_alias(
-                session, node_id, result.mention.text, item.language,
-                observation_id, preferred=result.decision == "NEW",
+                session,
+                node_id,
+                result.mention.text,
+                item.language,
+                observation_id,
+                preferred=result.decision == "NEW",
             )
     return PromotionNodeBinding(node_id, tuple(observations))
 
 
 @contextmanager
 def resolved_nodes_for_promotion(
-    session: Session, batch_id: int,
-    resolutions: Sequence[Resolution], required_mentions: frozenset[str],
+    session: Session,
+    batch_id: int,
+    resolutions: Sequence[Resolution],
+    required_mentions: frozenset[str],
 ) -> Iterator[Mapping[str, PromotionNodeBinding]]:
     """Participate in the caller's short, write transaction; never commit.
 
