@@ -3,22 +3,22 @@
 ## 문서 상태
 
 - 상태: Physical Schema v2 — 동결 및 migration 구현 완료
-- 확인일: 2026-09-03
-- 관련 Issue: [#40 Define PostgreSQL physical schema conventions](https://github.com/studylida/ontology-map/issues/40)
+- 확인일: 2026-09-14
+- 관련 Issue: [#40 Define PostgreSQL physical schema conventions](https://github.com/studylida/ontology-map/issues/40), [#200 NUMBER attribute 복수 허용 단위 지원](https://github.com/studylida/ontology-map/issues/200)
 - 논리 모델: [논리 스키마](logical-schema.md)
 - 생성 목록: [스키마 참고 문서](schema-reference.md)
 - 구현 스택: [구현 스택](../development/implementation-stack.md)
 - 코드·migration 규칙: [코드 규칙](../development/code-conventions.md)
-- 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`
+- 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`; #200, `server/migrations/versions/0003_support_multiple_number_attribute_units.py`
 
 이 문서는 Logical Schema v1.2의 의미를 PostgreSQL로 옮기는 공통 표현 규칙을 정의한다. 실제 table, column, constraint와 index 목록은 SQLAlchemy metadata에서 생성한 [스키마 참고 문서](schema-reference.md)가 소유한다.
 
-#41–#48에서 기본 매핑을 확정했고 #91에서 node 인사이트 확장을 추가했다. #95는 이 결과를 SQLAlchemy metadata와 Alembic migration으로 구현했으며, #78의 embedding 계약은 [#121](https://github.com/studylida/ontology-map/issues/121)에서 폐기했다. migration과 metadata가 이 문서와 다르면 임의로 한쪽을 정답으로 바꾸지 않고 #116에서 의미 차이인지 구현 오류인지 감사한다.
+#41–#48에서 기본 매핑을 확정했고 #91에서 node 인사이트 확장을 추가했다. #95는 이 결과를 SQLAlchemy metadata와 Alembic migration으로 구현했으며, #78의 embedding 계약은 [#121](https://github.com/studylida/ontology-map/issues/121)에서 폐기했다. #200은 NUMBER revision의 단일 `unit_rule`을 명시적인 허용 단위 집합으로 확장한다. migration과 metadata가 이 문서와 다르면 임의로 한쪽을 정답으로 바꾸지 않고 #116에서 의미 차이인지 구현 오류인지 감사한다.
 
 ## 현재 구현 기준
 
 - SQLAlchemy metadata: `server/src/ontology_map/db/schema.py`
-- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py`
+- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_support_multiple_number_attribute_units.py`
 - 개발 fixture: `server/src/ontology_map/db/fixture.py`
 - PostgreSQL namespace: `public`
 - 현재 metadata에 구현된 table 수와 각 객체의 세부 정의는 [스키마 참고 문서](schema-reference.md)에서 확인한다.
@@ -509,19 +509,19 @@ finite number_value
 + nonblank unit_code text
 ```
 
-`unit_code`는 화면 표시 문자열이 아니라 기계가 해석하는 안정된 의미 코드다.
+`number_value`와 `unit_code`는 원문에서 추출한 값을 그대로 저장한다. 자동 환산이나 canonical normalization을 적용하지 않는다.
 
-예:
+허용 단위는 `attribute_revision_allowed_unit`이 revision별 집합으로 표현한다.
 
-- `PERSON`
-- `PERCENT`
-- `GB_PER_S`
-- `USD`
-- `KRW`
-- `RATIO`
-- `COUNT`
+```text
+attribute_revision_allowed_unit
+- attribute_revision_id
+- allowed_value_kind = 'NUMBER'
+- unit_code
+- PRIMARY KEY (attribute_revision_id, unit_code)
+```
 
-허용 단위와 저장 기준은 정확한 `attribute_revision.unit_rule`이 결정한다. POC에는 범용 단위 사전, 환산식과 자동 변환 시스템을 추가하지 않는다.
+`claim_attribute_value(attribute_revision_id, unit_code)`는 위 복합 PK를 FK로 참조하므로 NUMBER Claim의 단위는 저장 시점에 해당 revision의 허용 집합에 반드시 존재해야 한다. 기존 단일 단위 NUMBER revision은 허용 단위 행 하나로 같은 의미를 유지하고, 복수 단위 revision은 같은 revision에 여러 행을 둔다. 범용 단위 사전, 환산식, canonical 단위 선정과 단위 간 자동 비교는 추가하지 않는다.
 
 ### 6.6 Boolean
 
@@ -873,7 +873,7 @@ conflict_set
 
 #41–#48의 table mapping과 #91의 인사이트 확장은 `0001_create_frozen_schema.py`에 통합되어 있다. #121은 현재 POC에서 사용하지 않는 #78의 embedding 계약을 제거하기 위해 예외적으로 이 frozen baseline을 교체했다. `server/src/ontology_map/db/schema.py`는 Alembic 비교와 query 작성에 쓰는 같은 metadata를 제공한다.
 
-이미 `main`에 병합된 revision을 수정하거나 순서를 다시 쓰지 않는 것이 원칙이다. 다만 #121은 빈 환경에서도 pgvector가 필요하지 않도록 기존 개발 DB 재생성을 전제로 `0001` baseline 교체를 명시적으로 승인한 예외다. 저장 의미, 제약이나 publication 계약이 바뀌면 먼저 logical·physical 결정 Issue를 승인하고 새 Alembic revision으로 변경한다. HTTP DTO나 화면 전용 상태는 DB column을 추가하지 않고 [제품 설계](../product/design.md)의 API 경계에 기록한다.
+이미 `main`에 병합된 revision을 수정하거나 순서를 다시 쓰지 않는 것이 원칙이다. 다만 #121은 빈 환경에서도 pgvector가 필요하지 않도록 기존 개발 DB 재생성을 전제로 `0001` baseline 교체를 명시적으로 승인한 예외다. #200은 이 예외를 재사용하지 않고 현재 head `0002` 뒤에 forward migration `0003`을 추가한다. 저장 의미, 제약이나 publication 계약이 바뀌면 먼저 logical·physical 결정 Issue를 승인하고 새 Alembic revision으로 변경한다. HTTP DTO나 화면 전용 상태는 DB column을 추가하지 않고 [제품 설계](../product/design.md)의 API 경계에 기록한다.
 
 migration 변경은 논리 필드와 물리 컬럼, PostgreSQL type, `NULL`과 default, PK·FK·UNIQUE·CHECK, 삭제·갱신 동작, lifecycle, index, 한국어 DB comment, DB와 service의 무결성 책임 및 정상·실패 검증을 함께 설명해야 한다.
 
@@ -884,3 +884,11 @@ migration 변경은 논리 필드와 물리 컬럼, PostgreSQL type, `NULL`과 d
 선택된 context·작업과 성공 상태, 전체 공개 basis, Claim 원문 연결, 보고서와 window의 node·검색 문서·작업·기간·기준 시각 일치 및 절별 Claim의 상위 보고서 포함 여부는 읽기 transaction에서 검사한다. 새 결과가 없던 기존 READY는 503으로 구분하고 기존 데이터를 생성 결과처럼 backfill하지 않는다. 생성 worker와 실제 출력 저장 검증기는 후속 구현 범위다. 기존 필드와 추가 구조의 의미는 [논리 스키마](logical-schema.md#512-기간별-질문답변과-종합보고서)를 따른다.
 
 추가 테이블에 결과가 존재하면 downgrade는 오류로 중단한다. 일반 되돌리기는 새 스키마와 데이터를 유지하고 기존 앱·API로 복귀하는 방식이며, 데이터 삭제가 필요한 downgrade를 자동 실행하지 않는다.
+
+## NUMBER attribute 허용 단위 확장 계약
+
+`0003_support_multiple_number_attribute_units.py`는 기존 `attribute_revision.unit_rule` 단일 문자열을 `attribute_revision_allowed_unit`의 행 집합으로 옮긴다. 기존 NUMBER revision의 `unit_rule`은 정확히 한 허용 단위 행으로 backfill되어 단일 단위 의미가 유지된다. migration 시 기존 NUMBER Claim의 `unit_code`가 그 legacy `unit_rule`과 다르면 값을 환산하거나 고치지 않고 upgrade를 실패시킨다.
+
+새 테이블은 `(attribute_revision_id, unit_code)`를 PK로 사용하고 `(attribute_revision_id, allowed_value_kind)`를 parent revision에 FK로 연결하며 `allowed_value_kind = 'NUMBER'`를 CHECK한다. `claim_attribute_value(attribute_revision_id, unit_code)`도 허용 단위 PK를 FK로 참조하므로 승인되지 않은 단위는 저장 단계에서 결정적으로 거부된다. active revision partial unique index는 바꾸지 않는다.
+
+이 구조는 canonical 단위, 범용 unit registry, 환산식, 값 normalization과 cross-unit 비교를 도입하지 않는다. `number_value`와 `unit_code`는 입력 의미를 그대로 보존한다. downgrade는 모든 NUMBER revision이 정확히 한 허용 단위만 가질 때에만 legacy `unit_rule`로 복원할 수 있으며, 복수 단위 또는 단위가 없는 revision이 있으면 의미 손실을 막기 위해 중단한다.
