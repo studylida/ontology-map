@@ -41,7 +41,9 @@ jobs:
           test "$(git rev-parse HEAD)" = "$(git rev-parse origin/refactor/121-remove-pgvector)"
 
       - name: Apply remaining issue 121 changes
-        run: python scripts/tmp_121_finalize.py
+        run: |
+          python scripts/tmp_121_finalize.py
+          python scripts/tmp_121_lint_fix.py
 
       - name: Refresh lockfile and generated schema reference
         shell: bash
