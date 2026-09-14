@@ -103,12 +103,9 @@ def _question_key(text: str) -> str:
     return _NORMALIZE_NOISE.sub("", normalized)
 
 
-def _candidate_reason(
+def _candidate_text_reason(
     candidate: FollowupQuestionCandidate,
     *,
-    allowed_claims: Mapping[int, PeriodRole],
-    in_window_claims: frozenset[int],
-    conflict_pairs: tuple[tuple[int, int], ...],
     seen_orders: set[int],
     seen_questions: set[str],
 ) -> str | None:
@@ -117,14 +114,22 @@ def _candidate_reason(
     question_key = _question_key(candidate.question_text)
     if not question_key or question_key in seen_questions:
         return "duplicate question semantics"
-    texts = (candidate.question_text, candidate.answer_text)
+    texts: tuple[str, ...] = (candidate.question_text, candidate.answer_text)
     if candidate.caveat_text is not None:
         texts += (candidate.caveat_text,)
     if any(not _plain_text(text) for text in texts):
         return "generated text must be plain text without URL/inline citation"
     if not 2 <= _sentence_count(candidate.answer_text) <= 4:
         return "answer_text must contain 2 to 4 sentences"
+    return None
 
+
+def _claim_reference_reason(
+    candidate: FollowupQuestionCandidate,
+    *,
+    allowed_claims: Mapping[int, PeriodRole],
+    in_window_claims: frozenset[int],
+) -> str | None:
     refs = candidate.claims
     if not refs:
         return "question requires at least one Claim"
@@ -140,9 +145,15 @@ def _candidate_reason(
         return "question requires at least one KEY_CLAIM"
     if not (set(claim_ids) & in_window_claims):
         return "question requires at least one in-window Claim"
+    return None
 
-    roles = {item.claim_id: item.role for item in refs}
-    selected = set(claim_ids)
+
+def _conflict_reference_reason(
+    candidate: FollowupQuestionCandidate,
+    conflict_pairs: tuple[tuple[int, int], ...],
+) -> str | None:
+    roles = {item.claim_id: item.role for item in candidate.claims}
+    selected = set(roles)
     for left, right in conflict_pairs:
         pair = {left, right}
         if selected & pair and (
@@ -152,6 +163,30 @@ def _candidate_reason(
         ):
             return "conflict use requires both member Claims as KEY_CLAIM"
     return None
+
+
+def _candidate_reason(
+    candidate: FollowupQuestionCandidate,
+    *,
+    allowed_claims: Mapping[int, PeriodRole],
+    in_window_claims: frozenset[int],
+    conflict_pairs: tuple[tuple[int, int], ...],
+    seen_orders: set[int],
+    seen_questions: set[str],
+) -> str | None:
+    return (
+        _candidate_text_reason(
+            candidate,
+            seen_orders=seen_orders,
+            seen_questions=seen_questions,
+        )
+        or _claim_reference_reason(
+            candidate,
+            allowed_claims=allowed_claims,
+            in_window_claims=in_window_claims,
+        )
+        or _conflict_reference_reason(candidate, conflict_pairs)
+    )
 
 
 def validate_proposal(
