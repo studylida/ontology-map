@@ -432,10 +432,7 @@ def _visible_conflicts(
         target_is_direct = bool(
             target["target_node_id"] == node_id
             or target["event_node_id"] == node_id
-            or (
-                relation_id is not None
-                and int(relation_id) in direct_relation_ids
-            )
+            or (relation_id is not None and int(relation_id) in direct_relation_ids)
         )
         member_ids = [int(row["claim_id"]) for row in members]
         if not target_is_direct or not set(member_ids) <= claim_ids:
