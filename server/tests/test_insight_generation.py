@@ -180,20 +180,45 @@ def test_report_is_atomic_when_any_section_claim_contract_fails() -> None:
     assert "at least two Claims" in result.failures[0].reason
 
 
-def test_report_rejects_repeated_claim_set_even_with_different_title() -> None:
+def test_report_rejects_same_claim_set_when_only_title_changes() -> None:
     snapshot = prepared(claim(1), claim(2))
     duplicated = report(
-        section(1, ref(1), ref(2, order=2)),
+        section(
+            1,
+            ref(1),
+            ref(2, order=2),
+            synthesis="같은 Claim 묶음에서 같은 종합을 설명합니다.",
+        ),
         section(
             2,
             ref(2),
             ref(1, order=2),
             title="제목만 바꾼 반복 발견",
+            synthesis="같은 Claim 묶음에서 같은 종합을 설명합니다.",
         ),
     )
     result = service.validate_bundle(snapshot, bundle(duplicated, None))
     assert not result.valid
-    assert "same Claim set" in result.failures[0].reason
+    assert "same Claim set with the same synthesis" in result.failures[0].reason
+
+
+def test_report_allows_same_claim_set_for_distinct_findings() -> None:
+    snapshot = prepared(claim(1), claim(2))
+    distinct = report(
+        section(
+            1,
+            ref(1),
+            ref(2, order=2),
+            synthesis="첫 번째 발견은 두 근거가 보여주는 변화 시점에 초점을 둡니다.",
+        ),
+        section(
+            2,
+            ref(2),
+            ref(1, order=2),
+            synthesis="두 번째 발견은 같은 근거가 함께 보여주는 범위 한계에 초점을 둡니다.",
+        ),
+    )
+    assert service.validate_bundle(snapshot, bundle(distinct, None)).valid
 
 
 def test_visible_conflict_requires_both_members_in_same_section() -> None:
