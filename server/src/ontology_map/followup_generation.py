@@ -1,8 +1,9 @@
 """Provider-independent FOLLOWUP_QUESTIONS product logic (#129).
 
 This module deliberately does not claim/lease model_task rows or send provider
-requests. The generic durable transmission boundary is owned by #125/#127 and
-is currently waiting on the approved call-slot/unknown-attempt decision.
+requests. The generic durable transmission boundary is owned by #125/#127; its
+provider-call-slot contract is approved but the shared executor is not yet on
+main, so this module owns only #129 product preparation/validation semantics.
 """
 
 from __future__ import annotations
@@ -42,9 +43,9 @@ display_order를 반환한다. 모든 질문에는 KEY_CLAIM이 하나 이상 �
 
 질문은 직접 사실 질문 또는 제공된 여러 Claim을 짧게 종합해 답할 수 있는 질문만
 만든다. Node 이동 안내, 현재 자료로 답할 수 없는 질문, 근거 없는 인과·우열·미래
-예측, 주변 Node의 독립적인 이야기는 만들지 않는다. answer_text는 2~4문장으로
-쓰고 첫 문장에서 질문에 직접 답한다. 사실, 해석, 아직 확인할 수 없는 내용을
-구분한다.
+예측, 주변 Node의 독립적인 이야기는 만들지 않는다. answer_text는 2~4문장을
+기본으로 쓰고 첫 문장에서 질문에 직접 답한다. 사실, 해석, 아직 확인할 수 없는
+내용을 구분한다.
 
 conflict_pairs의 Claim을 질문 소재로 사용하면 그 pair의 두 Claim을 모두 포함하고
 둘 모두 KEY_CLAIM으로 둔다. 어느 쪽도 truth winner로 선택하지 않는다. 입력에는
@@ -59,7 +60,6 @@ _MARKDOWN_LINE = re.compile(r"(?m)^\s*(?:#{1,6}\s|[-*+]\s|\d+[.)]\s|>\s)")
 _INLINE_CITATION = re.compile(r"\[\s*\d+\s*\]")
 _URL = re.compile(r"(?i)(?:https?://|www\.)\S+")
 _TABLE_LINE = re.compile(r"(?m)^\s*\|.*\|\s*$")
-_SENTENCE = re.compile(r"[^.!?]+(?:[.!?]+|$)")
 _NORMALIZE_NOISE = re.compile(r"[\W_]+", re.UNICODE)
 
 
@@ -94,10 +94,6 @@ def _plain_text(text: str) -> bool:
     )
 
 
-def _sentence_count(text: str) -> int:
-    return sum(1 for match in _SENTENCE.finditer(text.strip()) if match.group().strip())
-
-
 def _question_key(text: str) -> str:
     normalized = unicodedata.normalize("NFKC", text).casefold()
     return _NORMALIZE_NOISE.sub("", normalized)
@@ -119,8 +115,6 @@ def _candidate_text_reason(
         texts += (candidate.caveat_text,)
     if any(not _plain_text(text) for text in texts):
         return "generated text must be plain text without URL/inline citation"
-    if not 2 <= _sentence_count(candidate.answer_text) <= 4:
-        return "answer_text must contain 2 to 4 sentences"
     return None
 
 
