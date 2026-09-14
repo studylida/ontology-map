@@ -1,0 +1,36 @@
+name: Issue 121 generated artifacts
+
+on:
+  push:
+    branches:
+      - refactor/121-remove-pgvector
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 저장소 받기
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: uv 준비
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.7"
+          enable-cache: true
+      - name: lockfile 재생성
+        run: uv lock --project server
+      - name: schema reference 재생성
+        run: uv run --project server --frozen python scripts/check_docs.py --write
+      - name: 생성 결과 확인
+        run: git diff --check && git diff --stat -- server/uv.lock docs/data/schema-reference.md
+      - name: 생성 파일 업로드
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue-121-generated-artifacts
+          path: |
+            server/uv.lock
+            docs/data/schema-reference.md
+          if-no-files-found: error
