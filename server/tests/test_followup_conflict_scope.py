@@ -44,12 +44,27 @@ def _insert_relation_conflict(
     return int(conflict_id)
 
 
+def _make_context_preparing(session, context_id: int) -> None:
+    batch_id = session.scalar(
+        sa.select(s.publication_affected_node.c.promotion_batch_id).where(
+            s.publication_affected_node.c.node_context_id == context_id
+        )
+    )
+    assert batch_id is not None
+    session.execute(
+        s.promotion_batch.update()
+        .where(s.promotion_batch.c.promotion_batch_id == batch_id)
+        .values(publication_status="PREPARING", ready_at=None)
+    )
+
+
 def test_prepare_followup_only_exposes_conflicts_for_center_node_scope() -> None:
     _, ids = load_panel_fixture()
     with rollback_session() as session:
         context = panel_queries.context(session, ids["gaon"])
         assert context is not None
         context_id = int(context["node_context_id"])
+        _make_context_preparing(session, context_id)
         now = datetime.now(UTC)
         initial = db.prepare_followup(
             session,
