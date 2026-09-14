@@ -26,13 +26,13 @@ jobs:
           enable-cache: true
       - name: Install
         run: uv sync --project server --frozen
-      - name: Apply exact type fixes
+      - name: Apply exact fixes
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("server/src/ontology_map/db/followup_generation.py")
-          text = path.read_text()
+          db_path = Path("server/src/ontology_map/db/followup_generation.py")
+          text = db_path.read_text()
           text = text.replace(
               "        row = claim_rows.get(claim_id)\n"
               "        excerpts = evidence.get(claim_id, [])\n"
@@ -66,7 +66,27 @@ jobs:
               "    if updated_task_id is None:\n",
               1,
           )
-          path.write_text(text)
+          text = text.replace(
+              '                "search-document basis contains knowledge that is not publication-usable"\n',
+              '                "search-document basis is not publication-usable"\n',
+          )
+          text = text.replace(
+              "                   CASE WHEN r.source_node_id = :node_id\n"
+              "                        THEN r.target_node_id ELSE r.source_node_id END AS related_node_id,\n",
+              "                   CASE WHEN r.source_node_id = :node_id\n"
+              "                        THEN r.target_node_id\n"
+              "                        ELSE r.source_node_id\n"
+              "                   END AS related_node_id,\n",
+          )
+          db_path.write_text(text)
+
+          test_path = Path("server/tests/test_followup_generation_db.py")
+          test_text = test_path.read_text().replace(
+              '                        "제공된 근거만으로 그 범위를 넘어선 성과까지 판단할 수는 없습니다."\n',
+              '                        "제공된 근거만으로 그 범위를 넘어선 "\n'
+              '                        "성과까지 판단할 수는 없습니다."\n',
+          )
+          test_path.write_text(test_text)
           PY
       - name: Ruff format and import fix
         run: |
