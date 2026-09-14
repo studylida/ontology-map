@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -25,13 +25,14 @@ from ontology_map.followup_generation_contracts import (
     FollowupApplyResult,
     FollowupQuestionsProposal,
     GroundedClaim,
+    PeriodRole,
     PreparedFollowup,
     RelatedNode,
+    TimeWindow as AgentTimeWindow,
     VisibleConflictPair,
 )
 
 _PUBLIC_STATES = ("EVIDENCE_VERIFIED", "HUMAN_VERIFIED")
-_PUBLICATION_STATES = ("PREPARING", "READY")
 
 
 class FollowupPreparationError(ValueError):
@@ -303,6 +304,7 @@ def _grounded_claims(
         if published_at is not None and published_at >= as_of_at:
             # Evidence published after the generation cut-off is not background.
             continue
+        period_role: PeriodRole
         if published_at is None:
             period_role = "UNKNOWN"
         elif published_at >= start_at:
@@ -330,19 +332,19 @@ def _grounded_claims(
         if row is None or not excerpts:
             continue
         roles = {item.period_role for item in excerpts}
-        period_role = (
-            "IN_WINDOW"
-            if "IN_WINDOW" in roles
-            else "BACKGROUND"
-            if "BACKGROUND" in roles
-            else "UNKNOWN"
-        )
+        claim_period_role: PeriodRole
+        if "IN_WINDOW" in roles:
+            claim_period_role = "IN_WINDOW"
+        elif "BACKGROUND" in roles:
+            claim_period_role = "BACKGROUND"
+        else:
+            claim_period_role = "UNKNOWN"
         result.append(
             GroundedClaim(
                 claim_id=claim_id,
                 statement_text=str(row["statement_text"]),
                 modality=row["modality"],
-                period_role=period_role,
+                period_role=claim_period_role,
                 connections=connections[claim_id],
                 evidence=tuple(excerpts),
             )
@@ -425,7 +427,7 @@ def prepare_followup(
             node_id=node_id,
             node_type=center.node_type,
             preferred_alias=center.preferred_alias,
-            time_window=window.value,
+            time_window=cast(AgentTimeWindow, window.value),
             as_of_at=as_of_at,
             claims=claims,
             conflict_pairs=conflicts,
