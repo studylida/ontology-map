@@ -49,9 +49,7 @@ def _prepared(
 ) -> PreparedInsightBundle:
     claims = (_claim(1, first_role), _claim(2, second_role))
     pairs = (
-        (VisibleConflictPair(conflict_set_id=1, claim_ids=(1, 2)),)
-        if conflict
-        else ()
+        (VisibleConflictPair(conflict_set_id=1, claim_ids=(1, 2)),) if conflict else ()
     )
     ninety = InsightWindowInput(
         time_window="RECENT_90_DAYS",
