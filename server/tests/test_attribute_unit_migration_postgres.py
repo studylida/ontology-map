@@ -129,10 +129,7 @@ def _reflect_tables(
     *names: str,
 ) -> dict[str, sa.Table]:
     metadata = sa.MetaData()
-    return {
-        name: sa.Table(name, metadata, autoload_with=connection)
-        for name in names
-    }
+    return {name: sa.Table(name, metadata, autoload_with=connection) for name in names}
 
 
 def _insert_claim_scaffold(connection: Connection) -> tuple[int, int, int]:
