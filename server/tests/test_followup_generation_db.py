@@ -87,23 +87,6 @@ def _running_task(session, seed: bytes, now: datetime) -> int:
     return int(task_id)
 
 
-def _fixture_snapshot(session):
-    _, ids = load_panel_fixture()
-    context = panel_queries.context(session, ids["gaon"])
-    assert context is not None
-    context_id = int(context["node_context_id"])
-    _clear_question_sets(session, context_id)
-    now = datetime.now(UTC)
-    prepared = db.prepare_followup(
-        session,
-        context_id,
-        TimeWindow.RECENT_90_DAYS,
-        now,
-    )
-    assert prepared.agent_input.claims
-    return context_id, prepared, now
-
-
 def _ordinary_in_window_claim(prepared) -> int:
     conflict_claims = {
         claim_id
@@ -225,6 +208,58 @@ def test_apply_followup_persists_normal_empty_as_success() -> None:
             .where(s.node_question.c.question_set_id == result.question_set_id)
         )
         assert count == 0
+
+
+def test_apply_followup_blocks_when_all_candidates_fail_validation() -> None:
+    _, ids = load_panel_fixture()
+    with rollback_session() as session:
+        context = panel_queries.context(session, ids["gaon"])
+        assert context is not None
+        context_id = int(context["node_context_id"])
+        _clear_question_sets(session, context_id)
+        now = datetime.now(UTC)
+        prepared = db.prepare_followup(
+            session, context_id, TimeWindow.RECENT_90_DAYS, now
+        )
+        task_id = _running_task(session, b"all-blocked", now)
+        proposal = FollowupQuestionsProposal(
+            questions=(
+                FollowupQuestionCandidate(
+                    display_order=1,
+                    question_text="검증되지 않은 Claim만으로 답할 수 있나요?",
+                    answer_text=(
+                        "이 후보는 준비된 입력 밖의 Claim을 참조합니다. "
+                        "따라서 질문 전체가 저장 대상에서 제외되어야 합니다."
+                    ),
+                    claims=(
+                        FollowupClaimReference(
+                            claim_id=9223372036854775807,
+                            role="KEY_CLAIM",
+                            display_order=1,
+                        ),
+                    ),
+                ),
+            )
+        )
+
+        result = db.apply_followup(
+            session,
+            model_task_id=task_id,
+            prepared=prepared,
+            proposal=proposal,
+            finished_at=now + timedelta(seconds=1),
+        )
+        assert result.status == "VALIDATION_BLOCKED"
+        assert result.reason == "ALL_CANDIDATES_BLOCKED"
+        assert result.question_set_id is None
+        assert (
+            session.scalar(
+                sa.select(sa.func.count())
+                .select_from(s.node_question_set)
+                .where(s.node_question_set.c.model_task_id == task_id)
+            )
+            == 0
+        )
 
 
 def test_apply_followup_blocks_stale_basis_without_writing_result() -> None:
