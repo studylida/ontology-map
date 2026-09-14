@@ -1,4 +1,4 @@
-name: Temporary #117 worker
+name: Temporary 117 worker
 
 on:
   push:
@@ -10,14 +10,14 @@ permissions:
 
 jobs:
   implement-and-check:
-    if: ${{ github.event.head_commit.message != 'feat: #117 검색 bucket과 응답 계약 단순화' }}
+    if: github.event.head_commit.message != 'generated-117'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       COMPOSE_PROJECT_NAME: search117-${{ github.run_id }}-${{ github.run_attempt }}
       POSTGRES_DB: ontology_map_search117_test
       POSTGRES_USER: search117_test
-      POSTGRES_PORT: 127.0.0.1:55433
+      POSTGRES_PORT: "127.0.0.1:55433"
       ONTOLOGY_MAP_ENVIRONMENT: development
       PYTHONPATH: ${{ github.workspace }}/server/src
     steps:
@@ -30,7 +30,7 @@ jobs:
           version: 0.12.7
           enable-cache: true
 
-      - name: Apply #117 patch
+      - name: Apply patch
         run: python scripts/tmp_117_worker.py
 
       - name: Format changed code
@@ -108,7 +108,7 @@ jobs:
             web/src/NodeSearch.tsx \
             web/src/App.test.tsx
           git diff --cached --check
-          git commit -m "feat: #117 검색 bucket과 응답 계약 단순화"
+          git commit -m "generated-117"
           git push origin HEAD:work/117-patch
 
       - name: Cleanup isolated database
