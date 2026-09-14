@@ -13,7 +13,7 @@
 
 이 문서는 Logical Schema v1.2의 의미를 PostgreSQL로 옮기는 공통 표현 규칙을 정의한다. 실제 table, column, constraint와 index 목록은 SQLAlchemy metadata에서 생성한 [스키마 참고 문서](schema-reference.md)가 소유한다.
 
-#41–#48에서 기본 매핑을 확정했고 #78에서 embedding 계약, #91에서 node 인사이트 확장을 추가했다. #95는 이 결과를 SQLAlchemy metadata와 Alembic migration으로 구현했다. migration과 metadata가 이 문서와 다르면 임의로 한쪽을 정답으로 바꾸지 않고 #116에서 의미 차이인지 구현 오류인지 감사한다.
+#41–#48에서 기본 매핑을 확정했고 #91에서 node 인사이트 확장을 추가했다. #95는 이 결과를 SQLAlchemy metadata와 Alembic migration으로 구현했으며, #78의 embedding 계약은 [#121](https://github.com/studylida/ontology-map/issues/121)에서 폐기했다. migration과 metadata가 이 문서와 다르면 임의로 한쪽을 정답으로 바꾸지 않고 #116에서 의미 차이인지 구현 오류인지 감사한다.
 
 ## 현재 구현 기준
 
@@ -36,7 +36,7 @@ claim
 
 Relation의 stance는 `claim_relation`, 구조화 속성값은 `claim_attribute_value`, 사건 시간 근거는 `event_temporal_basis`가 Claim에 연결한다. node 인사이트도 `node_insight_claim`에서 기존 Claim으로 이어져 같은 Evidence Trace를 재사용한다.
 
-`publication_affected_node`는 한 batch가 영향을 준 node와 선택한 검색 문서, embedding, context와 `NODE_INSIGHT` 작업을 가리킨다. 이 행은 지도 구성원, 좌표나 전체 graph snapshot이 아니다.
+`publication_affected_node`는 한 batch가 영향을 준 node와 선택한 검색 문서, context와 `NODE_INSIGHT` 작업을 가리킨다. 이 행은 지도 구성원, 좌표나 전체 graph snapshot이 아니다.
 
 ### Publication과 공개 조회
 
@@ -48,7 +48,7 @@ publication_status: NOT_STARTED → PREPARING → READY
                                           └→ FAILED → PREPARING
 ```
 
-READY 전환은 같은 transaction에서 모든 영향 node를 검사한다. 새 패널 계약에서는 각 node의 검색 문서·embedding·context와 두 기간별 node_question_set 및 성공한 NODE_INSIGHT 작업의 node_insight_window가 필요하다. 질문 묶음은 0개 이상의 답변, 인사이트 window는 0개 또는 1개 보고서를 선택한다. 기존 followup_question과 slot 1–3 인사이트는 호환 데이터로 보존한다. 현재 공개 가능한 basis 지식과 열린 `BLOCKING` lint 부재도 함께 검사한다.
+READY 전환은 같은 transaction에서 모든 영향 node를 검사한다. 새 패널 계약에서는 각 node의 검색 문서·context와 두 기간별 node_question_set 및 성공한 NODE_INSIGHT 작업의 node_insight_window가 필요하다. 질문 묶음은 0개 이상의 답변, 인사이트 window는 0개 또는 1개 보고서를 선택한다. 기존 followup_question과 slot 1–3 인사이트는 호환 데이터로 보존한다. 현재 공개 가능한 basis 지식과 열린 `BLOCKING` lint 부재도 함께 검사한다.
 
 이 완결성은 여러 table의 개수, task kind와 상태를 함께 읽어야 하므로 DB의 nullable column만으로 보장하지 않고 publication application service가 짧은 transaction 안에서 보장한다. `READY` 뒤 선택 pointer와 산출물은 바꾸지 않는다.
 
@@ -65,7 +65,7 @@ setweight(to_tsvector('simple', identity_text), 'A')
 || setweight(to_tsvector('simple', knowledge_text), 'B')
 ```
 
-`node_embedding`은 같은 node와 검색 문서를 composite FK로 고정하고 성공한 `EMBEDDING` 작업 하나와 연결한다. `node_context`, `followup_question`과 `node_insight`도 같은 검색 문서·node 조합을 물리 FK로 고정한다. `followup_question.slot`은 1 또는 2이고 `target_node_id`는 필수지만 target과 중심 사이 Relation을 뜻하지 않는다.
+`node_context`, `followup_question`과 `node_insight`는 같은 검색 문서·node 조합을 물리 FK로 고정한다. `followup_question.slot`은 1 또는 2이고 `target_node_id`는 필수지만 target과 중심 사이 Relation을 뜻하지 않는다.
 
 `node_insight`는 `RECENT_90_DAYS | RECENT_1_YEAR`, slot 1–3, `as_of_at`, 제목, 요약, 종합 해석과 유의점을 가진 불변 행이다. `node_insight_claim`은 기존 Claim을 `KEY_CLAIM | SUPPORTING_CLAIM | CONTRASTING_CLAIM`으로 연결한다. 인사이트 근거 수는 column으로 저장하지 않고 Evidence Trace에서 `COUNT(DISTINCT evidence_group_id)`로 계산한다.
 
@@ -75,7 +75,7 @@ setweight(to_tsvector('simple', identity_text), 'A')
 
 ### 1.1 이 문서가 결정하는 것
 
-- PostgreSQL과 필수 extension 기준
+- PostgreSQL 기준
 - PostgreSQL schema namespace와 객체 소유 경계
 - 내부 식별자와 공유 기본 키 전략
 - 데이터베이스 객체 이름 규칙
@@ -94,7 +94,6 @@ setweight(to_tsvector('simple', identity_text), 'A')
 - 외부 source 선정, raw snapshot과 수집 manifest
 - 실제 lint 정책에 포함할 entity·event·relation 범위
 - 다른 행이나 테이블을 함께 검사하는 application-service 함수의 구현 세부사항
-- HNSW·IVFFlat 등 근사 검색 인덱스
 - 사용자·관리자 인증과 권한 모델
 - 운영 규모의 성능 benchmark
 
@@ -105,16 +104,15 @@ setweight(to_tsvector('simple', identity_text), 'A')
 | 항목 | 기준 |
 |---|---|
 | 데이터베이스 | PostgreSQL 18.6 |
-| 필수 외부 extension | pgvector 0.8.6 |
+| 필수 외부 extension | 없음 |
 | 데이터베이스 이름 | `ontology_map` |
 | 애플리케이션 schema | `public` |
-| pgvector 설치 schema | `public` |
 
-PostgreSQL과 pgvector의 정확한 버전은 [구현 스택](../development/implementation-stack.md)을 따른다. 버전 갱신은 별도 Issue와 호환성 검증 없이 이루어지지 않는다.
+PostgreSQL의 정확한 버전은 [구현 스택](../development/implementation-stack.md)을 따른다. 버전 갱신은 별도 Issue와 호환성 검증 없이 이루어지지 않는다.
 
 ### 2.2 extension 최소화
 
-현재 필수 extension은 pgvector의 `vector` 하나뿐이다.
+현재 필수 외부 PostgreSQL extension은 없다.
 
 다음 extension은 현재 물리 스키마의 선행 요구사항이 아니다.
 
@@ -126,8 +124,6 @@ PostgreSQL과 pgvector의 정확한 버전은 [구현 스택](../development/imp
 
 내부 식별자는 `bigint` identity를 사용하므로 UUID 생성 extension을 추가하지 않는다. 오타 검색, 문자 정규화나 고급 제약에 별도 extension이 실제로 필요해지면 해당 조회나 무결성을 소유하는 후속 Issue에서 근거와 함께 승인한다.
 
-`node_embedding.embedding_vector`는 #78에서 `qwen3.7-text-embedding`, dense 1024차원과 cosine distance를 하나의 호환 계약으로 확정했다.
-
 ## 3. PostgreSQL namespace와 객체 소유
 
 ### 3.1 단일 `public` schema
@@ -138,7 +134,6 @@ POC는 전용 PostgreSQL 데이터베이스 하나를 하나의 애플리케이�
 - PK·FK·UNIQUE·CHECK
 - 인덱스
 - 승인된 함수와 trigger
-- pgvector의 타입·연산자·인덱스 지원 객체
 
 별도의 `ontology_map`, `extensions` 또는 도메인별 PostgreSQL schema를 만들지 않는다. 이 선택은 논리 모델의 영역 구분을 없애는 것이 아니라, 현재 규모에서 불필요한 `search_path`, SQLAlchemy, Alembic과 테스트 설정 복잡도를 추가하지 않기 위한 것이다.
 
@@ -542,24 +537,6 @@ FALSE
 
 두 상태를 같은 것으로 취급하지 않는다.
 
-### 6.7 벡터
-
-`node_embedding.embedding_vector`는 pgvector의 다음 타입을 사용한다.
-
-```text
-vector(1024) NOT NULL
-```
-
-이 타입과 embedding 관련 FK·작업 종류·READY pointer는 현재 migration·metadata에 남아 있다. 개발 fixture는 합성 one-hot 값을 만들지만 제품 embedding worker와 query 모델 호출은 없다.
-
-- 행별 dimension 컬럼을 추가하지 않는다.
-- 서로 다른 차원의 벡터를 같은 컬럼에 섞지 않는다.
-- `halfvec`, SQL 배열과 JSON 배열을 사용하지 않는다.
-
-과거 Qwen embedding·cosine·RRF 도입 방향은 [#121](https://github.com/studylida/ontology-map/issues/121)의 제거 결정으로 대체됐다. 현재 검색은 alias와 native PostgreSQL FTS만 사용하며 ANN index도 없다. #81은 종료됐고 #117은 vector 구현이 아니라 FTS 우선순위·응답 단순화를 소유한다.
-
-#121은 초기 migration baseline을 교체하고 기존 개발 DB를 재생성해 pgvector까지 제거하는 예외를 승인받았다. 아직 구현 전이므로 이 문서에서 `vector(1024)`와 관련 현재 제약을 미리 지우지 않는다. 제거 PR에서 논리·물리 schema, metadata·migration·fixture·의존성·운영 절차를 함께 바꿔야 한다. in-place 이관이 지원된다는 뜻은 아니다.
-
 ## 7. 닫힌 코드와 확장 가능한 참조 목록
 
 ### 7.1 닫힌 상태·기술 코드
@@ -722,7 +699,7 @@ ON UPDATE RESTRICT
 
 | 분류 | 의미 | 대표 예 |
 |---|---|---|
-| 불변 버전·산출물 | 의미가 바뀌면 UPDATE 대신 새 행 생성 | 문서 버전, relation·claim, ontology revision, 검색 문서, embedding, context, question, insight, conflict summary |
+| 불변 버전·산출물 | 의미가 바뀌면 UPDATE 대신 새 행 생성 | 문서 버전, relation·claim, ontology revision, 검색 문서, context, question, insight, conflict summary |
 | append-only 사건·이력 | 기존 행을 수정·삭제하지 않고 새 사건만 추가 | `agent_attempt`, 사람 상태 변경 이력 |
 | 수정 가능한 운영 상태 | 정해진 상태 전이·lease·재시도·카운터만 갱신 | `model_task`, `promotion_batch`, finding 감지 메타데이터 |
 | 한 방향 종료·취소 | `NULL`에서 종료값으로 닫히며 되돌리지 않음 | `valid_to`, `reversed_at`, `resolved_at` |
@@ -888,13 +865,13 @@ conflict_set
 |---|---|---|---|
 | `PHY-DEFER-001` | `knowledge_state_event`, `conflict_state_event` | actor·principal FK를 임의로 만들지 않고 두 table 전체를 초기 migration에서 제외 | 관리자·인증과 사람 상태 변경 기능의 actor 계약 승인 |
 
-#78의 embedding dimension blocker는 해소되어 `vector(1024)`로 구현되었다. 의미가 불명확한 `TBD`, placeholder dimension과 가짜 actor FK는 frozen schema에 넣지 않는다.
+의미가 불명확한 `TBD`, placeholder 값과 가짜 actor FK는 frozen schema에 넣지 않는다.
 
 ## 15. Migration과 변경 기준
 
-#41–#48의 table mapping, #78의 embedding 계약과 #91의 인사이트 확장은 `0001_create_frozen_schema.py`에 통합되어 있다. `server/src/ontology_map/db/schema.py`는 Alembic 비교와 query 작성에 쓰는 같은 metadata를 제공한다.
+#41–#48의 table mapping과 #91의 인사이트 확장은 `0001_create_frozen_schema.py`에 통합되어 있다. #121은 현재 POC에서 사용하지 않는 #78의 embedding 계약을 제거하기 위해 예외적으로 이 frozen baseline을 교체했다. `server/src/ontology_map/db/schema.py`는 Alembic 비교와 query 작성에 쓰는 같은 metadata를 제공한다.
 
-이미 `main`에 병합된 revision을 수정하거나 순서를 다시 쓰지 않는다. 저장 의미, 제약이나 publication 계약이 바뀌면 먼저 logical·physical 결정 Issue를 승인하고 새 Alembic revision으로 변경한다. HTTP DTO나 화면 전용 상태는 DB column을 추가하지 않고 [제품 설계](../product/design.md)의 API 경계에 기록한다.
+이미 `main`에 병합된 revision을 수정하거나 순서를 다시 쓰지 않는 것이 원칙이다. 다만 #121은 빈 환경에서도 pgvector가 필요하지 않도록 기존 개발 DB 재생성을 전제로 `0001` baseline 교체를 명시적으로 승인한 예외다. 저장 의미, 제약이나 publication 계약이 바뀌면 먼저 logical·physical 결정 Issue를 승인하고 새 Alembic revision으로 변경한다. HTTP DTO나 화면 전용 상태는 DB column을 추가하지 않고 [제품 설계](../product/design.md)의 API 경계에 기록한다.
 
 migration 변경은 논리 필드와 물리 컬럼, PostgreSQL type, `NULL`과 default, PK·FK·UNIQUE·CHECK, 삭제·갱신 동작, lifecycle, index, 한국어 DB comment, DB와 service의 무결성 책임 및 정상·실패 검증을 함께 설명해야 한다.
 

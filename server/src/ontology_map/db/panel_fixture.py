@@ -318,7 +318,7 @@ def seed(c: Connection) -> dict[str, int]:
             for i, label in [(3, "SEPTEMBER"), (6, "OCTOBER")]
         ],
     )
-    for index, (key, node_id) in enumerate(ids.items()):
+    for key, node_id in ids.items():
         selected = [] if key == "empty" else claims
         basis = [node_id, own_claims[key]] + (
             [relation, *claims, a, b] if selected else []
@@ -332,7 +332,6 @@ def seed(c: Connection) -> dict[str, int]:
             [],
             batch,
             contracts,
-            index + 120,
         )
         public = (
             c.execute(

@@ -4,7 +4,7 @@
 
 이 문서는 [SQLAlchemy metadata](../../server/src/ontology_map/db/schema.py)의 실제 table, column, constraint와 index를 이름순으로 보여 주는 생성 결과다. 데이터 의미와 수명주기는 [논리 스키마](logical-schema.md), PostgreSQL 공통 표현 규칙은 [물리 스키마](physical-schema.md)가 소유한다.
 
-- table 수: 49
+- table 수: 48
 - 생성 명령: `uv run --project server --frozen python scripts/check_docs.py --write`
 - 검사 명령: `uv run --project server --frozen python scripts/check_docs.py --check`
 
@@ -37,7 +37,6 @@
 - [`node_alias`](#node_alias)
 - [`node_alias_evidence`](#node_alias_evidence)
 - [`node_context`](#node_context)
-- [`node_embedding`](#node_embedding)
 - [`node_insight`](#node_insight)
 - [`node_insight_claim`](#node_insight_claim)
 - [`node_insight_section`](#node_insight_section)
@@ -814,11 +813,11 @@ node·relation·claim의 공유 ID, 현재 지식 상태와 생성 batch를 관�
 | CHECK | `ck_model_task__input_hash_length` | `CHECK (octet_length(input_hash) = 32)` |
 | CHECK | `ck_model_task__lease_owner_nonblank` | `CHECK (lease_owner IS NULL OR btrim(lease_owner) <> '')` |
 | CHECK | `ck_model_task__model_version_nonblank` | `CHECK (btrim(model_version) <> '')` |
-| CHECK | `ck_model_task__output_contract` | `CHECK ((task_kind = 'EMBEDDING' AND output_schema_definition_id IS NULL AND prompt_version IS NULL) OR (task_kind <> 'EMBEDDING' AND output_schema_definition_id IS NOT NULL AND prompt_version IS NOT NULL))` |
+| CHECK | `ck_model_task__output_contract` | `CHECK (output_schema_definition_id IS NOT NULL AND prompt_version IS NOT NULL)` |
 | CHECK | `ck_model_task__prompt_version_nonblank` | `CHECK (prompt_version IS NULL OR btrim(prompt_version) <> '')` |
 | CHECK | `ck_model_task__status` | `CHECK (status IN ('PENDING', 'RUNNING', 'SUCCESS', 'RETRY_WAIT', 'VALIDATION_BLOCKED', 'FINAL_FAILED'))` |
 | CHECK | `ck_model_task__status_shape` | `CHECK ((status = 'PENDING' AND finished_at IS NULL AND next_attempt_at IS NULL AND lease_owner IS NULL AND lease_expires_at IS NULL) OR (status = 'RUNNING' AND finished_at IS NULL AND next_attempt_at IS NULL AND lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL) OR (status = 'RETRY_WAIT' AND finished_at IS NULL AND next_attempt_at IS NOT NULL AND lease_owner IS NULL AND lease_expires_at IS NULL AND attempt_count < 5) OR (status IN ('SUCCESS', 'VALIDATION_BLOCKED', 'FINAL_FAILED') AND finished_at IS NOT NULL AND next_attempt_at IS NULL AND lease_owner IS NULL AND lease_expires_at IS NULL))` |
-| CHECK | `ck_model_task__task_kind` | `CHECK (task_kind IN ('KNOWLEDGE_EXTRACTION', 'ENTITY_RESOLUTION_PROPOSAL', 'EVIDENCE_LINEAGE_PROPOSAL', 'CONFLICT_SUMMARY', 'NODE_CONTEXT', 'FOLLOWUP_QUESTIONS', 'NODE_INSIGHT', 'EMBEDDING'))` |
+| CHECK | `ck_model_task__task_kind` | `CHECK (task_kind IN ('KNOWLEDGE_EXTRACTION', 'ENTITY_RESOLUTION_PROPOSAL', 'EVIDENCE_LINEAGE_PROPOSAL', 'CONFLICT_SUMMARY', 'NODE_CONTEXT', 'FOLLOWUP_QUESTIONS', 'NODE_INSIGHT'))` |
 | CHECK | `ck_model_task__timestamps_finite` | `CHECK (isfinite(created_at) AND (next_attempt_at IS NULL OR isfinite(next_attempt_at)) AND (lease_expires_at IS NULL OR isfinite(lease_expires_at)) AND (finished_at IS NULL OR isfinite(finished_at)))` |
 | FOREIGN KEY | `fk_model_task__output_contract` | `FOREIGN KEY (output_schema_definition_id) REFERENCES output_schema_definition (output_schema_definition_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
 | FOREIGN KEY | `fk_model_task__source_document` | `FOREIGN KEY (source_document_id) REFERENCES source_document (source_document_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
@@ -949,38 +948,6 @@ alias가 확인된 원문 위치를 다대다로 연결한다.
 | 이름 | unique | column 또는 expression | 조건 |
 | --- | --- | --- | --- |
 | `ix_node_context__search_document` | 아니요 | `node_search_document_id, node_id, node_context_id` | — |
-
-## `node_embedding`
-
-정확한 node_search_document에서 만든 불변 검색 벡터. 모델·입력 hash·재시도 이력은 model_task가 소유하며 동일 대상 판정이나 관계 생성에 사용하지 않는다.
-
-### Columns
-
-| 이름 | PostgreSQL type | nullable | default | identity | 설명 |
-| --- | --- | --- | --- | --- | --- |
-| `node_embedding_id` | `BIGINT` | 아니요 | — | `GENERATED ALWAYS AS IDENTITY` | — |
-| `node_id` | `BIGINT` | 아니요 | — | — | — |
-| `node_search_document_id` | `BIGINT` | 아니요 | — | — | — |
-| `model_task_id` | `BIGINT` | 아니요 | — | — | — |
-| `embedding_vector` | `VECTOR(1024)` | 아니요 | — | — | — |
-| `created_at` | `TIMESTAMP WITH TIME ZONE` | 아니요 | `CURRENT_TIMESTAMP` | — | — |
-
-### Constraints
-
-| 종류 | 이름 | 정의 |
-| --- | --- | --- |
-| CHECK | `ck_node_embedding__created_at_finite` | `CHECK (isfinite(created_at))` |
-| FOREIGN KEY | `fk_node_embedding__model_task` | `FOREIGN KEY (model_task_id) REFERENCES model_task (model_task_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
-| FOREIGN KEY | `fk_node_embedding__search_document` | `FOREIGN KEY (node_search_document_id, node_id) REFERENCES node_search_document (node_search_document_id, node_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
-| PRIMARY KEY | `pk_node_embedding` | `PRIMARY KEY (node_embedding_id)` |
-| UNIQUE | `uq_node_embedding__model_task` | `UNIQUE (model_task_id)` |
-| UNIQUE | `uq_node_embedding__publication_reference` | `UNIQUE (node_embedding_id, node_search_document_id, node_id)` |
-
-### Indexes
-
-| 이름 | unique | column 또는 expression | 조건 |
-| --- | --- | --- | --- |
-| `ix_node_embedding__search_document` | 아니요 | `node_search_document_id, node_id, node_embedding_id` | — |
 
 ## `node_insight`
 
@@ -1285,7 +1252,7 @@ alias가 확인된 원문 위치를 다대다로 연결한다.
 
 ## `node_search_document`
 
-공개 가능한 한 node를 키워드·벡터 검색의 공통 대상으로 만드는 불변 텍스트 버전. 생성된 node_context를 입력으로 되돌려 넣지 않는다.
+공개 가능한 한 node를 키워드 검색 대상으로 만드는 불변 텍스트 버전. 생성된 node_context를 입력으로 되돌려 넣지 않는다.
 
 ### Columns
 
@@ -1429,7 +1396,7 @@ alias가 확인된 원문 위치를 다대다로 연결한다.
 | `promotion_batch_id` | `BIGINT` | 아니요 | — | `GENERATED ALWAYS AS IDENTITY` | — |
 | `lint_policy_version_id` | `BIGINT` | 아니요 | — | — | — |
 | `promotion_status` | `TEXT` | 아니요 | `'PENDING'` | — | — |
-| `publication_status` | `TEXT` | 아니요 | `'NOT_STARTED'` | — | 검색 문서·임베딩·맥락·질문·인사이트의 공개 준비 상태. 기준 그래프 저장 결과인 promotion_status와 별개다. |
+| `publication_status` | `TEXT` | 아니요 | `'NOT_STARTED'` | — | 검색 문서·맥락·질문·인사이트의 공개 준비 상태. 기준 그래프 저장 결과인 promotion_status와 별개다. |
 | `started_at` | `TIMESTAMP WITH TIME ZONE` | 아니요 | `CURRENT_TIMESTAMP` | — | — |
 | `committed_at` | `TIMESTAMP WITH TIME ZONE` | 예 | — | — | — |
 | `ready_at` | `TIMESTAMP WITH TIME ZONE` | 예 | — | — | — |
@@ -1470,7 +1437,6 @@ alias가 확인된 원문 위치를 다대다로 연결한다.
 | `promotion_batch_id` | `BIGINT` | 아니요 | — | — | — |
 | `node_id` | `BIGINT` | 아니요 | — | — | — |
 | `node_search_document_id` | `BIGINT` | 예 | — | — | — |
-| `node_embedding_id` | `BIGINT` | 예 | — | — | — |
 | `node_context_id` | `BIGINT` | 예 | — | — | — |
 | `node_insight_model_task_id` | `BIGINT` | 예 | — | — | — |
 
@@ -1479,10 +1445,8 @@ alias가 확인된 원문 위치를 다대다로 연결한다.
 | 종류 | 이름 | 정의 |
 | --- | --- | --- |
 | CHECK | `ck_publication_affected_node__context_document` | `CHECK (node_context_id IS NULL OR node_search_document_id IS NOT NULL)` |
-| CHECK | `ck_publication_affected_node__embedding_document` | `CHECK (node_embedding_id IS NULL OR node_search_document_id IS NOT NULL)` |
 | FOREIGN KEY | `fk_publication_affected_node__batch` | `FOREIGN KEY (promotion_batch_id) REFERENCES promotion_batch (promotion_batch_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
 | FOREIGN KEY | `fk_publication_affected_node__context` | `FOREIGN KEY (node_context_id, node_search_document_id, node_id) REFERENCES node_context (node_context_id, node_search_document_id, node_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
-| FOREIGN KEY | `fk_publication_affected_node__embedding` | `FOREIGN KEY (node_embedding_id, node_search_document_id, node_id) REFERENCES node_embedding (node_embedding_id, node_search_document_id, node_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
 | FOREIGN KEY | `fk_publication_affected_node__insight_task` | `FOREIGN KEY (node_insight_model_task_id) REFERENCES model_task (model_task_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
 | FOREIGN KEY | `fk_publication_affected_node__node` | `FOREIGN KEY (node_id) REFERENCES node (node_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
 | FOREIGN KEY | `fk_publication_affected_node__search_document` | `FOREIGN KEY (node_search_document_id, node_id) REFERENCES node_search_document (node_search_document_id, node_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
@@ -1618,7 +1582,7 @@ alias가 확인된 원문 위치를 다대다로 연결한다.
 
 ## `search_document_basis`
 
-검색 문서 생성에 기여한 공개 기준 지식 계보. 벡터 점수의 문장별 인과 설명이 아니다.
+검색 문서 생성에 기여한 공개 기준 지식 계보. 검색 점수의 문장별 인과 설명이 아니다.
 
 ### Columns
 
