@@ -30,8 +30,10 @@ from ontology_map.insight_generation_contracts import (
     PeriodRole,
     PreparedInsightBundle,
     RelatedNode,
-    TimeWindow as AgentTimeWindow,
     VisibleConflictPair,
+)
+from ontology_map.insight_generation_contracts import (
+    TimeWindow as AgentTimeWindow,
 )
 
 _PUBLIC_STATES = ("EVIDENCE_VERIFIED", "HUMAN_VERIFIED")
@@ -195,8 +197,9 @@ def _direct_connections(
     basis = set(basis_ids)
     connections: dict[int, list[ClaimConnection]] = defaultdict(list)
 
-    relation_rows = session.execute(
-        _ids_statement("""
+    relation_rows = (
+        session.execute(
+            _ids_statement("""
             SELECT cr.claim_id, cr.stance,
                    CASE WHEN r.source_node_id = :node_id
                         THEN r.target_node_id
@@ -212,8 +215,11 @@ def _direct_connections(
               AND (r.source_node_id = :node_id OR r.target_node_id = :node_id)
             ORDER BY cr.claim_id, r.relation_id
         """),
-        {"ids": list(basis_ids), "node_id": node_id},
-    ).mappings().all()
+            {"ids": list(basis_ids), "node_id": node_id},
+        )
+        .mappings()
+        .all()
+    )
     related = _node_identities(
         session,
         [int(row["related_node_id"]) for row in relation_rows],
@@ -357,13 +363,15 @@ def _visible_conflicts(
 ) -> tuple[VisibleConflictPair, ...]:
     if not claim_ids:
         return ()
-    rows = session.execute(sa.text("""
+    rows = session.execute(
+        sa.text("""
         SELECT c.conflict_set_id, m.claim_id
         FROM conflict_set c
         JOIN conflict_member m ON m.conflict_set_id = c.conflict_set_id
         WHERE c.current_state IN ('AGENT_PROPOSED', 'HUMAN_CONFIRMED')
         ORDER BY c.conflict_set_id, m.claim_id
-    """)).mappings()
+    """)
+    ).mappings()
     grouped: dict[int, list[int]] = defaultdict(list)
     for row in rows:
         grouped[int(row["conflict_set_id"])].append(int(row["claim_id"]))
@@ -394,9 +402,7 @@ def _window_input(
         window=window,
         as_of_at=as_of_at,
     )
-    conflicts = _visible_conflicts(
-        session, frozenset(item.claim_id for item in claims)
-    )
+    conflicts = _visible_conflicts(session, frozenset(item.claim_id for item in claims))
     return InsightWindowInput(
         time_window=cast(AgentTimeWindow, window.value),
         claims=claims,
@@ -493,7 +499,7 @@ def _task_for_update(session: Session, model_task_id: int) -> None:
 def _lock_publication(
     session: Session,
     prepared: PreparedInsightBundle,
-) -> None:
+) -> bool:
     row = (
         session.execute(
             sa.text("""
@@ -516,16 +522,13 @@ def _lock_publication(
         .one_or_none()
     )
     if row is None:
-        raise InsightTaskError("publication row disappeared before finalization")
-    if (
-        row["promotion_status"] != "COMMITTED"
-        or row["publication_status"] != "PREPARING"
-        or int(row["node_search_document_id"] or 0)
-        != prepared.node_search_document_id
-        or row["node_insight_model_task_id"]
-        != prepared.prior_insight_model_task_id
-    ):
-        raise InsightTaskError("publication selection changed before finalization")
+        return False
+    return bool(
+        row["promotion_status"] == "COMMITTED"
+        and row["publication_status"] == "PREPARING"
+        and int(row["node_search_document_id"] or 0) == prepared.node_search_document_id
+        and row["node_insight_model_task_id"] == prepared.prior_insight_model_task_id
+    )
 
 
 def _finish_task(
@@ -658,7 +661,13 @@ def apply_insight_bundle(
     commits, sends provider requests or records agent_attempt rows.
     """
     _task_for_update(session, model_task_id)
-    _lock_publication(session, prepared)
+    if not _lock_publication(session, prepared):
+        _finish_task(session, model_task_id, "VALIDATION_BLOCKED", finished_at)
+        return InsightApplyResult(
+            status="VALIDATION_BLOCKED",
+            report_ids=(None, None),
+            reason="STALE_PUBLICATION",
+        )
     try:
         current = prepare_insight_bundle(
             session,
@@ -685,9 +694,7 @@ def apply_insight_bundle(
             reason="REPORT_VALIDATION_BLOCKED",
         )
 
-    reports: tuple[
-        tuple[AgentTimeWindow, InsightReportCandidate | None], ...
-    ] = (
+    reports: tuple[tuple[AgentTimeWindow, InsightReportCandidate | None], ...] = (
         ("RECENT_90_DAYS", validated.recent_90_days),
         ("RECENT_1_YEAR", validated.recent_1_year),
     )

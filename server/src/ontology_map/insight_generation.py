@@ -121,7 +121,7 @@ def _report_text_reason(report: InsightReportCandidate) -> str | None:
     if any(not _plain_text(text) for text in texts):
         return "report text must be plain text without URL/inline citation"
     for section in report.sections:
-        section_texts = (section.title, section.synthesis_text)
+        section_texts: tuple[str, ...] = (section.title, section.synthesis_text)
         if section.caveat_text is not None:
             section_texts += (section.caveat_text,)
         if any(not _plain_text(text) for text in section_texts):
@@ -253,7 +253,5 @@ def report_claim_projection(
             if reference.claim_id in seen:
                 continue
             seen.add(reference.claim_id)
-            projected.append(
-                (reference.claim_id, reference.role, len(projected) + 1)
-            )
+            projected.append((reference.claim_id, reference.role, len(projected) + 1))
     return tuple(projected)

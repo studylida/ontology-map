@@ -46,9 +46,7 @@ def claim(claim_id: int, *, period_role: str = "IN_WINDOW") -> GroundedClaim:
 
 def window(*claims: GroundedClaim, conflict: bool = False) -> InsightWindowInput:
     pairs = (
-        (VisibleConflictPair(conflict_set_id=1, claim_ids=(1, 2)),)
-        if conflict
-        else ()
+        (VisibleConflictPair(conflict_set_id=1, claim_ids=(1, 2)),) if conflict else ()
     )
     return InsightWindowInput(
         time_window="RECENT_90_DAYS",
@@ -128,7 +126,7 @@ def bundle(
     )
 
 
-def test_structured_output_is_strict_but_semantic_cardinality_is_product_validation() -> None:
+def test_structured_output_strictness_and_semantic_validation_boundary() -> None:
     with pytest.raises(ValidationError):
         InsightBundleProposal.model_validate(
             {
@@ -144,7 +142,7 @@ def test_structured_output_is_strict_but_semantic_cardinality_is_product_validat
     assert "one to three sections" in result.failures[0].reason
 
 
-def test_valid_bundle_allows_independent_window_questions_and_report_union_projection() -> None:
+def test_valid_bundle_allows_independent_windows_and_union_projection() -> None:
     snapshot = prepared(claim(1), claim(2), claim(3))
     ninety = report(
         section(1, ref(1), ref(2, role="SUPPORTING_CLAIM", order=2)),
