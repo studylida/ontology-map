@@ -5,6 +5,7 @@ from ontology_map.db import fixture
 from ontology_map.db.fixture import load_hbf_fixture
 from ontology_map.db.schema import (
     followup_question,
+    model_task,
     node_alias,
     node_insight,
     node_search_document,
@@ -62,12 +63,18 @@ def test_hbf_fixture_is_complete_and_idempotent() -> None:
                 promotion_batch.c.promotion_status == "COMMITTED",
                 promotion_batch.c.publication_status == "READY",
                 publication_affected_node.c.node_search_document_id.is_not(None),
-                publication_affected_node.c.node_embedding_id.is_not(None),
                 publication_affected_node.c.node_context_id.is_not(None),
                 publication_affected_node.c.node_insight_model_task_id.is_not(None),
             )
         )
         assert ready_nodes >= 5
+
+        embedding_tasks = connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(model_task)
+            .where(model_task.c.task_kind == "EMBEDDING")
+        )
+        assert embedding_tasks == 0
 
         context_ids = connection.scalars(
             sa.select(publication_affected_node.c.node_context_id).where(
