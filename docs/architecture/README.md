@@ -109,7 +109,7 @@ Alembic은 metadata를 비교 기준으로 사용하고 migration revision을 DB
 
 context body에서 모델 호출, commit 또는 오류를 삼키는 처리를 하지 않는다. 예외는 transaction 소유자까지 전달해 현재 승격 전체를 rollback하고, 소유자는 context가 정상 종료된 뒤에만 COMMITTED로 전환한다. 이 함수는 promotion/publication 상태, 영속 작업 상태, 외부 식별자 또는 node_merge를 쓰지 않는다. alias는 검증된 원문 표현만 연결하며 기존 alias·redirect 계열의 alias를 재사용하고 대표 이름을 바꾸지 않는다.
 
-검증은 `server/tests/test_entity_resolution.py`의 provider 없는 단위 테스트와 `test_entity_resolution_postgres.py`의 실제 schema 대상 테스트로 구분한다. PostgreSQL 테스트는 `ONTOLOGY_MAP_ER_TEST_DATABASE_URL`이 지정된 경우에만 실행하며, migration이 적용된 loopback의 별도 `_er128_test` DB만 허용한다. 이 테스트의 합성 자료는 rollback하고 기존 schema나 fixture를 초기화하지 않는다. 모델 의미 품질과 전체 Agent → DB → READY 실행은 이 테스트의 검증 대상이 아니다.
+검증은 `server/tests/test_entity_resolution.py`의 provider 없는 단위 테스트, `test_entity_resolution_postgres.py`의 실제 schema·SAVEPOINT 대상 테스트, `test_entity_resolution_top_level_postgres.py`의 최상위 caller transaction rollback 테스트로 구분한다. PostgreSQL 테스트는 `ONTOLOGY_MAP_ER_TEST_DATABASE_URL`이 지정된 경우에만 실행하며, migration이 적용된 loopback의 별도 `_er128_test` DB만 허용한다. 이 테스트의 합성 자료는 rollback하고 기존 schema나 fixture를 초기화하지 않는다. 모델 의미 품질과 전체 Agent → DB → READY 실행은 이 테스트의 검증 대상이 아니다.
 
 ## 현재 실행과 배포
 
@@ -137,7 +137,7 @@ server는 입력 검증 오류와 application 오류를 안정된 HTTP 오류 co
 
 ## 알려진 위험과 열린 결정
 
-- Agent·worker 실행은 아직 없다. [#125](https://github.com/studylida/ontology-map/issues/125)의 승인된 역할·지식 정합화 방향과 남은 상세 계약을 구별한다. 모델 시험의 역할 분리가 제품 프로세스 분리를 뜻하지 않는다.
+- 제품 수준 durable Agent·worker 실행 진입점은 아직 없다. [#125](https://github.com/studylida/ontology-map/issues/125)의 실행·retry·reprocess 계약은 승인됐고, 실제 `KNOWLEDGE_EXTRACTION` runner와 #128 runtime helper 연결은 [#127](https://github.com/studylida/ontology-map/issues/127)이 소유한다. 모델 시험의 역할 분리가 제품 프로세스 분리를 뜻하지 않는다.
 - node embedding과 READY 의존성 변경은 [#121](https://github.com/studylida/ontology-map/issues/121)의 구현 PR에서 별도 ADR 필요성을 판단한다.
 - 이 문서는 현재 구현을 설명하므로 구현되지 않은 운영 배포 구조를 추정하지 않는다.
 
