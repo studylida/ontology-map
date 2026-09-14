@@ -1,0 +1,182 @@
+diff --git a/docs/architecture/decisions/README.md b/docs/architecture/decisions/README.md
+index aff6182..d7a4b13 100644
+--- a/docs/architecture/decisions/README.md
++++ b/docs/architecture/decisions/README.md
+@@ -13,6 +13,7 @@ ADR은 여러 경계에 영향을 주거나 되돌리기 어려운 결정을 구
+ | [ADR-0005](current/0005-persist-model-task-contracts-not-provider-payloads.md) | accepted | 2026-08-31 | 모델 작업·Structured Output 계약 저장과 provider 응답 미저장 |
+ | [ADR-0006](current/0006-separate-promotion-and-publication.md) | accepted | 2026-08-31 | promotion과 publication 수명주기 분리 |
+ | [ADR-0008](current/0008-remove-node-embedding-pgvector.md) | accepted | 2026-09-03 | POC 검색에서 node embedding·pgvector 제거 |
++| [ADR-0009](current/0009-durable-provider-call-slots.md) | accepted | 2026-09-14 | 전송 전 호출 슬롯과 불명확 시도의 예산 보존 |
+ 
+ ## 대체된 결정
+ 
+ diff --git a/docs/data/logical-schema.md b/docs/data/logical-schema.md
+index b83a2ab..f275237 100644
+--- a/docs/data/logical-schema.md
++++ b/docs/data/logical-schema.md
+@@ -239,7 +239,7 @@ erDiagram
+ | `model_version`, `prompt_version` | 실행 계보 |
+ | `cache_key` | 작업 종류·입력·계약·모델·프롬프트의 결정적 키 |
+ | `status` | `PENDING`, `RUNNING`, `SUCCESS`, `RETRY_WAIT`, `VALIDATION_BLOCKED`, `FINAL_FAILED` |
+-| `attempt_count`, `next_attempt_at` | 실제 호출 수와 다음 실행 시점 |
++| `attempt_count`, `next_attempt_at` | durable terminal agent_attempt 행 수와 다음 실행 시점 |
+ | `lease_owner`, `lease_expires_at` | 동시 실행 방지 lease |
+ | `created_at`, `finished_at` | 생성·종료 시각 |
+ 
+@@ -251,7 +251,13 @@ erDiagram
+ 
+ #### `agent_attempt`
+ 
+-실제 모델 호출 한 번의 최소 이력이다. `model_task_id + attempt_no`가 고유하며 `outcome`, 정형 `failure_reason`, `attempted_at`만 보존한다. 토큰·비용·원시 응답·응답 ID와 중복 모델·프롬프트 필드는 저장하지 않는다.
++확정된 실제 provider terminal 결과의 append-only 이력이다. `attempt_no = provider_call_slot.slot_no`이며 UNKNOWN slot 때문에 번호 gap이 생길 수 있다. `attempt_count`와 같은 transaction에서 행 수를 유지한다. `model_task_id + attempt_no`가 고유하며 `outcome`, 정형 `failure_reason`, `attempted_at`만 보존한다. 토큰·비용·원시 응답·응답 ID와 중복 모델·프롬프트 필드는 저장하지 않는다.
++
++#### `provider_call_slot`
++
++[#125 승인](https://github.com/studylida/ontology-map/issues/125#issuecomment-5658185041)과 [#124 감사](https://github.com/studylida/ontology-map/issues/124#issuecomment-5658186263)에 따른 최소 실행 제어 구조다. `(model_task_id, slot_no)`가 유일하고 slot_no는 1..3이다. 상태는 RESERVED, COMPLETED, UNKNOWN뿐이다. deterministic local preflight와 request 구성이 끝난 뒤 전송 직전에 RESERVED를 commit하며, UNKNOWN도 소비된 예산으로 유지한다. raw request/response, reasoning과 결과 payload는 저장하지 않는다. runtime helper에는 적용하지 않는다.
++
++확정 결과는 같은 짧은 transaction에서 agent_attempt append, attempt_count 증가, slot COMPLETED와 가능한 task 상태 전환을 기록한다. lease reclaim은 task row lock 안에서 stale RESERVED를 UNKNOWN으로 닫으며 이전 lease의 늦은 결과를 거부한다. hard cap은 terminal attempt 수가 아니라 slot 소비 수로 판단한다. 기존 terminal 이력은 재작성하지 않으며 slot과 대응되지 않는 과거 미완료 task는 예산을 추정해 재실행하지 않는다.
+ 
+ #### `blocked_fingerprint`
+ 
+@@ -432,7 +438,7 @@ PENDING → RUNNING → SUCCESS
+                   └→ FINAL_FAILED
+ ```
+ 
+-최대 호출은 최초·즉시 재시도·1시간·2시간·4시간 뒤 시도까지 다섯 번이다. 일시 장애만 재시도한다.
++현재 POC는 [#125 실행 계약](https://github.com/studylida/ontology-map/issues/125#issuecomment-5631623660)과 [호출 슬롯 승인](https://github.com/studylida/ontology-map/issues/125#issuecomment-5658185041)을 따른다. task당 최대 3개의 provider slot을 소비하며 UNKNOWN도 반환하지 않는다. TIMEOUT·RATE_LIMITED·transient PROVIDER_ERROR만 일반 재시도 대상이고 OUTPUT_CONTRACT_ERROR의 추가 retry는 1회로 제한한다. Retry-After가 있으면 우선하고 없으면 30초, 다음은 2분이다. lease는 10분이며 heartbeat는 없다. AUTHENTICATION_ERROR·INVALID_REQUEST는 즉시 FINAL_FAILED다. 3 slot 소진 후 적용 가능한 결과가 없으면 FINAL_FAILED이며 기존 task를 초기화하지 않는다. VALIDATION_BLOCKED는 조건 변경 없이 자동 retry하지 않고 수동 재처리는 새 effective input/generation으로 구분한다.
+ 
+ ### 6.2 기준 지식
+ 
+ diff --git a/docs/data/physical-schema.md b/docs/data/physical-schema.md
+index ba7cc65..7c1ce01 100644
+--- a/docs/data/physical-schema.md
++++ b/docs/data/physical-schema.md
+@@ -18,7 +18,7 @@
+ ## 현재 구현 기준
+ 
+ - SQLAlchemy metadata: `server/src/ontology_map/db/schema.py`
+-- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py`
++- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_add_provider_call_slot.py`
+ - 개발 fixture: `server/src/ontology_map/db/fixture.py`
+ - PostgreSQL namespace: `public`
+ - 현재 metadata에 구현된 table 수와 각 객체의 세부 정의는 [스키마 참고 문서](schema-reference.md)에서 확인한다.
+@@ -38,6 +38,12 @@ Relation의 stance는 `claim_relation`, 구조화 속성값은 `claim_attribute_
+ 
+ `publication_affected_node`는 한 batch가 영향을 준 node와 선택한 검색 문서, context와 `NODE_INSIGHT` 작업을 가리킨다. 이 행은 지도 구성원, 좌표나 전체 graph snapshot이 아니다.
+ 
++### Durable provider 호출 슬롯
++
++`provider_call_slot`은 `(model_task_id, slot_no)` 복합 PK와 RESTRICT model_task FK만 사용한다. slot_no 1..3, RESERVED/COMPLETED/UNKNOWN, 유한 시각, 종료 시각의 상태별 NULL 규칙과 reserved_at 이후 조건을 CHECK로 제한한다. 새로운 result/staging payload나 task→promotion FK는 없다. `agent_attempt.outcome`은 기존 terminal 값만 유지하고 attempt_no는 slot_no이므로 gap을 허용한다. `model_task.attempt_count`는 durable terminal agent_attempt 행 수이며 기존 BETWEEN 0 AND 5 CHECK는 유지한다.
++
++예약·reclaim·terminal 기록은 model_task row lock과 현재 lease token·만료 시각 검사로 직렬화한다. application은 clock_timestamp를 lock 획득 뒤 읽고 UNKNOWN 또는 COMPLETED slot의 재사용을 거부한다. 예약·전송 사이에는 장기 DB transaction을 유지하지 않는다. 확정 결과 기록은 attempt append, count 증가, COMPLETED와 가능한 task 상태 변경을 원자적으로 commit한다. migration downgrade는 소비된 slot이 있으면 삭제 전에 중단하여 무료 재호출을 허용하지 않는다.
++
+ ### Publication과 공개 조회
+ 
+ `promotion_batch.promotion_status`는 기준 지식의 원자 저장 결과이고 `publication_status`는 파생 결과 준비 상태다. 둘을 하나의 상태로 합치지 않는다.
+ diff --git a/docs/operations/database.md b/docs/operations/database.md
+index 7166fb2..6530ff0 100644
+--- a/docs/operations/database.md
++++ b/docs/operations/database.md
+@@ -222,3 +222,11 @@ docker compose down --volumes
+ 공유 개발 DB에 migration을 적용하기 전 `docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc'`의 출력을 저장소 밖의 접근 제한된 백업 파일에 보관한다. `pg_restore -l`로 archive를 확인하고 백업을 외부 게시하지 않는다. 복구가 필요하면 별도 빈 복구 DB에 `pg_restore --exit-on-error`로 복원해 확인한 뒤 사용자가 승인한 전환 절차를 따른다. 실행 중인 DB를 drop하거나 기존 자료를 덮어쓰지 않는다.
+ 
+ 0002는 추가 구조만 생성하므로 앱을 이전 버전으로 되돌려도 기존 API는 유지된다. 새 결과가 들어 있으면 downgrade는 중단하며 추가 구조와 결과를 보존한다. 운영 배포·모델 실행은 이 검토 명령에 포함되지 않는다.
++
++## Durable 호출 ledger 검증
++
++`0003_add_provider_call_slot.py`는 현재 0002 head 위에서 호출 슬롯과 attempt_count comment 의미만 보강한다. 과거 persistence patch의 purpose_code·task→promotion FK와 관계없다. 기존 개발 fixture와 ontology reference data를 등록하거나 변경하지 않는다. 소비된 slot이 있으면 downgrade를 거부하며, 기존 attempt를 가짜 slot로 backfill하지 않는다.
++
++`ONTOLOGY_MAP_KE_TEST_DATABASE_URL`은 migration이 적용된 loopback의 별도 `_ke127_test` DB만 허용한다. `server/tests/test_provider_call_slots_postgres.py`는 합성 reference data로 실제 process 종료, reservation/result rollback, UNKNOWN gap, 동시 예약, lease reclaim과 stale worker 거부를 검증한다. test provider는 외부 모델을 호출하지 않는다. `.github/workflows/knowledge-extraction.yml`은 고정 환경과 run별 PostgreSQL을 사용하고 종료 시 해당 run의 volume만 제거한다.
++
++현재 `db/model_tasks.py`와 `durable_provider.py`는 호출 ledger·단일 전송 경계다. 이 경계의 통과를 전체 extraction·ontology·Claim promotion 또는 publication 구현 완료로 해석하지 않는다. 호출자는 실제 active output contract와 prepared request를 검사하고 product 성공을 같은 promotion transaction에 연결해야 한다.
+ diff --git a/server/src/ontology_map/db/schema.py b/server/src/ontology_map/db/schema.py
+index e33fa05..15ac295 100644
+--- a/server/src/ontology_map/db/schema.py
++++ b/server/src/ontology_map/db/schema.py
+@@ -791,8 +791,8 @@ model_task = sa.Table(
+         server_default=sa.text("0"),
+         nullable=False,
+         comment=(
+-            "이 논리 작업에서 실제 provider를 호출한 누계. cache 적중은 증가시키지 "
+-            "않으며 agent_attempt 행과 같은 트랜잭션에서 유지한다."
++            "durable terminal agent_attempt 행 수. append와 같은 transaction에서 "
++            "유지하며 실제 호출 hard budget은 provider_call_slot 소비 수로 판단한다."
+         ),
+     ),
+     sa.Column("next_attempt_at", sa.DateTime(timezone=True)),
+@@ -865,7 +865,7 @@ model_task = sa.Table(
+         name="ck_model_task__status_shape",
+     ),
+     comment=(
+-        "재시도 전체를 묶는 논리 모델 작업. 실제 호출 누계와 현재 실행 상태를 "
++        "재시도 전체를 묶는 논리 모델 작업. terminal attempt 수와 현재 실행 상태를 "
+         "소유하며 모델 응답 payload를 저장하지 않는다."
+     ),
+ )
+@@ -945,10 +945,52 @@ agent_attempt = sa.Table(
+         name="ck_agent_attempt__attempted_at_finite",
+     ),
+     comment=(
+-        "한 논리 모델 작업의 실제 provider 호출 한 번을 기록하는 append-only 이력."
++        "확정된 provider terminal 결과의 append-only 이력. attempt_no는 slot_no이며 "
++        "UNKNOWN slot 때문에 번호에 gap이 생길 수 있다."
+     ),
+ )
+ 
++provider_call_slot = sa.Table(
++    "provider_call_slot",
++    metadata,
++    sa.Column(
++        "model_task_id",
++        sa.BigInteger,
++        sa.ForeignKey(
++            "model_task.model_task_id",
++            name="fk_provider_call_slot__model_task",
++            ondelete="RESTRICT",
++            onupdate="RESTRICT",
++        ),
++        nullable=False,
++    ),
++    sa.Column("slot_no", sa.Integer, nullable=False),
++    sa.Column("state", sa.Text, nullable=False),
++    sa.Column("reserved_at", sa.DateTime(timezone=True), nullable=False),
++    sa.Column("resolved_at", sa.DateTime(timezone=True)),
++    sa.PrimaryKeyConstraint("model_task_id", "slot_no", name="pk_provider_call_slot"),
++    sa.CheckConstraint("slot_no BETWEEN 1 AND 3", name="ck_provider_call_slot__number"),
++    sa.CheckConstraint(
++        "state IN ('RESERVED', 'COMPLETED', 'UNKNOWN')",
++        name="ck_provider_call_slot__state",
++    ),
++    sa.CheckConstraint(
++        "(state = 'RESERVED' AND resolved_at IS NULL) OR "
++        "(state IN ('COMPLETED', 'UNKNOWN') AND resolved_at IS NOT NULL)",
++        name="ck_provider_call_slot__state_shape",
++    ),
++    sa.CheckConstraint(
++        "isfinite(reserved_at) AND (resolved_at IS NULL OR "
++        "(isfinite(resolved_at) AND resolved_at >= reserved_at))",
++        name="ck_provider_call_slot__timestamps",
++    ),
++    comment=(
++        "전송 전 durable하게 소비하는 제품 provider 호출 슬롯. UNKNOWN도 예산을 "
++        "소비하며 재사용하지 않는다. 모델 입력·응답·결과 payload는 저장하지 않는다."
++    ),
++)
++
++
+ blocked_fingerprint = sa.Table(
+     "blocked_fingerprint",
+     metadata,
+ diff --git a/server/tests/test_schema.py b/server/tests/test_schema.py
+index bef3308..9734689 100644
+--- a/server/tests/test_schema.py
++++ b/server/tests/test_schema.py
+@@ -64,7 +64,7 @@ def test_frozen_schema_inventory_and_named_objects() -> None:
+     application_tables = set(inspector.get_table_names()) - {"alembic_version"}
+ 
+     assert application_tables == set(metadata.tables)
+-    assert len(application_tables) == 48
++    assert len(application_tables) == 49
+     assert application_tables.isdisjoint(DEFERRED_TABLES)
+     _assert_named_schema_objects(inspector)
+ 
