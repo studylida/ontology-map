@@ -56,62 +56,99 @@ def database():
 
 def seed(session):
     for code in ("COMPANY", "PERSON", "TECHNOLOGY", "EVENT", "TOPIC"):
-        execute(session, """
+        execute(
+            session,
+            """
             INSERT INTO node_type
                 (node_type_code, display_name, creation_rule, is_active)
             VALUES (:code, :code, '공개 원문 근거와 대표 alias가 필요하다.', true)
             ON CONFLICT (node_type_code) DO NOTHING
-        """, code=code)
+        """,
+            code=code,
+        )
     # Only this isolated rollback scope is affected by the active-type setup.
-    execute(session, """
+    execute(
+        session,
+        """
         UPDATE node_type SET is_active = true
         WHERE node_type_code IN ('COMPANY', 'PERSON', 'TECHNOLOGY', 'EVENT', 'TOPIC')
-    """)
-    policy_id = returning(session, """
+    """,
+    )
+    policy_id = returning(
+        session,
+        """
         INSERT INTO lint_policy_version (version_no, validator_version, is_active)
         SELECT coalesce(max(version_no), 0) + 1, 'er128-test-v1', false
         FROM lint_policy_version RETURNING lint_policy_version_id
-    """)
+    """,
+    )
     session.info["er_policy"] = policy_id
     session.info["er_batch"] = batch(session, committed=True)
 
 
 def batch(session, *, committed=False):
     if committed:
-        return returning(session, """
+        return returning(
+            session,
+            """
             INSERT INTO promotion_batch
                 (lint_policy_version_id, promotion_status, committed_at)
             VALUES (:policy, 'COMMITTED', CURRENT_TIMESTAMP)
             RETURNING promotion_batch_id
-        """, policy=session.info["er_policy"])
-    return returning(session, """
+        """,
+            policy=session.info["er_policy"],
+        )
+    return returning(
+        session,
+        """
         INSERT INTO promotion_batch (lint_policy_version_id)
         VALUES (:policy) RETURNING promotion_batch_id
-    """, policy=session.info["er_policy"])
+    """,
+        policy=session.info["er_policy"],
+    )
 
 
 def node(session, name, code="COMPANY", state="EVIDENCE_VERIFIED"):
-    type_id = execute(session, """
+    type_id = execute(
+        session,
+        """
         SELECT node_type_id FROM node_type WHERE node_type_code = :code
-    """, code=code).scalar_one()
+    """,
+        code=code,
+    ).scalar_one()
     node_id = db._insert_node(session, session.info["er_batch"], type_id)
-    execute(session, """
+    execute(
+        session,
+        """
         UPDATE knowledge_item SET current_state = :state
         WHERE knowledge_item_id = :node_id
-    """, state=state, node_id=node_id)
-    execute(session, """
+    """,
+        state=state,
+        node_id=node_id,
+    )
+    execute(
+        session,
+        """
         INSERT INTO node_alias (node_id, alias_text, language, is_preferred)
         VALUES (:node_id, :name, 'ko', true)
-    """, node_id=node_id, name=name)
+    """,
+        node_id=node_id,
+        name=name,
+    )
     return node_id
 
 
 def source_mention(session, name, **changes):
     body = f"{name}는 기존회사와 협력한다."
-    group_id = returning(session, """
+    group_id = returning(
+        session,
+        """
         INSERT INTO evidence_group DEFAULT VALUES RETURNING evidence_group_id
-    """)
-    document_id = returning(session, """
+    """,
+    )
+    document_id = returning(
+        session,
+        """
         INSERT INTO source_document (
             evidence_group_id, source_key, version_no, canonical_url,
             publisher_name, title, original_language, normalized_body, body_hash,
@@ -121,13 +158,22 @@ def source_mention(session, name, **changes):
             '합성 시험 발행처', '합성 시험 문서', 'ko', :body, :body_hash,
             'UNKNOWN', 'UNKNOWN', CURRENT_TIMESTAMP, 'SUCCESS'
         ) RETURNING source_document_id
-    """, group_id=group_id, key=f"er128:{uuid4()}", body=body,
-        body_hash=sha256(body.encode()).digest())
+    """,
+        group_id=group_id,
+        key=f"er128:{uuid4()}",
+        body=body,
+        body_hash=sha256(body.encode()).digest(),
+    )
     return EntityMention(
-        mention_id="m1", text=name, node_type="COMPANY",
-        source_ranges=(SourceRange(
-            source_document_id=document_id, start_char=0, end_char=len(body)
-        ),), **changes,
+        mention_id="m1",
+        text=name,
+        node_type="COMPANY",
+        source_ranges=(
+            SourceRange(
+                source_document_id=document_id, start_char=0, end_char=len(body)
+            ),
+        ),
+        **changes,
     )
 
 
@@ -138,20 +184,32 @@ def propose(decision, node_id=None):
 def relation_claim(session, promotion_id, binding, other_id, statement):
     # Synthetic, explicitly supported COMPANY <-> COMPANY knowledge. This
     # exercises the ER transaction boundary, not extraction/ontology quality.
-    execute(session, """
+    execute(
+        session,
+        """
         INSERT INTO relation_type (relation_code) VALUES ('COLLABORATES_WITH')
         ON CONFLICT (relation_code) DO NOTHING
-    """)
-    relation_type = execute(session, """
+    """,
+    )
+    relation_type = execute(
+        session,
+        """
         SELECT relation_type_id FROM relation_type
         WHERE relation_code = 'COLLABORATES_WITH'
-    """).scalar_one()
-    revision = execute(session, """
+    """,
+    ).scalar_one()
+    revision = execute(
+        session,
+        """
         SELECT relation_type_revision_id FROM relation_type_revision
         WHERE relation_type_id = :type_id AND is_active
-    """, type_id=relation_type).scalar_one_or_none()
+    """,
+        type_id=relation_type,
+    ).scalar_one_or_none()
     if revision is None:
-        revision = returning(session, """
+        revision = returning(
+            session,
+            """
             INSERT INTO relation_type_revision
                 (relation_type_id, version_no, display_name,
                  directionality, is_active)
@@ -159,11 +217,19 @@ def relation_claim(session, promotion_id, binding, other_id, statement):
                    '협력', 'SYMMETRIC', true
             FROM relation_type_revision WHERE relation_type_id = :type_id
             RETURNING relation_type_revision_id
-        """, type_id=relation_type)
-    type_id = execute(session, """
+        """,
+            type_id=relation_type,
+        )
+    type_id = execute(
+        session,
+        """
         SELECT node_type_id FROM node WHERE node_id = :node_id
-    """, node_id=other_id).scalar_one()
-    execute(session, """
+    """,
+        node_id=other_id,
+    ).scalar_one()
+    execute(
+        session,
+        """
         INSERT INTO relation_endpoint_rule
             (relation_type_revision_id, source_node_type_id, target_node_type_id)
         SELECT :revision, :type_id, :type_id WHERE NOT EXISTS (
@@ -171,38 +237,71 @@ def relation_claim(session, promotion_id, binding, other_id, statement):
             WHERE relation_type_revision_id = :revision
               AND source_node_type_id = :type_id AND target_node_type_id = :type_id
         )
-    """, revision=revision, type_id=type_id)
-    relation_id = returning(session, """
+    """,
+        revision=revision,
+        type_id=type_id,
+    )
+    relation_id = returning(
+        session,
+        """
         INSERT INTO knowledge_item (item_kind, current_state, promotion_batch_id)
         VALUES ('RELATION', 'EVIDENCE_VERIFIED', :batch_id)
         RETURNING knowledge_item_id
-    """, batch_id=promotion_id)
+    """,
+        batch_id=promotion_id,
+    )
     low, high = sorted((binding.node_id, other_id))
-    execute(session, """
+    execute(
+        session,
+        """
         INSERT INTO relation
             (relation_id, source_node_id, target_node_id,
              relation_type_revision_id, relation_identity_key)
         VALUES (:relation_id, :low, :high, :revision, :key)
-    """, relation_id=relation_id, low=low, high=high, revision=revision,
-        key=sha256(f"er128-test:{revision}:{low}:{high}".encode()).digest())
-    claim_id = returning(session, """
+    """,
+        relation_id=relation_id,
+        low=low,
+        high=high,
+        revision=revision,
+        key=sha256(f"er128-test:{revision}:{low}:{high}".encode()).digest(),
+    )
+    claim_id = returning(
+        session,
+        """
         INSERT INTO knowledge_item (item_kind, current_state, promotion_batch_id)
         VALUES ('CLAIM', 'EVIDENCE_VERIFIED', :batch_id) RETURNING knowledge_item_id
-    """, batch_id=promotion_id)
-    execute(session, """
+    """,
+        batch_id=promotion_id,
+    )
+    execute(
+        session,
+        """
         INSERT INTO claim (claim_id, statement_text, language, modality,
                            asserted_from_precision, asserted_to_precision)
         VALUES (:claim_id, :statement, 'ko', 'FACT', 'UNKNOWN', 'UNKNOWN')
-    """, claim_id=claim_id, statement=statement)
+    """,
+        claim_id=claim_id,
+        statement=statement,
+    )
     for observation_id in binding.observation_ids:
-        execute(session, """
+        execute(
+            session,
+            """
             INSERT INTO claim_observation (claim_id, observation_id)
             VALUES (:claim_id, :observation_id)
-        """, claim_id=claim_id, observation_id=observation_id)
-    execute(session, """
+        """,
+            claim_id=claim_id,
+            observation_id=observation_id,
+        )
+    execute(
+        session,
+        """
         INSERT INTO claim_relation (claim_id, relation_id, stance)
         VALUES (:claim_id, :relation_id, 'SUPPORT')
-    """, claim_id=claim_id, relation_id=relation_id)
+    """,
+        claim_id=claim_id,
+        relation_id=relation_id,
+    )
 
 
 def test_lookup_includes_committed_not_ready_and_on_hold_nodes(database):
@@ -213,7 +312,8 @@ def test_lookup_includes_committed_not_ready_and_on_hold_nodes(database):
     found = db.name_candidates(database, target)
     assert {item.candidate.node_id for item in found.nodes} == {live, held}
     assert {item.candidate.node_id: item.usable for item in found.nodes} == {
-        live: True, held: False,
+        live: True,
+        held: False,
     }
     assert not found.truncated
 
@@ -236,11 +336,16 @@ def test_multiple_redirect_aliases_consume_only_one_candidate_slot(database):
     canonical = node(database, f"New{uuid4().hex}")
     for _ in range(6):
         original = node(database, name)
-        execute(database, """
+        execute(
+            database,
+            """
             INSERT INTO node_merge
                 (source_node_id, canonical_node_id, merge_reason, merged_at)
             VALUES (:original, :canonical, '합성 중복 정정 이력', CURRENT_TIMESTAMP)
-        """, original=original, canonical=canonical)
+        """,
+            original=original,
+            canonical=canonical,
+        )
     found = db.name_candidates(database, source_mention(database, name))
     assert not found.truncated and len(found.nodes) == 1
     assert found.nodes[0].candidate.node_id == canonical
@@ -251,15 +356,26 @@ def test_external_identifier_is_code_only_same_or_type_conflict(database):
     name = f"Exact{uuid4().hex}"
     canonical = node(database, name)
     value = uuid4().hex
-    execute(database, """
+    execute(
+        database,
+        """
         INSERT INTO external_identifier (node_id, identifier_system, identifier_value)
         VALUES (:node_id, 'WIKIDATA', :value)
-    """, node_id=canonical, value=value)
-    target = source_mention(database, name, external_identifiers=(
-        ExternalIdentifier(identifier_system="WIKIDATA", identifier_value=value),
-    ))
+    """,
+        node_id=canonical,
+        value=value,
+    )
+    target = source_mention(
+        database,
+        name,
+        external_identifiers=(
+            ExternalIdentifier(identifier_system="WIKIDATA", identifier_value=value),
+        ),
+    )
+
     def forbidden(messages):
         raise AssertionError("exact identifier must not call Agent")
+
     result = service.resolve_mention(database, target, forbidden)
     assert (result.decision, result.node_id) == ("SAME", canonical)
     changed = target.model_copy(update={"node_type": "PERSON"})
@@ -278,16 +394,35 @@ def test_new_node_alias_and_evidenced_claim_share_pending_transaction(database):
         database, promotion_id, (result,), frozenset({"m1"})
     ) as bindings:
         saved_id = bindings["m1"].node_id
-        relation_claim(database, promotion_id, bindings["m1"], other,
-                       f"{name}는 기존회사와 협력한다.")
-    assert execute(database, """
+        relation_claim(
+            database,
+            promotion_id,
+            bindings["m1"],
+            other,
+            f"{name}는 기존회사와 협력한다.",
+        )
+    assert (
+        execute(
+            database,
+            """
         SELECT promotion_batch_id FROM knowledge_item
         WHERE knowledge_item_id = :node_id
-    """, node_id=saved_id).scalar_one() == promotion_id
-    assert execute(database, """
+    """,
+            node_id=saved_id,
+        ).scalar_one()
+        == promotion_id
+    )
+    assert (
+        execute(
+            database,
+            """
         SELECT promotion_status FROM promotion_batch
         WHERE promotion_batch_id = :batch_id
-    """, batch_id=promotion_id).scalar_one() == "PENDING"  # Owner still decides commit.
+    """,
+            batch_id=promotion_id,
+        ).scalar_one()
+        == "PENDING"
+    )  # Owner still decides commit.
 
 
 @pytest.mark.parametrize("failure", ["orphan", "writer"])
@@ -302,7 +437,10 @@ def test_failed_promotion_rolls_back_new_rows_and_keeps_prior_knowledge(
     before = {
         table: execute(database, f"SELECT count(*) FROM {table}").scalar_one()
         for table in (
-            "knowledge_item", "node", "node_alias", "observation",
+            "knowledge_item",
+            "node",
+            "node_alias",
+            "observation",
             "node_alias_evidence",
         )
     }
@@ -316,13 +454,22 @@ def test_failed_promotion_rolls_back_new_rows_and_keeps_prior_knowledge(
                 database, promotion_id, (result,), frozenset({"m1"})
             ) as bindings:
                 if failure == "writer":
-                    relation_claim(database, promotion_id, bindings["m1"], prior,
-                                   f"{name}는 기존회사와 협력한다.")
+                    relation_claim(
+                        database,
+                        promotion_id,
+                        bindings["m1"],
+                        prior,
+                        f"{name}는 기존회사와 협력한다.",
+                    )
                     raise RuntimeError("synthetic consumer write failure")
     for table, count in before.items():
         assert execute(database, f"SELECT count(*) FROM {table}").scalar_one() == count
-    assert execute(database, "SELECT node_id FROM node WHERE node_id = :node_id",
-                   node_id=prior).scalar_one() == prior
+    assert (
+        execute(
+            database, "SELECT node_id FROM node WHERE node_id = :node_id", node_id=prior
+        ).scalar_one()
+        == prior
+    )
 
 
 def test_same_alias_evidence_is_idempotent_and_preferred_name_is_preserved(database):
@@ -335,14 +482,37 @@ def test_same_alias_evidence_is_idempotent_and_preferred_name_is_preserved(datab
             database, batch(database), (result,), frozenset({"m1"})
         ):
             pass
-    assert execute(database, """
+    assert (
+        execute(
+            database,
+            """
         SELECT count(*) FROM node_alias WHERE node_id = :node_id AND alias_text = :name
-    """, node_id=selected, name=name).scalar_one() == 1
-    assert execute(database, """
+    """,
+            node_id=selected,
+            name=name,
+        ).scalar_one()
+        == 1
+    )
+    assert (
+        execute(
+            database,
+            """
         SELECT count(*) FROM node_alias_evidence e JOIN node_alias a
         ON a.node_alias_id = e.node_alias_id
         WHERE a.node_id = :node_id AND a.alias_text = :name
-    """, node_id=selected, name=name).scalar_one() == 1
-    assert execute(database, """
+    """,
+            node_id=selected,
+            name=name,
+        ).scalar_one()
+        == 1
+    )
+    assert (
+        execute(
+            database,
+            """
         SELECT alias_text FROM node_alias WHERE node_id = :node_id AND is_preferred
-    """, node_id=selected).scalar_one() == f"{name} Labs"
+    """,
+            node_id=selected,
+        ).scalar_one()
+        == f"{name} Labs"
+    )
