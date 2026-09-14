@@ -215,7 +215,9 @@ def test_report_allows_same_claim_set_for_distinct_findings() -> None:
             2,
             ref(2),
             ref(1, order=2),
-            synthesis="두 번째 발견은 같은 근거가 함께 보여주는 범위 한계에 초점을 둡니다.",
+            synthesis=(
+                "두 번째 발견은 같은 근거가 함께 보여주는 범위 한계에 초점을 둡니다."
+            ),
         ),
     )
     assert service.validate_bundle(snapshot, bundle(distinct, None)).valid
