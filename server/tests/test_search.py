@@ -12,6 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 from starlette.types import Message, Scope
 
+from ontology_map.db import search as search_repository
 from ontology_map.db.fixture import load_hbf_fixture
 from ontology_map.db.schema import (
     knowledge_item,
@@ -265,6 +266,57 @@ def test_fts_bucket_breaks_rank_ties_by_node_id(field: str) -> None:
         results = search_nodes(session, "rankterm", 2)
 
     assert [result.node_id for result in results] == [first_id, second_id]
+
+
+@pytest.mark.parametrize(
+    ("expression", "exclude_identity", "identity_text", "knowledge_text"),
+    [
+        (
+            search_repository._IDENTITY_FTS_EXPRESSION,
+            False,
+            "indexterm",
+            "other",
+        ),
+        (
+            search_repository._KNOWLEDGE_FTS_EXPRESSION,
+            True,
+            "other",
+            "indexterm",
+        ),
+    ],
+)
+def test_fts_bucket_can_use_frozen_combined_gin_index(
+    expression: str,
+    exclude_identity: bool,
+    identity_text: str,
+    knowledge_text: str,
+) -> None:
+    load_hbf_fixture()
+    with rollback_session() as session:
+        hold_existing_nodes(session)
+        insert_public_node(
+            session,
+            "index candidate",
+            identity_text=identity_text,
+            knowledge_text=knowledge_text,
+        )
+        session.execute(sa.text("SET LOCAL enable_seqscan = off"))
+        plan = session.execute(
+            sa.text(
+                "EXPLAIN (COSTS OFF) "
+                + search_repository._fts_sql(
+                    expression,
+                    exclude_identity=exclude_identity,
+                )
+            ),
+            {"query": "indexterm", "limit": 5},
+        ).scalars()
+
+        plan_lines = [str(line) for line in plan]
+
+    assert any("ix_node_search_document__fts" in line for line in plan_lines), (
+        "\n".join(plan_lines)
+    )
 
 
 def test_exact_and_fts_converging_after_merge_return_canonical_once() -> None:
