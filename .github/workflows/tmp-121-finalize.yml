@@ -67,7 +67,7 @@ jobs:
           cd ..
           uv run --project server --frozen python scripts/check_docs.py --check
           git diff --check
-          test "$(grep -c 'name = "'"'pgvector'"'"'' server/uv.lock || true)" -eq 0
+          ! rg -n 'pgvector' server/uv.lock
           ! rg -n 'node_embedding|EMBEDDING|pgvector\.sqlalchemy|Vector\(1024\)|CREATE EXTENSION IF NOT EXISTS vector' \
             server/src server/migrations server/tests
           rg -n "to_tsvector\('simple'" server/src/ontology_map/db/schema.py server/migrations/versions/0001_create_frozen_schema.py
