@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   rehearsal:
-    name: #200 격리 PostgreSQL migration 왕복·fail-closed
+    name: "#200 격리 PostgreSQL migration 왕복·fail-closed"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -52,7 +52,7 @@ jobs:
             echo "POSTGRES_PASSWORD=$password"
             echo "ONTOLOGY_MAP_DATABASE_URL=$url"
           } >> "$GITHUB_ENV"
-      - name: #200 migration rehearsal 전용 PostgreSQL 시작
+      - name: "#200 migration rehearsal 전용 PostgreSQL 시작"
         run: |
           docker compose version
           docker compose up --wait --wait-timeout 120 db
