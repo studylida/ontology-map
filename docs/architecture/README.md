@@ -37,7 +37,7 @@ flowchart LR
     Browser[웹 브라우저<br/>SPA 실행과 사용자 입력 전달]
     Web[React SPA<br/>React + TypeScript<br/>탐색 UI와 화면 상태 관리]
     API[FastAPI 애플리케이션<br/>Python + FastAPI<br/>HTTP API와 application use case 제공]
-    DB[(PostgreSQL + pgvector<br/>기준 지식·근거·공개 결과 저장)]
+    DB[(PostgreSQL<br/>기준 지식·근거·공개 결과 저장)]
     Developer[개발자]
     Alembic[Alembic CLI<br/>Python + Alembic<br/>frozen migration 적용]
     Fixture[개발 fixture<br/>Python + SQLAlchemy<br/>고정 시연 데이터 적재]
@@ -117,7 +117,7 @@ context body에서 모델 호출, commit 또는 오류를 삼키는 처리를 �
 | --- | --- | --- |
 | React web | 호스트의 Vite 개발 서버 | 구현 |
 | FastAPI | 호스트 Uvicorn 또는 Compose `api` | 구현 |
-| PostgreSQL과 pgvector | Compose `db` | 구현 |
+| PostgreSQL | Compose `db` | 구현 |
 | Alembic | 개발자가 `server/`에서 실행 | 구현 |
 | 개발 fixture | 개발자가 `server/`에서 실행 | 구현 |
 | Entity Resolution | 후보 조회·판정 함수와 promotion 결합 경계 | 구현, 상위 호출자 연결 필요 |
@@ -138,7 +138,7 @@ server는 입력 검증 오류와 application 오류를 안정된 HTTP 오류 co
 ## 알려진 위험과 열린 결정
 
 - 제품 수준 durable Agent·worker 실행 진입점은 아직 없다. [#125](https://github.com/studylida/ontology-map/issues/125)의 실행·retry·reprocess 계약은 승인됐고, 실제 `KNOWLEDGE_EXTRACTION` runner와 #128 runtime helper 연결은 [#127](https://github.com/studylida/ontology-map/issues/127)이 소유한다. 모델 시험의 역할 분리가 제품 프로세스 분리를 뜻하지 않는다.
-- node embedding과 READY 의존성 변경은 [#121](https://github.com/studylida/ontology-map/issues/121)의 구현 PR에서 별도 ADR 필요성을 판단한다.
+- [#121](https://github.com/studylida/ontology-map/issues/121)과 [ADR-0008](decisions/current/0008-remove-node-embedding-pgvector.md)에 따라 node embedding·pgvector와 READY의 embedding 의존성은 현재 POC 계약에서 제거됐다. 검색은 PostgreSQL native FTS를 유지한다.
 - 이 문서는 현재 구현을 설명하므로 구현되지 않은 운영 배포 구조를 추정하지 않는다.
 
 ## 관련 문서와 결정

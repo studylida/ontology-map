@@ -1,5 +1,4 @@
 import sqlalchemy as sa
-from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import JSONB
 
 metadata = sa.MetaData()
@@ -9,7 +8,7 @@ DATE_PRECISIONS = "'DAY', 'MONTH', 'YEAR', 'UNKNOWN'"
 MODEL_TASK_KINDS = (
     "'KNOWLEDGE_EXTRACTION', 'ENTITY_RESOLUTION_PROPOSAL', "
     "'EVIDENCE_LINEAGE_PROPOSAL', 'CONFLICT_SUMMARY', 'NODE_CONTEXT', "
-    "'FOLLOWUP_QUESTIONS', 'NODE_INSIGHT', 'EMBEDDING'"
+    "'FOLLOWUP_QUESTIONS', 'NODE_INSIGHT'"
 )
 OUTPUT_TASK_KINDS = (
     "'KNOWLEDGE_EXTRACTION', 'ENTITY_RESOLUTION_PROPOSAL', "
@@ -838,10 +837,7 @@ model_task = sa.Table(
         name="ck_model_task__attempt_count",
     ),
     sa.CheckConstraint(
-        "(task_kind = 'EMBEDDING' AND output_schema_definition_id IS NULL "
-        "AND prompt_version IS NULL) OR "
-        "(task_kind <> 'EMBEDDING' AND output_schema_definition_id IS NOT NULL "
-        "AND prompt_version IS NOT NULL)",
+        "output_schema_definition_id IS NOT NULL AND prompt_version IS NOT NULL",
         name="ck_model_task__output_contract",
     ),
     sa.CheckConstraint(
@@ -1075,7 +1071,7 @@ promotion_batch = sa.Table(
         server_default=sa.text("'NOT_STARTED'"),
         nullable=False,
         comment=(
-            "검색 문서·임베딩·맥락·질문·인사이트의 공개 준비 상태. 기준 그래프 "
+            "검색 문서·맥락·질문·인사이트의 공개 준비 상태. 기준 그래프 "
             "저장 결과인 promotion_status와 별개다."
         ),
     ),
@@ -2492,8 +2488,8 @@ node_search_document = sa.Table(
         name="ck_node_search_document__created_at_finite",
     ),
     comment=(
-        "공개 가능한 한 node를 키워드·벡터 검색의 공통 대상으로 만드는 불변 "
-        "텍스트 버전. 생성된 node_context를 입력으로 되돌려 넣지 않는다."
+        "공개 가능한 한 node를 키워드 검색 대상으로 만드는 불변 텍스트 버전. "
+        "생성된 node_context를 입력으로 되돌려 넣지 않는다."
     ),
 )
 sa.Index(
@@ -2555,7 +2551,7 @@ search_document_basis = sa.Table(
         name="pk_search_document_basis",
     ),
     comment=(
-        "검색 문서 생성에 기여한 공개 기준 지식 계보. 벡터 점수의 문장별 "
+        "검색 문서 생성에 기여한 공개 기준 지식 계보. 검색 점수의 문장별 "
         "인과 설명이 아니다."
     ),
 )
@@ -2563,70 +2559,6 @@ sa.Index(
     "ix_search_document_basis__knowledge_item",
     search_document_basis.c.knowledge_item_id,
     search_document_basis.c.node_search_document_id,
-)
-
-node_embedding = sa.Table(
-    "node_embedding",
-    metadata,
-    sa.Column(
-        "node_embedding_id",
-        sa.BigInteger,
-        sa.Identity(always=True),
-        nullable=False,
-    ),
-    sa.Column("node_id", sa.BigInteger, nullable=False),
-    sa.Column("node_search_document_id", sa.BigInteger, nullable=False),
-    sa.Column(
-        "model_task_id",
-        sa.BigInteger,
-        sa.ForeignKey(
-            "model_task.model_task_id",
-            name="fk_node_embedding__model_task",
-            ondelete="RESTRICT",
-            onupdate="RESTRICT",
-        ),
-        nullable=False,
-    ),
-    sa.Column("embedding_vector", Vector(1024), nullable=False),
-    sa.Column(
-        "created_at",
-        sa.DateTime(timezone=True),
-        server_default=sa.text("CURRENT_TIMESTAMP"),
-        nullable=False,
-    ),
-    sa.PrimaryKeyConstraint("node_embedding_id", name="pk_node_embedding"),
-    sa.ForeignKeyConstraint(
-        ("node_search_document_id", "node_id"),
-        (
-            "node_search_document.node_search_document_id",
-            "node_search_document.node_id",
-        ),
-        name="fk_node_embedding__search_document",
-        ondelete="RESTRICT",
-        onupdate="RESTRICT",
-    ),
-    sa.UniqueConstraint("model_task_id", name="uq_node_embedding__model_task"),
-    sa.UniqueConstraint(
-        "node_embedding_id",
-        "node_search_document_id",
-        "node_id",
-        name="uq_node_embedding__publication_reference",
-    ),
-    sa.CheckConstraint(
-        "isfinite(created_at)",
-        name="ck_node_embedding__created_at_finite",
-    ),
-    comment=(
-        "정확한 node_search_document에서 만든 불변 검색 벡터. 모델·입력 hash·"
-        "재시도 이력은 model_task가 소유하며 동일 대상 판정이나 관계 생성에 "
-        "사용하지 않는다."
-    ),
-)
-sa.Index(
-    "ix_node_embedding__search_document",
-    node_embedding.c.node_search_document_id,
-    node_embedding.c.node_id,
-    node_embedding.c.node_embedding_id,
 )
 
 node_context = sa.Table(
@@ -2983,7 +2915,6 @@ publication_affected_node = sa.Table(
         nullable=False,
     ),
     sa.Column("node_search_document_id", sa.BigInteger),
-    sa.Column("node_embedding_id", sa.BigInteger),
     sa.Column("node_context_id", sa.BigInteger),
     sa.Column(
         "node_insight_model_task_id",
@@ -3011,17 +2942,6 @@ publication_affected_node = sa.Table(
         onupdate="RESTRICT",
     ),
     sa.ForeignKeyConstraint(
-        ("node_embedding_id", "node_search_document_id", "node_id"),
-        (
-            "node_embedding.node_embedding_id",
-            "node_embedding.node_search_document_id",
-            "node_embedding.node_id",
-        ),
-        name="fk_publication_affected_node__embedding",
-        ondelete="RESTRICT",
-        onupdate="RESTRICT",
-    ),
-    sa.ForeignKeyConstraint(
         ("node_context_id", "node_search_document_id", "node_id"),
         (
             "node_context.node_context_id",
@@ -3031,10 +2951,6 @@ publication_affected_node = sa.Table(
         name="fk_publication_affected_node__context",
         ondelete="RESTRICT",
         onupdate="RESTRICT",
-    ),
-    sa.CheckConstraint(
-        "node_embedding_id IS NULL OR node_search_document_id IS NOT NULL",
-        name="ck_publication_affected_node__embedding_document",
     ),
     sa.CheckConstraint(
         "node_context_id IS NULL OR node_search_document_id IS NOT NULL",
