@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 
+import pytest
 import sqlalchemy as sa
 from test_relations import rollback_session
 
@@ -36,6 +37,38 @@ def _clear_question_sets(session, context_id: int) -> None:
         s.node_question_set.delete().where(
             s.node_question_set.c.node_context_id == context_id
         )
+    )
+
+
+def _publication_batch(session, context_id: int) -> int:
+    batch_id = session.scalar(
+        sa.select(s.publication_affected_node.c.promotion_batch_id).where(
+            s.publication_affected_node.c.node_context_id == context_id
+        )
+    )
+    assert batch_id is not None
+    return int(batch_id)
+
+
+def _make_preparing(session, context_id: int) -> int:
+    batch_id = _publication_batch(session, context_id)
+    session.execute(
+        s.promotion_batch.update()
+        .where(s.promotion_batch.c.promotion_batch_id == batch_id)
+        .values(publication_status="PREPARING", ready_at=None)
+    )
+    return batch_id
+
+
+def _make_claim_background(session, claim_id: int, now: datetime) -> None:
+    document_ids = sa.select(s.observation.c.source_document_id).join(
+        s.claim_observation,
+        s.claim_observation.c.observation_id == s.observation.c.observation_id,
+    ).where(s.claim_observation.c.claim_id == claim_id)
+    session.execute(
+        s.source_document.update()
+        .where(s.source_document.c.source_document_id.in_(document_ids))
+        .values(published_at=now - timedelta(days=200), published_precision="DAY")
     )
 
 
@@ -100,12 +133,28 @@ def _ordinary_in_window_claim(prepared) -> int:
     )
 
 
+def test_prepare_followup_requires_preparing_publication() -> None:
+    _, ids = load_panel_fixture()
+    with rollback_session() as session:
+        context = panel_queries.context(session, ids["gaon"])
+        assert context is not None
+        context_id = int(context["node_context_id"])
+        with pytest.raises(db.FollowupPreparationError):
+            db.prepare_followup(
+                session,
+                context_id,
+                TimeWindow.RECENT_90_DAYS,
+                datetime.now(UTC),
+            )
+
+
 def test_apply_followup_persists_valid_partial_result_and_task_success() -> None:
     _, ids = load_panel_fixture()
     with rollback_session() as session:
         context = panel_queries.context(session, ids["gaon"])
         assert context is not None
         context_id = int(context["node_context_id"])
+        _make_preparing(session, context_id)
         _clear_question_sets(session, context_id)
         now = datetime.now(UTC)
         prepared = db.prepare_followup(
@@ -120,8 +169,7 @@ def test_apply_followup_persists_valid_partial_result_and_task_success() -> None
                     question_text="현재 자료에서 직접 확인되는 역할은 무엇인가요?",
                     answer_text=(
                         "현재 자료에서는 공동 사업과 연결된 역할을 확인할 수 있습니다. "
-                        "제공된 근거만으로 그 범위를 넘어선 "
-                        "성과까지 판단할 수는 없습니다."
+                        "제공된 근거만으로 그 범위를 넘어선 성과까지 판단할 수는 없습니다."
                     ),
                     claims=(
                         FollowupClaimReference(
@@ -186,6 +234,7 @@ def test_apply_followup_persists_normal_empty_as_success() -> None:
         context = panel_queries.context(session, ids["gaon"])
         assert context is not None
         context_id = int(context["node_context_id"])
+        _make_preparing(session, context_id)
         _clear_question_sets(session, context_id)
         now = datetime.now(UTC)
         prepared = db.prepare_followup(
@@ -216,6 +265,7 @@ def test_apply_followup_blocks_when_all_candidates_fail_validation() -> None:
         context = panel_queries.context(session, ids["gaon"])
         assert context is not None
         context_id = int(context["node_context_id"])
+        _make_preparing(session, context_id)
         _clear_question_sets(session, context_id)
         now = datetime.now(UTC)
         prepared = db.prepare_followup(
@@ -262,12 +312,68 @@ def test_apply_followup_blocks_when_all_candidates_fail_validation() -> None:
         )
 
 
+def test_all_period_role_invalid_candidates_block_task() -> None:
+    _, ids = load_panel_fixture()
+    with rollback_session() as session:
+        context = panel_queries.context(session, ids["gaon"])
+        assert context is not None
+        context_id = int(context["node_context_id"])
+        _make_preparing(session, context_id)
+        _clear_question_sets(session, context_id)
+        now = datetime.now(UTC)
+        initial = db.prepare_followup(
+            session, context_id, TimeWindow.RECENT_90_DAYS, now
+        )
+        background_claim = _ordinary_in_window_claim(initial)
+        _make_claim_background(session, background_claim, now)
+        prepared = db.prepare_followup(
+            session, context_id, TimeWindow.RECENT_90_DAYS, now
+        )
+        assert next(
+            item for item in prepared.agent_input.claims if item.claim_id == background_claim
+        ).period_role == "BACKGROUND"
+        supporting_claim = _ordinary_in_window_claim(prepared)
+        task_id = _running_task(session, b"period-all-blocked", now)
+        proposal = FollowupQuestionsProposal(
+            questions=(
+                FollowupQuestionCandidate(
+                    display_order=1,
+                    question_text="기간 밖 근거를 핵심 근거로 쓸 수 있나요?",
+                    answer_text="기간 밖 근거는 핵심 근거가 아닙니다.",
+                    claims=(
+                        FollowupClaimReference(
+                            claim_id=background_claim,
+                            role="KEY_CLAIM",
+                            display_order=1,
+                        ),
+                        FollowupClaimReference(
+                            claim_id=supporting_claim,
+                            role="SUPPORTING_CLAIM",
+                            display_order=2,
+                        ),
+                    ),
+                ),
+            )
+        )
+        result = db.apply_followup(
+            session,
+            model_task_id=task_id,
+            prepared=prepared,
+            proposal=proposal,
+            finished_at=now + timedelta(seconds=1),
+        )
+        assert result.status == "VALIDATION_BLOCKED"
+        assert result.reason == "ALL_CANDIDATES_BLOCKED"
+        assert result.question_set_id is None
+
+
 def test_apply_followup_blocks_stale_basis_without_writing_result() -> None:
     _, ids = load_panel_fixture()
     with rollback_session() as session:
         context = panel_queries.context(session, ids["gaon"])
         assert context is not None
         context_id = int(context["node_context_id"])
+        _make_preparing(session, context_id)
         _clear_question_sets(session, context_id)
         now = datetime.now(UTC)
         prepared = db.prepare_followup(
@@ -298,3 +404,109 @@ def test_apply_followup_blocks_stale_basis_without_writing_result() -> None:
             )
             == 0
         )
+
+
+def test_apply_followup_blocks_if_preparing_publication_becomes_ready() -> None:
+    _, ids = load_panel_fixture()
+    with rollback_session() as session:
+        context = panel_queries.context(session, ids["gaon"])
+        assert context is not None
+        context_id = int(context["node_context_id"])
+        batch_id = _make_preparing(session, context_id)
+        _clear_question_sets(session, context_id)
+        now = datetime.now(UTC)
+        prepared = db.prepare_followup(
+            session, context_id, TimeWindow.RECENT_90_DAYS, now
+        )
+        task_id = _running_task(session, b"publication-ready", now)
+        session.execute(
+            s.promotion_batch.update()
+            .where(s.promotion_batch.c.promotion_batch_id == batch_id)
+            .values(publication_status="READY", ready_at=now)
+        )
+        result = db.apply_followup(
+            session,
+            model_task_id=task_id,
+            prepared=prepared,
+            proposal=FollowupQuestionsProposal(questions=()),
+            finished_at=now + timedelta(seconds=1),
+        )
+        assert result.status == "VALIDATION_BLOCKED"
+        assert result.reason == "STALE_PUBLICATION"
+        assert result.question_set_id is None
+
+
+def test_apply_followup_blocks_if_publication_context_pointer_changes() -> None:
+    _, ids = load_panel_fixture()
+    with rollback_session() as session:
+        context = panel_queries.context(session, ids["gaon"])
+        assert context is not None
+        context_id = int(context["node_context_id"])
+        batch_id = _make_preparing(session, context_id)
+        _clear_question_sets(session, context_id)
+        now = datetime.now(UTC)
+        prepared = db.prepare_followup(
+            session, context_id, TimeWindow.RECENT_90_DAYS, now
+        )
+        task_id = _running_task(session, b"pointer-stale", now)
+        session.execute(
+            s.publication_affected_node.update()
+            .where(
+                s.publication_affected_node.c.promotion_batch_id == batch_id,
+                s.publication_affected_node.c.node_id == prepared.agent_input.node_id,
+            )
+            .values(node_context_id=None)
+        )
+        result = db.apply_followup(
+            session,
+            model_task_id=task_id,
+            prepared=prepared,
+            proposal=FollowupQuestionsProposal(questions=()),
+            finished_at=now + timedelta(seconds=1),
+        )
+        assert result.status == "VALIDATION_BLOCKED"
+        assert result.reason == "STALE_PUBLICATION"
+        assert result.question_set_id is None
+
+
+def test_stale_publication_preserves_previous_ready_question_sets() -> None:
+    _, ids = load_panel_fixture()
+    with rollback_session() as session:
+        context = panel_queries.context(session, ids["gaon"])
+        assert context is not None
+        context_id = int(context["node_context_id"])
+        old_set_ids = tuple(
+            session.scalars(
+                sa.select(s.node_question_set.c.question_set_id)
+                .where(s.node_question_set.c.node_context_id == context_id)
+                .order_by(s.node_question_set.c.question_set_id)
+            ).all()
+        )
+        assert old_set_ids
+        batch_id = _make_preparing(session, context_id)
+        now = datetime.now(UTC)
+        prepared = db.prepare_followup(
+            session, context_id, TimeWindow.RECENT_90_DAYS, now
+        )
+        task_id = _running_task(session, b"preserve-ready", now)
+        session.execute(
+            s.promotion_batch.update()
+            .where(s.promotion_batch.c.promotion_batch_id == batch_id)
+            .values(publication_status="READY", ready_at=now)
+        )
+        result = db.apply_followup(
+            session,
+            model_task_id=task_id,
+            prepared=prepared,
+            proposal=FollowupQuestionsProposal(questions=()),
+            finished_at=now + timedelta(seconds=1),
+        )
+        assert result.status == "VALIDATION_BLOCKED"
+        remaining = tuple(
+            session.scalars(
+                sa.select(s.node_question_set.c.question_set_id)
+                .where(s.node_question_set.c.node_context_id == context_id)
+                .order_by(s.node_question_set.c.question_set_id)
+            ).all()
+        )
+        assert remaining == old_set_ids
