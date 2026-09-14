@@ -406,14 +406,6 @@ attribute_revision = sa.Table(
         nullable=False,
     ),
     sa.Column("allowed_value_kind", sa.Text, nullable=False),
-    sa.Column(
-        "unit_rule",
-        sa.Text,
-        comment=(
-            "NUMBER revision이 허용하는 canonical 단위 code 하나. 자동 단위 "
-            "환산 규칙이나 표시 문자열 목록이 아니다."
-        ),
-    ),
     sa.Column("is_active", sa.Boolean, server_default=sa.text("false"), nullable=False),
     sa.PrimaryKeyConstraint(
         "attribute_revision_id",
@@ -441,13 +433,10 @@ attribute_revision = sa.Table(
         "allowed_value_kind IN ('STRING', 'NUMBER', 'DATE', 'PERIOD', 'BOOLEAN')",
         name="ck_attribute_revision__value_kind",
     ),
-    sa.CheckConstraint(
-        "(allowed_value_kind = 'NUMBER' AND unit_rule IS NOT NULL AND "
-        "btrim(unit_rule) <> '') OR "
-        "(allowed_value_kind <> 'NUMBER' AND unit_rule IS NULL)",
-        name="ck_attribute_revision__unit_rule",
+    comment=(
+        "속성의 대상 유형·값 종류와 활성 수명주기를 보존하는 불변 규칙 버전. "
+        "NUMBER 허용 단위는 attribute_revision_allowed_unit이 소유한다."
     ),
-    comment=("속성의 대상 유형·값 종류·canonical 단위를 보존하는 불변 규칙 버전."),
 )
 sa.Index(
     "uq_attribute_revision__active",
@@ -459,6 +448,41 @@ sa.Index(
     "ix_attribute_revision__target_type",
     attribute_revision.c.target_node_type_id,
     attribute_revision.c.attribute_revision_id,
+)
+
+attribute_revision_allowed_unit = sa.Table(
+    "attribute_revision_allowed_unit",
+    metadata,
+    sa.Column("attribute_revision_id", sa.BigInteger, nullable=False),
+    sa.Column("allowed_value_kind", sa.Text, nullable=False),
+    sa.Column("unit_code", sa.Text, nullable=False),
+    sa.PrimaryKeyConstraint(
+        "attribute_revision_id",
+        "unit_code",
+        name="pk_attribute_revision_allowed_unit",
+    ),
+    sa.ForeignKeyConstraint(
+        ("attribute_revision_id", "allowed_value_kind"),
+        (
+            "attribute_revision.attribute_revision_id",
+            "attribute_revision.allowed_value_kind",
+        ),
+        name="fk_attribute_revision_allowed_unit__attribute_kind",
+        ondelete="RESTRICT",
+        onupdate="RESTRICT",
+    ),
+    sa.CheckConstraint(
+        "allowed_value_kind = 'NUMBER'",
+        name="ck_attribute_revision_allowed_unit__number_kind",
+    ),
+    sa.CheckConstraint(
+        "btrim(unit_code) <> ''",
+        name="ck_attribute_revision_allowed_unit__unit_nonblank",
+    ),
+    comment=(
+        "NUMBER attribute revision이 허용하는 원문 단위 code 집합. 단위 환산·"
+        "정규화·비교 규칙을 뜻하지 않는다."
+    ),
 )
 
 lint_policy_rule = sa.Table(
@@ -1809,6 +1833,16 @@ claim_attribute_value = sa.Table(
             "attribute_revision.allowed_value_kind",
         ),
         name="fk_claim_attribute_value__attribute_kind",
+        ondelete="RESTRICT",
+        onupdate="RESTRICT",
+    ),
+    sa.ForeignKeyConstraint(
+        ("attribute_revision_id", "unit_code"),
+        (
+            "attribute_revision_allowed_unit.attribute_revision_id",
+            "attribute_revision_allowed_unit.unit_code",
+        ),
+        name="fk_claim_attribute_value__allowed_unit",
         ondelete="RESTRICT",
         onupdate="RESTRICT",
     ),
