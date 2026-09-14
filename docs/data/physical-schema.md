@@ -18,7 +18,7 @@
 ## 현재 구현 기준
 
 - SQLAlchemy metadata: `server/src/ontology_map/db/schema.py`
-- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py`
+- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_add_provider_call_slot.py`
 - 개발 fixture: `server/src/ontology_map/db/fixture.py`
 - PostgreSQL namespace: `public`
 - 현재 metadata에 구현된 table 수와 각 객체의 세부 정의는 [스키마 참고 문서](schema-reference.md)에서 확인한다.
@@ -37,6 +37,12 @@ claim
 Relation의 stance는 `claim_relation`, 구조화 속성값은 `claim_attribute_value`, 사건 시간 근거는 `event_temporal_basis`가 Claim에 연결한다. node 인사이트도 `node_insight_claim`에서 기존 Claim으로 이어져 같은 Evidence Trace를 재사용한다.
 
 `publication_affected_node`는 한 batch가 영향을 준 node와 선택한 검색 문서, context와 `NODE_INSIGHT` 작업을 가리킨다. 이 행은 지도 구성원, 좌표나 전체 graph snapshot이 아니다.
+
+### Durable provider 호출 슬롯
+
+`provider_call_slot`은 `(model_task_id, slot_no)` 복합 PK와 RESTRICT model_task FK만 사용한다. slot_no 1..3, RESERVED/COMPLETED/UNKNOWN, 유한 시각, 종료 시각의 상태별 NULL 규칙과 reserved_at 이후 조건을 CHECK로 제한한다. 새로운 result/staging payload나 task→promotion FK는 없다. `agent_attempt.outcome`은 기존 terminal 값만 유지하고 attempt_no는 slot_no이므로 gap을 허용한다. `model_task.attempt_count`는 durable terminal agent_attempt 행 수이며 기존 BETWEEN 0 AND 5 CHECK는 유지한다.
+
+예약·reclaim·terminal 기록은 model_task row lock과 현재 lease token·만료 시각 검사로 직렬화한다. application은 clock_timestamp를 lock 획득 뒤 읽고 UNKNOWN 또는 COMPLETED slot의 재사용을 거부한다. 예약·전송 사이에는 장기 DB transaction을 유지하지 않는다. 확정 결과 기록은 attempt append, count 증가, COMPLETED와 가능한 task 상태 변경을 원자적으로 commit한다. migration downgrade는 소비된 slot이 있으면 삭제 전에 중단하여 무료 재호출을 허용하지 않는다.
 
 ### Publication과 공개 조회
 

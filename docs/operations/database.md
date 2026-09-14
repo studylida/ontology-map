@@ -222,3 +222,11 @@ docker compose down --volumes
 공유 개발 DB에 migration을 적용하기 전 `docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc'`의 출력을 저장소 밖의 접근 제한된 백업 파일에 보관한다. `pg_restore -l`로 archive를 확인하고 백업을 외부 게시하지 않는다. 복구가 필요하면 별도 빈 복구 DB에 `pg_restore --exit-on-error`로 복원해 확인한 뒤 사용자가 승인한 전환 절차를 따른다. 실행 중인 DB를 drop하거나 기존 자료를 덮어쓰지 않는다.
 
 0002는 추가 구조만 생성하므로 앱을 이전 버전으로 되돌려도 기존 API는 유지된다. 새 결과가 들어 있으면 downgrade는 중단하며 추가 구조와 결과를 보존한다. 운영 배포·모델 실행은 이 검토 명령에 포함되지 않는다.
+
+## Durable 호출 ledger 검증
+
+`0003_add_provider_call_slot.py`는 현재 0002 head 위에서 호출 슬롯과 attempt_count comment 의미만 보강한다. 과거 persistence patch의 purpose_code·task→promotion FK와 관계없다. 기존 개발 fixture와 ontology reference data를 등록하거나 변경하지 않는다. 소비된 slot이 있으면 downgrade를 거부하며, 기존 attempt를 가짜 slot로 backfill하지 않는다.
+
+`ONTOLOGY_MAP_KE_TEST_DATABASE_URL`은 migration이 적용된 loopback의 별도 `_ke127_test` DB만 허용한다. `server/tests/test_provider_call_slots_postgres.py`는 합성 reference data로 실제 process 종료, reservation/result rollback, UNKNOWN gap, 동시 예약, lease reclaim과 stale worker 거부를 검증한다. test provider는 외부 모델을 호출하지 않는다. `.github/workflows/knowledge-extraction.yml`은 고정 환경과 run별 PostgreSQL을 사용하고 종료 시 해당 run의 volume만 제거한다.
+
+현재 `db/model_tasks.py`와 `durable_provider.py`는 호출 ledger·단일 전송 경계다. 이 경계의 통과를 전체 extraction·ontology·Claim promotion 또는 publication 구현 완료로 해석하지 않는다. 호출자는 실제 active output contract와 prepared request를 검사하고 product 성공을 같은 promotion transaction에 연결해야 한다.

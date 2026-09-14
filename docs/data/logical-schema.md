@@ -239,7 +239,7 @@ erDiagram
 | `model_version`, `prompt_version` | 실행 계보 |
 | `cache_key` | 작업 종류·입력·계약·모델·프롬프트의 결정적 키 |
 | `status` | `PENDING`, `RUNNING`, `SUCCESS`, `RETRY_WAIT`, `VALIDATION_BLOCKED`, `FINAL_FAILED` |
-| `attempt_count`, `next_attempt_at` | 실제 호출 수와 다음 실행 시점 |
+| `attempt_count`, `next_attempt_at` | durable terminal agent_attempt 행 수와 다음 실행 시점 |
 | `lease_owner`, `lease_expires_at` | 동시 실행 방지 lease |
 | `created_at`, `finished_at` | 생성·종료 시각 |
 
@@ -251,7 +251,13 @@ erDiagram
 
 #### `agent_attempt`
 
-실제 모델 호출 한 번의 최소 이력이다. `model_task_id + attempt_no`가 고유하며 `outcome`, 정형 `failure_reason`, `attempted_at`만 보존한다. 토큰·비용·원시 응답·응답 ID와 중복 모델·프롬프트 필드는 저장하지 않는다.
+확정된 실제 provider terminal 결과의 append-only 이력이다. `attempt_no = provider_call_slot.slot_no`이며 UNKNOWN slot 때문에 번호 gap이 생길 수 있다. `attempt_count`와 같은 transaction에서 행 수를 유지한다. `model_task_id + attempt_no`가 고유하며 `outcome`, 정형 `failure_reason`, `attempted_at`만 보존한다. 토큰·비용·원시 응답·응답 ID와 중복 모델·프롬프트 필드는 저장하지 않는다.
+
+#### `provider_call_slot`
+
+[#125 승인](https://github.com/studylida/ontology-map/issues/125#issuecomment-5658185041)과 [#124 감사](https://github.com/studylida/ontology-map/issues/124#issuecomment-5658186263)에 따른 최소 실행 제어 구조다. `(model_task_id, slot_no)`가 유일하고 slot_no는 1..3이다. 상태는 RESERVED, COMPLETED, UNKNOWN뿐이다. deterministic local preflight와 request 구성이 끝난 뒤 전송 직전에 RESERVED를 commit하며, UNKNOWN도 소비된 예산으로 유지한다. raw request/response, reasoning과 결과 payload는 저장하지 않는다. runtime helper에는 적용하지 않는다.
+
+확정 결과는 같은 짧은 transaction에서 agent_attempt append, attempt_count 증가, slot COMPLETED와 가능한 task 상태 전환을 기록한다. lease reclaim은 task row lock 안에서 stale RESERVED를 UNKNOWN으로 닫으며 이전 lease의 늦은 결과를 거부한다. hard cap은 terminal attempt 수가 아니라 slot 소비 수로 판단한다. 기존 terminal 이력은 재작성하지 않으며 slot과 대응되지 않는 과거 미완료 task는 예산을 추정해 재실행하지 않는다.
 
 #### `blocked_fingerprint`
 
@@ -432,7 +438,7 @@ PENDING → RUNNING → SUCCESS
                   └→ FINAL_FAILED
 ```
 
-최대 호출은 최초·즉시 재시도·1시간·2시간·4시간 뒤 시도까지 다섯 번이다. 일시 장애만 재시도한다.
+현재 POC는 [#125 실행 계약](https://github.com/studylida/ontology-map/issues/125#issuecomment-5631623660)과 [호출 슬롯 승인](https://github.com/studylida/ontology-map/issues/125#issuecomment-5658185041)을 따른다. task당 최대 3개의 provider slot을 소비하며 UNKNOWN도 반환하지 않는다. TIMEOUT·RATE_LIMITED·transient PROVIDER_ERROR만 일반 재시도 대상이고 OUTPUT_CONTRACT_ERROR의 추가 retry는 1회로 제한한다. Retry-After가 있으면 우선하고 없으면 30초, 다음은 2분이다. lease는 10분이며 heartbeat는 없다. AUTHENTICATION_ERROR·INVALID_REQUEST는 즉시 FINAL_FAILED다. 3 slot 소진 후 적용 가능한 결과가 없으면 FINAL_FAILED이며 기존 task를 초기화하지 않는다. VALIDATION_BLOCKED는 조건 변경 없이 자동 retry하지 않고 수동 재처리는 새 effective input/generation으로 구분한다.
 
 ### 6.2 기준 지식
 
