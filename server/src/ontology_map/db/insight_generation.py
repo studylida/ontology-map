@@ -271,6 +271,46 @@ def _direct_connections(
     return {claim_id: tuple(items) for claim_id, items in connections.items()}
 
 
+def _direct_relation_ids(
+    session: Session,
+    *,
+    node_id: int,
+    basis_ids: tuple[int, ...],
+    current_batch_id: int,
+) -> frozenset[int]:
+    """Return direct basis relations whose opposite endpoint is publication-usable."""
+    if not basis_ids:
+        return frozenset()
+    rows = (
+        session.execute(
+            _ids_statement("""
+                SELECT r.relation_id,
+                       CASE WHEN r.source_node_id = :node_id
+                            THEN r.target_node_id
+                            ELSE r.source_node_id
+                       END AS related_node_id
+                FROM relation r
+                WHERE r.relation_id IN :ids
+                  AND (r.source_node_id = :node_id OR r.target_node_id = :node_id)
+                ORDER BY r.relation_id
+            """),
+            {"ids": list(basis_ids), "node_id": node_id},
+        )
+        .mappings()
+        .all()
+    )
+    related = _node_identities(
+        session,
+        [int(row["related_node_id"]) for row in rows],
+        current_batch_id=current_batch_id,
+    )
+    return frozenset(
+        int(row["relation_id"])
+        for row in rows
+        if int(row["related_node_id"]) in related
+    )
+
+
 def _grounded_claims(
     session: Session,
     *,
@@ -359,27 +399,45 @@ def _grounded_claims(
 
 def _visible_conflicts(
     session: Session,
+    *,
+    node_id: int,
     claim_ids: frozenset[int],
+    direct_relation_ids: frozenset[int],
 ) -> tuple[VisibleConflictPair, ...]:
+    """Return only #130 conflicts whose semantic target belongs to this node."""
     if not claim_ids:
         return ()
     rows = session.execute(
         sa.text("""
-        SELECT c.conflict_set_id, m.claim_id
+        SELECT c.conflict_set_id, c.relation_id, c.target_node_id,
+               c.event_node_id, m.claim_id
         FROM conflict_set c
         JOIN conflict_member m ON m.conflict_set_id = c.conflict_set_id
         WHERE c.current_state IN ('AGENT_PROPOSED', 'HUMAN_CONFIRMED')
         ORDER BY c.conflict_set_id, m.claim_id
     """)
     ).mappings()
-    grouped: dict[int, list[int]] = defaultdict(list)
+    grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
-        grouped[int(row["conflict_set_id"])].append(int(row["claim_id"]))
+        grouped[int(row["conflict_set_id"])].append(dict(row))
     result: list[VisibleConflictPair] = []
     for conflict_id, members in grouped.items():
-        if len(members) != 2 or not set(members) <= claim_ids:
+        if len(members) != 2:
             continue
-        left, right = sorted(members)
+        target = members[0]
+        relation_id = target["relation_id"]
+        target_is_direct = bool(
+            target["target_node_id"] == node_id
+            or target["event_node_id"] == node_id
+            or (
+                relation_id is not None
+                and int(relation_id) in direct_relation_ids
+            )
+        )
+        member_ids = [int(row["claim_id"]) for row in members]
+        if not target_is_direct or not set(member_ids) <= claim_ids:
+            continue
+        left, right = sorted(member_ids)
         result.append(
             VisibleConflictPair(
                 conflict_set_id=conflict_id,
@@ -392,7 +450,9 @@ def _visible_conflicts(
 def _window_input(
     session: Session,
     *,
+    node_id: int,
     connections: dict[int, tuple[ClaimConnection, ...]],
+    direct_relation_ids: frozenset[int],
     window: TimeWindow,
     as_of_at: datetime,
 ) -> InsightWindowInput:
@@ -402,7 +462,12 @@ def _window_input(
         window=window,
         as_of_at=as_of_at,
     )
-    conflicts = _visible_conflicts(session, frozenset(item.claim_id for item in claims))
+    conflicts = _visible_conflicts(
+        session,
+        node_id=node_id,
+        claim_ids=frozenset(item.claim_id for item in claims),
+        direct_relation_ids=direct_relation_ids,
+    )
     return InsightWindowInput(
         time_window=cast(AgentTimeWindow, window.value),
         claims=claims,
@@ -439,6 +504,12 @@ def prepare_insight_bundle(
         basis_ids=basis_ids,
         current_batch_id=promotion_batch_id,
     )
+    direct_relation_ids = _direct_relation_ids(
+        session,
+        node_id=node_id,
+        basis_ids=basis_ids,
+        current_batch_id=promotion_batch_id,
+    )
     return PreparedInsightBundle(
         promotion_batch_id=promotion_batch_id,
         node_search_document_id=document_id,
@@ -451,13 +522,17 @@ def prepare_insight_bundle(
             as_of_at=as_of_at,
             recent_90_days=_window_input(
                 session,
+                node_id=node_id,
                 connections=connections,
+                direct_relation_ids=direct_relation_ids,
                 window=TimeWindow.RECENT_90_DAYS,
                 as_of_at=as_of_at,
             ),
             recent_1_year=_window_input(
                 session,
+                node_id=node_id,
                 connections=connections,
+                direct_relation_ids=direct_relation_ids,
                 window=TimeWindow.RECENT_1_YEAR,
                 as_of_at=as_of_at,
             ),
