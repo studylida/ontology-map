@@ -2,9 +2,9 @@
 
 > 상태: Logical Schema v1.2 — Frozen
 >
-> 변경 기준일: 2026-09-10
+> 변경 기준일: 2026-09-14
 >
-> 관련 변경: Issue #41, #64, #69, #91, #110
+> 관련 변경: Issue #41, #64, #69, #91, #110, #200
 >
 > 제품 기준: 공개 자료를 근거와 시간축이 있는 지식그래프로 축적하고, 검색한 노드를 중심으로 탐색하는 HBF POC
 
@@ -73,6 +73,7 @@ erDiagram
 erDiagram
     RELATION_TYPE ||--o{ RELATION_TYPE_REVISION : versions
     ATTRIBUTE ||--o{ ATTRIBUTE_REVISION : versions
+    ATTRIBUTE_REVISION ||--o{ ATTRIBUTE_REVISION_ALLOWED_UNIT : permits
     RELATION_TYPE_REVISION ||--o{ RELATION_ENDPOINT_RULE : permits
     NODE_TYPE ||--o{ RELATION_ENDPOINT_RULE : source_type
     NODE_TYPE ||--o{ RELATION_ENDPOINT_RULE : target_type
@@ -103,6 +104,7 @@ erDiagram
     CLAIM ||--o{ CLAIM_ATTRIBUTE_VALUE : asserts
     NODE ||--o{ CLAIM_ATTRIBUTE_VALUE : attribute_target
     ATTRIBUTE_REVISION ||--o{ CLAIM_ATTRIBUTE_VALUE : types
+    ATTRIBUTE_REVISION_ALLOWED_UNIT ||--o{ CLAIM_ATTRIBUTE_VALUE : validates_unit
     CLAIM ||--o{ EVENT_TEMPORAL_BASIS : supports
     EVENT_TEMPORAL_EXTENT ||--o{ EVENT_TEMPORAL_BASIS : evidenced_by
     CLAIM ||--o{ CLAIM_OBSERVATION : evidenced_by
@@ -292,9 +294,11 @@ POC는 전체 활성 규칙 집합을 `ontology_version`과 `ontology_member` ma
 
 `relation_endpoint_rule`은 revision마다 허용되는 `source_node_type_id + target_node_type_id` 조합을 저장한다. `SYMMETRIC` revision에는 역관계를 둘 수 없다. 사용된 revision의 의미·방향·역관계·endpoint 규칙은 수정하지 않는다.
 
-#### `attribute`, `attribute_revision`
+#### `attribute`, `attribute_revision`, `attribute_revision_allowed_unit`
 
-`attribute`는 불변 `attribute_code`를 관리한다. `attribute_revision`은 `attribute_id`, `version_no`, 표시 이름, 정확히 한 `target_node_type_id`, `allowed_value_kind`, `unit_rule`, `is_active`를 가진다. 같은 속성 코드에는 활성 revision이 최대 하나다.
+`attribute`는 불변 `attribute_code`를 관리한다. `attribute_revision`은 `attribute_id`, `version_no`, 표시 이름, 정확히 한 `target_node_type_id`, `allowed_value_kind`, `is_active`를 가진다. 같은 속성 코드에는 활성 revision이 최대 하나다.
+
+`attribute_revision_allowed_unit`은 NUMBER revision이 허용하는 정확한 `unit_code` 집합을 저장한다. 단일 단위 NUMBER 속성은 한 행, 복수 단위 NUMBER 속성은 같은 revision에 여러 행을 가진다. 이 집합은 canonical 단위를 고르거나 환산·정규화·단위 간 비교 규칙을 뜻하지 않는다. NUMBER가 아닌 revision에는 허용 단위 행을 두지 않는다. revision을 사용할 때 NUMBER에는 허용 단위가 최소 하나 있어야 하며, 사용된 revision과 그 허용 단위 집합은 의미를 바꾸지 않는다.
 
 `is_active = false`는 기존 지식의 의미나 공개 상태를 바꾸지 않는다. 승격 서비스는 사용할 유형·revision의 활성 상태를 트랜잭션 안에서 다시 확인한다.
 
@@ -345,6 +349,8 @@ POC는 전체 활성 규칙 집합을 `ontology_version`과 `ontology_member` ma
 #### `claim_attribute_value`
 
 Claim이 노드의 구조화 속성을 주장하는 tagged union이다. 공통 식별자·대상·revision·`value_kind`와 문자열, 숫자+단위, 날짜·기간+precision, Boolean 값 컬럼을 가진다. 허용 종류는 `STRING`, `NUMBER`, `DATE`, `PERIOD`, `BOOLEAN`이다.
+
+NUMBER 값은 원문에서 추출한 `number_value`와 `unit_code`를 그대로 저장한다. `(attribute_revision_id, unit_code)`는 해당 revision의 `attribute_revision_allowed_unit`에 존재해야 한다. 저장 과정에서 canonical 단위를 선택하거나 값을 환산·정규화하지 않으며 서로 다른 허용 단위의 값을 자동 비교하지 않는다.
 
 #### `event_temporal_basis`
 
@@ -467,6 +473,7 @@ publication_status: NOT_STARTED → PREPARING → READY
 - 대표 alias 최대 하나, 원본 노드당 활성 병합 최대 하나
 - relation identity, cache key, finding key와 차단 fingerprint 중복 방지
 - Claim 속성값의 tagged-union 로컬 CHECK
+- NUMBER Claim의 `(attribute_revision_id, unit_code)`가 해당 revision의 허용 단위 집합에 존재함
 - 충돌 대상 형태와 상태·시각 조합의 행 내부 CHECK
 
 ### 7.2 서비스 트랜잭션이 보장할 규칙
@@ -475,6 +482,7 @@ publication_status: NOT_STARTED → PREPARING → READY
 - 근거 묶음 선택·신규 생성과 통제된 정정
 - 문서 범위와 실제 본문·인용문·해시 일치
 - 활성 유형·revision의 전체 규칙 검증과 원자적 교체
+- NUMBER revision을 사용하기 전에 허용 단위가 최소 하나 존재함
 - 관계 endpoint 유형과 revision 규칙 일치
 - 대칭 endpoint 정규화와 node merge 순환 차단
 - Claim의 의미 대상·observation 최소 개수
