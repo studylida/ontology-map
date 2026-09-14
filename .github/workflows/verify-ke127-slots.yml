@@ -42,6 +42,7 @@ jobs:
           uv run --project server --frozen python --version
       - name: Format changed Python and generate schema reference
         run: |
+          python3 .github/ke127-format-sql.py
           uv run --project server --frozen ruff check --select I --fix server/src/ontology_map/db/model_tasks.py server/src/ontology_map/durable_provider.py server/tests/test_provider_call_slots_postgres.py server/migrations/versions/0003_add_provider_call_slot.py
           uv run --project server --frozen ruff format server/src/ontology_map/db/model_tasks.py server/src/ontology_map/durable_provider.py server/tests/test_provider_call_slots_postgres.py server/migrations/versions/0003_add_provider_call_slot.py server/src/ontology_map/db/schema.py
           uv run --project server --frozen python scripts/check_docs.py --write
