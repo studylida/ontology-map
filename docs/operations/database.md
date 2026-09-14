@@ -55,7 +55,9 @@ uv run --env-file ../.env alembic upgrade head
 uv run --env-file ../.env alembic current
 ```
 
-현재 기준 revision은 `0001_create_frozen_schema.py` 이후 패널 읽기 계약을 추가한 `0002_add_panel_reading_contracts.py`다. PostgreSQL 객체는 `public` schema에 만들며 migration과 SQLAlchemy metadata는 같은 frozen schema를 표현한다. #121 이후 `0001`에는 `vector` extension, `node_embedding` table과 `EMBEDDING` task 허용 계약이 없다.
+현재 기준 revision은 `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_support_multiple_number_attribute_units.py`다. PostgreSQL 객체는 `public` schema에 만들며 migration과 SQLAlchemy metadata는 같은 schema를 표현한다. #121 이후 `0001`에는 `vector` extension, `node_embedding` table과 `EMBEDDING` task 허용 계약이 없다.
+
+`0003`은 기존 NUMBER `attribute_revision.unit_rule`을 `attribute_revision_allowed_unit`의 허용 단위 행으로 옮긴 뒤 `claim_attribute_value(attribute_revision_id, unit_code)`를 그 허용 집합에 FK로 연결한다. 기존 단일 단위 revision은 한 행으로 그대로 이관한다. 기존 Claim의 unit이 legacy `unit_rule`과 다르면 값을 환산하거나 수정하지 않고 migration을 실패시킨다. 복수 허용 단위가 생성된 뒤 `0002`로 downgrade하면 의미를 한 문자열로 되돌릴 수 없으므로 downgrade도 중단한다.
 
 ## 3. 개발용 HBF fixture
 
