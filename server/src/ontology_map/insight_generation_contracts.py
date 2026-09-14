@@ -2,7 +2,8 @@
 
 The central analysis question is an Agent-generation contract, not a new product
 DB field. Persisted report meaning remains in the approved node_insight and
-section tables.
+section tables. The two time windows are one product-level atomic bundle even
+when either window is an explicit normal empty result.
 """
 
 from dataclasses import dataclass
