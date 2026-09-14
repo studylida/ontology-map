@@ -10,18 +10,16 @@ from ontology_map.db.panel_fixture import load_panel_fixture
 from ontology_map.exploration import TimeWindow
 
 
-def _insert_attribute_conflict(
+def _insert_event_conflict(
     session,
     *,
-    target_node_id: int,
-    attribute_revision_id: int,
+    event_node_id: int,
     claim_ids: tuple[int, int],
 ) -> int:
     conflict_id = session.scalar(
         s.conflict_set.insert()
         .values(
-            target_node_id=target_node_id,
-            attribute_revision_id=attribute_revision_id,
+            event_node_id=event_node_id,
             modality="FACT",
             current_state="AGENT_PROPOSED",
         )
@@ -68,24 +66,16 @@ def test_prepare_followup_only_exposes_conflicts_for_center_node_scope() -> None
             .order_by(s.node.c.node_id)
             .limit(1)
         )
-        attribute_revision_id = session.scalar(
-            sa.select(s.attribute_revision.c.attribute_revision_id)
-            .order_by(s.attribute_revision.c.attribute_revision_id)
-            .limit(1)
-        )
         assert other_node_id is not None
-        assert attribute_revision_id is not None
 
-        out_of_scope_id = _insert_attribute_conflict(
+        out_of_scope_id = _insert_event_conflict(
             session,
-            target_node_id=int(other_node_id),
-            attribute_revision_id=int(attribute_revision_id),
+            event_node_id=int(other_node_id),
             claim_ids=(claim_ids[0], claim_ids[1]),
         )
-        in_scope_id = _insert_attribute_conflict(
+        in_scope_id = _insert_event_conflict(
             session,
-            target_node_id=ids["gaon"],
-            attribute_revision_id=int(attribute_revision_id),
+            event_node_id=ids["gaon"],
             claim_ids=(claim_ids[0], claim_ids[1]),
         )
 
