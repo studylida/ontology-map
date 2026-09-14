@@ -1,0 +1,83 @@
+name: Temporary 117 GIN final
+
+on:
+  push:
+    branches:
+      - verify/117-gin-final
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: search117-gin-${{ github.run_id }}-${{ github.run_attempt }}
+      POSTGRES_DB: ontology_map_search117_gin_test
+      POSTGRES_USER: search117_gin_test
+      POSTGRES_PORT: 127.0.0.1:55434
+      ONTOLOGY_MAP_ENVIRONMENT: development
+      PYTHONPATH: ${{ github.workspace }}/server/src
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          version: 0.12.7
+          enable-cache: true
+
+      - name: Verify final target and diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "c040a02c4c88cd01f56055e9e48cb888d0707e25"
+          git fetch origin main
+          git diff --check origin/main...HEAD^
+          test -z "$(git diff --name-only origin/main...HEAD^ | grep -E 'entity_resolution|entity-resolution|server/migrations|db/schema.py' || true)"
+
+      - name: Install dependencies
+        run: uv sync --project server --frozen
+
+      - name: Prepare isolated database credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          url="postgresql+psycopg://${POSTGRES_USER}:${password}@127.0.0.1:55434/${POSTGRES_DB}"
+          echo "::add-mask::$url"
+          {
+            echo "POSTGRES_PASSWORD=$password"
+            echo "ONTOLOGY_MAP_DATABASE_URL=$url"
+          } >> "$GITHUB_ENV"
+
+      - name: Start PostgreSQL and migrate
+        run: |
+          docker compose up --wait --wait-timeout 120 db
+          cd server
+          uv run --frozen alembic upgrade head
+          uv run --frozen alembic current
+
+      - name: Focused search and GIN tests
+        run: uv run --project server --frozen pytest -q server/tests/test_search.py
+
+      - name: Web full check
+        working-directory: web
+        run: |
+          npm ci
+          npm run check
+
+      - name: Docs and boundary checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run --project server --frozen python scripts/check_docs.py --check
+          ! grep -R "match_reasons\|SearchMatchReason" server/src/ontology_map web/src --include='*.py' --include='*.ts' --include='*.tsx'
+          ! grep -q "node_context" server/src/ontology_map/db/search.py
+
+      - name: Cleanup isolated database
+        if: always()
+        run: docker compose down --volumes
