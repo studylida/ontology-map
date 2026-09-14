@@ -151,7 +151,7 @@ def _insert_number_revision(
     return attribute_id, revision_id
 
 
-def test_number_attribute_supports_multiple_allowed_units_without_normalization() -> None:
+def test_number_attribute_supports_multiple_allowed_units() -> None:
     with get_engine().connect() as connection:
         transaction = connection.begin()
         try:
