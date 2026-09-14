@@ -65,6 +65,8 @@ setweight(to_tsvector('simple', identity_text), 'A')
 || setweight(to_tsvector('simple', knowledge_text), 'B')
 ```
 
+사용자 검색은 이 저장 문서에서 exact alias → `identity_text` FTS → `knowledge_text` FTS를 별도 bucket으로 평가한다. exact alias는 `node_id ASC`, 각 FTS bucket은 `ts_rank_cd DESC, node_id ASC`로 정렬하고 canonical Node를 전체 결과에서 한 번만 반환한다. `node_context.context_text`는 검색 입력으로 사용하지 않는다. 이 검색 순위 변경은 table, column, migration이나 위 expression GIN을 변경하지 않는다.
+
 `node_context`, `followup_question`과 `node_insight`는 같은 검색 문서·node 조합을 물리 FK로 고정한다. `followup_question.slot`은 1 또는 2이고 `target_node_id`는 필수지만 target과 중심 사이 Relation을 뜻하지 않는다.
 
 `node_insight`는 `RECENT_90_DAYS | RECENT_1_YEAR`, slot 1–3, `as_of_at`, 제목, 요약, 종합 해석과 유의점을 가진 불변 행이다. `node_insight_claim`은 기존 Claim을 `KEY_CLAIM | SUPPORTING_CLAIM | CONTRASTING_CLAIM`으로 연결한다. 인사이트 근거 수는 column으로 저장하지 않고 Evidence Trace에서 `COUNT(DISTINCT evidence_group_id)`로 계산한다.

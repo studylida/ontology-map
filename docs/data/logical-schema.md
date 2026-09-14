@@ -499,7 +499,7 @@ publication_status: NOT_STARTED → PREPARING → READY
 - 일반 사용자 검색·상세 패널·Evidence Trace는 현재 공개 가능한 READY 범위만 조회하며 내부 이력은 삭제하지 않고 보존함
 - 좌표·카메라·viewport·지도 snapshot은 저장하지 않음
 
-현재 HTTP 검색은 alias 정확 일치 뒤 `identity_text`·`knowledge_text`를 합친 `simple` FTS 결과를 반환한다. [#121](https://github.com/studylida/ontology-map/issues/121)에 따라 query-time vector 검색과 node embedding 저장 경로는 제거됐다. [#117](https://github.com/studylida/ontology-map/issues/117)은 후속으로 alias → identity FTS → knowledge FTS bucket과 검색 응답 단순화를 구현하며, 그 전까지 검색 응답의 정확한 현재 형태는 [제품 설계](../product/design.md)를 따른다.
+현재 HTTP 검색은 exact alias → `identity_text` 단어 FTS → `knowledge_text` 단어 FTS의 세 bucket을 순서대로 반환한다. exact alias는 `node_id ASC`, 각 FTS bucket은 `ts_rank_cd DESC, node_id ASC`이며 활성 merge를 해소한 같은 canonical Node는 전체 결과에서 한 번만 반환한다. 검색 응답은 Node ID, 이름과 유형만 제공한다. `node_context.context_text`는 검색 입력이 아니며 READY, selected `search_document_basis`와 열린 `BLOCKING` lint 공개 필터를 유지한다. [#121](https://github.com/studylida/ontology-map/issues/121)에 따라 query-time vector 검색과 node embedding 저장 경로는 제거됐다.
 
 ## 9. HBF 검증 흐름
 
