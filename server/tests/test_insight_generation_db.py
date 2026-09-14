@@ -122,9 +122,7 @@ def _available_claims(prepared, *, year: bool = False) -> list[int]:
         else prepared.agent_input.recent_90_days
     )
     conflict_claims = {
-        claim_id
-        for pair in window.conflict_pairs
-        for claim_id in pair.claim_ids
+        claim_id for pair in window.conflict_pairs for claim_id in pair.claim_ids
     }
     return [
         item.claim_id
@@ -166,7 +164,9 @@ def _report(
             InsightSectionCandidate(
                 display_order=2,
                 title="두 번째 주요 발견",
-                synthesis_text="다른 근거 조합에서는 두 번째 흐름을 확인할 수 있습니다.",
+                synthesis_text=(
+                    "다른 근거 조합에서는 두 번째 흐름을 확인할 수 있습니다."
+                ),
                 claims=(
                     InsightClaimReference(
                         claim_id=claim_ids[1],
@@ -183,7 +183,9 @@ def _report(
         analysis_question_text=question,
         title="공개 근거에서 확인되는 주요 흐름",
         summary_text="공개 근거를 종합하면 두 가지 주요 흐름을 확인할 수 있습니다.",
-        synthesis_text="주요 발견을 함께 보면 현재 자료가 보여주는 범위를 설명할 수 있습니다.",
+        synthesis_text=(
+            "주요 발견을 함께 보면 현재 자료가 보여주는 범위를 설명할 수 있습니다."
+        ),
         caveat_text="현재 공개 자료 밖의 결과와 장기 성과는 확인할 수 없습니다.",
         sections=tuple(sections),
     )
@@ -228,11 +230,14 @@ def test_apply_bundle_persists_report_empty_union_pointer_and_success() -> None:
         assert result.status == "SUCCESS"
         assert result.report_ids[0] is not None
         assert result.report_ids[1] is None
-        assert session.scalar(
-            sa.select(s.model_task.c.status).where(
-                s.model_task.c.model_task_id == task_id
+        assert (
+            session.scalar(
+                sa.select(s.model_task.c.status).where(
+                    s.model_task.c.model_task_id == task_id
+                )
             )
-        ) == "SUCCESS"
+            == "SUCCESS"
+        )
         windows = (
             session.execute(
                 sa.select(s.node_insight_window)
@@ -306,11 +311,15 @@ def test_apply_bundle_persists_empty_empty_as_success() -> None:
         )
         assert result.status == "SUCCESS"
         assert result.report_ids == (None, None)
-        windows = session.execute(
-            sa.select(s.node_insight_window).where(
-                s.node_insight_window.c.model_task_id == task_id
+        windows = (
+            session.execute(
+                sa.select(s.node_insight_window).where(
+                    s.node_insight_window.c.model_task_id == task_id
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
         assert len(windows) == 2
         assert all(row["node_insight_id"] is None for row in windows)
 
@@ -349,22 +358,33 @@ def test_one_invalid_window_blocks_entire_new_bundle_and_preserves_pointer() -> 
         )
         assert result.status == "VALIDATION_BLOCKED"
         assert result.report_ids == (None, None)
-        assert session.scalar(
-            sa.select(sa.func.count())
-            .select_from(s.node_insight_window)
-            .where(s.node_insight_window.c.model_task_id == task_id)
-        ) == 0
-        assert session.scalar(
-            sa.select(sa.func.count())
-            .select_from(s.node_insight)
-            .where(s.node_insight.c.model_task_id == task_id)
-        ) == 0
-        assert session.scalar(
-            sa.select(s.publication_affected_node.c.node_insight_model_task_id).where(
-                s.publication_affected_node.c.promotion_batch_id == batch_id,
-                s.publication_affected_node.c.node_id == ids["gaon"],
+        assert (
+            session.scalar(
+                sa.select(sa.func.count())
+                .select_from(s.node_insight_window)
+                .where(s.node_insight_window.c.model_task_id == task_id)
             )
-        ) == prior_pointer
+            == 0
+        )
+        assert (
+            session.scalar(
+                sa.select(sa.func.count())
+                .select_from(s.node_insight)
+                .where(s.node_insight.c.model_task_id == task_id)
+            )
+            == 0
+        )
+        assert (
+            session.scalar(
+                sa.select(
+                    s.publication_affected_node.c.node_insight_model_task_id
+                ).where(
+                    s.publication_affected_node.c.promotion_batch_id == batch_id,
+                    s.publication_affected_node.c.node_id == ids["gaon"],
+                )
+            )
+            == prior_pointer
+        )
 
 
 def test_stale_basis_blocks_bundle_without_changing_pointer() -> None:
@@ -394,14 +414,77 @@ def test_stale_basis_blocks_bundle_without_changing_pointer() -> None:
         )
         assert result.status == "VALIDATION_BLOCKED"
         assert result.reason == "STALE_INPUT"
-        assert session.scalar(
-            sa.select(sa.func.count())
-            .select_from(s.node_insight_window)
-            .where(s.node_insight_window.c.model_task_id == task_id)
-        ) == 0
-        assert session.scalar(
-            sa.select(s.publication_affected_node.c.node_insight_model_task_id).where(
+        assert (
+            session.scalar(
+                sa.select(sa.func.count())
+                .select_from(s.node_insight_window)
+                .where(s.node_insight_window.c.model_task_id == task_id)
+            )
+            == 0
+        )
+        assert (
+            session.scalar(
+                sa.select(
+                    s.publication_affected_node.c.node_insight_model_task_id
+                ).where(
+                    s.publication_affected_node.c.promotion_batch_id == batch_id,
+                    s.publication_affected_node.c.node_id == ids["gaon"],
+                )
+            )
+            == prepared.prior_insight_model_task_id
+        )
+
+
+def test_changed_publication_pointer_blocks_bundle_without_overwrite() -> None:
+    _, ids = load_panel_fixture()
+    with rollback_session() as session:
+        now = datetime.now(UTC)
+        batch_id, _ = _preparing_publication(session, ids["gaon"], now)
+        prepared = db.prepare_insight_bundle(
+            session,
+            promotion_batch_id=batch_id,
+            node_id=ids["gaon"],
+            as_of_at=now,
+        )
+        task_id = _running_task(session, b"stale-publication", now)
+        changed_pointer = (
+            None if prepared.prior_insight_model_task_id is not None else task_id
+        )
+        session.execute(
+            s.publication_affected_node.update()
+            .where(
                 s.publication_affected_node.c.promotion_batch_id == batch_id,
                 s.publication_affected_node.c.node_id == ids["gaon"],
             )
-        ) == prepared.prior_insight_model_task_id
+            .values(node_insight_model_task_id=changed_pointer)
+        )
+
+        result = db.apply_insight_bundle(
+            session,
+            model_task_id=task_id,
+            prepared=prepared,
+            proposal=_bundle(None, None),
+            finished_at=now + timedelta(seconds=1),
+        )
+        assert result.status == "VALIDATION_BLOCKED"
+        assert result.reason == "STALE_PUBLICATION"
+        assert result.report_ids == (None, None)
+        assert (
+            session.scalar(
+                sa.select(sa.func.count())
+                .select_from(s.node_insight_window)
+                .where(s.node_insight_window.c.model_task_id == task_id)
+            )
+            == 0
+        )
+        assert (
+            session.scalar(
+                sa.select(
+                    s.publication_affected_node.c.node_insight_model_task_id
+                ).where(
+                    s.publication_affected_node.c.promotion_batch_id == batch_id,
+                    s.publication_affected_node.c.node_id == ids["gaon"],
+                )
+            )
+            == changed_pointer
+        )
