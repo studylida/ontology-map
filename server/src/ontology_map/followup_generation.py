@@ -23,7 +23,7 @@ from ontology_map.followup_generation_contracts import (
 )
 
 MODEL_VERSION = "qwen3.7-flash-2026-07-15"
-PROMPT_VERSION = "followup-questions-129-v1"
+PROMPT_VERSION = "followup-questions-129-v2"
 
 SYSTEM_PROMPT = """당신은 현재 Node를 더 이해하기 위한 FOLLOWUP_QUESTIONS를 만든다.
 입력 JSON은 이미 일반 코드가 공개 가능성과 직접 관련 범위를 검증한 데이터다.
@@ -37,9 +37,11 @@ SYSTEM_PROMPT = """당신은 현재 Node를 더 이해하기 위한 FOLLOWUP_QUE
 
 각 질문은 question_text, 짧은 한국어 answer_text, 필요한 경우에만 caveat_text,
 사용한 기존 claim_id와 KEY_CLAIM/SUPPORTING_CLAIM/CONTRASTING_CLAIM 역할,
-display_order를 반환한다. 모든 질문에는 KEY_CLAIM이 하나 이상 있어야 하고 선택
-기간 안(IN_WINDOW) Claim을 하나 이상 사용해야 한다. BACKGROUND/UNKNOWN 근거는
-필요한 배경 설명에만 보조적으로 사용한다.
+display_order를 반환한다. 모든 KEY_CLAIM은 선택 기간 안(IN_WINDOW) Claim이어야
+하며 질문마다 IN_WINDOW KEY_CLAIM이 하나 이상 있어야 한다. BACKGROUND/UNKNOWN
+Claim은 KEY_CLAIM으로 쓰지 말고 필요한 경우 SUPPORTING_CLAIM 또는 의미상 적절한
+CONTRASTING_CLAIM으로만 보조한다. 질문의 핵심 답은 IN_WINDOW KEY_CLAIM이
+담당해야 한다.
 
 질문은 직접 사실 질문 또는 제공된 여러 Claim을 짧게 종합해 답할 수 있는 질문만
 만든다. Node 이동 안내, 현재 자료로 답할 수 없는 질문, 근거 없는 인과·우열·미래
@@ -48,8 +50,9 @@ display_order를 반환한다. 모든 질문에는 KEY_CLAIM이 하나 이상 �
 내용을 구분한다.
 
 conflict_pairs의 Claim을 질문 소재로 사용하면 그 pair의 두 Claim을 모두 포함하고
-둘 모두 KEY_CLAIM으로 둔다. 어느 쪽도 truth winner로 선택하지 않는다. 입력에는
-CONFLICT_SUMMARY가 없으며 이를 추정하거나 재구성하지 않는다.
+둘 모두 IN_WINDOW KEY_CLAIM으로 둔다. pair 한쪽이라도 BACKGROUND/UNKNOWN이면
+그 conflict를 소재로 질문을 만들지 않는다. 어느 쪽도 truth winner로 선택하지
+않는다. 입력에는 CONFLICT_SUMMARY가 없으며 이를 추정하거나 재구성하지 않는다.
 
 출력 텍스트는 한국어 plain text다. Markdown heading/list/table, URL, [1] 같은 inline
 citation을 쓰지 않는다. 실제 출처 표시는 저장된 Claim/Evidence Trace가 담당한다.
@@ -122,7 +125,6 @@ def _claim_reference_reason(
     candidate: FollowupQuestionCandidate,
     *,
     allowed_claims: Mapping[int, PeriodRole],
-    in_window_claims: frozenset[int],
 ) -> str | None:
     refs = candidate.claims
     if not refs:
@@ -135,27 +137,39 @@ def _claim_reference_reason(
         return "question Claim display_order values must be unique"
     if any(claim_id not in allowed_claims for claim_id in claim_ids):
         return "question references a Claim outside the prepared input"
-    if not any(item.role == "KEY_CLAIM" for item in refs):
-        return "question requires at least one KEY_CLAIM"
-    if not (set(claim_ids) & in_window_claims):
-        return "question requires at least one in-window Claim"
+    if any(
+        item.role == "KEY_CLAIM" and allowed_claims[item.claim_id] != "IN_WINDOW"
+        for item in refs
+    ):
+        return "KEY_CLAIM must be an in-window Claim"
+    if not any(
+        item.role == "KEY_CLAIM" and allowed_claims[item.claim_id] == "IN_WINDOW"
+        for item in refs
+    ):
+        return "question requires at least one in-window KEY_CLAIM"
     return None
 
 
 def _conflict_reference_reason(
     candidate: FollowupQuestionCandidate,
+    *,
     conflict_pairs: tuple[tuple[int, int], ...],
+    allowed_claims: Mapping[int, PeriodRole],
 ) -> str | None:
     roles = {item.claim_id: item.role for item in candidate.claims}
     selected = set(roles)
     for left, right in conflict_pairs:
         pair = {left, right}
-        if selected & pair and (
+        if not selected & pair:
+            continue
+        if (
             not pair <= selected
             or roles.get(left) != "KEY_CLAIM"
             or roles.get(right) != "KEY_CLAIM"
+            or allowed_claims.get(left) != "IN_WINDOW"
+            or allowed_claims.get(right) != "IN_WINDOW"
         ):
-            return "conflict use requires both member Claims as KEY_CLAIM"
+            return "conflict use requires both in-window member Claims as KEY_CLAIM"
     return None
 
 
@@ -163,7 +177,6 @@ def _candidate_reason(
     candidate: FollowupQuestionCandidate,
     *,
     allowed_claims: Mapping[int, PeriodRole],
-    in_window_claims: frozenset[int],
     conflict_pairs: tuple[tuple[int, int], ...],
     seen_orders: set[int],
     seen_questions: set[str],
@@ -177,9 +190,12 @@ def _candidate_reason(
         or _claim_reference_reason(
             candidate,
             allowed_claims=allowed_claims,
-            in_window_claims=in_window_claims,
         )
-        or _conflict_reference_reason(candidate, conflict_pairs)
+        or _conflict_reference_reason(
+            candidate,
+            conflict_pairs=conflict_pairs,
+            allowed_claims=allowed_claims,
+        )
     )
 
 
@@ -196,9 +212,6 @@ def validate_proposal(
     allowed_claims = {
         item.claim_id: item.period_role for item in prepared.agent_input.claims
     }
-    in_window_claims = frozenset(
-        claim_id for claim_id, role in allowed_claims.items() if role == "IN_WINDOW"
-    )
     conflict_pairs = tuple(
         (min(pair.claim_ids), max(pair.claim_ids))
         for pair in prepared.agent_input.conflict_pairs
@@ -212,7 +225,6 @@ def validate_proposal(
         reason = _candidate_reason(
             candidate,
             allowed_claims=allowed_claims,
-            in_window_claims=in_window_claims,
             conflict_pairs=conflict_pairs,
             seen_orders=seen_orders,
             seen_questions=seen_questions,
