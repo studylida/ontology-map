@@ -167,7 +167,14 @@ def test_background_and_unknown_may_support_in_window_key_claim() -> None:
             ),
         )
     )
-    assert len(service.validate_proposal(background_snapshot, background_support).candidates) == 1
+    assert (
+        len(
+            service.validate_proposal(
+                background_snapshot, background_support
+            ).candidates
+        )
+        == 1
+    )
 
     unknown_snapshot = prepared(claim(1, role="IN_WINDOW"), claim(2, role="UNKNOWN"))
     unknown_contrast = FollowupQuestionsProposal(
@@ -179,7 +186,10 @@ def test_background_and_unknown_may_support_in_window_key_claim() -> None:
             ),
         )
     )
-    assert len(service.validate_proposal(unknown_snapshot, unknown_contrast).candidates) == 1
+    assert (
+        len(service.validate_proposal(unknown_snapshot, unknown_contrast).candidates)
+        == 1
+    )
 
 
 def test_period_role_failure_keeps_other_question_partial_success() -> None:
