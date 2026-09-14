@@ -38,6 +38,8 @@ jobs:
           subprocess.run(['git', 'apply', '--check', str(path)], check=True)
           subprocess.run(['git', 'apply', str(path)], check=True)
           PY
+          python3 .github/ke127-correct-worker.py
+          python3 .github/ke127-worker-docs.py
           uv sync --project server --frozen
           uv run --project server --frozen python --version
       - name: Format only worker files
@@ -122,7 +124,7 @@ jobs:
           python3 - <<'PY'
           import json, os, pathlib, subprocess, urllib.request
           base='32b32738037579edb659c554b3a7c6f4ca04fd89'
-          allowed=['server/src/ontology_map/knowledge_extraction_contracts.py','server/src/ontology_map/knowledge_extraction.py','server/src/ontology_map/knowledge_reconciliation.py','server/src/ontology_map/db/extraction_input.py','server/src/ontology_map/db/extraction_promotion.py','server/src/ontology_map/extraction.py','server/src/ontology_map/model_studio.py','server/tests/test_knowledge_extraction_postgres.py']
+          allowed=['server/src/ontology_map/knowledge_extraction_contracts.py','server/src/ontology_map/knowledge_extraction.py','server/src/ontology_map/knowledge_reconciliation.py','server/src/ontology_map/db/extraction_input.py','server/src/ontology_map/db/extraction_promotion.py','server/src/ontology_map/extraction.py','server/src/ontology_map/model_studio.py','server/tests/test_knowledge_extraction_postgres.py','docs/architecture/README.md','docs/data/logical-schema.md','docs/development/implementation-stack.md','docs/operations/database.md']
           def post(endpoint,payload):
               req=urllib.request.Request('https://api.github.com/repos/studylida/ontology-map'+endpoint,data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'},method='POST')
               with urllib.request.urlopen(req) as response: return json.load(response)
