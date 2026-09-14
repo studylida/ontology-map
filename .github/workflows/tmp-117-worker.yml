@@ -1,0 +1,116 @@
+name: Temporary #117 worker
+
+on:
+  push:
+    branches:
+      - work/117-patch
+
+permissions:
+  contents: write
+
+jobs:
+  implement-and-check:
+    if: ${{ !startsWith(github.event.head_commit.message, 'feat: #117') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: search117-${{ github.run_id }}-${{ github.run_attempt }}
+      POSTGRES_DB: ontology_map_search117_test
+      POSTGRES_USER: search117_test
+      POSTGRES_PORT: 127.0.0.1:55433
+      ONTOLOGY_MAP_ENVIRONMENT: development
+      PYTHONPATH: ${{ github.workspace }}/server/src
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          version: 0.12.7
+          enable-cache: true
+
+      - name: Apply #117 patch
+        run: python scripts/tmp_117_worker.py
+
+      - name: Format changed code
+        run: |
+          uv sync --project server --frozen
+          uv run --project server --frozen ruff format \
+            server/src/ontology_map/db/search.py \
+            server/src/ontology_map/search.py \
+            server/src/ontology_map/api.py \
+            server/tests/test_search.py
+          cd web
+          npm ci
+          npm run format
+
+      - name: Prepare isolated database credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          url="postgresql+psycopg://${POSTGRES_USER}:${password}@127.0.0.1:55433/${POSTGRES_DB}"
+          echo "::add-mask::$url"
+          {
+            echo "POSTGRES_PASSWORD=$password"
+            echo "ONTOLOGY_MAP_DATABASE_URL=$url"
+          } >> "$GITHUB_ENV"
+
+      - name: Start PostgreSQL and migrate
+        run: |
+          docker compose up --wait --wait-timeout 120 db
+          cd server
+          uv run --frozen alembic upgrade head
+          uv run --frozen alembic current
+
+      - name: Focused backend search tests
+        run: uv run --project server --frozen pytest -q server/tests/test_search.py
+
+      - name: Static backend checks
+        run: |
+          uv run --project server --frozen ruff format --check server
+          uv run --project server --frozen ruff check server
+          uv run --project server --frozen mypy --config-file server/pyproject.toml server/src/ontology_map
+
+      - name: Web full check
+        working-directory: web
+        run: npm run check
+
+      - name: Docs and contract checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run --project server --frozen python scripts/check_docs.py --check
+          git diff --check
+          ! grep -R "match_reasons\|SearchMatchReason" server/src/ontology_map web/src --include='*.py' --include='*.ts' --include='*.tsx'
+          ! grep -q "node_context" server/src/ontology_map/db/search.py
+          test -z "$(git diff --name-only | grep -E 'entity_resolution|entity-resolution' || true)"
+
+      - name: Commit product changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Hye"
+          git config user.email "100192485+studylida@users.noreply.github.com"
+          git add \
+            HANDOFF.md \
+            docs/product/design.md \
+            docs/data/logical-schema.md \
+            docs/data/physical-schema.md \
+            docs/development/implementation-stack.md \
+            server/src/ontology_map/db/search.py \
+            server/src/ontology_map/search.py \
+            server/src/ontology_map/api.py \
+            server/tests/test_search.py \
+            web/src/data.ts \
+            web/src/NodeSearch.tsx \
+            web/src/App.test.tsx
+          git diff --cached --check
+          git commit -m "feat: #117 검색 bucket과 응답 계약 단순화"
+          git push origin HEAD:work/117-patch
+
+      - name: Cleanup isolated database
+        if: always()
+        run: docker compose down --volumes
