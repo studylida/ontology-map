@@ -1,0 +1,71 @@
+name: KE127 preparation
+on:
+  pull_request:
+    paths: [".github/workflows/ke127-preparation.yml"]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    if: github.event.pull_request.number == 192 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/127-role-harness'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare exact main integration without updating any ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re, subprocess, urllib.request
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True)
+          main = '44bdc4bde22c1eca24f9106e4aa4490fdcb75744'
+          base = 'b4064cee3105dc52b06c30fa3cabaec2b870f575'
+          old = '687cee17bbd417a5d413d033ec2f76af26e57d42'
+          head = git('rev-parse', 'HEAD').strip()
+          assert git('rev-parse', 'HEAD^').strip() == old
+          git('config', 'user.name', 'Hye')
+          git('config', 'user.email', '100192485+studylida@users.noreply.github.com')
+          subprocess.run(['git', 'merge', '--no-commit', '--no-ff', main], check=False)
+          conflicts = git('diff', '--name-only', '--diff-filter=U').splitlines()
+          print('CONFLICTS', conflicts)
+          # Main removes exactly the pgvector package and its declarations.
+          def remove_vector(text):
+              text = re.sub(r'(?ms)^\[\[package\]\]\nname = "pgvector"\n.*?(?=^\[\[package\]\]|\Z)', '', text)
+              text = ''.join(line for line in text.splitlines(keepends=True) if not re.match(r'\s*\{ name = "pgvector"[, }]', line) and '"pgvector==' not in line)
+              return text
+          for path in conflicts:
+              if path in ('server/pyproject.toml', 'server/uv.lock'):
+                  original = git('show', base + ':' + path)
+                  latest = git('show', main + ':' + path)
+                  assert remove_vector(original) == latest, path + ' main has additional changes'
+                  pathlib.Path(path).write_text(remove_vector(git('show', old + ':' + path)))
+                  git('add', path)
+              else:
+                  print(git('diff', '--', path))
+                  raise SystemExit('Unresolved non-dependency conflict: ' + path)
+          assert not git('diff', '--name-only', '--diff-filter=U').strip()
+          git('diff', '--cached', '--check')
+          for path in ('server/src/ontology_map/db/schema.py', 'server/migrations', 'compose.yaml', 'server/src/ontology_map/entity_resolution.py', 'server/src/ontology_map/entity_resolution_contracts.py', 'server/src/ontology_map/db/entity_resolution.py'):
+              assert not git('diff', '--cached', main, '--', path).strip(), path
+          print(git('diff', '--cached', '--stat'))
+          print(git('diff', '--cached', '--', 'server/pyproject.toml', 'server/uv.lock', 'docs/development/implementation-stack.md', 'docs/operations/database.md'))
+          repo = 'studylida/ontology-map'
+          def post(endpoint, payload):
+              req = urllib.request.Request('https://api.github.com/repos/' + repo + endpoint, data=json.dumps(payload).encode(), headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json'}, method='POST')
+              with urllib.request.urlopen(req) as res:
+                  return json.load(res)
+          entries = []
+          for path in git('diff', '--cached', '--name-only', head).splitlines():
+              data = pathlib.Path(path).read_text()
+              sha = post('/git/blobs', {'content': data, 'encoding': 'utf-8'})['sha']
+              entries.append({'path': path, 'mode': '100644', 'type': 'blob', 'sha': sha})
+          tree = post('/git/trees', {'base_tree': git('rev-parse', 'HEAD^{tree}').strip(), 'tree': entries})['sha']
+          print('PREPARED_TREE', tree)
+          print('PARENTS', head, main)
+          print('ENTRIES', json.dumps(entries))
+          PY
