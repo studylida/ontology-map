@@ -23,7 +23,6 @@ from ontology_map.db.schema import (
     node_alias,
     node_alias_evidence,
     node_context,
-    node_embedding,
     node_insight,
     node_insight_claim,
     node_search_document,
@@ -44,9 +43,6 @@ from ontology_map.settings import get_settings
 
 FIXTURE_MARKER = "hbf-fixture:sk-hbf"
 AS_OF_AT = datetime(2026, 8, 31, 0, 0, tzinfo=UTC)
-EMBEDDING_MODEL_VERSION = (
-    "alibaba-model-studio:ap-southeast-1:qwen3.7-text-embedding:dense:1024:document-v1"
-)
 
 NODE_DEFINITIONS = (
     ("sk_hynix", "SK하이닉스", "COMPANY", "sk_hbf"),
@@ -577,9 +573,7 @@ def _seed_node_artifacts(
         relation_ids,
         claim_ids,
     )
-    for vector_slot, (node_key, node_name, _type_code, _evidence_key) in enumerate(
-        NODE_DEFINITIONS
-    ):
+    for node_key, node_name, _type_code, _evidence_key in NODE_DEFINITIONS:
         neighbors = neighbor_keys[node_key]
         neighbor_names = [node_names[key] for key in neighbors]
         identity_text = node_name
@@ -616,30 +610,6 @@ def _seed_node_artifacts(
                 }
                 for basis_id in basis_ids
             ],
-        )
-
-        embedding_input_hash = _digest(f"{identity_text}\n\n{knowledge_text}")
-        embedding_task_id = _insert_successful_task(
-            connection,
-            "EMBEDDING",
-            embedding_input_hash,
-            None,
-            EMBEDDING_MODEL_VERSION,
-            None,
-        )
-        vector = [0.0] * 1024
-        vector[vector_slot] = 1.0
-        embedding_id = int(
-            connection.execute(
-                node_embedding.insert()
-                .values(
-                    node_id=node_ids[node_key],
-                    node_search_document_id=search_document_id,
-                    model_task_id=embedding_task_id,
-                    embedding_vector=vector,
-                )
-                .returning(node_embedding.c.node_embedding_id)
-            ).scalar_one()
         )
 
         context_task_id = _insert_successful_task(
@@ -744,7 +714,6 @@ def _seed_node_artifacts(
                 promotion_batch_id=batch_id,
                 node_id=node_ids[node_key],
                 node_search_document_id=search_document_id,
-                node_embedding_id=embedding_id,
                 node_context_id=context_id,
                 node_insight_model_task_id=insight_task_id,
             )

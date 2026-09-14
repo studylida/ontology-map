@@ -64,28 +64,19 @@ def test_frozen_schema_inventory_and_named_objects() -> None:
     application_tables = set(inspector.get_table_names()) - {"alembic_version"}
 
     assert application_tables == set(metadata.tables)
-    assert len(application_tables) == 49
+    assert len(application_tables) == 48
     assert application_tables.isdisjoint(DEFERRED_TABLES)
     _assert_named_schema_objects(inspector)
 
 
-def test_postgresql_vector_and_fts_contract() -> None:
+def test_postgresql_and_fts_contract() -> None:
     with get_engine().connect() as connection:
         server_version = connection.scalar(sa.text("SHOW server_version"))
-        vector_version = connection.scalar(
-            sa.text("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
+        vector_extension_count = connection.scalar(
+            sa.text("SELECT count(*) FROM pg_extension WHERE extname = 'vector'")
         )
-        vector_type = connection.scalar(
-            sa.text(
-                """
-                SELECT format_type(attribute.atttypid, attribute.atttypmod)
-                FROM pg_attribute AS attribute
-                JOIN pg_class AS relation_class
-                  ON relation_class.oid = attribute.attrelid
-                WHERE relation_class.relname = 'node_embedding'
-                  AND attribute.attname = 'embedding_vector'
-                """
-            )
+        node_embedding_table = connection.scalar(
+            sa.text("SELECT to_regclass('public.node_embedding')")
         )
         fts_index = connection.scalar(
             sa.text(
@@ -100,8 +91,8 @@ def test_postgresql_vector_and_fts_contract() -> None:
         )
 
     assert str(server_version).startswith("18.6")
-    assert vector_version == "0.8.6"
-    assert vector_type == "vector(1024)"
+    assert vector_extension_count == 0
+    assert node_embedding_table is None
     assert fts_index is not None
     assert "USING gin" in fts_index
     assert "to_tsvector('simple'::regconfig, identity_text)" in fts_index
