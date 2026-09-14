@@ -4,7 +4,7 @@
 
 이 문서는 [SQLAlchemy metadata](../../server/src/ontology_map/db/schema.py)의 실제 table, column, constraint와 index를 이름순으로 보여 주는 생성 결과다. 데이터 의미와 수명주기는 [논리 스키마](logical-schema.md), PostgreSQL 공통 표현 규칙은 [물리 스키마](physical-schema.md)가 소유한다.
 
-- table 수: 48
+- table 수: 49
 - 생성 명령: `uv run --project server --frozen python scripts/check_docs.py --write`
 - 검사 명령: `uv run --project server --frozen python scripts/check_docs.py --check`
 
@@ -13,6 +13,7 @@
 - [`agent_attempt`](#agent_attempt)
 - [`attribute`](#attribute)
 - [`attribute_revision`](#attribute_revision)
+- [`attribute_revision_allowed_unit`](#attribute_revision_allowed_unit)
 - [`blocked_fingerprint`](#blocked_fingerprint)
 - [`claim`](#claim)
 - [`claim_attribute_value`](#claim_attribute_value)
@@ -119,7 +120,7 @@
 
 ## `attribute_revision`
 
-속성의 대상 유형·값 종류·canonical 단위를 보존하는 불변 규칙 버전.
+속성의 대상 유형·값 종류와 활성 수명주기를 보존하는 불변 규칙 버전. NUMBER 허용 단위는 attribute_revision_allowed_unit이 소유한다.
 
 ### Columns
 
@@ -131,7 +132,6 @@
 | `display_name` | `TEXT` | 아니요 | — | — | — |
 | `target_node_type_id` | `BIGINT` | 아니요 | — | — | — |
 | `allowed_value_kind` | `TEXT` | 아니요 | — | — | — |
-| `unit_rule` | `TEXT` | 예 | — | — | NUMBER revision이 허용하는 canonical 단위 code 하나. 자동 단위 환산 규칙이나 표시 문자열 목록이 아니다. |
 | `is_active` | `BOOLEAN` | 아니요 | `false` | — | — |
 
 ### Constraints
@@ -139,7 +139,6 @@
 | 종류 | 이름 | 정의 |
 | --- | --- | --- |
 | CHECK | `ck_attribute_revision__display_name_nonblank` | `CHECK (btrim(display_name) <> '')` |
-| CHECK | `ck_attribute_revision__unit_rule` | `CHECK ((allowed_value_kind = 'NUMBER' AND unit_rule IS NOT NULL AND btrim(unit_rule) <> '') OR (allowed_value_kind <> 'NUMBER' AND unit_rule IS NULL))` |
 | CHECK | `ck_attribute_revision__value_kind` | `CHECK (allowed_value_kind IN ('STRING', 'NUMBER', 'DATE', 'PERIOD', 'BOOLEAN'))` |
 | CHECK | `ck_attribute_revision__version_positive` | `CHECK (version_no >= 1)` |
 | FOREIGN KEY | `fk_attribute_revision__attribute` | `FOREIGN KEY (attribute_id) REFERENCES attribute (attribute_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
@@ -154,6 +153,33 @@
 | --- | --- | --- | --- |
 | `ix_attribute_revision__target_type` | 아니요 | `target_node_type_id, attribute_revision_id` | — |
 | `uq_attribute_revision__active` | 예 | `attribute_id` | `attribute_revision.is_active` |
+
+## `attribute_revision_allowed_unit`
+
+NUMBER attribute revision이 허용하는 원문 단위 code 집합. 단위 환산·정규화·비교 규칙을 뜻하지 않는다.
+
+### Columns
+
+| 이름 | PostgreSQL type | nullable | default | identity | 설명 |
+| --- | --- | --- | --- | --- | --- |
+| `attribute_revision_id` | `BIGINT` | 아니요 | — | — | — |
+| `allowed_value_kind` | `TEXT` | 아니요 | — | — | — |
+| `unit_code` | `TEXT` | 아니요 | — | — | — |
+
+### Constraints
+
+| 종류 | 이름 | 정의 |
+| --- | --- | --- |
+| CHECK | `ck_attribute_revision_allowed_unit__number_kind` | `CHECK (allowed_value_kind = 'NUMBER')` |
+| CHECK | `ck_attribute_revision_allowed_unit__unit_nonblank` | `CHECK (btrim(unit_code) <> '')` |
+| FOREIGN KEY | `fk_attribute_revision_allowed_unit__attribute_kind` | `FOREIGN KEY (attribute_revision_id, allowed_value_kind) REFERENCES attribute_revision (attribute_revision_id, allowed_value_kind) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| PRIMARY KEY | `pk_attribute_revision_allowed_unit` | `PRIMARY KEY (attribute_revision_id, unit_code)` |
+
+### Indexes
+
+| 이름 | unique | column 또는 expression | 조건 |
+| --- | --- | --- | --- |
+| — | — | — | — |
 
 ## `blocked_fingerprint`
 
@@ -263,6 +289,7 @@ Claim이 node 속성에 관해 주장한 구조화 값. target node의 현재 �
 | CHECK | `ck_claim_attribute_value__to_precision` | `CHECK (date_to_precision IN ('DAY', 'MONTH', 'YEAR', 'UNKNOWN'))` |
 | CHECK | `ck_claim_attribute_value__unit_nonblank` | `CHECK (unit_code IS NULL OR btrim(unit_code) <> '')` |
 | CHECK | `ck_claim_attribute_value__value_kind` | `CHECK (value_kind IN ('STRING', 'NUMBER', 'DATE', 'PERIOD', 'BOOLEAN'))` |
+| FOREIGN KEY | `fk_claim_attribute_value__allowed_unit` | `FOREIGN KEY (attribute_revision_id, unit_code) REFERENCES attribute_revision_allowed_unit (attribute_revision_id, unit_code) ON DELETE RESTRICT ON UPDATE RESTRICT` |
 | FOREIGN KEY | `fk_claim_attribute_value__attribute_kind` | `FOREIGN KEY (attribute_revision_id, value_kind) REFERENCES attribute_revision (attribute_revision_id, allowed_value_kind) ON DELETE RESTRICT ON UPDATE RESTRICT` |
 | FOREIGN KEY | `fk_claim_attribute_value__claim` | `FOREIGN KEY (claim_id) REFERENCES claim (claim_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
 | FOREIGN KEY | `fk_claim_attribute_value__target_node` | `FOREIGN KEY (target_node_id) REFERENCES node (node_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
