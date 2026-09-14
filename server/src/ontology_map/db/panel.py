@@ -172,9 +172,11 @@ def question_set(
         WHERE qs.node_context_id = :context_id AND qs.time_window = :window
           AND mt.task_kind = 'FOLLOWUP_QUESTIONS' AND mt.status = 'SUCCESS'
           AND (SELECT count(*) FROM node_question_set sibling
+               JOIN model_task sibling_task USING (model_task_id)
                WHERE sibling.node_context_id = qs.node_context_id
-                 AND sibling.model_task_id = qs.model_task_id
-                 AND sibling.as_of_at = qs.as_of_at) = 2
+                 AND sibling.as_of_at = qs.as_of_at
+                 AND sibling_task.task_kind = 'FOLLOWUP_QUESTIONS'
+                 AND sibling_task.status = 'SUCCESS') = 2
     """),
             {"context_id": context_id, "window": window},
         )
