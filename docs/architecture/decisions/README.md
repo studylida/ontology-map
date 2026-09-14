@@ -12,6 +12,7 @@ ADR은 여러 경계에 영향을 주거나 되돌리기 어려운 결정을 구
 | [ADR-0004](current/0004-use-active-ontology-revisions.md) | accepted | 2026-09-01 | 전역 manifest 없이 ontology revision과 활성 상태 사용 |
 | [ADR-0005](current/0005-persist-model-task-contracts-not-provider-payloads.md) | accepted | 2026-08-31 | 모델 작업·Structured Output 계약 저장과 provider 응답 미저장 |
 | [ADR-0006](current/0006-separate-promotion-and-publication.md) | accepted | 2026-08-31 | promotion과 publication 수명주기 분리 |
+| [ADR-0008](current/0008-remove-node-embedding-pgvector.md) | accepted | 2026-09-03 | POC 검색에서 node embedding·pgvector 제거 |
 
 ## 대체된 결정
 

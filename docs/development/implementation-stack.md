@@ -31,9 +31,8 @@
 | Python 런타임 | Python | 3.14.7 |
 | Python 프로젝트·패키지 관리자 | uv | 0.12.7 |
 | 데이터베이스 | PostgreSQL | 18.6 |
-| PostgreSQL vector 확장 | pgvector | 0.8.6 |
 
-`compose.yaml`은 digest로 고정한 `pgvector/pgvector:0.8.6-pg18` DB와 FastAPI `api` service만 제공한다. web은 현재 호스트의 Vite 개발 서버로 실행한다.
+`compose.yaml`은 digest로 고정한 공식 `postgres:18.6` DB와 FastAPI `api` service만 제공한다. web은 현재 호스트의 Vite 개발 서버로 실행한다.
 
 ## 프론트엔드
 
@@ -67,7 +66,6 @@ Relation·Evidence Trace, peripheral과 저장 인사이트 목록·상세는 se
 | PostgreSQL driver | psycopg | 3.3.4 |
 | 입력·출력 검증 | Pydantic | 2.13.5 |
 | 설정 | pydantic-settings | 2.15.0 |
-| Python vector type | pgvector | 0.5.0 |
 | test | pytest | 9.1.1 |
 | format·lint | Ruff | 0.16.5 |
 | typecheck | mypy | 2.3.1 |
@@ -209,8 +207,8 @@ Compose는 `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`와 `POSTGRES_PORT
 
 | 영역 | 현재 구현 | 승인된 변경·후속 경계 |
 | --- | --- | --- |
-| 검색 | alias 정확 일치 뒤 `identity_text`·`knowledge_text`를 합친 `simple` FTS, 응답에 `match_reasons` 포함 | [#117](https://github.com/studylida/ontology-map/issues/117): alias → identity FTS → knowledge FTS, 이유 필드 제거. #121 뒤 구현 |
-| embedding·pgvector | schema·migration·의존성과 합성 fixture에 남아 있으나 검색 실행 경로와 실제 모델 호출은 없음 | [#121](https://github.com/studylida/ontology-map/issues/121): 초기 baseline 교체와 개발 DB 재생성으로 제거. Qwen vector·RRF 도입안은 대체됐고 #81은 종료 |
+| 검색 | exact alias → `identity_text` FTS → `knowledge_text` FTS. exact alias는 `node_id ASC`, FTS는 `ts_rank_cd DESC, node_id ASC`; canonical Node 전역 중복 제거. 응답은 ID·이름·유형만 제공 | [#80](https://github.com/studylida/ontology-map/issues/80)은 실제 한국어 단어 FTS 누락이 재현될 때만 검토 |
+| 검색 기반 | PostgreSQL native FTS만 사용하며 node embedding·pgvector 저장/실행 의존성은 없음 | [#121](https://github.com/studylida/ontology-map/issues/121)에서 초기 baseline 교체와 개발 DB 재생성 기준으로 제거 완료 |
 | 한국어 검색 확장 | 외부 엔진·별도 tokenizer 없음 | [#80](https://github.com/studylida/ontology-map/issues/80): 실제 단어 FTS 누락이 재현될 때만 검토 |
 | 공개 읽기 | exploration·검색·Relation·Evidence·peripheral·질문 답변·Claim·종합보고서 연동. #120의 selected search-document basis 재검증도 main에 반영됨 | [#180](https://github.com/studylida/ontology-map/issues/180): 무효화된 READY 파생 결과의 자동 재생성·publication 복구는 후속 작업 |
 | 입력 자료 | HBF와 별도 100-node 합성 개발 fixture | [#111](https://github.com/studylida/ontology-map/issues/111)은 작은 자료의 Agent 입력 경계, #112는 GDELT 적합성, #131은 외부 자료 수집. 운영 수집 platform이나 publication 전체의 구현 Issue가 아님 |

@@ -26,7 +26,7 @@ Logical Schema v1.2는 다음 원칙을 고정한다.
 
 ## 2. 전체 흐름
 
-아래는 frozen schema의 논리 흐름이며 수집·모델 호출·승격·publication worker가 실행된다는 뜻은 아니다. 현재 실행 범위와 승인된 변경은 [구현 스택](../development/implementation-stack.md)이 구별한다. embedding 저장과 READY 의존성은 현재 schema에 남아 있지만 [#121](https://github.com/studylida/ontology-map/issues/121)에서 제거하기로 승인했다. 해당 구현 전에는 엔터티와 제약을 제거 완료로 표시하지 않는다.
+아래는 frozen schema의 논리 흐름이며 수집·모델 호출·승격·publication worker가 실행된다는 뜻은 아니다. 현재 실행 범위와 승인된 변경은 [구현 스택](../development/implementation-stack.md)이 구별한다. [#121](https://github.com/studylida/ontology-map/issues/121)에 따라 node embedding과 pgvector 의존성은 frozen baseline에서 제거했으며 검색은 PostgreSQL native FTS를 사용한다.
 
 ```text
 자료 준비 레이어의 정규화 문서
@@ -35,7 +35,7 @@ Logical Schema v1.2는 다음 원칙을 고정한다.
 → 버전이 고정된 Structured Output 계약으로 모델 작업 실행
 → 메모리에서 계약·원문 위치·온톨로지·동일 대상·중복·lint 검사
 → 통과한 결과만 짧은 트랜잭션으로 기준 지식그래프에 승격
-→ 검색 문서·임베딩·한국어 맥락·후속 질문·인사이트 생성
+→ 검색 문서·한국어 맥락·후속 질문·인사이트 생성
 → 영향받은 노드의 공개 준비를 원자적으로 READY 전환
 → 검색·클릭·시간 범위 변경 시 동적 부분 그래프 조회
 ```
@@ -127,13 +127,11 @@ erDiagram
     NODE ||--o{ NODE_SEARCH_DOCUMENT : derives
     NODE_SEARCH_DOCUMENT ||--o{ SEARCH_DOCUMENT_BASIS : explains
     KNOWLEDGE_ITEM ||--o{ SEARCH_DOCUMENT_BASIS : contributes
-    NODE_SEARCH_DOCUMENT ||--o{ NODE_EMBEDDING : input_to
     NODE_SEARCH_DOCUMENT ||--o{ NODE_CONTEXT : input_to
     NODE_CONTEXT ||--|{ FOLLOWUP_QUESTION : contains
     NODE_SEARCH_DOCUMENT ||--o{ NODE_INSIGHT : input_scope
     NODE_INSIGHT ||--|{ NODE_INSIGHT_CLAIM : grounded_by
     CLAIM ||--o{ NODE_INSIGHT_CLAIM : supports
-    MODEL_TASK ||--o{ NODE_EMBEDDING : creates
     MODEL_TASK ||--o{ NODE_CONTEXT : creates
     MODEL_TASK ||--o{ FOLLOWUP_QUESTION : creates
     MODEL_TASK ||--o{ NODE_INSIGHT : creates
@@ -237,7 +235,7 @@ erDiagram
 | `model_task_id`, `task_kind` | 작업 ID와 종류 |
 | `source_document_id` | 단일 문서 작업의 선택적 입력 |
 | `input_hash` | 실제 전체 입력의 결정적 해시 |
-| `output_schema_definition_id` | 정확한 출력 계약. `EMBEDDING`만 비움 |
+| `output_schema_definition_id` | 정확한 출력 계약 |
 | `model_version`, `prompt_version` | 실행 계보 |
 | `cache_key` | 작업 종류·입력·계약·모델·프롬프트의 결정적 키 |
 | `status` | `PENDING`, `RUNNING`, `SUCCESS`, `RETRY_WAIT`, `VALIDATION_BLOCKED`, `FINAL_FAILED` |
@@ -245,7 +243,7 @@ erDiagram
 | `lease_owner`, `lease_expires_at` | 동시 실행 방지 lease |
 | `created_at`, `finished_at` | 생성·종료 시각 |
 
-허용 작업은 `KNOWLEDGE_EXTRACTION`, `ENTITY_RESOLUTION_PROPOSAL`, `EVIDENCE_LINEAGE_PROPOSAL`, `CONFLICT_SUMMARY`, `NODE_CONTEXT`, `FOLLOWUP_QUESTIONS`, `NODE_INSIGHT`와 schema가 없는 `EMBEDDING`이다.
+허용 작업은 `KNOWLEDGE_EXTRACTION`, `ENTITY_RESOLUTION_PROPOSAL`, `EVIDENCE_LINEAGE_PROPOSAL`, `CONFLICT_SUMMARY`, `NODE_CONTEXT`, `FOLLOWUP_QUESTIONS`, `NODE_INSIGHT`다. 모든 허용 작업은 정확한 output schema와 prompt version을 가진다.
 
 이 목록은 현재 저장 계약이며 각 작업의 worker·모델 구현 여부는 별개다. 시험용 Selection·Composer·보존 대응·충실도 검증을 각각 새 task kind로 추가한 것은 아니다. 실제 모델·prompt 계보와 기존 작업 종류의 매핑은 제품 adapter 구현 전에 검토한다.
 
@@ -363,14 +361,13 @@ Claim이 노드의 구조화 속성을 주장하는 tagged union이다. 공통 �
 
 ### 5.10 검색과 공개 파생 결과
 
-- `publication_affected_node`: `(promotion_batch_id, node_id)`와 선택된 `node_search_document_id`, `node_embedding_id`, `node_context_id`, `node_insight_model_task_id`
+- `publication_affected_node`: `(promotion_batch_id, node_id)`와 선택된 `node_search_document_id`, `node_context_id`, `node_insight_model_task_id`
 - `node_search_document`: `node_id`, `identity_text`, `knowledge_text`, `input_hash`, `generator_version`, `created_at`
 - `search_document_basis`: 검색 문서가 사용한 공개 `knowledge_item`
-- `node_embedding`: 정확한 검색 문서와 성공한 embedding 작업에서 만든 불변 벡터
 - `node_context`: 검색 문서에서 만든 한국어 설명
 - `followup_question`: 전환 호환용 이동 질문. 기존 context의 slot 1·2와 `target_node_id`를 보존하며 새 화면의 질문 계약에는 사용하지 않는다.
 
-새 공개 계약은 모든 영향 node의 필수 결과와 같은 context의 두 기간별 질문 묶음, 성공한 `NODE_INSIGHT` 작업의 두 기간별 준비 결과가 완결되고 공개 조건을 통과해야 READY로 전환한다. 성공한 0개 질문·0개 보고서는 정상이며 묶음 부재·실패와 구분한다. 기존 READY를 새 형식으로 자동 변환하거나 재검증 실패 때문에 기준 지식을 되돌리지 않는다. 생성·publication worker는 아직 보류이므로 읽기에서 준비·근거 검사를 수행한다.
+새 공개 계약은 모든 영향 node의 검색 문서·context와 같은 context의 두 기간별 질문 묶음, 성공한 `NODE_INSIGHT` 작업의 두 기간별 준비 결과가 완결되고 공개 조건을 통과해야 READY로 전환한다. 성공한 0개 질문·0개 보고서는 정상이며 묶음 부재·실패와 구분한다. 기존 READY를 새 형식으로 자동 변환하거나 재검증 실패 때문에 기준 지식을 되돌리지 않는다. 생성·publication worker는 아직 보류이므로 읽기에서 준비·근거 검사를 수행한다.
 
 ### 5.11 node 인사이트
 
@@ -502,7 +499,7 @@ publication_status: NOT_STARTED → PREPARING → READY
 - 일반 사용자 검색·상세 패널·Evidence Trace는 현재 공개 가능한 READY 범위만 조회하며 내부 이력은 삭제하지 않고 보존함
 - 좌표·카메라·viewport·지도 snapshot은 저장하지 않음
 
-현재 HTTP 검색은 alias 정확 일치 뒤 `identity_text`·`knowledge_text`를 합친 `simple` FTS 결과를 반환한다. embedding 모델 호출·vector branch·RRF는 실행되지 않는다. 과거 vector·RRF 도입안은 [#121](https://github.com/studylida/ontology-map/issues/121)의 embedding 제거안과 [#117](https://github.com/studylida/ontology-map/issues/117)의 alias → identity FTS → knowledge FTS 변경안으로 대체됐다. 현재 엔터티·READY의 embedding 참조는 #121 구현 전까지 유지하며 검색 응답의 정확한 현재 형태는 [제품 설계](../product/design.md)를 따른다.
+현재 HTTP 검색은 exact alias → `identity_text` 단어 FTS → `knowledge_text` 단어 FTS의 세 bucket을 순서대로 반환한다. exact alias는 `node_id ASC`, 각 FTS bucket은 `ts_rank_cd DESC, node_id ASC`이며 활성 merge를 해소한 같은 canonical Node는 전체 결과에서 한 번만 반환한다. 검색 응답은 Node ID, 이름과 유형만 제공한다. `node_context.context_text`는 검색 입력이 아니며 READY, selected `search_document_basis`와 열린 `BLOCKING` lint 공개 필터를 유지한다. [#121](https://github.com/studylida/ontology-map/issues/121)에 따라 query-time vector 검색과 node embedding 저장 경로는 제거됐다.
 
 ## 9. HBF 검증 흐름
 
@@ -513,7 +510,7 @@ evidence_group
 → 원자적 Claim
 → 사건 endpoint 관계 / 구조화 목표 날짜 / 사건 시간
 → promotion_batch COMMITTED
-→ 검색 문서·embedding·context·질문·인사이트
+→ 검색 문서·context·질문·인사이트
 → publication READY
 → SK하이닉스 또는 HBF 발표 사건 중심의 동적 지도
 ```

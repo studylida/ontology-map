@@ -1,18 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import styles from "./App.module.css";
-import {
-  APIRequestError,
-  fetchNodeSearch,
-  type SearchCandidate,
-  type SearchMatchReason,
-} from "./data";
+import { APIRequestError, fetchNodeSearch, type SearchCandidate } from "./data";
 
 type SearchStatus = "idle" | "loading" | "results" | "empty" | "error";
-
-const reasonCopy: Record<SearchMatchReason, string> = {
-  EXACT_ALIAS: "별칭 정확 일치",
-  FULL_TEXT: "공개 지식 일치",
-};
 
 function SearchOption({
   candidate,
@@ -38,9 +28,6 @@ function SearchOption({
       <span className={styles.candidateMain}>
         <strong>{candidate.name}</strong>
         <span>{candidate.kind}</span>
-      </span>
-      <span>
-        {candidate.matchReasons.map((reason) => reasonCopy[reason]).join(" · ")}
       </span>
     </button>
   );

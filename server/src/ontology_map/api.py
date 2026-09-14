@@ -122,7 +122,6 @@ class SearchResultResponse(BaseModel):
     node_id: str
     name: str
     node_type: NodeTypeResponse
-    match_reasons: list[Literal["EXACT_ALIAS", "FULL_TEXT"]]
 
 
 class SearchResponse(BaseModel):
@@ -413,13 +412,12 @@ def read_node_search(
     return SearchResponse(
         items=[
             SearchResultResponse(
-                node_id=str(result.node.node_id),
-                name=result.node.name,
+                node_id=str(result.node_id),
+                name=result.name,
                 node_type=NodeTypeResponse(
-                    code=result.node.node_type.code,
-                    display_name=result.node.node_type.display_name,
+                    code=result.node_type.code,
+                    display_name=result.node_type.display_name,
                 ),
-                match_reasons=list(result.match_reasons),
             )
             for result in results
         ]
