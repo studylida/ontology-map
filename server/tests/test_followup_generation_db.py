@@ -61,10 +61,14 @@ def _make_preparing(session, context_id: int) -> int:
 
 
 def _make_claim_background(session, claim_id: int, now: datetime) -> None:
-    document_ids = sa.select(s.observation.c.source_document_id).join(
-        s.claim_observation,
-        s.claim_observation.c.observation_id == s.observation.c.observation_id,
-    ).where(s.claim_observation.c.claim_id == claim_id)
+    document_ids = (
+        sa.select(s.observation.c.source_document_id)
+        .join(
+            s.claim_observation,
+            s.claim_observation.c.observation_id == s.observation.c.observation_id,
+        )
+        .where(s.claim_observation.c.claim_id == claim_id)
+    )
     session.execute(
         s.source_document.update()
         .where(s.source_document.c.source_document_id.in_(document_ids))
@@ -169,7 +173,7 @@ def test_apply_followup_persists_valid_partial_result_and_task_success() -> None
                     question_text="현재 자료에서 직접 확인되는 역할은 무엇인가요?",
                     answer_text=(
                         "현재 자료에서는 공동 사업과 연결된 역할을 확인할 수 있습니다. "
-                        "제공된 근거만으로 그 범위를 넘어선 성과까지 판단할 수는 없습니다."
+                        "제공된 근거만으로 범위 밖 성과까지 판단할 수 없습니다."
                     ),
                     claims=(
                         FollowupClaimReference(
@@ -329,9 +333,14 @@ def test_all_period_role_invalid_candidates_block_task() -> None:
         prepared = db.prepare_followup(
             session, context_id, TimeWindow.RECENT_90_DAYS, now
         )
-        assert next(
-            item for item in prepared.agent_input.claims if item.claim_id == background_claim
-        ).period_role == "BACKGROUND"
+        assert (
+            next(
+                item
+                for item in prepared.agent_input.claims
+                if item.claim_id == background_claim
+            ).period_role
+            == "BACKGROUND"
+        )
         supporting_claim = _ordinary_in_window_claim(prepared)
         task_id = _running_task(session, b"period-all-blocked", now)
         proposal = FollowupQuestionsProposal(
