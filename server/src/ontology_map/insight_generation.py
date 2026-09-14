@@ -180,7 +180,7 @@ def _report_reason(
     conflict_pairs = tuple(
         (min(pair.claim_ids), max(pair.claim_ids)) for pair in window.conflict_pairs
     )
-    seen_claim_sets: set[frozenset[int]] = set()
+    seen_claim_synthesis: set[tuple[frozenset[int], str]] = set()
     seen_section_text: set[tuple[str, str]] = set()
     for section in report.sections:
         reason = _section_claim_reason(
@@ -192,9 +192,10 @@ def _report_reason(
         if reason is not None:
             return f"section {section.display_order}: {reason}"
         claim_set = frozenset(item.claim_id for item in section.claims)
-        if claim_set in seen_claim_sets:
-            return "sections may not repeat the same Claim set"
-        seen_claim_sets.add(claim_set)
+        claim_synthesis = (claim_set, _text_key(section.synthesis_text))
+        if claim_synthesis in seen_claim_synthesis:
+            return "sections may not repeat the same Claim set with the same synthesis"
+        seen_claim_synthesis.add(claim_synthesis)
         text_key = (_text_key(section.title), _text_key(section.synthesis_text))
         if text_key in seen_section_text:
             return "sections may not repeat identical meaning text"
