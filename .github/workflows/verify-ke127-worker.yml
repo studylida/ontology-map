@@ -1,0 +1,155 @@
+name: Verify KE127 worker
+on:
+  push:
+    branches: ["verify/127-product-worker"]
+permissions:
+  contents: write
+jobs:
+  verify:
+    if: github.repository == 'studylida/ontology-map'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      COMPOSE_PROJECT_NAME: ke127-worker-${{ github.run_id }}-${{ github.run_attempt }}
+      POSTGRES_DB: ontology_map_ke127_test
+      POSTGRES_USER: ke127_test
+      POSTGRES_PORT: "127.0.0.1:55433"
+      ONTOLOGY_MAP_ENVIRONMENT: development
+      PYTHONPATH: ${{ github.workspace }}/server/src
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          version: "0.12.7"
+          enable-cache: true
+      - name: Apply the reviewed adapter patch
+        run: |
+          git merge-base --is-ancestor 32b32738037579edb659c554b3a7c6f4ca04fd89 HEAD
+          python3 - <<'PY'
+          import hashlib, subprocess
+          from pathlib import Path
+          data = Path('.github/ke127-worker-existing.patch').read_text().replace('\n diff --git ', '\ndiff --git ')
+          assert hashlib.sha256(data.encode()).hexdigest() == '1a166b4f4e4dfd6d5827478284a7a018705d29d00747514fa8ccc7ff568d0edb'
+          path = Path('/tmp/ke127-worker.patch')
+          path.write_text(data)
+          subprocess.run(['git', 'apply', '--check', str(path)], check=True)
+          subprocess.run(['git', 'apply', str(path)], check=True)
+          PY
+          uv sync --project server --frozen
+          uv run --project server --frozen python --version
+      - name: Format only worker files
+        run: |
+          python3 - <<'PY'
+          import ast, io, textwrap, tokenize
+          from pathlib import Path
+          names = ['server/src/ontology_map/db/extraction_input.py', 'server/src/ontology_map/db/extraction_promotion.py', 'server/tests/test_knowledge_extraction_postgres.py']
+          for name in names:
+              path = Path(name)
+              source = path.read_text()
+              offsets = [0]
+              for line in source.splitlines(keepends=True): offsets.append(offsets[-1]+len(line))
+              changes = []
+              for token in tokenize.generate_tokens(io.StringIO(source).readline):
+                  if token.type != tokenize.STRING or token.string[0].lower() == 'f': continue
+                  value = ast.literal_eval(token.string)
+                  if not isinstance(value, str): continue
+                  if '\n' in token.string:
+                      if not any(len(line)>88 for line in token.string.splitlines()): continue
+                      replacement = '\n'.join('\n'.join(textwrap.wrap(line,width=84,subsequent_indent='            ',break_long_words=False,break_on_hyphens=False,replace_whitespace=False)) if len(line)>88 else line for line in token.string.split('\n'))
+                      assert ast.literal_eval(replacement).split()==value.split()
+                  elif len(value)>65:
+                      chunks=textwrap.wrap(value,width=60,break_long_words=False,break_on_hyphens=False,drop_whitespace=False,replace_whitespace=False)
+                      assert ''.join(chunks)==value
+                      replacement='(\n'+''.join('                '+repr(part)+'\n' for part in chunks)+')'
+                      assert ast.literal_eval(replacement)==value
+                  else: continue
+                  changes.append((offsets[token.start[0]-1]+token.start[1],offsets[token.end[0]-1]+token.end[1],replacement))
+              for start,end,replacement in reversed(changes): source=source[:start]+replacement+source[end:]
+              ast.parse(source)
+              path.write_text(source)
+          PY
+          files="server/src/ontology_map/knowledge_extraction_contracts.py server/src/ontology_map/knowledge_extraction.py server/src/ontology_map/knowledge_reconciliation.py server/src/ontology_map/db/extraction_input.py server/src/ontology_map/db/extraction_promotion.py server/src/ontology_map/extraction.py server/src/ontology_map/model_studio.py server/tests/test_knowledge_extraction_postgres.py"
+          uv run --project server --frozen ruff check --select I --fix $files
+          uv run --project server --frozen ruff format $files
+      - name: Ruff format gate
+        if: ${{ !cancelled() }}
+        run: |
+          uv run --project server --frozen ruff check server
+          uv run --project server --frozen ruff format --check server
+      - name: Typecheck gate
+        if: ${{ !cancelled() }}
+        run: |
+          uv run --project server --frozen mypy --config-file server/pyproject.toml server/src/ontology_map
+          (cd server && uv run --frozen mypy src)
+      - name: Isolated database credentials
+        if: ${{ !cancelled() }}
+        run: |
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          url="postgresql+psycopg://${POSTGRES_USER}:${password}@127.0.0.1:55433/${POSTGRES_DB}"
+          er_url="postgresql+psycopg://${POSTGRES_USER}:${password}@127.0.0.1:55433/ontology_map_er128_test"
+          echo "::add-mask::$url"
+          echo "::add-mask::$er_url"
+          { echo "POSTGRES_PASSWORD=$password"; echo "ONTOLOGY_MAP_DATABASE_URL=$url"; echo "ONTOLOGY_MAP_KE_TEST_DATABASE_URL=$url"; echo "ONTOLOGY_MAP_ER_TEST_DATABASE_URL=$er_url"; } >> "$GITHUB_ENV"
+      - name: Real PostgreSQL with current migrations
+        if: ${{ !cancelled() }}
+        run: |
+          docker compose up --wait --wait-timeout 120 db
+          docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 'SELECT version(), current_database();'
+          docker compose exec -T db createdb -U "$POSTGRES_USER" ontology_map_er128_test
+          (cd server && uv run --frozen alembic upgrade head && uv run --frozen alembic current)
+          (cd server && ONTOLOGY_MAP_DATABASE_URL="$ONTOLOGY_MAP_ER_TEST_DATABASE_URL" uv run --frozen alembic upgrade head)
+      - name: Product worker tests
+        if: ${{ !cancelled() }}
+        run: uv run --project server --frozen pytest -q -ra server/tests/test_knowledge_extraction_postgres.py --junitxml="$RUNNER_TEMP/worker.xml"
+      - name: Full backend gate
+        if: ${{ !cancelled() }}
+        run: uv run --project server --frozen pytest -q -ra server/tests --junitxml="$RUNNER_TEMP/backend.xml"
+      - name: Metadata docs and protected files
+        if: ${{ !cancelled() }}
+        run: |
+          (cd server && uv run --frozen alembic check)
+          uv run --project server --frozen python scripts/check_docs.py --check
+          git diff --check -- server docs
+          git diff --exit-code 32b32738037579edb659c554b3a7c6f4ca04fd89 -- server/pyproject.toml server/uv.lock compose.yaml server/migrations server/src/ontology_map/entity_resolution.py server/src/ontology_map/entity_resolution_contracts.py server/src/ontology_map/db/entity_resolution.py
+      - name: Export verified file objects without updating any ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, urllib.request
+          base='32b32738037579edb659c554b3a7c6f4ca04fd89'
+          allowed=['server/src/ontology_map/knowledge_extraction_contracts.py','server/src/ontology_map/knowledge_extraction.py','server/src/ontology_map/knowledge_reconciliation.py','server/src/ontology_map/db/extraction_input.py','server/src/ontology_map/db/extraction_promotion.py','server/src/ontology_map/extraction.py','server/src/ontology_map/model_studio.py','server/tests/test_knowledge_extraction_postgres.py']
+          def post(endpoint,payload):
+              req=urllib.request.Request('https://api.github.com/repos/studylida/ontology-map'+endpoint,data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'},method='POST')
+              with urllib.request.urlopen(req) as response: return json.load(response)
+          entries=[]
+          for path in allowed:
+              sha=post('/git/blobs',{'content':pathlib.Path(path).read_text(),'encoding':'utf-8'})['sha']
+              entries.append({'path':path,'mode':'100644','type':'blob','sha':sha})
+          tree=post('/git/trees',{'base_tree':subprocess.check_output(['git','rev-parse',base+'^{tree}'],text=True).strip(),'tree':entries})['sha']
+          print('VERIFIED_TREE',tree)
+          print('VERIFIED_ENTRIES',json.dumps(entries))
+          print('FEATURE_PARENT',base)
+          PY
+      - name: Checked source and reports
+        if: ${{ always() }}
+        run: |
+          git ls-files -z | tar --null -T - -czf "$RUNNER_TEMP/checked-source.tar.gz"
+          git diff 32b32738037579edb659c554b3a7c6f4ca04fd89 -- server docs > "$RUNNER_TEMP/checked.diff"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: ${{ always() }}
+        with:
+          name: ke127-worker-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/checked-source.tar.gz
+            ${{ runner.temp }}/checked.diff
+            ${{ runner.temp }}/worker.xml
+            ${{ runner.temp }}/backend.xml
+          retention-days: 7
+      - name: Clean only this run's database
+        if: ${{ always() }}
+        run: docker compose down --volumes
