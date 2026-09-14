@@ -4,9 +4,9 @@ from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
+import test_entity_resolution_postgres as base
 from sqlalchemy.orm import Session
 
-import test_entity_resolution_postgres as base
 from ontology_map import entity_resolution as service
 
 pytestmark = pytest.mark.skipif(
@@ -100,10 +100,7 @@ def test_top_level_failure_rolls_back_every_new_row_for_fresh_connection(
         )
         assert (
             observer.execute(
-                sa.text(
-                    "SELECT count(*) FROM node_alias "
-                    "WHERE alias_text = :alias_text"
-                ),
+                sa.text("SELECT count(*) FROM node_alias WHERE alias_text = :alias_text"),
                 {"alias_text": name},
             ).scalar_one()
             == 0
