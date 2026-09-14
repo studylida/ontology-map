@@ -83,6 +83,13 @@ searchable_nodes AS (
 )
 """
 
+_COMBINED_FTS_EXPRESSION = """
+(
+    setweight(to_tsvector('simple', identity_text), 'A')
+    ||
+    setweight(to_tsvector('simple', knowledge_text), 'B')
+)
+"""
 _IDENTITY_FTS_EXPRESSION = "to_tsvector('simple', nsd.identity_text)"
 _KNOWLEDGE_FTS_EXPRESSION = "to_tsvector('simple', nsd.knowledge_text)"
 
@@ -146,17 +153,26 @@ def list_exact_alias_matches(
     return _rows(session.execute(statement, {"query": query, "limit": limit}))
 
 
-def _list_fts_matches(
-    session: Session,
-    query: str,
-    limit: int,
-    expression: str,
-) -> list[SearchNodeRow]:
-    statement = sa.text(
+def _fts_sql(expression: str, *, exclude_identity: bool) -> str:
+    identity_exclusion = (
+        f"AND NOT ({_IDENTITY_FTS_EXPRESSION} @@ sq.value)" if exclude_identity else ""
+    )
+    return (
         _SEARCHABLE_NODES_CTE
         + f"""
         , search_query AS (
             SELECT websearch_to_tsquery('simple', :query) AS value
+        ),
+        fts_candidates AS MATERIALIZED (
+            SELECT
+                nsd.node_id,
+                nsd.node_search_document_id,
+                ts_rank_cd({expression}, sq.value) AS bucket_rank
+            FROM node_search_document AS nsd
+            CROSS JOIN search_query AS sq
+            WHERE {_COMBINED_FTS_EXPRESSION} @@ sq.value
+              AND {expression} @@ sq.value
+              {identity_exclusion}
         )
         SELECT
             sn.node_id,
@@ -164,27 +180,48 @@ def _list_fts_matches(
             sn.node_type_code,
             sn.node_type_display_name
         FROM searchable_nodes AS sn
-        JOIN node_search_document AS nsd
-          ON nsd.node_search_document_id = sn.node_search_document_id
-         AND nsd.node_id = sn.node_id
-        CROSS JOIN search_query AS sq
-        WHERE {expression} @@ sq.value
+        JOIN fts_candidates AS fc
+          ON fc.node_search_document_id = sn.node_search_document_id
+         AND fc.node_id = sn.node_id
         ORDER BY
-            ts_rank_cd({expression}, sq.value) DESC,
+            fc.bucket_rank DESC,
             sn.node_id ASC
         LIMIT :limit
         """
     )
+
+
+def _list_fts_matches(
+    session: Session,
+    query: str,
+    limit: int,
+    expression: str,
+    *,
+    exclude_identity: bool,
+) -> list[SearchNodeRow]:
+    statement = sa.text(_fts_sql(expression, exclude_identity=exclude_identity))
     return _rows(session.execute(statement, {"query": query, "limit": limit}))
 
 
 def list_identity_text_matches(
     session: Session, query: str, limit: int
 ) -> list[SearchNodeRow]:
-    return _list_fts_matches(session, query, limit, _IDENTITY_FTS_EXPRESSION)
+    return _list_fts_matches(
+        session,
+        query,
+        limit,
+        _IDENTITY_FTS_EXPRESSION,
+        exclude_identity=False,
+    )
 
 
 def list_knowledge_text_matches(
     session: Session, query: str, limit: int
 ) -> list[SearchNodeRow]:
-    return _list_fts_matches(session, query, limit, _KNOWLEDGE_FTS_EXPRESSION)
+    return _list_fts_matches(
+        session,
+        query,
+        limit,
+        _KNOWLEDGE_FTS_EXPRESSION,
+        exclude_identity=True,
+    )
