@@ -67,11 +67,11 @@ jobs:
           cd ..
           uv run --project server --frozen python scripts/check_docs.py --check
           git diff --check
-          ! rg -n 'pgvector' server/uv.lock
-          ! rg -n 'node_embedding|EMBEDDING|pgvector\.sqlalchemy|Vector\(1024\)|CREATE EXTENSION IF NOT EXISTS vector' \
+          ! grep -R -n 'pgvector' server/uv.lock
+          ! grep -R -E -n 'node_embedding|EMBEDDING|pgvector\.sqlalchemy|Vector\(1024\)|CREATE EXTENSION IF NOT EXISTS vector' \
             server/src server/migrations server/tests
-          rg -n "to_tsvector\('simple'" server/src/ontology_map/db/schema.py server/migrations/versions/0001_create_frozen_schema.py
-          rg -n 'match_reasons' server/src/ontology_map server/tests web/src >/tmp/match-reasons.txt
+          grep -R -F -n "to_tsvector('simple'" server/src/ontology_map/db/schema.py server/migrations/versions/0001_create_frozen_schema.py
+          grep -R -n 'match_reasons' server/src/ontology_map server/tests web/src >/tmp/match-reasons.txt
           test -s /tmp/match-reasons.txt
 
       - name: Prepare isolated database
@@ -146,7 +146,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rg -n 'node_embedding|EMBEDDING|pgvector|qwen3\.7-text-embedding|RRF|HNSW|IVFFlat' \
+          grep -E -n 'node_embedding|EMBEDDING|pgvector|qwen3\.7-text-embedding|RRF|HNSW|IVFFlat' \
             docs/product/design.md HANDOFF.md docs/data/logical-schema.md docs/data/physical-schema.md \
             docs/development/implementation-stack.md docs/operations/database.md \
             docs/data/schema-reference.md docs/architecture/decisions/current/0008-remove-node-embedding-pgvector.md \
