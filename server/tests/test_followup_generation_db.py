@@ -137,7 +137,8 @@ def test_apply_followup_persists_valid_partial_result_and_task_success() -> None
                     question_text="현재 자료에서 직접 확인되는 역할은 무엇인가요?",
                     answer_text=(
                         "현재 자료에서는 공동 사업과 연결된 역할을 확인할 수 있습니다. "
-                        "제공된 근거만으로 그 범위를 넘어선 성과까지 판단할 수는 없습니다."
+                        "제공된 근거만으로 그 범위를 넘어선 "
+                        "성과까지 판단할 수는 없습니다."
                     ),
                     claims=(
                         FollowupClaimReference(
@@ -174,16 +175,24 @@ def test_apply_followup_persists_valid_partial_result_and_task_success() -> None
         )
         assert result.status == "SUCCESS"
         assert result.stored_count == 1
-        task = session.execute(
-            sa.select(s.model_task).where(s.model_task.c.model_task_id == task_id)
-        ).mappings().one()
+        task = (
+            session.execute(
+                sa.select(s.model_task).where(s.model_task.c.model_task_id == task_id)
+            )
+            .mappings()
+            .one()
+        )
         assert task["status"] == "SUCCESS"
         assert task["lease_owner"] is None
-        questions = session.execute(
-            sa.select(s.node_question).where(
-                s.node_question.c.question_set_id == result.question_set_id
+        questions = (
+            session.execute(
+                sa.select(s.node_question).where(
+                    s.node_question.c.question_set_id == result.question_set_id
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
         assert len(questions) == 1
         assert questions[0]["section_id"] is None
 
@@ -246,8 +255,11 @@ def test_apply_followup_blocks_stale_basis_without_writing_result() -> None:
         assert result.status == "VALIDATION_BLOCKED"
         assert result.reason == "STALE_INPUT"
         assert result.question_set_id is None
-        assert session.scalar(
-            sa.select(sa.func.count())
-            .select_from(s.node_question_set)
-            .where(s.node_question_set.c.model_task_id == task_id)
-        ) == 0
+        assert (
+            session.scalar(
+                sa.select(sa.func.count())
+                .select_from(s.node_question_set)
+                .where(s.node_question_set.c.model_task_id == task_id)
+            )
+            == 0
+        )
