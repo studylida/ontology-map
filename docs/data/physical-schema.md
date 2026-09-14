@@ -79,7 +79,7 @@ setweight(to_tsvector('simple', identity_text), 'A')
 - PostgreSQL schema namespace와 객체 소유 경계
 - 내부 식별자와 공유 기본 키 전략
 - 데이터베이스 객체 이름 규칙
-- 공통 문자열, JSON, 해시, 시간, 숫자, Boolean과 벡터 표현
+- 공통 문자열, JSON, 해시, 시간, 숫자와 Boolean 표현
 - 닫힌 상태·코드와 확장 가능한 참조 목록의 표현
 - `NULL`, 빈 문자열과 기본값 정책
 - 외래 키 삭제·갱신 정책
@@ -163,6 +163,10 @@ API / worker runtime
 
 데이터베이스가 여러 애플리케이션에 공유되거나 객체 소유 경계가 실제로 달라질 때만 전용 schema 도입을 다시 검토한다.
 
+### 3.3 migration search_path
+
+migration connection은 `public`을 명시적으로 사용하고, PostgreSQL extension이 필요해질 때는 extension 설치 위치도 같은 revision에서 고정한다. 현재 필수 외부 extension은 없다.
+
 ## 4. 내부 식별자
 
 ### 4.1 대리 기본 키
@@ -233,550 +237,318 @@ claim_relation
 
 ## 5. 데이터베이스 객체 이름
 
-### 5.1 공통 형식
+### 5.1 table과 column
 
-모든 데이터베이스 객체는 큰따옴표가 필요 없는 영문 소문자 `snake_case`를 사용한다.
+- PostgreSQL 식별자는 소문자 `snake_case`를 사용한다.
+- table 이름은 단수형 명사를 사용한다.
+- 기본 키 column은 `<entity>_id`를 사용한다.
+- 다른 엔터티를 가리키는 FK도 대상 기본 키 이름을 그대로 사용한다.
+- Boolean은 `is_`, `has_`, `allow_`처럼 의미가 드러나는 이름을 사용한다.
+- timestamp는 `_at`, 날짜는 `_date`, 반열린 기간 경계는 `_from`, `_to`를 사용한다.
+- 안정된 업무 식별 문자열은 `_code`, 외부 원천의 식별자는 `_key`를 사용한다.
 
-- 테이블 이름은 단수형이다.
-- 컬럼 이름은 `snake_case`다.
-- 연결 테이블은 연결하는 단수 역할을 조합한다.
-- CamelCase와 quoted identifier를 사용하지 않는다.
-- PostgreSQL 식별자 길이 제한에 맞추며 자동 이름 절단에 의존하지 않는다.
+### 5.2 constraint 이름
 
-예:
+모든 명시적 constraint 이름은 다음 접두사를 사용한다.
 
-```text
-source_document
-evidence_group_assignment
-knowledge_item
-claim_observation
-publication_affected_node
-```
-
-### 5.2 키와 역할 이름
-
-- 일반 PK: `<table_name>_id`
-- 일반 FK: 참조하는 PK와 같은 이름
-- 같은 대상을 여러 역할로 참조하는 FK: 역할 접두어 사용
-
-예:
-
-```text
-source_node_id
-target_node_id
-canonical_node_id
-first_detected_run_id
-latest_detected_run_id
-resolved_by_run_id
-```
-
-Boolean 컬럼은 의미가 실제로 참·거짓일 때만 `is_` 또는 `has_`를 사용할 수 있다. 여러 실행 상태를 여러 Boolean으로 분해하지 않고 `status` 코드 하나로 표현한다.
-
-### 5.3 제약과 지원 객체 이름
-
-| 객체 | 접두어 | 예 |
+| 종류 | 접두사 | 형식 |
 |---|---|---|
-| 기본 키 | `pk_` | `pk_source_document` |
-| 외래 키 | `fk_` | `fk_observation__source_document` |
-| 고유 제약 | `uq_` | `uq_model_task__cache_key` |
-| CHECK | `ck_` | `ck_model_task__terminal_finished` |
-| 일반 인덱스 | `ix_` | `ix_claim_observation__observation` |
-| trigger | `trg_` | `trg_conflict_set__prevent_update` |
-| 함수 | `fn_` | `fn_resolve_canonical_node` |
+| primary key | `pk_` | `pk_<table>` |
+| foreign key | `fk_` | `fk_<table>__<역할>` |
+| unique | `uq_` | `uq_<table>__<의미>` |
+| check | `ck_` | `ck_<table>__<의미>` |
+| exclude | `ex_` | `ex_<table>__<의미>` |
 
-이름은 모든 컬럼을 기계적으로 이어 붙이지 않고, 어떤 역할·업무 키·불변식을 보장하는지 짧게 나타낸다.
+같은 table에서 이름은 중복되지 않아야 한다. 자동 생성 이름에 의존하지 않는다.
 
-SQL 문법과 Alembic migration 파일 이름은 [코드 규칙](../development/code-conventions.md)을 따른다.
+### 5.3 index 이름
+
+인덱스는 다음 형식을 사용한다.
+
+```text
+ix_<table>__<선두 열 또는 목적>
+```
+
+partial unique index는 unique constraint가 아니라 unique index이므로 `uq_<table>__<의미>` 이름을 유지할 수 있다. 이 경우 문서에서 index임을 명시한다.
 
 ## 6. 공통 자료형
 
 ### 6.1 문자열
 
-일반 애플리케이션 문자열은 기본적으로 PostgreSQL `text`를 사용한다.
+도메인 문자열은 길이 추정이 필요하지 않으면 PostgreSQL `text`를 기본으로 한다.
 
-다음과 같은 추측성 길이 제한을 사용하지 않는다.
-
-```text
-varchar(255)
-varchar(500)
-varchar(2048)
-```
-
-실제 제품 규칙으로 최대 길이가 확정된 경우에만 명명된 `CHECK`로 제한한다.
-
-적용 대상 예:
+다음 값은 `text`다.
 
 - 이름과 alias
-- 제목·작성자·발행처
 - URL
-- 정규화 본문
-- Claim·인용문·맥락 설명·질문
-- 상태 변경 이유와 실패 사유
-- 모델·프롬프트·생성기 버전
-- 안정된 코드와 언어 식별값
+- 원문과 인용문
+- Claim 문장
+- ontology code
+- 상태·종류 코드
+- model·prompt version
+- 오류 reason
 
-URL과 언어 식별값도 `text`로 저장한다. 파싱, 허용 scheme과 canonicalization은 애플리케이션 경계가 담당하며, 복잡한 URL 정규식을 데이터베이스 CHECK로 복제하지 않는다.
-
-필수 의미 텍스트에는 `NOT NULL`과 nonblank CHECK를 함께 검토한다. 다만 정규화 본문과 인용문처럼 공백과 문자 위치가 Evidence Trace에 영향을 주는 값은 데이터베이스가 자동 trim하거나 다시 쓰지 않는다.
+`varchar(n)`은 외부 protocol이 실제 최대 길이를 강제하고 애플리케이션 경계에서도 같은 제한을 검증할 때만 사용한다.
 
 ### 6.2 JSON
 
-`output_schema_definition.schema_json`은 `jsonb NOT NULL`로 저장한다.
+반복 필드 또는 미정 의미를 피하기 위해 JSON을 기본 저장 수단으로 쓰지 않는다.
 
-`jsonb`의 정규화는 계약 버전 보존과 충돌하지 않는다. 버전 이력은 JSON 공백이나 key 순서가 아니라 다음 구조로 보존한다.
+`jsonb`는 구조가 실제로 self-contained이고 기준 관계와 Evidence Trace를 침범하지 않을 때만 사용한다.
 
-```text
-task_kind
-+ version_no
-+ 불변 output_schema_definition 행
-+ model_task의 정확한 FK
-```
+현재 frozen schema에서 `jsonb`는 `output_schema_definition.json_schema`처럼 불변 계약 자체가 JSON인 경우에 쓴다.
 
-계약이 바뀌면 참조된 `schema_json`을 수정하지 않고 새 버전 행을 추가한다.
+Provider의 전체 응답, Agent 후보 payload, 임시 debug 정보, graph snapshot과 화면 상태를 `jsonb`로 저장하지 않는다.
 
-`jsonb`는 다음 범위로 제한한다.
+### 6.3 해시
 
-- 버전이 있는 Structured Output 계약
-- 관계형 필드로 고정할 필요가 없는 유연한 진단 상세
+SHA-256은 PostgreSQL `bytea` 32바이트로 저장한다.
 
-다음 데이터를 자유 JSON payload로 대체하지 않는다.
+- `source_document.body_hash`
+- `observation.quote_hash`
+- `model_task.input_hash`
+- `model_task.cache_key`
+- `blocked_fingerprint.fingerprint`
 
-- 기준 노드·관계·Claim
-- Evidence Trace
-- 상태와 상태 전이
-- 공개 준비 결과
-- 외래 키로 검증해야 하는 의미 데이터
+문자열 hex는 API나 로그 표시 형식일 수 있지만 기준 DB의 해시 저장 형식은 아니다.
 
-JSON 내부를 조회하는 실제 쿼리가 확인되기 전에는 GIN 등 JSON 인덱스를 만들지 않는다.
+### 6.4 시간과 날짜
 
-### 6.3 해시와 결정적 키
+절대 시각은 `timestamptz`로 저장한다.
 
-현재 digest와 fingerprint는 다음 물리 표현을 사용한다.
+- 실행 시각
+- lease 만료 시각
+- 검토·상태 변경 시각
+- source가 제공한 정확한 instant
 
-```text
-SHA-256 raw digest
-→ bytea
-→ 정확히 32바이트
-```
+애플리케이션은 UTC aware datetime만 DB에 전달한다. naive datetime을 삽입하지 않는다.
 
-각 SHA-256 컬럼에는 다음 의미의 명명된 CHECK가 필요하다.
+부분 날짜·기간은 논리 모델의 precision과 함께 저장한다.
 
-```text
-octet_length(value) = 32
-```
+- 월·연도는 저장용 `date_from`에 그 기간의 첫날을 둘 수 있다.
+- `precision`을 잃지 않는다.
+- 사용자에게 더 정확한 날짜처럼 표시하지 않는다.
 
-책임은 다음처럼 나눈다.
+PostgreSQL의 `infinity`, `-infinity`는 사용하지 않는다. 열린 구간은 `NULL`과 precision으로 표현한다.
 
-```text
-애플리케이션
-- canonical input의 필드와 순서 결정
-- NULL과 배열의 표현 결정
-- 모호하지 않은 직렬화
-- 필요한 문자열의 UTF-8 encoding
-- SHA-256 계산
+### 6.5 숫자
 
-PostgreSQL
-- 32바이트 길이
-- UNIQUE와 FK
-- 동등 비교와 조회
-```
+정밀도가 중요한 도메인 값은 `numeric`을 사용한다.
 
-로그와 진단에서는 `encode(value, 'hex')`로 소문자 16진수 표현을 만들 수 있지만, DB 원본 타입을 hex `text`로 바꾸지 않는다.
+- 구조화 속성의 수량
+- 출처 값
+- 향후 계산되는 신뢰 관련 수치
 
-모든 현재 digest가 SHA-256이므로 각 행에 `hash_algorithm` 컬럼을 반복 저장하지 않는다.
-
-다음 의미 값은 해시가 아니다.
-
-- `source_key`
-- `node_type_code`
-- `relation_code`
-- `attribute_code`
-- `rule_code`
-- 모델·프롬프트·생성기 버전
-
-이 값은 안정된 `text`로 유지한다.
-
-결정적 키를 추가하거나 바꾸는 migration은 다음을 반드시 문서화한다.
-
-- 포함 필드
-- 필드 순서
-- `NULL` 표지
-- 문자열 encoding
-- 목록 정렬
-- 값 경계를 모호하지 않게 만드는 직렬화 방식
-
-단순 문자열 연결은 값 경계를 잃을 수 있으므로 허용하지 않는다.
-
-### 6.4 시간
-
-#### 실제 운영 시각
-
-전 세계에서 동일한 한 순간을 나타내는 운영·감사·스케줄·lease·처리 시각은 `timestamptz`를 사용한다.
-
-예:
-
-- `created_at`
-- `attempted_at`
-- `finished_at`
-- `observed_at`
-- `last_checked_at`
-- `next_attempt_at`
-- `lease_expires_at`
-- `ready_at`
-- `resolved_at`
-- `reversed_at`
-
-데이터베이스, API와 worker는 UTC를 기준으로 해석한다. 화면은 필요한 사용자 시간대로 변환할 수 있다.
-
-`timestamptz`는 원래 입력에 사용한 `Asia/Seoul` 같은 시간대 이름을 보존하지 않고 하나의 절대 시점으로 정규화한다. 원래 시간대 이름 자체가 제품 요구라면 별도 명시 필드가 필요하지만 현재 범위에는 없다.
-
-#### 출처·사건·Claim의 부분 시간
-
-출처 게시·수정 시간, 사건 경계와 Claim 주장 경계는 다음 조합을 사용한다.
-
-```text
-timestamptz value
-+ precision text
-```
-
-허용 precision은 다음과 같다.
-
-```text
-INSTANT
-DAY
-MONTH
-YEAR
-UNKNOWN
-```
-
-| 알려진 정보 | 저장 원칙 | precision |
-|---|---|---|
-| 시간대까지 확인된 정확한 시각 | 정확한 절대 시각 | `INSTANT` |
-| 날짜 | UTC 기준 날짜 시작 anchor | `DAY` |
-| 월 | 해당 월 첫날 UTC anchor | `MONTH` |
-| 연도 | 해당 연도 첫날 UTC anchor | `YEAR` |
-| 미상 | `NULL` | `UNKNOWN` |
-
-`DAY`, `MONTH`, `YEAR`의 값은 비교와 색인을 위한 anchor일 뿐 더 정밀한 사실을 주장하지 않는다. 표시와 기간 필터는 precision을 반드시 함께 해석하며, 일반적인 사용자 시간대 변환 결과를 정확한 주장 날짜로 사용하지 않는다.
-
-행 내부에서는 최소한 다음을 검사한다.
-
-```text
-value IS NULL
-↔ precision = 'UNKNOWN'
-
-value IS NOT NULL
-↔ precision <> 'UNKNOWN'
-```
-
-서로 다른 precision 사이의 순서와 기간 겹침은 정규화된 anchor만 비교하지 않고 실제 의미 범위로 확장해 검증한다. 구체적인 PostgreSQL 함수나 트랜잭션 검증 책임은 해당 도메인 매핑에서 정한다.
-
-PostgreSQL의 `infinity`와 `-infinity`는 제품 시간 값으로 허용하지 않는다.
-
-#### 구조화된 날짜와 기간
-
-`claim_attribute_value`의 `DATE`와 `PERIOD`는 절대 시각이 아니라 달력 날짜이므로 다음 조합을 사용한다.
-
-```text
-date
-+ precision
-```
-
-경계 미상과 precision 규칙은 시간 경계와 동일하다. `PERIOD`의 종료일이 없다는 뜻을 정확한 단일 날짜로 축소하지 않고, `DATE`를 종료 미상 기간으로 확장하지 않는다.
-
-### 6.5 숫자와 단위
-
-구조화된 십진 숫자는 전역 자릿수를 추측하지 않은 PostgreSQL `numeric`을 사용한다.
-
-```text
-numeric
-```
-
-다음 특수값은 제품 값으로 허용하지 않는다.
-
-- `NaN`
-- `Infinity`
-- `-Infinity`
-
-테이블별 매핑은 이를 차단하는 명명된 CHECK를 둔다. 임의의 전역 `numeric(p, s)`는 사용하지 않는다.
-
-`NUMBER` 속성값은 다음 두 값을 함께 가진다.
-
-```text
-finite number_value
-+ nonblank unit_code text
-```
-
-`unit_code`는 화면 표시 문자열이 아니라 기계가 해석하는 안정된 의미 코드다.
-
-예:
-
-- `PERSON`
-- `PERCENT`
-- `GB_PER_S`
-- `USD`
-- `KRW`
-- `RATIO`
-- `COUNT`
-
-허용 단위와 저장 기준은 정확한 `attribute_revision.unit_rule`이 결정한다. POC에는 범용 단위 사전, 환산식과 자동 변환 시스템을 추가하지 않는다.
+float는 모델 score, UI layout과 같이 기준 지식이 아닌 값에서만 별도 승인 후 사용할 수 있다.
 
 ### 6.6 Boolean
 
-구조화된 Boolean 값은 PostgreSQL `boolean`을 사용한다.
+Boolean은 실제 두 상태만 있을 때 PostgreSQL `boolean`을 사용한다.
 
-`value_kind = 'BOOLEAN'`인 행의 `boolean_value`는 반드시 `TRUE` 또는 `FALSE`여야 한다.
-
-```text
-FALSE
-= 출처가 뒷받침하는 명시적 부정
-
-해당 claim_attribute_value 행 없음
-= 미상 또는 근거 있는 Claim 없음
-```
-
-두 상태를 같은 것으로 취급하지 않는다.
+`UNKNOWN`, `NOT_APPLICABLE`, 여러 승인 상태를 `false`로 압축하지 않는다.
 
 ## 7. 닫힌 코드와 확장 가능한 참조 목록
 
-### 7.1 닫힌 상태·기술 코드
+### 7.1 닫힌 상태·종류 코드
 
-작업 종류, 실행 상태, 지식 상태, 방향성, Claim modality, stance, 값 종류, 시간 정밀도와 같이 코드가 애플리케이션 로직과 함께 닫혀 있는 값은 다음처럼 표현한다.
+다음처럼 허용 집합이 작고 제품 코드가 새 값을 먼저 이해해야 하는 값은 `text + CHECK`로 구현한다.
 
-```text
-text NOT NULL
-+ named CHECK
-```
+예:
 
-저장값은 안정된 영문 대문자 `UPPER_SNAKE_CASE`를 사용한다.
+- knowledge item kind
+- knowledge state
+- Claim modality
+- Publication status
+- model task status
+- model attempt outcome
+- lint scope와 severity
+- conflict status
+- date precision
 
-예시 형식:
+schema-level PostgreSQL enum은 사용하지 않는다. 값 추가가 필요한 경우 코드와 migration의 배포 순서를 명확히 관리한다.
 
-```text
-PENDING
-VALIDATION_BLOCKED
-EVIDENCE_VERIFIED
-DIRECTED
-PLAN_OR_TARGET
-SUPPORT
-PERIOD
-UNKNOWN
-```
+### 7.2 확장 가능한 참조 목록
 
-위 값은 저장 형식을 설명하는 예시다. 테이블별 정확한 허용 목록은 SQLAlchemy metadata와 migration의 이름 있는 CHECK가 고정한다.
-
-POC에서는 PostgreSQL enum 타입을 만들지 않는다. `CHECK` 값 목록의 변경은 승인된 migration으로 수행한다.
-
-값의 허용 목록을 CHECK로 제한하는 것은 상태 전이를 보장하지 않는다. 예를 들어 `REJECTED`가 허용 값이어도 어느 상태에서 누가 그 상태로 바꿀 수 있는지는 application-service transaction이 따로 검사한다.
-
-### 7.2 확장 가능한 의미 사전
-
-설명, 버전, 활성 상태, 대상 유형이나 검증 메타데이터를 소유하는 개념은 참조 테이블로 유지한다.
+사용자가 실제로 참조하고 과거 의미 보존이 필요한 목록은 table과 revision을 사용한다.
 
 예:
 
 - `node_type`
-- `relation_type`
-- `relation_type_revision`
-- `attribute`
-- `attribute_revision`
-- `lint_rule`
-- `lint_policy_version`
+- `relation_type` + `relation_type_revision`
+- `attribute` + `attribute_revision`
 - `output_schema_definition`
+- `lint_rule` + `lint_policy_version`
 
-이 값은 단순 enum 대체 행이 아니라 제품 의미와 과거 revision을 보존하는 기준 데이터다.
+“목록이 늘어날 수 있다”는 이유만으로 모두 table로 만들지 않는다. 별도 의미 필드, 수명주기, 참조 FK 또는 revision이 필요한지 확인한다.
 
-## 8. `NULL`, 빈 문자열과 기본값
+## 8. NULL, 빈 문자열과 기본값
 
-### 8.1 `NULL` 원칙
+### 8.1 `NULL`
 
-모든 컬럼은 기본적으로 `NOT NULL`이다.
-
-Logical Schema v1이 다음 의미 중 하나를 명시할 때만 nullable로 둔다.
-
-- 실제로 알 수 없음
-- 해당 관계나 값이 적용되지 않음
-- 현재 수명주기에서 아직 생성되지 않음
-- 특정 작업 종류나 상태에서만 선택적으로 존재함
-
-`NULL`의 의미는 테이블과 컬럼 주석에 구체적으로 기록한다.
-
-### 8.2 빈 문자열과 sentinel
-
-빈 문자열은 값 부재를 나타내지 않는다.
-
-다음 sentinel 문자열도 일반 텍스트에 저장하지 않는다.
-
-- `UNKNOWN`
-- `N/A`
-- `NONE`
-- `NULL`
-
-필수 의미 텍스트는 `NOT NULL`과 nonblank CHECK를 함께 사용한다. Evidence Trace의 본문과 인용문은 자동으로 trim하지 않는다.
-
-`UNKNOWN`이 시간 정밀도처럼 승인된 실제 도메인 코드인 경우에만 코드값으로 사용할 수 있다.
-
-함께 한 의미를 이루는 nullable 컬럼은 all-or-none 또는 상태 의존 CHECK를 사용한다.
+`NULL`은 “모름”, “해당 없음” 또는 “아직 없음”의 의미가 계약에 있을 때만 허용한다.
 
 예:
 
-```text
-attribute 충돌 대상
-→ target_node_id와 attribute_revision_id가 함께 있음 또는 함께 없음
+- 선택적 작성자
+- 알 수 없는 사건 종료 시점
+- 아직 시작되지 않은 `started_at`
+- 성공 작업에는 필요 없는 `failure_reason`
 
-시간 경계
-→ 값 NULL + UNKNOWN
-→ 값 있음 + 비UNKNOWN
-```
+필수 문자열을 nullable로 만든 뒤 애플리케이션에서 채우기를 기대하지 않는다.
 
-### 8.3 기본값을 허용할 범위
+### 8.2 빈 문자열
 
-DB 기본값은 PostgreSQL이나 시스템 수명주기가 기계적으로 소유하는 값에만 둔다.
+코드, 이름, 제목, Claim 문장, URL, 언어와 이유 같은 의미 있는 문자열은 빈 문자열을 허용하지 않는다.
 
-허용 가능한 예:
+DB `CHECK (btrim(column) <> '')` 또는 같은 의미의 application validation을 사용한다.
 
-| 값 | 허용 조건 |
-|---|---|
-| identity | 독립 대리 PK |
-| `CURRENT_TIMESTAMP` | 정확히 DB 행 생성 시각인 `created_at` |
-| `0`, `1` | 의미가 하나뿐인 초기 카운터 |
-| `PENDING`, `NOT_STARTED` | 합법적인 초기 상태가 정확히 하나인 운영 행 |
-| `FALSE` | “선택되지 않음·활성 아님”의 중립 의미가 명확한 Boolean |
+`NULL`과 `''`가 서로 다른 제품 의미를 가지지 않으면 둘 중 하나만 사용한다.
 
-기본값을 두지 않는 예:
+### 8.3 기본값
 
-- 지식 검증·사람 검토 상태
-- `item_kind`, `task_kind`, modality, stance와 value kind
-- 출처가 말한 사실
-- 게시·사건·Claim 시간과 precision
-- 모델 결과
-- 완료·실패·해결·취소 시각과 이유
-- 단위 코드
-- 언어와 임의 날짜
+DB default는 저장 레이어가 의미를 결정해도 안전한 값에만 둔다.
 
-실제 호출 시각인 `attempted_at`이나 시스템이 근거를 발견한 `observed_at`은 DB INSERT 시각과 다를 수 있으므로 담당 로직이 명시적으로 전달한다.
+적합한 예:
 
-## 9. 외래 키와 물리 삭제
+- `CURRENT_TIMESTAMP`
+- `false`인 초기 `is_active`
+- `0` 또는 `1`로 시작하는 명확한 카운터
+- 초기 상태가 계약으로 고정된 status
 
-### 9.1 기본 외래 키 동작
+사용자나 Agent가 결정해야 하는 내용, 사건 시점, ontology revision, 근거 출처, Claim modality에는 추측 default를 두지 않는다.
 
-기준 지식, Evidence Trace, 불변 버전, 실행 이력, 사람 검토 이력과 연결 행의 기본 삭제 정책은 다음과 같다.
+## 9. 외래 키와 삭제·갱신 정책
+
+### 9.1 기본 정책
+
+frozen schema의 일반 FK는 기본적으로 다음 동작을 사용한다.
 
 ```text
 ON DELETE RESTRICT
 ON UPDATE RESTRICT
 ```
 
-초기 POC에서는 다음 동작을 사용하지 않는다.
+기준 지식, 근거, revision과 이력은 물리 cascade로 지우지 않는다.
 
-- `ON DELETE CASCADE`
-- `ON DELETE SET NULL`
-- `ON DELETE SET DEFAULT`
+### 9.2 삭제
 
-이 원칙은 `source_document`, `observation`, `claim_observation`처럼 공유되는 근거의 일부를 실수로 삭제해 다른 Claim이나 alias의 Evidence Trace까지 잃는 일을 막는다.
+POC에서는 immutable append-only 역사와 Evidence Trace를 보존한다.
 
-거절, 폐기, 병합 취소, lint 차단과 공개 무효화는 물리 삭제가 아니라 도메인 상태와 append-only 이력으로 표현한다. 실패한 트랜잭션은 cleanup DELETE가 아니라 rollback으로 처리한다.
+- 문서 버전을 지워서 지식을 정리하지 않는다.
+- Node merge는 source Node를 삭제하지 않는다.
+- 지식 거절은 상태 이력으로 표현한다.
+- conflict 해결은 member나 Claim을 삭제하지 않는다.
 
-### 9.2 의도적인 전체 삭제
+향후 보존 기간이나 사용자 삭제가 필요해지면 이 정책과 별도의 retention·purge 설계를 먼저 결정한다.
 
-특정 출처와 모든 종속 데이터를 의도적으로 제거하는 기능은 FK cascade로 추론하지 않는다.
+### 9.3 갱신
 
-향후 controlled purge 또는 retention 기능은 다음을 별도 설계해야 한다.
+identity PK, ontology code와 revision identity는 변경하지 않는다.
 
-- 삭제 범위와 dependency preview
-- 공유 observation과 Claim의 영향 분석
-- 권한과 승인
-- 감사·법적 보존 정책
-- 명시적인 삭제 순서
-- 공개 결과 무효화와 재생성
-- 원자성·복구와 테스트
+허용되는 갱신은 의미가 명확한 운영 상태에 한정한다.
 
-이 기능은 POC 범위가 아니다.
+- `is_active`
+- node merge reversal 시각
+- conflict 현재 상태
+- task lease와 retry 상태
+- source 마지막 확인 정보
 
-## 10. 데이터 수명주기와 불변성
+불변 본문, Observation 범위, Claim 문장, relation endpoint와 과거 ontology revision 의미는 수정하지 않는다.
 
-각 테이블 또는 관련 컬럼 묶음은 다음 중 하나로 분류한다.
+## 10. 불변성, 버전과 이력
 
-| 분류 | 의미 | 대표 예 |
-|---|---|---|
-| 불변 버전·산출물 | 의미가 바뀌면 UPDATE 대신 새 행 생성 | 문서 버전, relation·claim, ontology revision, 검색 문서, context, question, insight, conflict summary |
-| append-only 사건·이력 | 기존 행을 수정·삭제하지 않고 새 사건만 추가 | `agent_attempt`, 사람 상태 변경 이력 |
-| 수정 가능한 운영 상태 | 정해진 상태 전이·lease·재시도·카운터만 갱신 | `model_task`, `promotion_batch`, finding 감지 메타데이터 |
-| 한 방향 종료·취소 | `NULL`에서 종료값으로 닫히며 되돌리지 않음 | `valid_to`, `reversed_at`, `resolved_at` |
+### 10.1 불변 객체
 
-한 테이블 안에서도 컬럼 묶음별 분류가 다를 수 있다.
+다음은 생성 뒤 의미 필드를 수정하지 않는다.
+
+- `source_document`
+- `observation`
+- `output_schema_definition`
+- `relation_type_revision`
+- `attribute_revision`
+- `node_search_document`
+- `node_context`
+- `followup_question`
+- `node_insight`
+- `node_question_set`
+- `node_question`
+- `node_question_claim`
+- `node_insight_window`
+- `node_insight_section`
+- `node_insight_section_claim`
+
+새 의미가 필요하면 새 row나 새 revision을 만든다.
+
+### 10.2 append-only 이력
+
+다음은 이력 보존이 목적인 append-only 행이다.
+
+- `agent_attempt`
+- `knowledge_state_event`
+- `conflict_state_event`
+- `lint_run`
+- `lint_finding`
+
+현재 구현에서 actor 계약이 미정인 `knowledge_state_event`와 `conflict_state_event`는 물리 table을 만들지 않는다. 나머지는 승인된 현재 metadata를 따른다.
+
+### 10.3 현재 상태를 함께 가지는 엔터티
+
+다음 엔터티는 빠른 조회를 위해 현재 상태와 이력을 함께 가질 수 있다.
+
+- `model_task`
+- `node_merge`
+- `conflict_set`
+- `promotion_batch`
+- `source_document`의 확인 상태
+
+현재 상태 변경은 허용된 상태 전이만 수행하며 이력만으로 현재 상태를 추론하게 만들지 않는다.
+
+## 11. 무결성 제약 배치
+
+### 11.1 DB에 두는 제약
+
+한 행 또는 선언적 FK·UNIQUE·CHECK로 정확히 표현할 수 있는 규칙은 DB에 둔다.
+
+예:
+
+- ID 양수
+- 문자열 nonblank
+- 상태 허용값
+- 날짜 precision과 값 존재 일치
+- `start <= end`
+- Observation 범위와 길이
+- 값 kind에 맞는 정확한 value column 하나
+- active revision 최대 하나
+- model attempt 순번 고유성
+
+### 11.2 짧은 트랜잭션 서비스에 두는 제약
+
+다음은 여러 행을 함께 봐야 하거나 DB trigger를 만들 이유가 부족하므로 application service의 짧은 transaction에서 보장한다.
+
+- `knowledge_item`의 정확히 한 subtype
+- 새 Node 생성 시 활성 `node_type` 사용
+- 새 Relation·attribute 값 생성 시 현재 활성 revision 선택
+- relation endpoint와 revision 허용 조합
+- Claim의 의미 target 최소 하나
+- Relation 지지 Claim 최소 하나
+- Evidence Trace 완결성
+- 동일 대상 판정 뒤 node merge 적용
+- publication 전 node별 파생 결과 완결성
+- 전체 공개 basis 지식과 blocking lint 부재
+
+서비스 검증 뒤 같은 transaction 안에서 write를 완료한다. “application service가 보장한다”는 말은 비동기 뒷정리나 best-effort 검사를 뜻하지 않는다.
+
+### 11.3 partial unique index
+
+“활성 row 최대 하나”처럼 `NULL` 또는 Boolean 조건이 붙는 고유성은 partial unique index를 사용한다.
 
 예:
 
 ```text
-source_document
-- 본문·버전 메타데이터: 불변
-- last_checked_at·last_check_status: 승인된 운영 갱신
+ontology revision당 active 최대 하나
+WHERE is_active
 
-output_schema_definition
-- task_kind·version_no·schema_json: 참조 후 불변
-- is_active: 승인된 활성 선택 갱신
-```
-
-다음 범용 컬럼을 모든 테이블에 기계적으로 추가하지 않는다.
-
-- `updated_at`
-- `deleted_at`
-- `is_deleted`
-
-대신 `finished_at`, `ready_at`, `resolved_at`, `reversed_at`처럼 실제 도메인 사건을 나타내는 필드를 사용한다.
-
-불변성 보장 우선순위는 다음과 같다.
-
-1. runtime role 권한과 코드 경계
-2. PK·FK·UNIQUE·CHECK
-3. 위험도가 높은 불변식에 한정한 좁은 trigger
-4. 짧은 트랜잭션 안의 서비스 검증
-
-모든 불변 행에 범용 UPDATE 차단 trigger를 자동 생성하지 않는다. 위험과 실제 변경 경로를 확인한 좁은 제약만 migration에 추가한다.
-
-## 11. 인덱스 정책
-
-### 11.1 기본 원칙
-
-- PK와 UNIQUE가 이미 생성한 인덱스를 중복 생성하지 않는다.
-- PostgreSQL이 자식 FK 인덱스를 자동 생성한다고 가정하지 않는다.
-- FK 자식 컬럼은 실제 조인, 역방향 조회, Evidence Trace, 그래프 탐색, scheduling 또는 부모 유지 경로가 있을 때 B-tree 인덱스를 추가한다.
-- 모든 비제약 인덱스에는 지원하는 쿼리 또는 무결성 경로를 문서화한다.
-- 낮은 선택도의 Boolean이나 status 컬럼 하나만을 위한 추측성 인덱스를 만들지 않는다.
-- covering index와 `INCLUDE`는 실제 실행 계획으로 필요성이 확인된 후에만 추가한다.
-
-### 11.2 양방향 연결 조회
-
-복합 PK가 한쪽 탐색만 지원하면 반대 방향 복합 인덱스를 추가한다.
-
-예:
-
-```text
-PRIMARY KEY (claim_id, observation_id)
-→ Claim에서 observation 조회 지원
-
-INDEX (observation_id, claim_id)
-→ observation을 공유하는 Claim 조회 지원
-```
-
-이 원칙의 대상 여부는 각 연결 table을 사용하는 실제 query를 확인해 결정한다.
-
-- `claim_observation`
-- `claim_relation`
-- `node_alias_evidence`
-- `event_temporal_basis`
-- `search_document_basis`
-- `conflict_member`
-
-### 11.3 조건부 고유성
-
-조건부 “최대 하나” 규칙은 partial unique index를 사용한다.
-
-대표 후보:
-
-```text
-노드당 preferred alias 최대 하나
+노드별 preferred alias 최대 하나
 WHERE is_preferred
 
 원본 노드당 활성 merge 최대 하나
@@ -803,67 +575,64 @@ partial unique index가 “최대 하나”를 보장해도 “공개 시 정확
 다음 객체에는 의미가 자명하지 않을 때 주석을 작성한다.
 
 - 컬럼
-- 복잡한 CHECK
-- trigger
-- 함수
-- 비직관적인 인덱스와 constraint
+- partial index
+- 복합 FK
+- CHECK constraint
 
-데이터베이스 객체 이름은 영어로 유지하고 주석은 팀이 직접 읽을 수 있는 한국어로 작성한다.
+주석은 다음 의미를 설명한다.
 
-### 12.2 주석 내용
+- 행이 무엇을 뜻하는지
+- 다른 비슷한 개념과 어떻게 다른지
+- 불변인지 현재 상태인지
+- 어떤 상위 객체의 revision을 참조하는지
+- Evidence Trace와의 관계
 
-주석은 단순 번역보다 다음 내용을 설명한다.
+### 12.2 언어와 표현
 
-- 이 값이 의미하는 것
-- 어느 단계가 작성·변경하는지
-- `NULL`의 의미
-- 다른 비슷한 시간·상태와의 차이
-- 무엇으로 해석하면 안 되는지
+데이터베이스 comment는 한국어를 기본으로 하고 다음 식별자는 코드 표기를 유지한다.
 
-예시:
+- table·column 이름
+- 상태와 종류 코드
+- model identifier
+- ontology code
+
+주석은 과거 논의나 Issue 번호를 적는 장소가 아니다. 현재 의미만 설명한다.
+
+## 13. 인덱스 원칙
+
+### 13.1 PK·UNIQUE
+
+PK와 UNIQUE가 이미 필요한 접근 경로를 제공하면 중복 index를 만들지 않는다.
+
+### 13.2 FK 보조 index
+
+PostgreSQL은 FK column에 자동 index를 만들지 않으므로 다음 조건을 만족할 때 명시적 index를 둔다.
+
+- 자식에서 부모로 자주 조회한다.
+- publication·lint·conflict 검사에 반복 사용한다.
+- 대량 자료에서 full scan을 피해야 한다.
+
+### 13.3 시간·상태 index
+
+다음과 같이 실제 조회가 확인된 경우에만 만든다.
 
 ```text
-observation.observed_at
-→ 시스템이 해당 원문 범위를 근거로 식별한 시각.
-  출처 게시 시점이나 노드 활동량 계산 시각이 아니다.
-
-external_identifier.identifier_value
-→ 신뢰된 자료 준비 단계가 제공한 외부 식별값.
-  POC에서는 Claim·Observation Evidence Trace와 연결하지 않는다.
-
-promotion_batch.publication_status
-→ 검색 문서·임베딩·맥락·후속 질문·인사이트의 공개 준비 상태.
-  기준 지식 저장 결과인 promotion_status와 별개다.
-
-conflict_set
-→ 대상과 Claim 구성의 불변 비교 snapshot.
-  구성원이 달라지면 기존 행을 수정하지 않고 새 묶음을 만든다.
+(status, next_attempt_at)
+(node_id, ready_at DESC)
+(source_key, version_no DESC)
 ```
 
-주석은 제약, 권한과 트랜잭션 검증을 대신하지 않는다. 자격 증명, API key, token, 비밀값과 민감한 운영 정보를 주석에 넣지 않는다.
+고정된 POC 데이터만 보고 미래 운영 query를 추정해 인덱스를 추가하지 않는다.
 
-## 13. 무결성 보장 책임
+### 13.4 JSON과 전문 검색 index
 
-모든 table mapping은 각 불변식을 다음 중 정확한 보장 주체에 배정한다.
+현재 승인된 것은 `node_search_document`의 `identity_text`와 `knowledge_text`를 합친 `simple` FTS expression GIN뿐이다.
 
-| 보장 수단 | 사용 대상 |
-|---|---|
-| `NOT NULL`, row-local CHECK | 한 행의 값·상태·nullable 조합 |
-| PK·FK | 식별과 참조 무결성 |
-| UNIQUE·partial unique index | 일반·조건부 중복 금지 |
-| 좁은 trigger 또는 지연 가능한 DB 메커니즘 | 고위험 불변성과 commit 시점의 행 간 조건 |
-| 짧은 트랜잭션 서비스 검증 | 여러 테이블 집계, 후보·공개 완결성과 정밀도-aware 계산 |
-| read-time filter | 현재 상태·열린 lint·READY 결과를 조합한 공개 선택 |
+`jsonb` GIN, trigram, 다른 tokenizer와 BM25는 실제 누락 사례·query·측정 근거가 생길 때 별도 Issue에서 검토한다. [#117](https://github.com/studylida/ontology-map/issues/117)은 FTS를 exact alias → identity FTS → knowledge FTS 세 bucket으로 분리하고, [#80](https://github.com/studylida/ontology-map/issues/80)은 구현 후에도 한국어 단어 누락이 실제로 재현될 때만 확장 검색을 검토한다.
 
-한 규칙을 설명문에만 남기지 않는다. 반대로 모든 교차 테이블 규칙을 무거운 범용 trigger로 만들지도 않는다.
+## 14. blocker와 후속 결정
 
-애플리케이션이 canonical input을 계산하는 결정적 키는 PostgreSQL UNIQUE와 함께 사용한다. 애플리케이션 계산만 믿거나 DB 해시만으로 비즈니스 의미를 추론하지 않는다.
-
-## 14. Deferred Decisions
-
-| ID | 영향 객체 | 현재 결정 | 다시 여는 조건 |
-|---|---|---|---|
-| `PHY-DEFER-001` | `knowledge_state_event`, `conflict_state_event` | actor·principal FK를 임의로 만들지 않고 두 table 전체를 초기 migration에서 제외 | 관리자·인증과 사람 상태 변경 기능의 actor 계약 승인 |
+현재 frozen schema 구현을 막는 physical blocker는 없다.
 
 의미가 불명확한 `TBD`, placeholder 값과 가짜 actor FK는 frozen schema에 넣지 않는다.
 
@@ -875,10 +644,10 @@ conflict_set
 
 migration 변경은 논리 필드와 물리 컬럼, PostgreSQL type, `NULL`과 default, PK·FK·UNIQUE·CHECK, 삭제·갱신 동작, lifecycle, index, 한국어 DB comment, DB와 service의 무결성 책임 및 정상·실패 검증을 함께 설명해야 한다.
 
-## 기간별 패널 결과 추가 계약
+## 16. 관련 문서
 
-`0002_add_panel_reading_contracts.py`는 기존 43개 테이블을 수정하지 않고 6개 테이블을 추가한다. `node_question_set`의 context·기간, `node_question`의 묶음·표시 순서, `node_insight_window`의 작업·기간, `node_insight_section`의 보고서·표시 순서가 각각 유일하다. `node_question_claim`과 `node_insight_section_claim`은 부모·Claim 복합 PK와 부모·표시 순서 UNIQUE를 갖는다. FK는 RESTRICT를 사용하고 양의 순서·비어 있지 않은 본문·허용 기간·역할·유한 기준 시각은 CHECK로 검사한다.
-
-선택된 context·작업과 성공 상태, 전체 공개 basis, Claim 원문 연결, 보고서와 window의 node·검색 문서·작업·기간·기준 시각 일치 및 절별 Claim의 상위 보고서 포함 여부는 읽기 transaction에서 검사한다. 새 결과가 없던 기존 READY는 503으로 구분하고 기존 데이터를 생성 결과처럼 backfill하지 않는다. 생성 worker와 실제 출력 저장 검증기는 후속 구현 범위다. 기존 필드와 추가 구조의 의미는 [논리 스키마](logical-schema.md#512-기간별-질문답변과-종합보고서)를 따른다.
-
-추가 테이블에 결과가 존재하면 downgrade는 오류로 중단한다. 일반 되돌리기는 새 스키마와 데이터를 유지하고 기존 앱·API로 복귀하는 방식이며, 데이터 삭제가 필요한 downgrade를 자동 실행하지 않는다.
+- [Logical Schema v1.2](logical-schema.md)
+- [생성된 스키마 참고 문서](schema-reference.md)
+- [구현 스택](../development/implementation-stack.md)
+- [코드 규칙](../development/code-conventions.md)
+- [제품 설계](../product/design.md)
