@@ -152,13 +152,11 @@ function searchResults(
       node_id: "9223372036854775806",
       name: "HBF",
       node_type: { code: "TECHNOLOGY", display_name: "기술" },
-      match_reasons: ["EXACT_ALIAS", "FULL_TEXT"],
     },
     {
       node_id: "9223372036854775805",
       name: "UCIe",
       node_type: { code: "TECHNOLOGY", display_name: "기술" },
-      match_reasons: ["FULL_TEXT"],
     },
   ],
 ) {
@@ -424,8 +422,8 @@ describe("exploration API 화면", () => {
     expect(searchCall?.[0]).toBe("/api/v1/nodes/search?q=HBF&limit=5");
     const options = screen.getAllByRole("option");
     expect(options.map((option) => option.textContent)).toEqual([
-      "HBF기술별칭 정확 일치 · 공개 지식 일치",
-      "UCIe기술공개 지식 일치",
+      "HBF기술",
+      "UCIe기술",
     ]);
     expect(searchInput().getAttribute("aria-activedescendant")).toContain(
       "9223372036854775806",

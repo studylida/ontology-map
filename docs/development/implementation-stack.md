@@ -207,8 +207,8 @@ Compose는 `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`와 `POSTGRES_PORT
 
 | 영역 | 현재 구현 | 승인된 변경·후속 경계 |
 | --- | --- | --- |
-| 검색 | alias 정확 일치 뒤 `identity_text`·`knowledge_text`를 합친 `simple` FTS, 응답에 `match_reasons` 포함 | [#117](https://github.com/studylida/ontology-map/issues/117): alias → identity FTS → knowledge FTS, 이유 필드 제거. #121 뒤 구현 |
-| 검색 기반 | PostgreSQL native FTS만 사용하며 node embedding·pgvector 저장/실행 의존성은 없음 | [#121](https://github.com/studylida/ontology-map/issues/121)에서 초기 baseline 교체와 개발 DB 재생성 기준으로 제거. #117의 세 검색 bucket과 응답 단순화는 별도 후속 |
+| 검색 | exact alias → `identity_text` FTS → `knowledge_text` FTS. exact alias는 `node_id ASC`, FTS는 `ts_rank_cd DESC, node_id ASC`; canonical Node 전역 중복 제거. 응답은 ID·이름·유형만 제공 | [#80](https://github.com/studylida/ontology-map/issues/80)은 실제 한국어 단어 FTS 누락이 재현될 때만 검토 |
+| 검색 기반 | PostgreSQL native FTS만 사용하며 node embedding·pgvector 저장/실행 의존성은 없음 | [#121](https://github.com/studylida/ontology-map/issues/121)에서 초기 baseline 교체와 개발 DB 재생성 기준으로 제거 완료 |
 | 한국어 검색 확장 | 외부 엔진·별도 tokenizer 없음 | [#80](https://github.com/studylida/ontology-map/issues/80): 실제 단어 FTS 누락이 재현될 때만 검토 |
 | 공개 읽기 | exploration·검색·Relation·Evidence·peripheral·질문 답변·Claim·종합보고서 연동. #120의 selected search-document basis 재검증도 main에 반영됨 | [#180](https://github.com/studylida/ontology-map/issues/180): 무효화된 READY 파생 결과의 자동 재생성·publication 복구는 후속 작업 |
 | 입력 자료 | HBF와 별도 100-node 합성 개발 fixture | [#111](https://github.com/studylida/ontology-map/issues/111)은 작은 자료의 Agent 입력 경계, #112는 GDELT 적합성, #131은 외부 자료 수집. 운영 수집 platform이나 publication 전체의 구현 Issue가 아님 |

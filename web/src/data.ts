@@ -43,14 +43,11 @@ export interface ExplorationView {
   followups: FollowupQuestion[];
 }
 
-export type SearchMatchReason = "EXACT_ALIAS" | "FULL_TEXT";
-
 export interface SearchCandidate {
   nodeId: string;
   name: string;
   kind: string;
   kindCode: string;
-  matchReasons: SearchMatchReason[];
 }
 
 export type KnowledgeViewNode = KnowledgeNode;
@@ -245,11 +242,6 @@ export function toExplorationView(payload: unknown): ExplorationView {
   };
 }
 
-function matchReason(value: unknown): SearchMatchReason {
-  if (value === "EXACT_ALIAS" || value === "FULL_TEXT") return value;
-  throw new APIRequestError("INVALID_RESPONSE", 0, true);
-}
-
 export function toSearchCandidates(payload: unknown): SearchCandidate[] {
   return array(object(payload).items).map((value) => {
     const item = object(value);
@@ -259,7 +251,6 @@ export function toSearchCandidates(payload: unknown): SearchCandidate[] {
       name: string(item.name),
       kind: string(type.display_name),
       kindCode: string(type.code),
-      matchReasons: array(item.match_reasons).map(matchReason),
     };
   });
 }
