@@ -11,165 +11,46 @@ permissions:
   contents: write
 
 jobs:
-  finalize-and-verify:
+  finalize-docs:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - uses: actions/setup-python@v5
         with:
           python-version: 3.14.7
-
       - uses: astral-sh/setup-uv@v6
         with:
           version: 0.12.7
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24.20.0
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
       - name: Confirm branch head
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin refactor/121-remove-pgvector
           test "$(git rev-parse HEAD)" = "$(git rev-parse origin/refactor/121-remove-pgvector)"
-
-      - name: Apply remaining issue 121 changes
-        run: |
-          python scripts/tmp_121_finalize.py
-          python scripts/tmp_121_lint_fix.py
-
-      - name: Refresh lockfile and generated schema reference
+      - name: Apply final documentation corrections
+        run: python scripts/tmp_121_doc_fix.py
+      - name: Verify documentation
         shell: bash
         run: |
           set -euo pipefail
-          uv lock --project server
           uv sync --project server --frozen
-          uv run --project server ruff format \
-            server/src/ontology_map/db/review_fixture.py \
-            server/src/ontology_map/db/panel_fixture.py
-          uv run --project server --frozen python scripts/check_docs.py --write
-
-      - name: Static contract checks
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd server
-          uv run ruff format --check .
-          uv run ruff check .
-          uv run mypy src
-          cd ..
           uv run --project server --frozen python scripts/check_docs.py --check
           git diff --check
-          ! grep -R -n 'pgvector' server/uv.lock
-          ! grep -R -E -n 'node_embedding|EMBEDDING|pgvector\.sqlalchemy|Vector\(1024\)|CREATE EXTENSION IF NOT EXISTS vector' \
-            server/src server/migrations server/tests
-          grep -R -F -n "to_tsvector('simple'" server/src/ontology_map/db/schema.py server/migrations/versions/0001_create_frozen_schema.py
-          grep -R -n 'match_reasons' server/src/ontology_map server/tests web/src >/tmp/match-reasons.txt
-          test -s /tmp/match-reasons.txt
-
-      - name: Prepare isolated database
-        shell: bash
-        run: |
-          cat > .env.121 <<'EOF'
-          POSTGRES_DB=ontology_map_121_test
-          POSTGRES_USER=ontology_map
-          POSTGRES_PASSWORD=ontology-map-121-test
-          POSTGRES_PORT=55434
-          ONTOLOGY_MAP_ENVIRONMENT=development
-          ONTOLOGY_MAP_DATABASE_URL=postgresql+psycopg://ontology_map:ontology-map-121-test@127.0.0.1:55434/ontology_map_121_test
-          EOF
-          echo "COMPOSE_PROJECT_NAME=ontology-map-121-${GITHUB_RUN_ID}" >> "$GITHUB_ENV"
-
-      - name: Migration fixture PostgreSQL backend validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env.121 up -d db
-          for i in {1..60}; do
-            if docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env.121 exec -T db pg_isready -U ontology_map -d ontology_map_121_test; then
-              break
-            fi
-            sleep 2
-          done
-          cd server
-          uv run --env-file ../.env.121 alembic upgrade head
-          uv run --env-file ../.env.121 alembic current
-          PYTHONPATH=src uv run --env-file ../.env.121 python -m ontology_map.db.fixture | tee /tmp/fixture-first.txt
-          PYTHONPATH=src uv run --env-file ../.env.121 python -m ontology_map.db.fixture | tee /tmp/fixture-second.txt
-          PYTHONPATH=src uv run --env-file ../.env.121 python -m ontology_map.db.review_fixture
-          PYTHONPATH=src uv run --env-file ../.env.121 python -m ontology_map.db.panel_fixture
-          uv run --env-file ../.env.121 pytest -q
-          uv run --env-file ../.env.121 alembic check
-          cd ..
-          docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env.121 exec -T db psql -U ontology_map -d ontology_map_121_test -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name <> 'alembic_version';" | grep -qx '48'
-          test "$(docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env.121 exec -T db psql -U ontology_map -d ontology_map_121_test -Atc "SELECT count(*) FROM pg_extension WHERE extname='vector';")" = '0'
-          test "$(docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env.121 exec -T db psql -U ontology_map -d ontology_map_121_test -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='node_embedding';")" = '0'
-
-      - name: FastAPI smoke check
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd server
-          PYTHONPATH=src uv run --env-file ../.env.121 uvicorn ontology_map.main:app --host 127.0.0.1 --port 8000 >/tmp/uvicorn-121.log 2>&1 &
-          api_pid=$!
-          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
-          for i in {1..30}; do
-            if curl --fail --silent --get 'http://127.0.0.1:8000/api/v1/nodes/search' --data-urlencode 'q=SK하이닉스' --data 'limit=5' >/tmp/search.json; then
-              break
-            fi
-            sleep 1
-          done
-          python - <<'PY'
-          import json
-          payload = json.load(open('/tmp/search.json', encoding='utf-8'))
-          assert payload['items'], payload
-          assert 'match_reasons' in payload['items'][0], '#117 contract must remain untouched by #121'
-          PY
-          kill "$api_pid"
-          trap - EXIT
-          cd ..
-
-      - name: Web regression validation
-        working-directory: web
-        run: |
-          npm ci
-          npm run check
-
-      - name: Review active-document remnants
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -E -n 'node_embedding|EMBEDDING|pgvector|qwen3\.7-text-embedding|RRF|HNSW|IVFFlat' \
-            docs/product/design.md HANDOFF.md docs/data/logical-schema.md docs/data/physical-schema.md \
-            docs/development/implementation-stack.md docs/operations/database.md \
-            docs/data/schema-reference.md docs/architecture/decisions/current/0008-remove-node-embedding-pgvector.md \
-            > /tmp/active-remnants.txt || true
-          cat /tmp/active-remnants.txt
-
-      - name: Commit verified issue 121 completion
+          ! grep -F -n '`EMBEDDING`만 비움' docs/data/logical-schema.md
+          ! grep -F -n 'schema가 없는 `EMBEDDING`' docs/data/logical-schema.md
+          ! grep -E -n 'HNSW|IVFFlat|cosine exact search' docs/data/physical-schema.md
+          grep -F -n '#117' docs/product/design.md docs/development/implementation-stack.md HANDOFF.md
+      - name: Commit documentation correction
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'Hye'
           git config user.email '100192485+studylida@users.noreply.github.com'
-          git add HANDOFF.md docs server
-          git status --short
-          git commit -m 'refactor: pgvector 제거 계약 완성'
+          git add docs/data/logical-schema.md docs/data/physical-schema.md
+          git commit -m 'docs: pgvector 제거 계약 잔존 정리'
           git fetch origin refactor/121-remove-pgvector
           test "$(git rev-parse HEAD^)" = "$(git rev-parse origin/refactor/121-remove-pgvector)"
           git push origin HEAD:refactor/121-remove-pgvector
-
-      - name: Cleanup isolated database
-        if: always()
-        shell: bash
-        run: |
-          if [ -f .env.121 ]; then
-            docker compose -p "${COMPOSE_PROJECT_NAME:-ontology-map-121-${GITHUB_RUN_ID}}" --env-file .env.121 down --volumes --remove-orphans || true
-          fi
