@@ -163,7 +163,7 @@ hover·키보드 초점으로 강조한 일반 연결선은 기본 중심 연결
 | graph Relation | `relation_id`, `source_node_id`, `target_node_id`, `relation_type_display_name`, `directionality: DIRECTED | SYMMETRIC`, `supporting_evidence_group_count`, `has_conflict` |
 | recommendation | `target_node`, `reason_code`, nullable `via_node_id`, 직접 근거가 있을 때만 `supporting_evidence_group_count`, 실제 연결의 `path[]` |
 | follow-up question | `slot`, `question_text`, `target_node_id` |
-| search | `items[] { node_id, name, node_type, match_reasons[] }` |
+| search | `items[] { node_id, name, node_type }` |
 | node Relations | `items[] { relation_id, other_node, source_node_id, target_node_id, directionality, relation_type_display_name, supporting_evidence_group_count, has_conflict }`, `next_cursor` |
 | Relation Evidence | `items[] { claim_text, stance, source, quote_text, locator }`, 전체 공개 trace의 `trace_count`, `next_cursor` |
 | Evidence source·locator | `source { title, publisher_name, published_at, published_precision, canonical_url }`, `locator { paragraph_number, start_char, end_char }` |
@@ -189,7 +189,7 @@ PostgreSQL의 `bigint` ID는 JavaScript 정밀도 손실을 막기 위해 모든
 
 일반 사용자 조회에는 현재 공개 가능한 최신 READY 결과만 포함한다. `promotion_status = COMMITTED`, `publication_status = READY`, 지식 상태 `EVIDENCE_VERIFIED | HUMAN_VERIFIED`와 열린 `BLOCKING` lint 부재를 다시 확인한다. selected 검색 문서의 모든 `search_document_basis`가 계속 공개 가능한지 재검증하는 것은 제품 불변성이다. search와 저장 인사이트 경로뿐 아니라 exploration, peripheral, node Relation과 Relation Evidence Trace가 사용하는 공통 공개 경로도 이 basis 재검증을 수행한다. 새 publication이 실패해도 이전 READY 결과가 있으면 계속 제공한다.
 
-현재 search는 alias 정확 일치를 첫 bucket으로 반환한 뒤 `identity_text`와 `knowledge_text`를 함께 사용한 PostgreSQL `simple` FTS 결과를 이어서 반환하고 HTTP 응답과 web에 `match_reasons`를 노출한다. #121에 따라 node embedding 저장 구조와 pgvector 의존성, publication READY의 embedding 요구는 제거됐다. #117은 후속으로 exact alias → identity FTS → knowledge FTS의 세 bucket을 고정하고 `match_reasons`와 검색 이유 표시를 제거한다. 실제 한국어 단어 FTS 누락 사례가 확인될 때만 #80에서 tokenizer, `pg_trgm` 또는 BM25 같은 확장을 다시 검토한다.
+현재 search는 exact alias → `identity_text` 단어 FTS → `knowledge_text` 단어 FTS의 세 bucket을 순서대로 반환한다. exact alias bucket은 `node_id ASC`, 각 FTS bucket은 `ts_rank_cd DESC, node_id ASC`로 정렬하고 활성 merge를 해소한 같은 canonical Node는 전체 결과에서 한 번만 반환한다. HTTP 응답과 web 후보에는 `node_id`, 이름과 유형만 포함하며 검색 이유를 노출하지 않는다. READY, selected `search_document_basis`와 열린 `BLOCKING` lint 공개 필터를 유지하고 `node_context.context_text`는 검색 입력으로 사용하지 않는다. 실제 한국어 단어 FTS 누락 사례가 확인될 때만 #80에서 tokenizer, `pg_trgm` 또는 BM25 같은 확장을 다시 검토한다.
 
 ## 승인된 지식 선정·의미 보존 원칙
 
@@ -298,7 +298,7 @@ UI panel의 깊이는 `surface`, `surface-elevated`와 1px `border`로 구분한
 
 header는 56px 높이의 단색 분석 도구 bar로 유지한다. 작은 별자리형 product mark, `ontology-map`과 현재 세션의 최근 탐색 경로만 표시한다. 화면 이름, 부분 graph 범위와 공개 상태처럼 본문에서 이미 알 수 있는 정보는 반복하지 않는다. 탐색 경로는 현재 node를 포함해 최근 4개까지만 표시하고 이전 node를 선택하면 그 위치로 돌아가며 이후 경로를 제거한다. 현재 node는 link가 아닌 `aria-current` 상태로 표시하고 새로고침하면 URL의 현재 중심부터 경로를 다시 시작한다. 검색, 시간 범위와 필요한 map control은 지도 위 overlay에 둔다. navigation이 실제로 생기기 전에는 빈 menu와 미래 기능 entry를 만들지 않는다.
 
-검색 panel에는 `노드 검색`, 현재 중심 주변의 표시 node 수와 시간 범위만 둔다. 현재 snapshot은 검색 후보마다 node 이름, 유형과 `match_reasons` 기반의 짧은 검색 이유를 표시한다. 검색 input과 결과는 keyboard로 이동하고 선택할 수 있어야 하며, 후보를 선택하면 node 클릭과 같은 중심 이동을 실행한다. #117이 구현되면 검색 이유를 제거하고 후보에는 node 이름과 유형만 남긴다. 직접 이웃과 2단계 이웃의 개별 수는 기본 화면에 반복하지 않는다.
+검색 panel에는 `노드 검색`, 현재 중심 주변의 표시 node 수와 시간 범위만 둔다. 검색 후보에는 node 이름과 유형만 표시하고 순위 이유나 내부 점수는 노출하지 않는다. 검색 input과 결과는 keyboard로 이동하고 선택할 수 있어야 하며, 후보를 선택하면 node 클릭과 같은 중심 이동을 실행한다. 직접 이웃과 2단계 이웃의 개별 수는 기본 화면에 반복하지 않는다.
 
 지식맵 범례는 node 유형 색을 요약한 한 줄 상태로 시작하고 `범례` button으로 전체 설명을 펼친다. 펼친 범례에는 node 유형, 독립 근거 수에 따른 필라멘트와 충돌 관계를 표시하며 그래프의 해석 규칙을 별도 점수로 바꾸지 않는다.
 

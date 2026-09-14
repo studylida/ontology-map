@@ -83,13 +83,8 @@ searchable_nodes AS (
 )
 """
 
-_SEARCH_VECTOR_EXPRESSION = """
-(
-    setweight(to_tsvector('simple', identity_text), 'A')
-    ||
-    setweight(to_tsvector('simple', knowledge_text), 'B')
-)
-"""
+_IDENTITY_FTS_EXPRESSION = "to_tsvector('simple', nsd.identity_text)"
+_KNOWLEDGE_FTS_EXPRESSION = "to_tsvector('simple', nsd.knowledge_text)"
 
 
 def _rows(result: sa.Result[Any]) -> list[SearchNodeRow]:
@@ -151,8 +146,11 @@ def list_exact_alias_matches(
     return _rows(session.execute(statement, {"query": query, "limit": limit}))
 
 
-def list_full_text_matches(
-    session: Session, query: str, limit: int
+def _list_fts_matches(
+    session: Session,
+    query: str,
+    limit: int,
+    expression: str,
 ) -> list[SearchNodeRow]:
     statement = sa.text(
         _SEARCHABLE_NODES_CTE
@@ -170,11 +168,23 @@ def list_full_text_matches(
           ON nsd.node_search_document_id = sn.node_search_document_id
          AND nsd.node_id = sn.node_id
         CROSS JOIN search_query AS sq
-        WHERE {_SEARCH_VECTOR_EXPRESSION} @@ sq.value
+        WHERE {expression} @@ sq.value
         ORDER BY
-            ts_rank_cd({_SEARCH_VECTOR_EXPRESSION}, sq.value) DESC,
+            ts_rank_cd({expression}, sq.value) DESC,
             sn.node_id ASC
         LIMIT :limit
         """
     )
     return _rows(session.execute(statement, {"query": query, "limit": limit}))
+
+
+def list_identity_text_matches(
+    session: Session, query: str, limit: int
+) -> list[SearchNodeRow]:
+    return _list_fts_matches(session, query, limit, _IDENTITY_FTS_EXPRESSION)
+
+
+def list_knowledge_text_matches(
+    session: Session, query: str, limit: int
+) -> list[SearchNodeRow]:
+    return _list_fts_matches(session, query, limit, _KNOWLEDGE_FTS_EXPRESSION)
