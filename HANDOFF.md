@@ -1,6 +1,6 @@
 # ontology-map #121 구현 인계
 
-> 작업 기준: `main` `eab6f6dd6e13b1e973071bbb9b25fe533c228166`에서 분기한 `refactor/121-remove-pgvector`, Draft PR #195. 병합 전에는 GitHub의 실제 head와 검증 상태를 다시 확인한다.
+> 작업 기준: 최신 `main` `b4064cee3105dc52b06c30fa3cabaec2b870f575` 위에 재구성한 `refactor/121-remove-pgvector-clean`, Draft PR #196. PR #195의 임시/fixup history는 이 clean integration PR에 포함하지 않는다. 병합 전에는 GitHub의 실제 head와 검증 상태를 다시 확인한다.
 
 ## #121 현재 계약
 
@@ -12,7 +12,7 @@
 ## 병렬 PR overlap
 
 - Draft PR #192는 `server/pyproject.toml`, `server/uv.lock`, `docs/development/implementation-stack.md`, `docs/operations/database.md`를 함께 변경하고 있어 #121과 integration conflict 가능성이 있다. #192의 branch나 코드는 이 PR에서 수정하지 않는다.
-- #124/#125/#127/#128/#130/#193의 구현 범위도 가져오지 않는다.
+- #124/#125/#127/#128/#130/#193의 구현 범위도 가져오지 않는다. 최신 main에 이미 병합된 #128 Entity Resolution 구현과 문서 경계는 그대로 보존한다.
 
 ## 다음 작업
 
