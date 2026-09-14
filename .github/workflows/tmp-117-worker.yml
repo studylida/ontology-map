@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   implement-and-check:
-    if: ${{ !startsWith(github.event.head_commit.message, 'feat: #117') }}
+    if: ${{ github.event.head_commit.message != 'feat: #117 검색 bucket과 응답 계약 단순화' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
