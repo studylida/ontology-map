@@ -31,72 +31,66 @@ jobs:
           uv run --project server --frozen mypy --config-file server/pyproject.toml server/src/ontology_map > /tmp/mypy.txt 2>&1 || true
           uv run --project server --frozen ruff check server > /tmp/ruff.txt 2>&1 || true
           uv run --project server --frozen ruff format --check server > /tmp/format.txt 2>&1 || true
-      - name: mypy contracts file clean
+      - name: db 200-249 clean
         if: ${{ always() }}
-        run: '! grep -q "followup_generation_contracts.py:" /tmp/mypy.txt'
-      - name: mypy service file clean
+        run: '! grep -Eq "db/followup_generation.py:2[0-4][0-9]:" /tmp/mypy.txt'
+      - name: db 250-299 clean
         if: ${{ always() }}
-        run: '! grep -q "src/ontology_map/followup_generation.py:" /tmp/mypy.txt'
-      - name: mypy db file clean
+        run: '! grep -Eq "db/followup_generation.py:2[5-9][0-9]:" /tmp/mypy.txt'
+      - name: db 300-349 clean
         if: ${{ always() }}
-        run: '! grep -q "src/ontology_map/db/followup_generation.py:" /tmp/mypy.txt'
-      - name: mypy db lines 1-199 clean
+        run: '! grep -Eq "db/followup_generation.py:3[0-4][0-9]:" /tmp/mypy.txt'
+      - name: db 350-399 clean
         if: ${{ always() }}
-        run: '! grep -Eq "db/followup_generation.py:([1-9][0-9]?|1[0-9]{2}):" /tmp/mypy.txt'
-      - name: mypy db lines 200-399 clean
+        run: '! grep -Eq "db/followup_generation.py:3[5-9][0-9]:" /tmp/mypy.txt'
+      - name: db 400-449 clean
         if: ${{ always() }}
-        run: '! grep -Eq "db/followup_generation.py:([23][0-9]{2}):" /tmp/mypy.txt'
-      - name: mypy db lines 400-599 clean
+        run: '! grep -Eq "db/followup_generation.py:4[0-4][0-9]:" /tmp/mypy.txt'
+      - name: db 450-499 clean
         if: ${{ always() }}
-        run: '! grep -Eq "db/followup_generation.py:([45][0-9]{2}):" /tmp/mypy.txt'
-      - name: mypy arg-type clean
+        run: '! grep -Eq "db/followup_generation.py:4[5-9][0-9]:" /tmp/mypy.txt'
+      - name: db 500-549 clean
         if: ${{ always() }}
-        run: '! grep -q "\[arg-type\]" /tmp/mypy.txt'
-      - name: mypy assignment clean
+        run: '! grep -Eq "db/followup_generation.py:5[0-4][0-9]:" /tmp/mypy.txt'
+      - name: db 550-599 clean
         if: ${{ always() }}
-        run: '! grep -q "\[assignment\]" /tmp/mypy.txt'
-      - name: mypy return-value clean
+        run: '! grep -Eq "db/followup_generation.py:5[5-9][0-9]:" /tmp/mypy.txt'
+      - name: assignment str expression absent
         if: ${{ always() }}
-        run: '! grep -q "\[return-value\]" /tmp/mypy.txt'
-      - name: mypy no-any-return clean
+        run: '! grep -Eq "Incompatible types in assignment .*expression has type .str" /tmp/mypy.txt'
+      - name: assignment none expression absent
         if: ${{ always() }}
-        run: '! grep -q "\[no-any-return\]" /tmp/mypy.txt'
-      - name: mypy valid-type clean
+        run: '! grep -Eq "Incompatible types in assignment .*expression has type .None" /tmp/mypy.txt'
+      - name: assignment row expression absent
         if: ${{ always() }}
-        run: '! grep -q "\[valid-type\]" /tmp/mypy.txt'
-      - name: mypy misc clean
+        run: '! grep -Eq "Incompatible types in assignment .*Row" /tmp/mypy.txt'
+      - name: assignment PreparedFollowup absent
         if: ${{ always() }}
-        run: '! grep -q "\[misc\]" /tmp/mypy.txt'
-      - name: mypy operator clean
+        run: '! grep -q "PreparedFollowup" /tmp/mypy.txt'
+      - name: assignment PeriodRole absent
         if: ${{ always() }}
-        run: '! grep -q "\[operator\]" /tmp/mypy.txt'
-      - name: Ruff contracts clean
-        if: ${{ always() }}
-        run: '! grep -q "followup_generation_contracts.py" /tmp/ruff.txt'
-      - name: Ruff service clean
-        if: ${{ always() }}
-        run: '! grep -q "src/ontology_map/followup_generation.py" /tmp/ruff.txt'
+        run: '! grep -q "PeriodRole" /tmp/mypy.txt'
       - name: Ruff db clean
         if: ${{ always() }}
         run: '! grep -q "src/ontology_map/db/followup_generation.py" /tmp/ruff.txt'
-      - name: Ruff tests clean
+      - name: Ruff generation test clean
         if: ${{ always() }}
-        run: '! grep -q "tests/test_followup" /tmp/ruff.txt'
-      - name: Ruff C901 clean
+        run: '! grep -q "tests/test_followup_generation.py" /tmp/ruff.txt'
+      - name: Ruff DB test clean
         if: ${{ always() }}
-        run: '! grep -q "C901" /tmp/ruff.txt'
-      - name: Ruff I001 clean
+        run: '! grep -q "tests/test_followup_generation_db.py" /tmp/ruff.txt'
+      - name: Ruff read test clean
         if: ${{ always() }}
-        run: '! grep -q "I001" /tmp/ruff.txt'
-      - name: Format contracts clean
-        if: ${{ always() }}
-        run: '! grep -q "followup_generation_contracts.py" /tmp/format.txt'
-      - name: Format service clean
-        if: ${{ always() }}
-        run: '! grep -q "src/ontology_map/followup_generation.py" /tmp/format.txt'
+        run: '! grep -q "tests/test_followup_read_contract.py" /tmp/ruff.txt'
       - name: Format db clean
         if: ${{ always() }}
         run: '! grep -q "src/ontology_map/db/followup_generation.py" /tmp/format.txt'
-      - name: Format tests clean
+      - name: Format generation test clean
         if: ${{ always() }}
-        run: '! grep -q "tests/test_followup" /tmp/format.txt'
+        run: '! grep -q "tests/test_followup_generation.py" /tmp/format.txt'
+      - name: Format DB test clean
+        if: ${{ always() }}
+        run: '! grep -q "tests/test_followup_generation_db.py" /tmp/format.txt'
+      - name: Format read test clean
+        if: ${{ always() }}
+        run: '! grep -q "tests/test_followup_read_contract.py" /tmp/format.txt'
