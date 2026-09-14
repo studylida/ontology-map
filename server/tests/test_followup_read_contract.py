@@ -26,11 +26,15 @@ def test_question_windows_may_use_independent_successful_model_tasks() -> None:
         )
         assert len(rows) == 2
         original_task_id = int(rows[0]["model_task_id"])
-        original = session.execute(
-            sa.select(s.model_task).where(
-                s.model_task.c.model_task_id == original_task_id
+        original = (
+            session.execute(
+                sa.select(s.model_task).where(
+                    s.model_task.c.model_task_id == original_task_id
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
 
         second_task_id = session.scalar(
             s.model_task.insert()
@@ -51,8 +55,7 @@ def test_question_windows_may_use_independent_successful_model_tasks() -> None:
         session.execute(
             s.node_question_set.update()
             .where(
-                s.node_question_set.c.question_set_id
-                == int(rows[1]["question_set_id"])
+                s.node_question_set.c.question_set_id == int(rows[1]["question_set_id"])
             )
             .values(model_task_id=second_task_id)
         )

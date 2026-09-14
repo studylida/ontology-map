@@ -43,9 +43,7 @@ def claim(claim_id: int, *, role: str = "IN_WINDOW") -> GroundedClaim:
 
 def prepared(*claims: GroundedClaim, conflict: bool = False) -> PreparedFollowup:
     pairs = (
-        (VisibleConflictPair(conflict_set_id=1, claim_ids=(1, 2)),)
-        if conflict
-        else ()
+        (VisibleConflictPair(conflict_set_id=1, claim_ids=(1, 2)),) if conflict else ()
     )
     return PreparedFollowup(
         promotion_batch_id=1,
@@ -93,9 +91,7 @@ def question(
 
 def test_structured_output_is_strict_and_limited_to_eight_questions() -> None:
     payload = {
-        "questions": [
-            question(i, reference(1)).model_dump() for i in range(1, 10)
-        ]
+        "questions": [question(i, reference(1)).model_dump() for i in range(1, 10)]
     }
     with pytest.raises(ValidationError):
         FollowupQuestionsProposal.model_validate(payload)
@@ -144,9 +140,7 @@ def test_candidate_requires_key_and_selected_period_claim() -> None:
 
 def test_visible_conflict_requires_both_members_as_key_claims() -> None:
     snapshot = prepared(claim(1), claim(2), conflict=True)
-    incomplete = FollowupQuestionsProposal(
-        questions=(question(1, reference(1)),)
-    )
+    incomplete = FollowupQuestionsProposal(questions=(question(1, reference(1)),))
     assert service.validate_proposal(snapshot, incomplete).candidates == ()
 
     complete = FollowupQuestionsProposal(

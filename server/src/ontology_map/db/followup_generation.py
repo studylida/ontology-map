@@ -28,8 +28,10 @@ from ontology_map.followup_generation_contracts import (
     PeriodRole,
     PreparedFollowup,
     RelatedNode,
-    TimeWindow as AgentTimeWindow,
     VisibleConflictPair,
+)
+from ontology_map.followup_generation_contracts import (
+    TimeWindow as AgentTimeWindow,
 )
 
 _PUBLIC_STATES = ("EVIDENCE_VERIFIED", "HUMAN_VERIFIED")
@@ -81,7 +83,9 @@ def _context_snapshot(session: Session, node_context_id: int) -> dict[str, Any]:
         .one_or_none()
     )
     if row is None:
-        raise FollowupPreparationError("context is not selected by a usable publication")
+        raise FollowupPreparationError(
+            "context is not selected by a usable publication"
+        )
     return dict(row)
 
 
@@ -126,7 +130,7 @@ def _basis_ids(
         )
         if not usable:
             raise FollowupPreparationError(
-                "search-document basis contains knowledge that is not publication-usable"
+                "search-document basis is not publication-usable"
             )
         ids.append(int(row["knowledge_item_id"]))
     return tuple(ids)
@@ -195,11 +199,14 @@ def _direct_connections(
     basis = set(basis_ids)
     connections: dict[int, list[ClaimConnection]] = defaultdict(list)
 
-    relation_rows = session.execute(
-        _ids_statement("""
+    relation_rows = (
+        session.execute(
+            _ids_statement("""
             SELECT cr.claim_id, cr.stance, r.relation_id,
                    CASE WHEN r.source_node_id = :node_id
-                        THEN r.target_node_id ELSE r.source_node_id END AS related_node_id,
+                        THEN r.target_node_id
+                        ELSE r.source_node_id
+                   END AS related_node_id,
                    rev.display_name
             FROM claim_relation cr
             JOIN relation r ON r.relation_id = cr.relation_id
@@ -210,12 +217,13 @@ def _direct_connections(
               AND (r.source_node_id = :node_id OR r.target_node_id = :node_id)
             ORDER BY cr.claim_id, r.relation_id
         """),
-        {"ids": list(basis_ids), "node_id": node_id},
-    ).mappings().all()
-    related_ids = [int(row["related_node_id"]) for row in relation_rows]
-    related = _node_identities(
-        session, related_ids, current_batch_id=current_batch_id
+            {"ids": list(basis_ids), "node_id": node_id},
+        )
+        .mappings()
+        .all()
     )
+    related_ids = [int(row["related_node_id"]) for row in relation_rows]
+    related = _node_identities(session, related_ids, current_batch_id=current_batch_id)
     for row in relation_rows:
         claim_id = int(row["claim_id"])
         related_node_id = int(row["related_node_id"])
@@ -327,9 +335,9 @@ def _grounded_claims(
 
     result: list[GroundedClaim] = []
     for claim_id in claim_ids:
-        row = claim_rows.get(claim_id)
+        claim_row = claim_rows.get(claim_id)
         excerpts = evidence.get(claim_id, [])
-        if row is None or not excerpts:
+        if claim_row is None or not excerpts:
             continue
         roles = {item.period_role for item in excerpts}
         claim_period_role: PeriodRole
@@ -342,8 +350,8 @@ def _grounded_claims(
         result.append(
             GroundedClaim(
                 claim_id=claim_id,
-                statement_text=str(row["statement_text"]),
-                modality=row["modality"],
+                statement_text=str(claim_row["statement_text"]),
+                modality=claim_row["modality"],
                 period_role=claim_period_role,
                 connections=connections[claim_id],
                 evidence=tuple(excerpts),
@@ -358,13 +366,15 @@ def _visible_conflicts(
 ) -> tuple[VisibleConflictPair, ...]:
     if not claim_ids:
         return ()
-    rows = session.execute(sa.text("""
+    rows = session.execute(
+        sa.text("""
         SELECT c.conflict_set_id, m.claim_id
         FROM conflict_set c
         JOIN conflict_member m ON m.conflict_set_id = c.conflict_set_id
         WHERE c.current_state IN ('AGENT_PROPOSED', 'HUMAN_CONFIRMED')
         ORDER BY c.conflict_set_id, m.claim_id
-    """)).mappings()
+    """)
+    ).mappings()
     grouped: dict[int, list[int]] = defaultdict(list)
     for row in rows:
         grouped[int(row["conflict_set_id"])].append(int(row["claim_id"]))
@@ -415,9 +425,7 @@ def prepare_followup(
         window=window,
         as_of_at=as_of_at,
     )
-    conflicts = _visible_conflicts(
-        session, frozenset(item.claim_id for item in claims)
-    )
+    conflicts = _visible_conflicts(session, frozenset(item.claim_id for item in claims))
     return PreparedFollowup(
         promotion_batch_id=current_batch_id,
         node_context_id=node_context_id,
@@ -465,7 +473,9 @@ def _task_for_update(session: Session, model_task_id: int) -> dict[str, Any]:
     ):
         raise FollowupTaskError("model_task does not match the active #129 contract")
     if result["status"] != "RUNNING":
-        raise FollowupTaskError("model_task must be RUNNING before product finalization")
+        raise FollowupTaskError(
+            "model_task must be RUNNING before product finalization"
+        )
     return result
 
 
@@ -475,7 +485,7 @@ def _finish_task(
     status: str,
     finished_at: datetime,
 ) -> None:
-    result = session.execute(
+    updated_task_id = session.scalar(
         s.model_task.update()
         .where(
             s.model_task.c.model_task_id == model_task_id,
@@ -488,8 +498,9 @@ def _finish_task(
             lease_expires_at=None,
             finished_at=finished_at,
         )
+        .returning(s.model_task.c.model_task_id)
     )
-    if result.rowcount != 1:
+    if updated_task_id is None:
         raise FollowupTaskError("model_task changed during product finalization")
 
 
