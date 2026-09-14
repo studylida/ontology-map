@@ -16,6 +16,7 @@ from ontology_map.followup_generation_contracts import (
     CandidateFailure,
     FollowupQuestionCandidate,
     FollowupQuestionsProposal,
+    PeriodRole,
     PreparedFollowup,
     ValidatedFollowup,
 )
@@ -105,7 +106,7 @@ def _question_key(text: str) -> str:
 def _candidate_reason(
     candidate: FollowupQuestionCandidate,
     *,
-    allowed_claims: Mapping[int, str],
+    allowed_claims: Mapping[int, PeriodRole],
     in_window_claims: frozenset[int],
     conflict_pairs: tuple[tuple[int, int], ...],
     seen_orders: set[int],
@@ -170,7 +171,8 @@ def validate_proposal(
         claim_id for claim_id, role in allowed_claims.items() if role == "IN_WINDOW"
     )
     conflict_pairs = tuple(
-        tuple(sorted(pair.claim_ids)) for pair in prepared.agent_input.conflict_pairs
+        (min(pair.claim_ids), max(pair.claim_ids))
+        for pair in prepared.agent_input.conflict_pairs
     )
     seen_orders: set[int] = set()
     seen_questions: set[str] = set()
