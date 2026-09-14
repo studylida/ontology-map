@@ -1,0 +1,229 @@
+diff --git a/server/src/ontology_map/extraction.py b/server/src/ontology_map/extraction.py
+index 0910ca4..844d5e7 100644
+--- a/server/src/ontology_map/extraction.py
++++ b/server/src/ontology_map/extraction.py
+@@ -3,6 +3,7 @@
+ import json
+ import re
+ from collections import Counter
++from collections.abc import Callable
+ from copy import deepcopy
+ from dataclasses import asdict, dataclass, field
+ 
+@@ -74,6 +75,7 @@ class GenerationInput(Contract):
+     sources: list[SourceSpan] = Field(repr=False)
+     ontology: Ontology
+     max_candidates: int
++    corrective_input: str | None = None
+ 
+ 
+ class SupportInput(Contract):
+@@ -192,18 +194,26 @@ def generate_knowledge(
+     limits: ExtractionLimits,
+     *,
+     include_structure: bool,
++    before_send: Callable[[], None] | None = None,
++    statement_language: str | None = None,
++    corrective_input: str | None = None,
+ ) -> KnowledgeProposals:
+     sources = [s.model_copy(update={"paragraph_id": None}) for s in body]
+     if include_structure:
+         sources = body
++    prompt = GENERATION_PROMPT
++    if statement_language is not None:
++        prompt += "\nstatement의 언어는 " + statement_language + "이다. 원문 인용은 바꾸지 마라."
+     return models.call(
+         "generation",
+-        GENERATION_PROMPT,
++        prompt,
+         GenerationInput(
+-            sources=sources, ontology=ontology, max_candidates=limits.max_candidates
++            sources=sources, ontology=ontology, max_candidates=limits.max_candidates,
++            corrective_input=corrective_input,
+         ),
+         KnowledgeProposals,
+         limits.generation,
++        before_send=before_send,
+     )
+ 
+ 
+ diff --git a/server/src/ontology_map/model_studio.py b/server/src/ontology_map/model_studio.py
+index 7eed43e..bc8932b 100644
+--- a/server/src/ontology_map/model_studio.py
++++ b/server/src/ontology_map/model_studio.py
+@@ -3,9 +3,12 @@
+ import json
+ import logging
+ import re
++from collections.abc import Callable
+ from contextvars import Context
+ from dataclasses import dataclass, field
++from datetime import UTC, datetime, timedelta
+ from decimal import Decimal
++from email.utils import parsedate_to_datetime
+ from time import monotonic
+ from typing import Literal
+ 
+@@ -20,7 +23,10 @@ from ontology_map.extraction_contracts import digest
+ 
+ FLASH = "qwen3.7-flash-2026-07-15"
+ PLUS = "qwen3.7-plus-2026-05-26"
+-Role = Literal["body", "generation", "claim_support", "meaning_support"]
++Role = Literal[
++    "body", "generation", "claim_support", "meaning_support",
++    "entity_resolution", "claim_reuse",
++]
+ 
+ # Singapore list-price upper tiers, checked 2026-09-10. No cache/promo credit.
+ # Reserve the entire documented 1M input ceiling, not a guessed tokenizer count.
+@@ -80,10 +86,63 @@ class Budget:
+ 
+ 
+ class CallFailed(Exception):
+-    def __init__(self, code: str, *, fatal: bool) -> None:
++    def __init__(
++        self, code: str, *, fatal: bool, transient: bool = False,
++        retry_after: timedelta | None = None,
++    ) -> None:
+         super().__init__(code)
+         self.code = code
+         self.fatal = fatal
++        self.transient = transient
++        self.retry_after = retry_after
++
++
++def _retry_after(error: Exception) -> timedelta | None:
++    response = getattr(error, "response", None)
++    if not isinstance(response, httpx.Response):
++        return None
++    value = response.headers.get("Retry-After")
++    if value is None:
++        return None
++    try:
++        return timedelta(seconds=max(0, int(value)))
++    except (ValueError, OverflowError):
++        try:
++            when = parsedate_to_datetime(value)
++            if when.utcoffset() is None:
++                return None
++            return max(timedelta(0), when - datetime.now(UTC))
++        except (ValueError, TypeError, OverflowError):
++            return None
++
++
++def _provider_error(error: Exception) -> CallFailed:
++    """Classify status/typed transport errors without retaining provider text."""
++    status = getattr(error, "status_code", None)
++    if type(status) is int:
++        if status in (401, 403):
++            return CallFailed("AUTHENTICATION_ERROR", fatal=True)
++        if status in (400, 404, 405, 413, 415, 422):
++            return CallFailed("INVALID_REQUEST", fatal=True)
++        if status == 429:
++            return CallFailed(
++                "RATE_LIMITED", fatal=True, transient=True,
++                retry_after=_retry_after(error),
++            )
++        if status == 408 or status == 504:
++            return CallFailed("TIMEOUT", fatal=True, transient=True)
++        return CallFailed(
++            "PROVIDER_ERROR", fatal=True, transient=500 <= status <= 599,
++            retry_after=_retry_after(error),
++        )
++    current: BaseException | None = error
++    # The SDK may wrap a typed httpx timeout. Unknown transport is NOT a fake
++    # terminal provider result: the RESERVED slot remains for UNKNOWN reclaim.
++    for _ in range(4):
++        if isinstance(current, httpx.TimeoutException):
++            return CallFailed("TIMEOUT", fatal=True, transient=True)
++        current = current.__cause__ if current is not None else None
++    return CallFailed("RESPONSE_UNKNOWN", fatal=True)
+ 
+ 
+ def validate_base_url(base_url: str) -> str:
+@@ -137,6 +196,10 @@ class ModelStudio:
+         transport: httpx.BaseTransport | None = None,
+     ) -> None:
+         self._base_url = validate_base_url(base_url)
++        if not api_key.get_secret_value().strip():
++            raise CallFailed("MISSING_CREDENTIAL", fatal=True)
++        self._before_send: Callable[[], None] | None = None
++        self._boundary_error: Exception | None = None
+         self.budget = budget
+         self._request_limit = 0
+         self._request_sent = False
+@@ -181,8 +244,14 @@ class ModelStudio:
+         if self._request_sent:
+             self._request_error = "UNEXPECTED_RETRY"
+             raise CallFailed("UNEXPECTED_RETRY", fatal=True)
+-        self._request_sent = True
+         self._request_hash = digest(request.content.decode("utf-8"))
++        if self._before_send is not None:
++            try:
++                self._before_send()
++            except Exception as error:
++                self._boundary_error = error
++                raise
++        self._request_sent = True
+ 
+     def call[T: BaseModel](
+         self,
+@@ -191,13 +260,22 @@ class ModelStudio:
+         payload: BaseModel,
+         schema: type[T],
+         limits: CallLimits,
++        *,
++        before_send: Callable[[], None] | None = None,
+     ) -> T:
+-        """Return only validated data; exceptions and raw provider data never escape."""
+-        if role not in ("body", "generation", "claim_support", "meaning_support"):
++        """The optional product hook runs after exact wire preflight, before IO."""
++        if role not in (
++            "body", "generation", "claim_support", "meaning_support",
++            "entity_resolution", "claim_reuse",
++        ):
+             raise CallFailed("UNKNOWN_ROLE", fatal=True)
++        if before_send is not None and role != "generation":
++            raise CallFailed("RUNTIME_HELPER_CANNOT_RESERVE_SLOT", fatal=True)
+         _check_logging()
+         # A clean context also excludes callbacks inherited from an outer LC chain.
+-        return Context().run(self._call, role, prompt, payload, schema, limits)
++        return Context().run(
++            self._call, role, prompt, payload, schema, limits, before_send
++        )
+ 
+     def _call[T: BaseModel](
+         self,
+@@ -206,7 +284,10 @@ class ModelStudio:
+         payload: BaseModel,
+         schema: type[T],
+         limits: CallLimits,
++        before_send: Callable[[], None] | None,
+     ) -> T:
++        self._before_send = before_send
++        self._boundary_error = None
+         model = FLASH if role in ("body", "generation") else PLUS
+         messages = [("system", prompt), ("human", payload.model_dump_json())]
+         # Binding kwargs to the outer RunnableParallel drops provider options.
+@@ -265,11 +346,17 @@ class ModelStudio:
+             status = error.code
+             self.budget.stopped = error.fatal
+             raise
+-        except Exception:
+-            # Provider errors may contain request/response bodies and credentials.
++        except Exception as error:
++            # A reservation/lease exception must not be disguised as provider IO.
++            if self._boundary_error is not None:
++                raise self._boundary_error from None
+             self.budget.stopped = True
+-            status = self._request_error or status
+-            raise CallFailed(status, fatal=True) from None
++            classified = (
++                CallFailed(self._request_error, fatal=True)
++                if self._request_error else _provider_error(error)
++            )
++            status = classified.code
++            raise classified from None
+         finally:
+             if self._request_sent:
+                 self.budget.charged_upper_usd += charged - reservation
