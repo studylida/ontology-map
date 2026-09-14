@@ -25,7 +25,7 @@ from ontology_map.insight_generation_contracts import (
 )
 
 MODEL_VERSION = "qwen3.7-flash-2026-07-15"
-PROMPT_VERSION = "node-insight-68-v1"
+PROMPT_VERSION = "node-insight-68-v2"
 
 SYSTEM_PROMPT = """당신은 현재 Node의 90일·1년 종합보고서를 한 번에 제안한다.
 입력 JSON은 일반 코드가 공개 가능성과 중심 Node 직접 범위를 검증한 자료다.
@@ -39,10 +39,12 @@ recent_90_days와 recent_1_year는 한 provider 응답에서 모두 처리한다
 
 보고서를 만들면 analysis_question_text 하나 아래 1~3개의 주요 발견 section을
 제안한다. section 수를 채우려고 같은 의미를 나누지 않는다. 각 section은 관련
-Claim을 최소 2개 종합하고 KEY_CLAIM을 최소 1개 포함하며, 선택 기간 안
-(IN_WINDOW) Claim을 최소 1개 포함한다. BACKGROUND/UNKNOWN Claim은 필요한 배경
-설명에만 보조적으로 쓴다. 같은 Claim이 여러 section에 정말 필요하면 재사용할 수
-있지만 같은 Claim 묶음을 제목만 바꿔 반복하지 않는다.
+Claim을 최소 2개 종합한다. 모든 KEY_CLAIM은 해당 window의 IN_WINDOW Claim이어야
+하고 section마다 IN_WINDOW KEY_CLAIM을 최소 1개 포함해야 한다. BACKGROUND/UNKNOWN
+Claim은 KEY_CLAIM으로 쓰지 말고 필요한 경우 SUPPORTING_CLAIM 또는 의미상 적절한
+CONTRASTING_CLAIM으로 보조한다. 주요 발견의 핵심 결론은 IN_WINDOW KEY_CLAIM이
+담당한다. 같은 Claim이 여러 section에 정말 필요하면 재사용할 수 있지만 같은 Claim
+묶음을 제목만 바꿔 반복하지 않는다.
 
 각 section은 title, 여러 근거가 함께 뜻하는 바를 설명하는 synthesis_text, 필요한
 경우에만 caveat_text, 사용한 claim_id/role/display_order를 반환한다. Claim 문장의
@@ -61,9 +63,12 @@ section 어디에도 없는 새 사실을 report summary/synthesis에 추가하�
 것처럼 말하지 말고 그 한계를 caveat에 반영한다.
 
 conflict_pairs를 분석에 사용하면 같은 section에서 두 member Claim을 모두 포함하고
-어느 한쪽도 truth winner나 우위 근거로 선택하지 않는다. 충돌 때문에 결론이
-제한되는 점은 중립적으로 설명할 수 있다. 입력에는 CONFLICT_SUMMARY가 없으며 이를
-추정·재구성하지 않는다.
+어느 한쪽도 truth winner나 우위 근거로 선택하지 않는다. IN_WINDOW member는
+KEY_CLAIM으로 쓸 수 있고 BACKGROUND/UNKNOWN member는 의미에 따라
+CONTRASTING_CLAIM 또는 SUPPORTING_CLAIM으로 쓸 수 있다. conflict라는 이유만으로
+두 member를 모두 KEY_CLAIM으로 강제하지 않는다. 충돌 때문에 결론이 제한되는 점은
+중립적으로 설명할 수 있다. 입력에는 CONFLICT_SUMMARY가 없으며 이를 추정·재구성하지
+않는다.
 
 모든 생성 문장은 한국어 plain text를 기본으로 한다. 고유명사·제품명은 원표기를
 유지할 수 있다. Markdown heading/list/table, URL, [1] 같은 inline citation을 쓰지
@@ -133,7 +138,6 @@ def _section_claim_reason(
     section: InsightSectionCandidate,
     *,
     allowed_claims: Mapping[int, str],
-    in_window_claims: frozenset[int],
     conflict_pairs: tuple[tuple[int, int], ...],
 ) -> str | None:
     refs = section.claims
@@ -147,11 +151,17 @@ def _section_claim_reason(
         return "section Claim display_order values must be unique"
     if any(claim_id not in allowed_claims for claim_id in claim_ids):
         return "section references a Claim outside the prepared input"
-    if not any(item.role == "KEY_CLAIM" for item in refs):
-        return "section requires at least one KEY_CLAIM"
+    if any(
+        item.role == "KEY_CLAIM" and allowed_claims[item.claim_id] != "IN_WINDOW"
+        for item in refs
+    ):
+        return "KEY_CLAIM must be an in-window Claim"
+    if not any(
+        item.role == "KEY_CLAIM" and allowed_claims[item.claim_id] == "IN_WINDOW"
+        for item in refs
+    ):
+        return "section requires at least one in-window KEY_CLAIM"
     selected = set(claim_ids)
-    if not (selected & in_window_claims):
-        return "section requires at least one in-window Claim"
     for left, right in conflict_pairs:
         pair = {left, right}
         if selected & pair and not pair <= selected:
@@ -174,9 +184,6 @@ def _report_reason(
         return "section display_order values must be unique"
 
     allowed_claims = {item.claim_id: item.period_role for item in window.claims}
-    in_window_claims = frozenset(
-        claim_id for claim_id, role in allowed_claims.items() if role == "IN_WINDOW"
-    )
     conflict_pairs = tuple(
         (min(pair.claim_ids), max(pair.claim_ids)) for pair in window.conflict_pairs
     )
@@ -186,7 +193,6 @@ def _report_reason(
         reason = _section_claim_reason(
             section,
             allowed_claims=allowed_claims,
-            in_window_claims=in_window_claims,
             conflict_pairs=conflict_pairs,
         )
         if reason is not None:
