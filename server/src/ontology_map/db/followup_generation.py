@@ -72,7 +72,7 @@ def _context_snapshot(session: Session, node_context_id: int) -> dict[str, Any]:
                 JOIN promotion_batch p
                   ON p.promotion_batch_id = pan.promotion_batch_id
                  AND p.promotion_status = 'COMMITTED'
-                 AND p.publication_status IN ('PREPARING', 'READY')
+                 AND p.publication_status = 'PREPARING'
                 WHERE c.node_context_id = :context_id
                 ORDER BY p.promotion_batch_id DESC
                 LIMIT 1
@@ -84,7 +84,7 @@ def _context_snapshot(session: Session, node_context_id: int) -> dict[str, Any]:
     )
     if row is None:
         raise FollowupPreparationError(
-            "context is not selected by a usable publication"
+            "FOLLOWUP generation requires a PREPARING publication context"
         )
     return dict(row)
 
@@ -545,6 +545,42 @@ def _task_for_update(session: Session, model_task_id: int) -> dict[str, Any]:
     return result
 
 
+def _lock_publication(session: Session, prepared: PreparedFollowup) -> bool:
+    """Lock and verify the exact PREPARING publication/context generation."""
+    row = (
+        session.execute(
+            sa.text("""
+                SELECT pan.node_search_document_id, pan.node_context_id,
+                       p.promotion_status, p.publication_status
+                FROM publication_affected_node pan
+                JOIN promotion_batch p
+                  ON p.promotion_batch_id = pan.promotion_batch_id
+                WHERE pan.promotion_batch_id = :batch_id
+                  AND pan.node_id = :node_id
+                FOR UPDATE OF pan, p
+            """),
+            {
+                "batch_id": prepared.promotion_batch_id,
+                "node_id": prepared.agent_input.node_id,
+            },
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if row is None:
+        return False
+    document_id = row["node_search_document_id"]
+    context_id = row["node_context_id"]
+    return bool(
+        row["promotion_status"] == "COMMITTED"
+        and row["publication_status"] == "PREPARING"
+        and document_id is not None
+        and context_id is not None
+        and int(document_id) == prepared.node_search_document_id
+        and int(context_id) == prepared.node_context_id
+    )
+
+
 def _finish_task(
     session: Session,
     model_task_id: int,
@@ -584,6 +620,14 @@ def apply_followup(
     commits, never sends a provider request and never records agent_attempt.
     """
     _task_for_update(session, model_task_id)
+    if not _lock_publication(session, prepared):
+        _finish_task(session, model_task_id, "VALIDATION_BLOCKED", finished_at)
+        return FollowupApplyResult(
+            status="VALIDATION_BLOCKED",
+            question_set_id=None,
+            stored_count=0,
+            reason="STALE_PUBLICATION",
+        )
     try:
         current = prepare_followup(
             session,
