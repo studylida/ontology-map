@@ -11,7 +11,7 @@
 | Evidence Group | 같은 원문 계보의 문서를 독립 근거 하나로 세기 위한 묶음이다. 신뢰도나 사실의 진실성을 뜻하지 않는다. | [논리 스키마의 evidence_group](data/logical-schema.md#51-evidence_group) |
 | Evidence Trace | Claim에서 Observation, 원문과 Evidence Group까지 이어지는 근거 추적 경로다. | [논리 스키마의 기준 지식과 Evidence Trace](data/logical-schema.md#34-기준-지식과-evidence-trace) |
 | promotion | 검증을 통과한 후보를 기준 지식으로 원자적으로 저장하는 수명주기다. | [논리 스키마의 승격과 공개](data/logical-schema.md#63-승격과-공개) |
-| publication | 저장된 기준 지식으로 검색 문서, embedding, context와 질문 같은 공개용 파생 결과를 준비하는 별도 수명주기다. | [ADR-0006](architecture/decisions/current/0006-separate-promotion-and-publication.md) |
+| publication | 저장된 기준 지식으로 검색 문서, context, 질문과 인사이트 같은 공개용 파생 결과를 준비하는 별도 수명주기다. | [ADR-0006](architecture/decisions/current/0006-separate-promotion-and-publication.md) |
 | READY | 한 publication batch가 정한 공개 완결성 검사를 통과해 일반 조회에서 선택될 수 있는 상태다. 지식 자체의 진실성 등급이 아니다. | [물리 스키마의 Publication과 공개 조회](data/physical-schema.md#publication과-공개-조회) |
 | canonical knowledge graph | Node, Relation과 Claim 등 검증된 기준 지식으로 이루어진 저장 그래프다. | [ADR-0002](architecture/decisions/current/0002-separate-canonical-and-runtime-graphs.md) |
 | runtime partial graph | 사용자의 중심 Node와 시간 범위에 맞춰 읽기 시점에 조합하는 화면용 부분 그래프다. 별도 영속 graph snapshot이 아니다. | [ADR-0002](architecture/decisions/current/0002-separate-canonical-and-runtime-graphs.md) |

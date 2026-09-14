@@ -193,7 +193,6 @@ def artifacts(
     neighbors: list[int],
     batch: int,
     contracts: dict[str, int],
-    vector_slot: int,
 ) -> None:
     identity = name
     knowledge_text = (
@@ -215,24 +214,6 @@ def artifacts(
             {"node_search_document_id": document, "knowledge_item_id": i}
             for i in sorted(set(basis))
         ],
-    )
-    task = _insert_successful_task(
-        c,
-        "EMBEDDING",
-        _digest(f"{PREFIX}embedding:{document}"),
-        None,
-        "review:1024",
-        None,
-    )
-    vector = [0.0] * 1024
-    vector[vector_slot] = 1.0
-    embedding = insert_id(
-        c,
-        s.node_embedding,
-        node_id=node_id,
-        node_search_document_id=document,
-        model_task_id=task,
-        embedding_vector=vector,
     )
     context_task = _insert_successful_task(
         c,
@@ -313,7 +294,6 @@ def artifacts(
             promotion_batch_id=batch,
             node_id=node_id,
             node_search_document_id=document,
-            node_embedding_id=embedding,
             node_context_id=context,
             node_insight_model_task_id=insight_task,
         )
@@ -452,7 +432,7 @@ def seed(c: Connection) -> dict[str, int]:
             bases[key].extend([relation, support])
             claims[key].append(support)
             neighbors[key].append(ids[other])
-    for index, (key, name, _kind) in enumerate(definitions):
+    for key, name, _kind in definitions:
         artifacts(
             c,
             ids[key],
@@ -462,7 +442,6 @@ def seed(c: Connection) -> dict[str, int]:
             neighbors[key],
             batch,
             contracts,
-            index,
         )
     return ids
 

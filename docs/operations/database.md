@@ -11,11 +11,10 @@
 | Node.js | 24.20.0 |
 | npm | 11.19.0 |
 | PostgreSQL image | 18.6 |
-| pgvector image | 0.8.6 |
 
 Docker Desktop을 쓰는 Windows 환경에서는 현재 WSL distribution의 Docker integration을 먼저 켜고 WSL에서 `docker version`과 `docker compose version`이 모두 성공하는지 확인한다.
 
-이 절차는 pgvector가 남아 있는 현재 main의 실행 기준이다. [#121](https://github.com/studylida/ontology-map/issues/121)의 제거안은 초기 migration 교체와 기존 개발 DB 재생성을 포함하는 승인된 후속 변경이며 아직 적용되지 않았다. 이 문서 정리를 위해 DB를 초기화하거나 image를 교체하지 않는다.
+[#121](https://github.com/studylida/ontology-map/issues/121)에 따라 개발 DB는 공식 PostgreSQL 18.6 image만 사용하며 pgvector extension과 Python pgvector 패키지를 요구하지 않는다. #121 이전 `0001`로 만든 개발 volume은 in-place upgrade 대상이 아니며, 필요한 백업을 확인한 뒤 새 frozen baseline으로 재생성한다. 공유 DB나 다른 세션의 volume은 자동으로 초기화하지 않는다.
 
 ## 1. 환경 변수 준비
 
@@ -56,7 +55,7 @@ uv run --env-file ../.env alembic upgrade head
 uv run --env-file ../.env alembic current
 ```
 
-현재 기준 revision은 `0001_create_frozen_schema.py` 이후 패널 읽기 계약을 추가한 `0002_add_panel_reading_contracts.py`다. PostgreSQL 객체는 `public` schema에 만들며 migration과 SQLAlchemy metadata는 같은 frozen schema를 표현한다.
+현재 기준 revision은 `0001_create_frozen_schema.py` 이후 패널 읽기 계약을 추가한 `0002_add_panel_reading_contracts.py`다. PostgreSQL 객체는 `public` schema에 만들며 migration과 SQLAlchemy metadata는 같은 frozen schema를 표현한다. #121 이후 `0001`에는 `vector` extension, `node_embedding` table과 `EMBEDDING` task 허용 계약이 없다.
 
 ## 3. 개발용 HBF fixture
 
@@ -169,7 +168,7 @@ API와 worker는 구현된 뒤에도 같은 Python 코드와 image를 사용하�
 docker compose down
 ```
 
-개발 DB를 완전히 다시 만들 때만 다음 명령을 사용한다. 이 명령은 `ontology-map-postgres` volume과 안의 로컬 데이터를 삭제하므로 되돌릴 수 없다.
+개발 DB를 완전히 다시 만들 때만 다음 명령을 사용한다. #121 이전 frozen baseline의 개발 volume을 새 baseline으로 전환할 때도 이 재생성 경로를 사용한다. 먼저 필요한 `pg_dump` 백업과 복구 가능성을 확인하고 다른 세션이 해당 volume을 쓰지 않는지 확인한다. 이 명령은 `ontology-map-postgres` volume과 안의 로컬 데이터를 삭제하므로 되돌릴 수 없다.
 
 ```bash
 docker compose down --volumes
