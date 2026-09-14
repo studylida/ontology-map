@@ -1,0 +1,127 @@
+name: Verify KE127 slots
+on:
+  push:
+    branches: ["verify/127-call-slot-contract"]
+permissions:
+  contents: write
+jobs:
+  verify:
+    if: github.repository == 'studylida/ontology-map'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      COMPOSE_PROJECT_NAME: ke127-verify-${{ github.run_id }}-${{ github.run_attempt }}
+      POSTGRES_DB: ontology_map_ke127_test
+      POSTGRES_USER: ke127_test
+      POSTGRES_PORT: "127.0.0.1:55433"
+      ONTOLOGY_MAP_ENVIRONMENT: development
+      PYTHONPATH: ${{ github.workspace }}/server/src
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          version: "0.12.7"
+          enable-cache: true
+      - name: Apply reviewed changes to exact integrated baseline
+        run: |
+          git merge-base --is-ancestor e17a1255bec3ec5e489c69a632506bb99f20e5ea HEAD
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, subprocess
+          data = Path('.github/ke127-existing.patch').read_text().replace('\n diff --git ', '\ndiff --git ')
+          assert hashlib.sha256(data.encode()).hexdigest() == '576dcd9a1ce3f2f4ee6c3b7d9259503101136fbad427efda10572e65c622a44f'
+          patch = Path('/tmp/ke127-reviewed.patch')
+          patch.write_text(data)
+          subprocess.run(['git', 'apply', '--check', str(patch)], check=True)
+          subprocess.run(['git', 'apply', str(patch)], check=True)
+          PY
+          uv sync --project server --frozen
+          uv run --project server --frozen python --version
+      - name: Format changed Python and generate schema reference
+        run: |
+          uv run --project server --frozen ruff check --select I --fix server/src/ontology_map/db/model_tasks.py server/src/ontology_map/durable_provider.py server/tests/test_provider_call_slots_postgres.py server/migrations/versions/0003_add_provider_call_slot.py
+          uv run --project server --frozen ruff format server/src/ontology_map/db/model_tasks.py server/src/ontology_map/durable_provider.py server/tests/test_provider_call_slots_postgres.py server/migrations/versions/0003_add_provider_call_slot.py server/src/ontology_map/db/schema.py
+          uv run --project server --frozen python scripts/check_docs.py --write
+      - name: Ruff and format gate
+        if: ${{ !cancelled() }}
+        run: |
+          uv run --project server --frozen ruff check server
+          uv run --project server --frozen ruff format --check server
+      - name: Typecheck gate
+        if: ${{ !cancelled() }}
+        run: |
+          uv run --project server --frozen mypy --config-file server/pyproject.toml server/src/ontology_map
+          (cd server && uv run --frozen mypy src)
+      - name: Isolated database credentials
+        if: ${{ !cancelled() }}
+        run: |
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          url="postgresql+psycopg://${POSTGRES_USER}:${password}@127.0.0.1:55433/${POSTGRES_DB}"
+          er_url="postgresql+psycopg://${POSTGRES_USER}:${password}@127.0.0.1:55433/ontology_map_er128_test"
+          echo "::add-mask::$url"
+          echo "::add-mask::$er_url"
+          { echo "POSTGRES_PASSWORD=$password"; echo "ONTOLOGY_MAP_DATABASE_URL=$url"; echo "ONTOLOGY_MAP_KE_TEST_DATABASE_URL=$url"; echo "ONTOLOGY_MAP_ER_TEST_DATABASE_URL=$er_url"; } >> "$GITHUB_ENV"
+      - name: Real PostgreSQL migration upgrade and empty downgrade round trip
+        if: ${{ !cancelled() }}
+        run: |
+          docker compose up --wait --wait-timeout 120 db
+          docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 'SELECT version(), current_database();'
+          docker compose exec -T db createdb -U "$POSTGRES_USER" ontology_map_er128_test
+          (cd server && uv run --frozen alembic upgrade head && uv run --frozen alembic current && uv run --frozen alembic downgrade 0002 && uv run --frozen alembic upgrade head)
+          (cd server && ONTOLOGY_MAP_DATABASE_URL="$ONTOLOGY_MAP_ER_TEST_DATABASE_URL" uv run --frozen alembic upgrade head)
+      - name: Required crash concurrency tests
+        if: ${{ !cancelled() }}
+        run: uv run --project server --frozen pytest -q -ra server/tests/test_provider_call_slots_postgres.py --junitxml="$RUNNER_TEMP/slots.xml"
+      - name: Full backend gate
+        if: ${{ !cancelled() }}
+        run: uv run --project server --frozen pytest -q -ra server/tests --junitxml="$RUNNER_TEMP/backend.xml"
+      - name: Metadata docs and diff gate
+        if: ${{ !cancelled() }}
+        run: |
+          (cd server && uv run --frozen alembic check)
+          uv run --project server --frozen python scripts/check_docs.py --check
+          git diff --check -- server docs
+          git diff --exit-code e17a1255bec3ec5e489c69a632506bb99f20e5ea -- server/pyproject.toml server/uv.lock compose.yaml server/migrations/versions/0001_create_frozen_schema.py server/migrations/versions/0002_add_panel_reading_contracts.py server/src/ontology_map/entity_resolution.py server/src/ontology_map/entity_resolution_contracts.py server/src/ontology_map/db/entity_resolution.py
+      - name: Create verified Git objects only, never update refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, urllib.request
+          base = 'e17a1255bec3ec5e489c69a632506bb99f20e5ea'
+          allowed = ['docs/architecture/decisions/README.md', 'docs/architecture/decisions/current/0009-durable-provider-call-slots.md', 'docs/data/logical-schema.md', 'docs/data/physical-schema.md', 'docs/data/schema-reference.md', 'docs/operations/database.md', 'server/migrations/versions/0003_add_provider_call_slot.py', 'server/src/ontology_map/db/model_tasks.py', 'server/src/ontology_map/db/schema.py', 'server/src/ontology_map/durable_provider.py', 'server/tests/test_provider_call_slots_postgres.py', 'server/tests/test_schema.py']
+          def post(endpoint, payload):
+              req = urllib.request.Request('https://api.github.com/repos/studylida/ontology-map' + endpoint, data=json.dumps(payload).encode(), headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'}, method='POST')
+              with urllib.request.urlopen(req) as response:
+                  return json.load(response)
+          entries = []
+          for path in allowed:
+              sha = post('/git/blobs', {'content':pathlib.Path(path).read_text(), 'encoding':'utf-8'})['sha']
+              entries.append({'path':path,'mode':'100644','type':'blob','sha':sha})
+          tree = post('/git/trees', {'base_tree':subprocess.check_output(['git','rev-parse',base+'^{tree}'],text=True).strip(),'tree':entries})['sha']
+          print('VERIFIED_TREE', tree)
+          print('VERIFIED_ENTRIES', json.dumps(entries))
+          print('FEATURE_PARENT', base)
+          PY
+      - name: Reproducible checked files and test reports
+        if: ${{ always() }}
+        run: |
+          git ls-files -z | tar --null -T - -czf "$RUNNER_TEMP/checked-source.tar.gz"
+          git diff e17a1255bec3ec5e489c69a632506bb99f20e5ea -- server docs > "$RUNNER_TEMP/checked.diff"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: ${{ always() }}
+        with:
+          name: ke127-slots-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/checked-source.tar.gz
+            ${{ runner.temp }}/checked.diff
+            ${{ runner.temp }}/slots.xml
+            ${{ runner.temp }}/backend.xml
+          retention-days: 7
+      - name: Clean only this run's database
+        if: ${{ always() }}
+        run: docker compose down --volumes
