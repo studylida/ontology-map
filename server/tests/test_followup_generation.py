@@ -124,21 +124,82 @@ def test_empty_proposal_is_normal_zero_result() -> None:
     assert not result.had_candidates
 
 
-def test_candidate_requires_key_and_selected_period_claim() -> None:
-    snapshot = prepared(claim(1, role="BACKGROUND"), claim(2, role="UNKNOWN"))
+def test_candidate_requires_in_window_key_claim() -> None:
+    snapshot = prepared(claim(1, role="BACKGROUND"), claim(2, role="IN_WINDOW"))
+    background_key = FollowupQuestionsProposal(
+        questions=(
+            question(
+                1,
+                reference(1, role="KEY_CLAIM", display_order=1),
+                reference(2, role="SUPPORTING_CLAIM", display_order=2),
+            ),
+        )
+    )
+    result = service.validate_proposal(snapshot, background_key)
+    assert result.candidates == ()
+    assert len(result.failures) == 1
+
+    unknown_snapshot = prepared(claim(1, role="UNKNOWN"), claim(2, role="IN_WINDOW"))
+    unknown_key = FollowupQuestionsProposal(
+        questions=(
+            question(
+                1,
+                reference(1, role="KEY_CLAIM", display_order=1),
+                reference(2, role="SUPPORTING_CLAIM", display_order=2),
+            ),
+        )
+    )
+    result = service.validate_proposal(unknown_snapshot, unknown_key)
+    assert result.candidates == ()
+    assert len(result.failures) == 1
+
+
+def test_background_and_unknown_may_support_in_window_key_claim() -> None:
+    background_snapshot = prepared(
+        claim(1, role="IN_WINDOW"), claim(2, role="BACKGROUND")
+    )
+    background_support = FollowupQuestionsProposal(
+        questions=(
+            question(
+                1,
+                reference(1, role="KEY_CLAIM", display_order=1),
+                reference(2, role="SUPPORTING_CLAIM", display_order=2),
+            ),
+        )
+    )
+    assert len(service.validate_proposal(background_snapshot, background_support).candidates) == 1
+
+    unknown_snapshot = prepared(claim(1, role="IN_WINDOW"), claim(2, role="UNKNOWN"))
+    unknown_contrast = FollowupQuestionsProposal(
+        questions=(
+            question(
+                1,
+                reference(1, role="KEY_CLAIM", display_order=1),
+                reference(2, role="CONTRASTING_CLAIM", display_order=2),
+            ),
+        )
+    )
+    assert len(service.validate_proposal(unknown_snapshot, unknown_contrast).candidates) == 1
+
+
+def test_period_role_failure_keeps_other_question_partial_success() -> None:
+    snapshot = prepared(claim(1, role="IN_WINDOW"), claim(2, role="BACKGROUND"))
     proposal = FollowupQuestionsProposal(
         questions=(
-            question(1, reference(1, role="SUPPORTING_CLAIM")),
-            question(2, reference(2)),
+            question(1, reference(1)),
+            question(
+                2,
+                reference(2, role="KEY_CLAIM", display_order=1),
+                reference(1, role="SUPPORTING_CLAIM", display_order=2),
+            ),
         )
     )
     result = service.validate_proposal(snapshot, proposal)
-    assert result.candidates == ()
-    assert len(result.failures) == 2
-    assert result.had_candidates
+    assert [item.display_order for item in result.candidates] == [1]
+    assert len(result.failures) == 1
 
 
-def test_visible_conflict_requires_both_members_as_key_claims() -> None:
+def test_visible_conflict_requires_both_in_window_members_as_key_claims() -> None:
     snapshot = prepared(claim(1), claim(2), conflict=True)
     incomplete = FollowupQuestionsProposal(questions=(question(1, reference(1)),))
     assert service.validate_proposal(snapshot, incomplete).candidates == ()
@@ -153,6 +214,23 @@ def test_visible_conflict_requires_both_members_as_key_claims() -> None:
         )
     )
     assert len(service.validate_proposal(snapshot, complete).candidates) == 1
+
+
+def test_conflict_with_background_or_unknown_member_is_rejected_atomically() -> None:
+    for period_role in ("BACKGROUND", "UNKNOWN"):
+        snapshot = prepared(claim(1), claim(2, role=period_role), conflict=True)
+        proposal = FollowupQuestionsProposal(
+            questions=(
+                question(
+                    1,
+                    reference(1, display_order=1),
+                    reference(2, display_order=2),
+                ),
+            )
+        )
+        result = service.validate_proposal(snapshot, proposal)
+        assert result.candidates == ()
+        assert len(result.failures) == 1
 
 
 def test_obvious_duplicate_and_non_plain_text_are_blocked_per_candidate() -> None:
