@@ -1,13 +1,13 @@
+import os
 from collections.abc import Iterator
 from decimal import Decimal
-import os
 from pathlib import Path
 
-from alembic import command
-from alembic.config import Config
 import pytest
 import sqlalchemy as sa
-from sqlalchemy.engine import Engine
+from alembic import command
+from alembic.config import Config
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.pool import NullPool
 
 REHEARSAL_FLAG = "ONTOLOGY_MAP_MIGRATION_REHEARSAL"
@@ -64,13 +64,15 @@ def _clean_rehearsal_database() -> Iterator[None]:
     _reset_public_schema()
 
 
-def _version(connection: sa.Connection) -> str:
+def _version(connection: Connection) -> str:
     return str(
-        connection.execute(sa.text("SELECT version_num FROM alembic_version")).scalar_one()
+        connection.execute(
+            sa.text("SELECT version_num FROM alembic_version")
+        ).scalar_one()
     )
 
 
-def _table_exists(connection: sa.Connection, table_name: str) -> bool:
+def _table_exists(connection: Connection, table_name: str) -> bool:
     return (
         connection.execute(
             sa.text("SELECT to_regclass(:qualified_name)"),
@@ -81,7 +83,7 @@ def _table_exists(connection: sa.Connection, table_name: str) -> bool:
 
 
 def _column_exists(
-    connection: sa.Connection,
+    connection: Connection,
     *,
     table_name: str,
     column_name: str,
@@ -104,7 +106,7 @@ def _column_exists(
     )
 
 
-def _constraint_exists(connection: sa.Connection, constraint_name: str) -> bool:
+def _constraint_exists(connection: Connection, constraint_name: str) -> bool:
     return bool(
         connection.execute(
             sa.text(
@@ -122,307 +124,187 @@ def _constraint_exists(connection: sa.Connection, constraint_name: str) -> bool:
     )
 
 
-def _insert_claim_scaffold(connection: sa.Connection) -> tuple[int, int, int]:
+def _reflect_tables(
+    connection: Connection,
+    *names: str,
+) -> dict[str, sa.Table]:
+    metadata = sa.MetaData()
+    return {
+        name: sa.Table(name, metadata, autoload_with=connection)
+        for name in names
+    }
+
+
+def _insert_claim_scaffold(connection: Connection) -> tuple[int, int, int]:
+    tables = _reflect_tables(
+        connection,
+        "node_type",
+        "lint_policy_version",
+        "promotion_batch",
+        "knowledge_item",
+        "node",
+        "claim",
+    )
+    node_type = tables["node_type"]
+    lint_policy_version = tables["lint_policy_version"]
+    promotion_batch = tables["promotion_batch"]
+    knowledge_item = tables["knowledge_item"]
+    node = tables["node"]
+    claim = tables["claim"]
+
     node_type_id = int(
         connection.execute(
-            sa.text(
-                """
-                INSERT INTO node_type (
-                    node_type_code,
-                    display_name,
-                    creation_rule,
-                    is_active
-                )
-                VALUES (
-                    'ISSUE_200_MIGRATION_TECHNOLOGY',
-                    'Issue 200 migration 기술',
-                    'Issue #200 migration rehearsal 전용 유형이다.',
-                    true
-                )
-                RETURNING node_type_id
-                """
+            node_type.insert()
+            .values(
+                node_type_code="ISSUE_200_MIGRATION_TECHNOLOGY",
+                display_name="Issue 200 migration 기술",
+                creation_rule="Issue #200 migration rehearsal 전용 유형이다.",
+                is_active=True,
             )
+            .returning(node_type.c.node_type_id)
         ).scalar_one()
     )
     lint_policy_version_id = int(
         connection.execute(
-            sa.text(
-                """
-                INSERT INTO lint_policy_version (
-                    version_no,
-                    validator_version,
-                    is_active
-                )
-                VALUES (200003, 'issue-200-migration-rehearsal', false)
-                RETURNING lint_policy_version_id
-                """
+            lint_policy_version.insert()
+            .values(
+                version_no=200003,
+                validator_version="issue-200-migration-rehearsal",
+                is_active=False,
             )
+            .returning(lint_policy_version.c.lint_policy_version_id)
         ).scalar_one()
     )
     promotion_batch_id = int(
         connection.execute(
-            sa.text(
-                """
-                INSERT INTO promotion_batch (lint_policy_version_id)
-                VALUES (:lint_policy_version_id)
-                RETURNING promotion_batch_id
-                """
-            ),
-            {"lint_policy_version_id": lint_policy_version_id},
+            promotion_batch.insert()
+            .values(lint_policy_version_id=lint_policy_version_id)
+            .returning(promotion_batch.c.promotion_batch_id)
         ).scalar_one()
     )
     target_node_id = int(
         connection.execute(
-            sa.text(
-                """
-                INSERT INTO knowledge_item (
-                    item_kind,
-                    current_state,
-                    promotion_batch_id
-                )
-                VALUES ('NODE', 'EVIDENCE_VERIFIED', :promotion_batch_id)
-                RETURNING knowledge_item_id
-                """
-            ),
-            {"promotion_batch_id": promotion_batch_id},
+            knowledge_item.insert()
+            .values(
+                item_kind="NODE",
+                current_state="EVIDENCE_VERIFIED",
+                promotion_batch_id=promotion_batch_id,
+            )
+            .returning(knowledge_item.c.knowledge_item_id)
         ).scalar_one()
     )
     connection.execute(
-        sa.text(
-            """
-            INSERT INTO node (node_id, node_type_id)
-            VALUES (:node_id, :node_type_id)
-            """
-        ),
-        {"node_id": target_node_id, "node_type_id": node_type_id},
+        node.insert().values(
+            node_id=target_node_id,
+            node_type_id=node_type_id,
+        )
     )
     claim_id = int(
         connection.execute(
-            sa.text(
-                """
-                INSERT INTO knowledge_item (
-                    item_kind,
-                    current_state,
-                    promotion_batch_id
-                )
-                VALUES ('CLAIM', 'EVIDENCE_VERIFIED', :promotion_batch_id)
-                RETURNING knowledge_item_id
-                """
-            ),
-            {"promotion_batch_id": promotion_batch_id},
+            knowledge_item.insert()
+            .values(
+                item_kind="CLAIM",
+                current_state="EVIDENCE_VERIFIED",
+                promotion_batch_id=promotion_batch_id,
+            )
+            .returning(knowledge_item.c.knowledge_item_id)
         ).scalar_one()
     )
     connection.execute(
-        sa.text(
-            """
-            INSERT INTO claim (
-                claim_id,
-                statement_text,
-                language,
-                modality,
-                asserted_from_precision,
-                asserted_to_precision
-            )
-            VALUES (
-                :claim_id,
-                'Issue #200 migration rehearsal Claim',
-                'ko',
-                'FACT',
-                'UNKNOWN',
-                'UNKNOWN'
-            )
-            """
-        ),
-        {"claim_id": claim_id},
+        claim.insert().values(
+            claim_id=claim_id,
+            statement_text="Issue #200 migration rehearsal Claim",
+            language="ko",
+            modality="FACT",
+            asserted_from_precision="UNKNOWN",
+            asserted_to_precision="UNKNOWN",
+        )
     )
     return node_type_id, target_node_id, claim_id
 
 
-def _insert_legacy_number_value(
-    connection: sa.Connection,
+def _insert_number_value(
+    connection: Connection,
     *,
-    unit_rule: str,
     unit_code: str,
     number_value: Decimal,
+    unit_rule: str | None = None,
+    allowed_units: tuple[str, ...] = (),
 ) -> tuple[int, int]:
     node_type_id, target_node_id, claim_id = _insert_claim_scaffold(connection)
+    tables = _reflect_tables(
+        connection,
+        "attribute",
+        "attribute_revision",
+        "claim_attribute_value",
+    )
+    attribute = tables["attribute"]
+    attribute_revision = tables["attribute_revision"]
+    claim_attribute_value = tables["claim_attribute_value"]
+
     attribute_id = int(
         connection.execute(
-            sa.text(
-                """
-                INSERT INTO attribute (attribute_code)
-                VALUES ('ISSUE_200_MIGRATION_NUMBER')
-                RETURNING attribute_id
-                """
-            )
+            attribute.insert()
+            .values(attribute_code="ISSUE_200_MIGRATION_NUMBER")
+            .returning(attribute.c.attribute_id)
         ).scalar_one()
     )
+    revision_values: dict[str, object] = {
+        "attribute_id": attribute_id,
+        "version_no": 1,
+        "display_name": "Issue 200 migration NUMBER",
+        "target_node_type_id": node_type_id,
+        "allowed_value_kind": "NUMBER",
+        "is_active": True,
+    }
+    if unit_rule is not None:
+        revision_values["unit_rule"] = unit_rule
+
     revision_id = int(
         connection.execute(
-            sa.text(
-                """
-                INSERT INTO attribute_revision (
-                    attribute_id,
-                    version_no,
-                    display_name,
-                    target_node_type_id,
-                    allowed_value_kind,
-                    unit_rule,
-                    is_active
-                )
-                VALUES (
-                    :attribute_id,
-                    1,
-                    'Issue 200 migration NUMBER',
-                    :node_type_id,
-                    'NUMBER',
-                    :unit_rule,
-                    true
-                )
-                RETURNING attribute_revision_id
-                """
-            ),
-            {
-                "attribute_id": attribute_id,
-                "node_type_id": node_type_id,
-                "unit_rule": unit_rule,
-            },
+            attribute_revision.insert()
+            .values(**revision_values)
+            .returning(attribute_revision.c.attribute_revision_id)
         ).scalar_one()
     )
+    if allowed_units:
+        allowed_unit = _reflect_tables(
+            connection,
+            "attribute_revision_allowed_unit",
+        )["attribute_revision_allowed_unit"]
+        connection.execute(
+            allowed_unit.insert(),
+            [
+                {
+                    "attribute_revision_id": revision_id,
+                    "allowed_value_kind": "NUMBER",
+                    "unit_code": allowed_unit_code,
+                }
+                for allowed_unit_code in allowed_units
+            ],
+        )
+
     value_id = int(
         connection.execute(
-            sa.text(
-                """
-                INSERT INTO claim_attribute_value (
-                    claim_id,
-                    target_node_id,
-                    attribute_revision_id,
-                    value_kind,
-                    number_value,
-                    unit_code,
-                    date_from_precision,
-                    date_to_precision
-                )
-                VALUES (
-                    :claim_id,
-                    :target_node_id,
-                    :revision_id,
-                    'NUMBER',
-                    :number_value,
-                    :unit_code,
-                    'UNKNOWN',
-                    'UNKNOWN'
-                )
-                RETURNING claim_attribute_value_id
-                """
-            ),
-            {
-                "claim_id": claim_id,
-                "target_node_id": target_node_id,
-                "revision_id": revision_id,
-                "number_value": number_value,
-                "unit_code": unit_code,
-            },
-        ).scalar_one()
-    )
-    return revision_id, value_id
-
-
-def _insert_multi_unit_number_value(
-    connection: sa.Connection,
-) -> tuple[int, int]:
-    node_type_id, target_node_id, claim_id = _insert_claim_scaffold(connection)
-    attribute_id = int(
-        connection.execute(
-            sa.text(
-                """
-                INSERT INTO attribute (attribute_code)
-                VALUES ('MAX_MEMORY_BANDWIDTH')
-                RETURNING attribute_id
-                """
+            claim_attribute_value.insert()
+            .values(
+                claim_id=claim_id,
+                target_node_id=target_node_id,
+                attribute_revision_id=revision_id,
+                value_kind="NUMBER",
+                number_value=number_value,
+                unit_code=unit_code,
+                date_from_precision="UNKNOWN",
+                date_to_precision="UNKNOWN",
             )
-        ).scalar_one()
-    )
-    revision_id = int(
-        connection.execute(
-            sa.text(
-                """
-                INSERT INTO attribute_revision (
-                    attribute_id,
-                    version_no,
-                    display_name,
-                    target_node_type_id,
-                    allowed_value_kind,
-                    is_active
-                )
-                VALUES (
-                    :attribute_id,
-                    1,
-                    '최대 메모리 대역폭',
-                    :node_type_id,
-                    'NUMBER',
-                    true
-                )
-                RETURNING attribute_revision_id
-                """
-            ),
-            {"attribute_id": attribute_id, "node_type_id": node_type_id},
-        ).scalar_one()
-    )
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO attribute_revision_allowed_unit (
-                attribute_revision_id,
-                allowed_value_kind,
-                unit_code
-            )
-            VALUES
-                (:revision_id, 'NUMBER', 'GB_PER_S'),
-                (:revision_id, 'NUMBER', 'TB_PER_S')
-            """
-        ),
-        {"revision_id": revision_id},
-    )
-    value_id = int(
-        connection.execute(
-            sa.text(
-                """
-                INSERT INTO claim_attribute_value (
-                    claim_id,
-                    target_node_id,
-                    attribute_revision_id,
-                    value_kind,
-                    number_value,
-                    unit_code,
-                    date_from_precision,
-                    date_to_precision
-                )
-                VALUES (
-                    :claim_id,
-                    :target_node_id,
-                    :revision_id,
-                    'NUMBER',
-                    1024.5,
-                    'GB_PER_S',
-                    'UNKNOWN',
-                    'UNKNOWN'
-                )
-                RETURNING claim_attribute_value_id
-                """
-            ),
-            {
-                "claim_id": claim_id,
-                "target_node_id": target_node_id,
-                "revision_id": revision_id,
-            },
+            .returning(claim_attribute_value.c.claim_attribute_value_id)
         ).scalar_one()
     )
     return revision_id, value_id
 
 
 def _stored_number_value(
-    connection: sa.Connection,
+    connection: Connection,
     value_id: int,
 ) -> tuple[Decimal, str]:
     row = connection.execute(
@@ -438,12 +320,28 @@ def _stored_number_value(
     return Decimal(row.number_value), str(row.unit_code)
 
 
+def _allowed_units(connection: Connection, revision_id: int) -> list[str]:
+    return list(
+        connection.execute(
+            sa.text(
+                """
+                SELECT unit_code
+                FROM attribute_revision_allowed_unit
+                WHERE attribute_revision_id = :revision_id
+                ORDER BY unit_code
+                """
+            ),
+            {"revision_id": revision_id},
+        ).scalars()
+    )
+
+
 def test_single_unit_legacy_data_round_trips_through_0003() -> None:
     _upgrade("0002")
     engine = _engine()
     try:
         with engine.begin() as connection:
-            revision_id, value_id = _insert_legacy_number_value(
+            revision_id, value_id = _insert_number_value(
                 connection,
                 unit_rule="COUNT",
                 unit_code="COUNT",
@@ -463,17 +361,7 @@ def test_single_unit_legacy_data_round_trips_through_0003() -> None:
                 connection,
                 "fk_claim_attribute_value__allowed_unit",
             )
-            allowed_units = connection.execute(
-                sa.text(
-                    """
-                    SELECT allowed_value_kind, unit_code
-                    FROM attribute_revision_allowed_unit
-                    WHERE attribute_revision_id = :revision_id
-                    """
-                ),
-                {"revision_id": revision_id},
-            ).all()
-            assert allowed_units == [("NUMBER", "COUNT")]
+            assert _allowed_units(connection, revision_id) == ["COUNT"]
             assert _stored_number_value(connection, value_id) == (
                 Decimal("64.25"),
                 "COUNT",
@@ -521,17 +409,7 @@ def test_single_unit_legacy_data_round_trips_through_0003() -> None:
         _upgrade("0003")
         with engine.connect() as connection:
             assert _version(connection) == "0003"
-            allowed_units = connection.execute(
-                sa.text(
-                    """
-                    SELECT unit_code
-                    FROM attribute_revision_allowed_unit
-                    WHERE attribute_revision_id = :revision_id
-                    """
-                ),
-                {"revision_id": revision_id},
-            ).scalars().all()
-            assert allowed_units == ["COUNT"]
+            assert _allowed_units(connection, revision_id) == ["COUNT"]
             assert _stored_number_value(connection, value_id) == (
                 Decimal("64.25"),
                 "COUNT",
@@ -545,7 +423,7 @@ def test_legacy_unit_mismatch_upgrade_fails_without_partial_state() -> None:
     engine = _engine()
     try:
         with engine.begin() as connection:
-            revision_id, value_id = _insert_legacy_number_value(
+            revision_id, value_id = _insert_number_value(
                 connection,
                 unit_rule="COUNT",
                 unit_code="RATIO",
@@ -591,7 +469,12 @@ def test_multi_unit_downgrade_fails_without_data_loss() -> None:
     engine = _engine()
     try:
         with engine.begin() as connection:
-            revision_id, value_id = _insert_multi_unit_number_value(connection)
+            revision_id, value_id = _insert_number_value(
+                connection,
+                unit_code="GB_PER_S",
+                number_value=Decimal("1024.5"),
+                allowed_units=("GB_PER_S", "TB_PER_S"),
+            )
 
         with pytest.raises(RuntimeError, match="복수 허용 단위"):
             _downgrade("0002")
@@ -608,19 +491,10 @@ def test_multi_unit_downgrade_fails_without_data_loss() -> None:
                 connection,
                 "fk_claim_attribute_value__allowed_unit",
             )
-            allowed_units = set(
-                connection.execute(
-                    sa.text(
-                        """
-                        SELECT unit_code
-                        FROM attribute_revision_allowed_unit
-                        WHERE attribute_revision_id = :revision_id
-                        """
-                    ),
-                    {"revision_id": revision_id},
-                ).scalars()
-            )
-            assert allowed_units == {"GB_PER_S", "TB_PER_S"}
+            assert _allowed_units(connection, revision_id) == [
+                "GB_PER_S",
+                "TB_PER_S",
+            ]
             assert _stored_number_value(connection, value_id) == (
                 Decimal("1024.5"),
                 "GB_PER_S",
