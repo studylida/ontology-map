@@ -20,10 +20,14 @@ def _make_claim_background_for_90_days(
     claim_id: int,
     now: datetime,
 ) -> None:
-    document_ids = sa.select(s.observation.c.source_document_id).join(
-        s.claim_observation,
-        s.claim_observation.c.observation_id == s.observation.c.observation_id,
-    ).where(s.claim_observation.c.claim_id == claim_id)
+    document_ids = (
+        sa.select(s.observation.c.source_document_id)
+        .join(
+            s.claim_observation,
+            s.claim_observation.c.observation_id == s.observation.c.observation_id,
+        )
+        .where(s.claim_observation.c.claim_id == claim_id)
+    )
     session.execute(
         s.source_document.update()
         .where(s.source_document.c.source_document_id.in_(document_ids))
@@ -31,7 +35,9 @@ def _make_claim_background_for_90_days(
     )
 
 
-def test_period_role_invalid_window_blocks_entire_bundle_without_partial_storage() -> None:
+def test_period_role_invalid_window_blocks_entire_bundle_without_partial_storage() -> (
+    None
+):
     _, ids = load_panel_fixture()
     with rollback_session() as session:
         now = datetime.now(UTC)
