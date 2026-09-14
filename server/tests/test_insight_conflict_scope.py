@@ -54,18 +54,16 @@ def _preparing_publication(session, node_id: int, now: datetime) -> int:
     return int(batch_id)
 
 
-def _insert_attribute_conflict(
+def _insert_relation_conflict(
     session,
     *,
-    target_node_id: int,
-    attribute_revision_id: int,
+    relation_id: int,
     claim_ids: tuple[int, int],
 ) -> int:
     conflict_id = session.scalar(
         s.conflict_set.insert()
         .values(
-            target_node_id=target_node_id,
-            attribute_revision_id=attribute_revision_id,
+            relation_id=relation_id,
             modality="FACT",
             current_state="AGENT_PROPOSED",
         )
@@ -106,30 +104,38 @@ def test_prepare_insight_only_exposes_conflicts_for_center_node_scope() -> None:
         )
         assert len(claim_ids) == 2
 
-        other_node_id = session.scalar(
-            sa.select(s.node.c.node_id)
-            .where(s.node.c.node_id != ids["gaon"])
-            .order_by(s.node.c.node_id)
+        direct_relation_id = session.scalar(
+            sa.select(s.relation.c.relation_id)
+            .where(
+                s.relation.c.relation_id.in_(initial.basis_ids),
+                sa.or_(
+                    s.relation.c.source_node_id == ids["gaon"],
+                    s.relation.c.target_node_id == ids["gaon"],
+                ),
+            )
+            .order_by(s.relation.c.relation_id)
             .limit(1)
         )
-        attribute_revision_id = session.scalar(
-            sa.select(s.attribute_revision.c.attribute_revision_id)
-            .order_by(s.attribute_revision.c.attribute_revision_id)
+        unrelated_relation_id = session.scalar(
+            sa.select(s.relation.c.relation_id)
+            .where(
+                s.relation.c.source_node_id != ids["gaon"],
+                s.relation.c.target_node_id != ids["gaon"],
+            )
+            .order_by(s.relation.c.relation_id)
             .limit(1)
         )
-        assert other_node_id is not None
-        assert attribute_revision_id is not None
+        assert direct_relation_id is not None
+        assert unrelated_relation_id is not None
 
-        out_of_scope_id = _insert_attribute_conflict(
+        out_of_scope_id = _insert_relation_conflict(
             session,
-            target_node_id=int(other_node_id),
-            attribute_revision_id=int(attribute_revision_id),
+            relation_id=int(unrelated_relation_id),
             claim_ids=(claim_ids[0], claim_ids[1]),
         )
-        in_scope_id = _insert_attribute_conflict(
+        in_scope_id = _insert_relation_conflict(
             session,
-            target_node_id=ids["gaon"],
-            attribute_revision_id=int(attribute_revision_id),
+            relation_id=int(direct_relation_id),
             claim_ids=(claim_ids[0], claim_ids[1]),
         )
 
