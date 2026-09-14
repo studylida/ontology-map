@@ -64,8 +64,34 @@ jobs:
           )
           db.write_text(text)
 
+          pure_tests = Path("server/tests/test_insight_generation.py")
+          pure = pure_tests.read_text()
+          pure = pure.replace(
+              "test_structured_output_is_strict_but_semantic_cardinality_is_product_validation",
+              "test_structured_output_strictness_and_semantic_validation_boundary",
+          )
+          pure = pure.replace(
+              "test_valid_bundle_allows_independent_window_questions_and_report_union_projection",
+              "test_valid_bundle_allows_independent_windows_and_union_projection",
+          )
+          pure_tests.write_text(pure)
+
           tests = Path("server/tests/test_insight_generation_db.py")
           text = tests.read_text()
+          text = text.replace(
+              '                synthesis_text="다른 근거 조합에서는 두 번째 흐름을 확인할 수 있습니다.",\n',
+              '                synthesis_text=(\n'
+              '                    "다른 근거 조합에서는 두 번째 흐름을 "\n'
+              '                    "확인할 수 있습니다."\n'
+              '                ),\n',
+          )
+          text = text.replace(
+              '        synthesis_text="주요 발견을 함께 보면 현재 자료가 보여주는 범위를 설명할 수 있습니다.",\n',
+              '        synthesis_text=(\n'
+              '            "주요 발견을 함께 보면 현재 자료가 보여주는 범위를 "\n'
+              '            "설명할 수 있습니다."\n'
+              '        ),\n',
+          )
           text += '''\n\ndef test_changed_publication_pointer_blocks_bundle_without_overwrite() -> None:\n    _, ids = load_panel_fixture()\n    with rollback_session() as session:\n        now = datetime.now(UTC)\n        batch_id, _ = _preparing_publication(session, ids[\"gaon\"], now)\n        prepared = db.prepare_insight_bundle(\n            session,\n            promotion_batch_id=batch_id,\n            node_id=ids[\"gaon\"],\n            as_of_at=now,\n        )\n        task_id = _running_task(session, b\"stale-publication\", now)\n        changed_pointer = (\n            None if prepared.prior_insight_model_task_id is not None else task_id\n        )\n        session.execute(\n            s.publication_affected_node.update()\n            .where(\n                s.publication_affected_node.c.promotion_batch_id == batch_id,\n                s.publication_affected_node.c.node_id == ids[\"gaon\"],\n            )\n            .values(node_insight_model_task_id=changed_pointer)\n        )\n\n        result = db.apply_insight_bundle(\n            session,\n            model_task_id=task_id,\n            prepared=prepared,\n            proposal=_bundle(None, None),\n            finished_at=now + timedelta(seconds=1),\n        )\n        assert result.status == \"VALIDATION_BLOCKED\"\n        assert result.reason == \"STALE_PUBLICATION\"\n        assert result.report_ids == (None, None)\n        assert (\n            session.scalar(\n                sa.select(sa.func.count())\n                .select_from(s.node_insight_window)\n                .where(s.node_insight_window.c.model_task_id == task_id)\n            )\n            == 0\n        )\n        assert (\n            session.scalar(\n                sa.select(\n                    s.publication_affected_node.c.node_insight_model_task_id\n                ).where(\n                    s.publication_affected_node.c.promotion_batch_id == batch_id,\n                    s.publication_affected_node.c.node_id == ids[\"gaon\"],\n                )\n            )\n            == changed_pointer\n        )\n'''
           tests.write_text(text)
           PY
