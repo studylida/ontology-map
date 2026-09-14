@@ -235,7 +235,7 @@ erDiagram
 | `model_task_id`, `task_kind` | 작업 ID와 종류 |
 | `source_document_id` | 단일 문서 작업의 선택적 입력 |
 | `input_hash` | 실제 전체 입력의 결정적 해시 |
-| `output_schema_definition_id` | 정확한 출력 계약. `EMBEDDING`만 비움 |
+| `output_schema_definition_id` | 정확한 출력 계약 |
 | `model_version`, `prompt_version` | 실행 계보 |
 | `cache_key` | 작업 종류·입력·계약·모델·프롬프트의 결정적 키 |
 | `status` | `PENDING`, `RUNNING`, `SUCCESS`, `RETRY_WAIT`, `VALIDATION_BLOCKED`, `FINAL_FAILED` |
@@ -243,7 +243,7 @@ erDiagram
 | `lease_owner`, `lease_expires_at` | 동시 실행 방지 lease |
 | `created_at`, `finished_at` | 생성·종료 시각 |
 
-허용 작업은 `KNOWLEDGE_EXTRACTION`, `ENTITY_RESOLUTION_PROPOSAL`, `EVIDENCE_LINEAGE_PROPOSAL`, `CONFLICT_SUMMARY`, `NODE_CONTEXT`, `FOLLOWUP_QUESTIONS`, `NODE_INSIGHT`와 schema가 없는 `EMBEDDING`이다.
+허용 작업은 `KNOWLEDGE_EXTRACTION`, `ENTITY_RESOLUTION_PROPOSAL`, `EVIDENCE_LINEAGE_PROPOSAL`, `CONFLICT_SUMMARY`, `NODE_CONTEXT`, `FOLLOWUP_QUESTIONS`, `NODE_INSIGHT`다. 모든 허용 작업은 정확한 output schema와 prompt version을 가진다.
 
 이 목록은 현재 저장 계약이며 각 작업의 worker·모델 구현 여부는 별개다. 시험용 Selection·Composer·보존 대응·충실도 검증을 각각 새 task kind로 추가한 것은 아니다. 실제 모델·prompt 계보와 기존 작업 종류의 매핑은 제품 adapter 구현 전에 검토한다.
 

@@ -790,9 +790,9 @@ partial unique index가 “최대 하나”를 보장해도 “공개 시 정확
 
 ### 11.4 특수 인덱스
 
-현재 migration은 `node_search_document`의 `simple` A/B `tsvector` 표현식 GIN만 구현한다. JSON GIN, vector HNSW·IVFFlat과 대규모 covering index는 없다.
+현재 migration은 `node_search_document`의 `simple` A/B `tsvector` 표현식 GIN만 구현한다. JSON GIN과 대규모 covering index는 없다.
 
-새 특수 인덱스는 실제 query와 측정 결과를 소유하는 Issue에서만 결정한다. 초기 vector 검색은 cosine exact search이므로 근사 검색 인덱스를 미리 만들지 않는다.
+새 특수 인덱스는 실제 query와 측정 결과를 소유하는 Issue에서만 결정한다.
 
 ## 12. 데이터베이스 주석
 
