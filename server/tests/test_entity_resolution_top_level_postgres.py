@@ -100,7 +100,9 @@ def test_top_level_failure_rolls_back_every_new_row_for_fresh_connection(
         )
         assert (
             observer.execute(
-                sa.text("SELECT count(*) FROM node_alias WHERE alias_text = :alias_text"),
+                sa.text(
+                    "SELECT count(*) FROM node_alias WHERE alias_text = :alias_text"
+                ),
                 {"alias_text": name},
             ).scalar_one()
             == 0
