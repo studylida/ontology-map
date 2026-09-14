@@ -1,0 +1,37 @@
+name: Issue 200 schema reference generation
+
+on:
+  push:
+    branches:
+      - issue-200-multi-unit-number-attributes
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 저장소 받기
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: issue-200-multi-unit-number-attributes
+      - name: uv 준비
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.7"
+          enable-cache: true
+      - name: schema reference 생성
+        run: uv run --project server --frozen python scripts/check_docs.py --write
+      - name: 생성 결과 commit
+        run: |
+          if git diff --quiet -- docs/data/schema-reference.md; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/data/schema-reference.md
+          git commit -m 'docs: regenerate schema reference (#200)'
+          git push origin HEAD:issue-200-multi-unit-number-attributes
