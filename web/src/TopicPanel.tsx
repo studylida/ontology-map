@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import styles from "./App.module.css";
-import {
-  fetchPanelReport,
-  type KnowledgeNode,
-  type TimeRange,
-} from "./data";
+import { fetchPanelReport, type KnowledgeNode, type TimeRange } from "./data";
 import topicStyles from "./Topic.module.css";
 import type { TopicExplorationView } from "./topicData";
 
@@ -43,8 +39,9 @@ export function TopicPanel({
     const richIds = new Set(richNodes.map((node) => node.id));
     const olderNodes = members
       .filter((node) => node.activityEvidenceGroupCount === 0)
-      .sort((left, right) =>
-        left.kind.localeCompare(right.kind, "ko") || byName(left, right),
+      .sort(
+        (left, right) =>
+          left.kind.localeCompare(right.kind, "ko") || byName(left, right),
       );
     const grouped = new Map<string, KnowledgeNode[]>();
     for (const node of olderNodes) {
