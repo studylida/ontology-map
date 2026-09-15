@@ -166,7 +166,14 @@ class EvidenceLocatorResponse(BaseModel):
 
 
 class RelationEvidenceResponse(BaseModel):
+    item_key: str
     claim_text: str
+    modality: Literal[
+        "FACT",
+        "PLAN_OR_TARGET",
+        "PREDICTION_OR_ESTIMATE",
+        "OPINION_OR_EVALUATION",
+    ]
     stance: Literal["SUPPORT", "DISPUTE"]
     source: EvidenceSourceResponse
     quote_text: str
@@ -507,7 +514,9 @@ def read_relation_evidence(
     return RelationEvidencePageResponse(
         items=[
             RelationEvidenceResponse(
+                item_key=item.item_key,
                 claim_text=item.claim_text,
+                modality=item.modality,
                 stance=item.stance,
                 source=EvidenceSourceResponse(
                     title=item.source.title,
