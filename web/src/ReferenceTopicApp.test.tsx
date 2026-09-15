@@ -114,8 +114,8 @@ const memberExploration = {
   },
   recommendations: [],
   followup_questions: [
-    { slot: 1, question_text: "질문 1", target_node_id: null },
-    { slot: 2, question_text: "질문 2", target_node_id: null },
+    { slot: 1, question_text: "질문 1", target_node_id: "11" },
+    { slot: 2, question_text: "질문 2", target_node_id: "10" },
   ],
 };
 
