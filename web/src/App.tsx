@@ -588,12 +588,9 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
               theme={theme}
               hiddenKinds={hiddenKinds}
               pendingNodeId={
-                pendingTransitionRef.current?.request.centerId ??
-                (status === "loading" &&
-                lastRequestRef.current?.navigation &&
-                lastRequestRef.current.centerId !== graphView?.centerId
+                status === "loading" && lastRequestRef.current?.navigation
                   ? lastRequestRef.current.centerId
-                  : null)
+                  : null
               }
               panelOpen={panelOpen}
               onIntroComplete={() => setIntroComplete(true)}

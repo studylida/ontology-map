@@ -1255,11 +1255,7 @@ export function GraphCanvas({
     const labelLayer = containerRef.current?.querySelector<HTMLElement>(
       "[data-graph-labels]",
     );
-    if (
-      pendingNodeId &&
-      pendingNodeId !== centerId &&
-      introCompletedRef.current
-    ) {
+    if (pendingNodeId && introCompletedRef.current) {
       setBusy(true);
       if (reducedMotion) return;
       preparingRef.current = designPreview;
@@ -1606,6 +1602,7 @@ export function GraphCanvas({
         previousCenterRef.current = centerId;
         introCompletedRef.current = true;
         if (intro && !introCompleted) onIntroRef.current();
+        if (intro && changed) onTransitionCompleteRef.current(centerId);
         if (intro && designPreview) {
           controls.maxDistance = 2400;
           const camera = graph.camera() as THREE.PerspectiveCamera;
@@ -1644,16 +1641,6 @@ export function GraphCanvas({
       startIntro();
     } else if (introStarted && changed) {
       animate("center");
-    } else if (
-      introStarted &&
-      pendingNodeId === centerId &&
-      introCompletedRef.current
-    ) {
-      paint(1, false);
-      removeOutgoing();
-      graph.enableNavigationControls(true).enablePointerInteraction(true);
-      setBusy(false);
-      onTransitionCompleteRef.current(centerId);
     } else if (introStarted && restoring) {
       animate("restore");
     } else if (introStarted && resizing) {

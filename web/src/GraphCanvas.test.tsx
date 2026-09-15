@@ -371,16 +371,6 @@ it("초기 연출 중 새 중심 응답이 도착해도 intro 종료 후 전환 
   );
   act(() => vi.advanceTimersByTime(2200));
   expect(callbacks.onIntroComplete).toHaveBeenCalledTimes(1);
-  expect(callbacks.onTransitionComplete).not.toHaveBeenCalled();
-  rerender(
-    <GraphCanvas
-      {...callbacks}
-      introStarted
-      introCompleted
-      view={next}
-      pendingNodeId="2"
-    />,
-  );
   expect(callbacks.onTransitionComplete).toHaveBeenCalledExactlyOnceWith("2");
   rerender(
     <GraphCanvas {...callbacks} introStarted introCompleted view={next} />,
