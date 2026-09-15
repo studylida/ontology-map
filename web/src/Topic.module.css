@@ -1,10 +1,10 @@
-.searchWithTopics {
+div:has(> .topicPicker) {
   display: flex;
   align-items: stretch;
   gap: 0.55rem;
 }
 
-.searchWithTopics > :first-child {
+div:has(> .topicPicker) > :first-child {
   min-width: 0;
   flex: 1;
 }
@@ -168,7 +168,7 @@
 }
 
 @media (max-width: 720px) {
-  .searchWithTopics {
+  div:has(> .topicPicker) {
     gap: 0.4rem;
   }
 
