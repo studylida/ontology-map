@@ -59,7 +59,6 @@ export function TopicPanel({
       groups: grouped,
     };
   }, [view]);
-  const richKey = rich.map((node) => node.id).join(":");
   const [insightTitles, setInsightTitles] = useState<Map<string, string>>(
     new Map(),
   );
@@ -95,9 +94,7 @@ export function TopicPanel({
       })
       .catch(() => undefined);
     return () => controller.abort();
-    // richKey intentionally scopes title reads to the current top-card membership set.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: rich is derived from view and represented by richKey.
-  }, [richKey, timeRange]);
+  }, [rich, timeRange]);
 
   const periodLabel = timeRange === "90d" ? "최근 90일" : "최근 1년";
 
