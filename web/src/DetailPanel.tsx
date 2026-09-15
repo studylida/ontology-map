@@ -10,6 +10,7 @@ interface DetailPanelProps {
   timeRange: TimeRange;
   onClose: () => void;
   onSelect: (nodeId: string) => void;
+  initialTab?: 0 | 1 | 2;
 }
 
 const recommendationStatusLabel = {
@@ -23,8 +24,9 @@ function DetailPanelContent({
   timeRange,
   onClose,
   onSelect,
+  initialTab = 0,
 }: DetailPanelProps) {
-  const [tab, setTab] = useState(0);
+  const [tab, setTab] = useState<0 | 1 | 2>(initialTab);
   const [reportSection, setReportSection] = useState<string | null>(null);
   const tabsId = useId();
   const center = view.nodes.find((node) => node.id === view.centerId);
@@ -65,13 +67,13 @@ function DetailPanelContent({
             aria-selected={tab === index}
             aria-controls={`${tabsId}-panel`}
             tabIndex={tab === index ? 0 : -1}
-            onClick={() => setTab(index)}
+            onClick={() => setTab(index as 0 | 1 | 2)}
             onKeyDown={(event) => {
               if (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
                 return;
               event.preventDefault();
               const next = (index + (event.key === "ArrowRight" ? 1 : 2)) % 3;
-              setTab(next);
+              setTab(next as 0 | 1 | 2);
               document.getElementById(`${tabsId}-${next}-tab`)?.focus();
             }}
           >
@@ -159,7 +161,7 @@ function DetailPanelContent({
 export function DetailPanel(props: DetailPanelProps) {
   return (
     <DetailPanelContent
-      key={`${props.view.centerId}:${props.timeRange}`}
+      key={`${props.view.centerId}:${props.timeRange}:${props.initialTab ?? 0}`}
       {...props}
     />
   );
