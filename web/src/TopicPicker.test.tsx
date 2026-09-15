@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TopicPicker } from "./TopicPicker";
 
@@ -45,6 +51,9 @@ describe("TopicPicker", () => {
 
     fireEvent.click(options[1] as HTMLElement);
     expect(onSelect).toHaveBeenCalledWith("9");
-    expect(fetchMock).toHaveBeenCalledWith("/api/v1/topics", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/topics",
+      expect.any(Object),
+    );
   });
 });
