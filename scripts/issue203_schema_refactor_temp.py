@@ -1,7 +1,7 @@
 from pathlib import Path
 
-path = Path("server/src/ontology_map/db/schema.py")
-text = path.read_text()
+schema_path = Path("server/src/ontology_map/db/schema.py")
+text = schema_path.read_text()
 
 start = text.index("knowledge_item = sa.Table(\n")
 end = text.index("\nnode = sa.Table(\n", start)
@@ -93,20 +93,7 @@ text = text[:start] + knowledge_block + text[end:]
 marker = 'sa.Index("ix_node__type", node.c.node_type_id, node.c.node_id)\n\nrelation = sa.Table(\n'
 if text.count(marker) != 1:
     raise SystemExit(f"node/relation marker count={text.count(marker)}")
-approved = " OR ".join(
-    (
-        "(topic_code = 'SEMICONDUCTOR' AND canonical_display_name = '반도체')",
-        "(topic_code = 'MEMORY_SEMICONDUCTOR' AND canonical_display_name = '메모리 반도체')",
-        "(topic_code = 'ADVANCED_PACKAGING' AND canonical_display_name = '첨단 패키징')",
-        "(topic_code = 'ARTIFICIAL_INTELLIGENCE' AND canonical_display_name = '인공지능')",
-        "(topic_code = 'DATA_CENTER' AND canonical_display_name = '데이터센터')",
-        "(topic_code = 'MANUFACTURING_PROCESS' AND canonical_display_name = '제조 공정')",
-        "(topic_code = 'INVESTMENT' AND canonical_display_name = '투자')",
-        "(topic_code = 'COMMERCIALIZATION' AND canonical_display_name = '상용화')",
-        "(topic_code = 'REGULATION_POLICY' AND canonical_display_name = '규제·정책')",
-    )
-)
-topic_block = f'''sa.Index("ix_node__type", node.c.node_type_id, node.c.node_id)
+topic_block = '''sa.Index("ix_node__type", node.c.node_type_id, node.c.node_id)
 
 topic_reference = sa.Table(
     "topic_reference",
@@ -145,7 +132,26 @@ topic_reference = sa.Table(
         name="ck_topic_reference__display_name_nonblank",
     ),
     sa.CheckConstraint(
-        "({approved})",
+        (
+            "(topic_code = 'SEMICONDUCTOR' "
+            "AND canonical_display_name = '반도체') OR "
+            "(topic_code = 'MEMORY_SEMICONDUCTOR' "
+            "AND canonical_display_name = '메모리 반도체') OR "
+            "(topic_code = 'ADVANCED_PACKAGING' "
+            "AND canonical_display_name = '첨단 패키징') OR "
+            "(topic_code = 'ARTIFICIAL_INTELLIGENCE' "
+            "AND canonical_display_name = '인공지능') OR "
+            "(topic_code = 'DATA_CENTER' "
+            "AND canonical_display_name = '데이터센터') OR "
+            "(topic_code = 'MANUFACTURING_PROCESS' "
+            "AND canonical_display_name = '제조 공정') OR "
+            "(topic_code = 'INVESTMENT' "
+            "AND canonical_display_name = '투자') OR "
+            "(topic_code = 'COMMERCIALIZATION' "
+            "AND canonical_display_name = '상용화') OR "
+            "(topic_code = 'REGULATION_POLICY' "
+            "AND canonical_display_name = '규제·정책')"
+        ),
         name="ck_topic_reference__approved_definition",
     ),
     comment=(
@@ -157,4 +163,15 @@ topic_reference = sa.Table(
 relation = sa.Table(
 '''
 text = text.replace(marker, topic_block)
-path.write_text(text)
+schema_path.write_text(text)
+
+references_path = Path("server/src/ontology_map/db/topic_references.py")
+text = references_path.read_text()
+old = '        raise ValueError("Topic reference definition is not in the approved #203 contract")\n'
+new = '''        raise ValueError(
+            "Topic reference definition is not in the approved #203 contract"
+        )
+'''
+if text.count(old) != 1:
+    raise SystemExit(f"topic reference error marker count={text.count(old)}")
+references_path.write_text(text.replace(old, new))
