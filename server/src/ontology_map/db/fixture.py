@@ -140,29 +140,63 @@ def _task_cache_key(
     return sha256(payload).digest()
 
 
+_FIXTURE_NODE_TYPES = (
+    ("PERSON", "사람"),
+    ("COMPANY", "회사"),
+    ("TECHNOLOGY", "기술"),
+    ("TOPIC", "주제"),
+    ("EVENT", "사건"),
+)
+_FIXTURE_NODE_CREATION_RULE = "공개 원문 근거와 대표 alias가 필요하다."
+
+
+def _fixture_node_types(connection: Connection) -> dict[str, int]:
+    node_type_ids: dict[str, int] = {}
+    for code, display_name in _FIXTURE_NODE_TYPES:
+        row = (
+            connection.execute(
+                sa.select(
+                    node_type.c.node_type_id,
+                    node_type.c.display_name,
+                    node_type.c.creation_rule,
+                    node_type.c.is_active,
+                ).where(node_type.c.node_type_code == code)
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is None:
+            node_type_id = int(
+                connection.execute(
+                    node_type.insert()
+                    .values(
+                        node_type_code=code,
+                        display_name=display_name,
+                        creation_rule=_FIXTURE_NODE_CREATION_RULE,
+                        is_active=True,
+                    )
+                    .returning(node_type.c.node_type_id)
+                ).scalar_one()
+            )
+        else:
+            if (
+                str(row["display_name"]) != display_name
+                or str(row["creation_rule"]) != _FIXTURE_NODE_CREATION_RULE
+                or not bool(row["is_active"])
+            ):
+                raise RuntimeError(
+                    f"기존 node_type {code}가 HBF fixture prerequisite와 "
+                    "호환되지 않습니다."
+                )
+            node_type_id = int(row["node_type_id"])
+        node_type_ids[code] = node_type_id
+    return node_type_ids
+
+
 def _seed_reference_data(
     connection: Connection,
 ) -> tuple[dict[str, int], int, dict[str, int], int]:
-    node_type_ids: dict[str, int] = {}
-    for code, display_name in (
-        ("PERSON", "사람"),
-        ("COMPANY", "회사"),
-        ("TECHNOLOGY", "기술"),
-        ("TOPIC", "주제"),
-        ("EVENT", "사건"),
-    ):
-        node_type_ids[code] = int(
-            connection.execute(
-                node_type.insert()
-                .values(
-                    node_type_code=code,
-                    display_name=display_name,
-                    creation_rule="공개 원문 근거와 대표 alias가 필요하다.",
-                    is_active=True,
-                )
-                .returning(node_type.c.node_type_id)
-            ).scalar_one()
-        )
+    node_type_ids = _fixture_node_types(connection)
 
     lint_rule_id = int(
         connection.execute(
@@ -739,47 +773,51 @@ def _current_fixture_nodes(connection: Connection) -> dict[str, int]:
     return node_ids
 
 
+def _load_hbf_fixture(connection: Connection) -> tuple[bool, dict[str, int]]:
+    marker_exists = connection.scalar(
+        sa.select(source_document.c.source_document_id).where(
+            source_document.c.source_key == FIXTURE_MARKER
+        )
+    )
+    if marker_exists is not None:
+        return False, _current_fixture_nodes(connection)
+
+    node_type_ids, relation_revision_id, contract_ids, batch_id = _seed_reference_data(
+        connection
+    )
+    observation_ids = _seed_evidence(connection)
+    node_ids, node_names = _seed_nodes(
+        connection,
+        node_type_ids,
+        observation_ids,
+        batch_id,
+    )
+    relation_ids, claim_ids = _seed_relations(
+        connection,
+        node_ids,
+        node_names,
+        observation_ids,
+        relation_revision_id,
+        batch_id,
+    )
+    _seed_node_artifacts(
+        connection,
+        node_ids,
+        node_names,
+        relation_ids,
+        claim_ids,
+        contract_ids,
+        batch_id,
+    )
+    return True, node_ids
+
+
 def load_hbf_fixture() -> tuple[bool, dict[str, int]]:
     if get_settings().environment != "development":
         raise RuntimeError("HBF fixture는 development 환경에서만 실행할 수 있습니다.")
 
     with get_engine().begin() as connection:
-        marker_exists = connection.scalar(
-            sa.select(source_document.c.source_document_id).where(
-                source_document.c.source_key == FIXTURE_MARKER
-            )
-        )
-        if marker_exists is not None:
-            return False, _current_fixture_nodes(connection)
-
-        node_type_ids, relation_revision_id, contract_ids, batch_id = (
-            _seed_reference_data(connection)
-        )
-        observation_ids = _seed_evidence(connection)
-        node_ids, node_names = _seed_nodes(
-            connection,
-            node_type_ids,
-            observation_ids,
-            batch_id,
-        )
-        relation_ids, claim_ids = _seed_relations(
-            connection,
-            node_ids,
-            node_names,
-            observation_ids,
-            relation_revision_id,
-            batch_id,
-        )
-        _seed_node_artifacts(
-            connection,
-            node_ids,
-            node_names,
-            relation_ids,
-            claim_ids,
-            contract_ids,
-            batch_id,
-        )
-        return True, node_ids
+        return _load_hbf_fixture(connection)
 
 
 def main() -> None:

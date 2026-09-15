@@ -61,7 +61,19 @@ uv run --env-file ../.env alembic current
 
 `0004`는 `knowledge_item.lifecycle_kind`와 `topic_reference`를 추가한다. 기존 행은 모두 `EVIDENCE_BACKED`로 해석되어 state/promotion 값을 그대로 유지하며 기존 evidence-backed TOPIC도 자동 변환하지 않는다. 새 `PRODUCT_REFERENCE` Topic만 일반 state/promotion 없이 저장할 수 있고 DB 무결성이 TOPIC node + reference definition 조합으로 제한한다. Reference Topic row가 존재하면 `0003` downgrade는 의미 손실을 막기 위해 실패한다.
 
-`0004` 자체는 제품 Topic row를 seed하지 않고 startup도 누락 Topic을 자동 생성하지 않는다. 승인 Topic 9개의 실제 활성화는 #201이 명시적 reference activation transaction으로 수행한다. 개발 fixture의 evidence-backed TOPIC과 제품 Reference Topic을 같은 데이터로 간주하지 않는다.
+`0004` 자체는 제품 Topic row를 seed하지 않고 startup도 누락 Topic을 자동 생성하지 않는다. 승인 Topic 9개의 실제 활성화는 migration과 분리된 #201 명시적 reference activation transaction이 담당한다. 개발 fixture의 evidence-backed TOPIC과 제품 Reference Topic을 같은 데이터로 간주하지 않는다.
+
+### 제품 ontology reference data 활성화
+
+migration 적용 뒤 제품에서 사용할 승인 ontology reference data는 `server/`에서 다음 명령으로 명시적으로 활성화한다.
+
+```bash
+PYTHONPATH=src uv run --env-file ../.env python -m ontology_map.db.ontology_reference_data
+```
+
+이 명령은 [승인 ontology reference data](../data/ontology-reference-data.md)의 Relation 13개 + `HAS_TOPIC`, attribute 6개, Reference Topic 9개만 활성화한다. 앱 startup에서는 실행하지 않으며 재실행해도 stable code·revision·Topic row를 중복 생성하지 않는다. 이미 같은 code에 계약과 다른 active revision이 있으면 기존 의미를 덮어쓰거나 비활성화하지 않고 실패한다. 기존 HBF fixture의 `PUBLICLY_ASSOCIATED_WITH`, 저장 Relation·Claim·Evidence·promotion은 수정하지 않는다.
+
+Reference Topic은 #203의 `PRODUCT_REFERENCE` activation 경계를 사용하므로 `source_document`, Observation, Claim, 일반 state, promotion batch 또는 READY publication을 만들지 않는다. `MAX_MEMORY_BANDWIDTH`는 하나의 NUMBER active revision 아래 `GB_PER_S`, `TB_PER_S` 두 허용 원문 단위를 등록하며 환산·정규화·비교를 수행하지 않는다.
 
 ## 3. 개발용 HBF fixture
 
