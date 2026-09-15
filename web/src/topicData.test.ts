@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { APIRequestError } from "./data";
+import type { APIRequestError } from "./data";
 import {
   fetchCenterExploration,
   isTopicExploration,
@@ -97,9 +97,16 @@ describe("Reference Topic reads", () => {
 
     expect(isTopicExploration(view)).toBe(true);
     expect(view.totalPublicMembershipCount).toBe(2);
-    expect(view.nodes.find((node) => node.id === "10")?.activityEvidenceGroupCount).toBe(3);
-    expect(view.nodes.find((node) => node.id === "11")?.activityEvidenceGroupCount).toBe(0);
-    expect(view.relations.find((relation) => relation.id === "91")?.evidenceGroupCount).toBe(9);
+    expect(
+      view.nodes.find((node) => node.id === "10")?.activityEvidenceGroupCount,
+    ).toBe(3);
+    expect(
+      view.nodes.find((node) => node.id === "11")?.activityEvidenceGroupCount,
+    ).toBe(0);
+    expect(
+      view.relations.find((relation) => relation.id === "91")
+        ?.evidenceGroupCount,
+    ).toBe(9);
   });
 
   it("falls back to Topic exploration only when general publication is unavailable", async () => {
@@ -149,7 +156,9 @@ describe("Reference Topic reads", () => {
       )
       .mockResolvedValueOnce(
         new Response(
-          JSON.stringify({ error: { code: "TOPIC_NOT_FOUND", retryable: false } }),
+          JSON.stringify({
+            error: { code: "TOPIC_NOT_FOUND", retryable: false },
+          }),
           { status: 404, headers: { "content-type": "application/json" } },
         ),
       );
