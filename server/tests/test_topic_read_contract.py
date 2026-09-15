@@ -3,8 +3,19 @@ from unittest.mock import Mock
 
 from ontology_map import exploration as exploration_service
 from ontology_map import topic_api
-from ontology_map.db.exploration import AdjacencyRow, CenterRow, FollowupRow, NodeRow
-from ontology_map.exploration import Graph, GraphNode, GraphRelation, NodeType, TimeWindow
+from ontology_map.db.exploration import (
+    AdjacencyRow,
+    CenterRow,
+    FollowupRow,
+    NodeRow,
+)
+from ontology_map.exploration import (
+    Graph,
+    GraphNode,
+    GraphRelation,
+    NodeType,
+    TimeWindow,
+)
 from ontology_map.topic_exploration import TopicExploration, TopicReference
 
 NOW = datetime(2026, 9, 15, 0, 0, tzinfo=UTC)
