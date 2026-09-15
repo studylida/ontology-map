@@ -1,0 +1,82 @@
+name: Issue 213 Validation
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue-213-validation.yml"
+      - "server/**"
+      - "web/**"
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Issue 213 web check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Check
+        run: npm run check
+
+  backend:
+    name: Issue 213 backend · PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: issue213-${{ github.run_id }}-${{ github.run_attempt }}
+      POSTGRES_DB: ontology_map_issue213_test
+      POSTGRES_USER: issue213
+      POSTGRES_PORT: "127.0.0.1:55437"
+      ONTOLOGY_MAP_ENVIRONMENT: development
+      PYTHONPATH: ${{ github.workspace }}/server/src
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - name: uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.7"
+          enable-cache: true
+      - name: Install
+        run: uv sync --project server --frozen
+      - name: Static checks
+        run: |
+          uv run --project server --frozen ruff format --check server
+          uv run --project server --frozen ruff check server
+          uv run --project server --frozen mypy --config-file server/pyproject.toml server/src/ontology_map
+      - name: Database credentials
+        run: |
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          url="postgresql+psycopg://${POSTGRES_USER}:${password}@127.0.0.1:55437/${POSTGRES_DB}"
+          echo "::add-mask::$url"
+          {
+            echo "POSTGRES_PASSWORD=$password"
+            echo "ONTOLOGY_MAP_DATABASE_URL=$url"
+          } >> "$GITHUB_ENV"
+      - name: Start PostgreSQL
+        run: docker compose up --wait --wait-timeout 120 db
+      - name: Migrate
+        working-directory: server
+        run: uv run --frozen alembic upgrade head
+      - name: Full backend tests
+        run: uv run --project server --frozen pytest -q server/tests
+      - name: Cleanup
+        if: ${{ always() }}
+        run: docker compose down --volumes
