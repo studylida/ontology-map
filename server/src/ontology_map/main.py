@@ -17,6 +17,7 @@ from ontology_map.panel import PanelNotFoundError, PanelNotReadyError
 from ontology_map.panel_api import panel_error_handler
 from ontology_map.panel_api import router as panel_router
 from ontology_map.settings import get_settings
+from ontology_map.topic_api import router as topic_router
 
 
 @asynccontextmanager
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
     application.add_exception_handler(RequestValidationError, validation_error_handler)
     application.include_router(router)
     application.include_router(panel_router)
+    application.include_router(topic_router)
     for error_type in (PanelNotFoundError, PanelNotReadyError, InvalidCursorError):
         application.add_exception_handler(error_type, panel_error_handler)
     return application
