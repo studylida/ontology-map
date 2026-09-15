@@ -128,6 +128,13 @@ describe("TopicPanel", () => {
       />,
     );
     expect(screen.getByText("아직 공개된 연결 대상이 없습니다.")).toBeTruthy();
+    expect(screen.queryByRole("tab")).toBeNull();
+    expect(
+      screen.queryByText("이 기간에는 공개된 후속 질문이 없습니다."),
+    ).toBeNull();
+    expect(
+      screen.queryByText("이 기간에는 공개된 인사이트가 없습니다."),
+    ).toBeNull();
 
     rerender(
       <TopicPanel

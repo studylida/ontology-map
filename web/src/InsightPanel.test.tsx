@@ -202,7 +202,7 @@ it("준비 실패를 재시도하고 기간 변경 시 이전 상세와 요청�
   });
   fireEvent.click(screen.getByRole("tab", { name: "인사이트" }));
   await screen.findByRole("alert");
-  fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+  fireEvent.click(screen.getByRole("button", { name: "다시 조회" }));
   fireEvent.click(await screen.findByRole("button", { name: /첫 번째 발견/ }));
   await screen.findByText("해석의 한계");
   rerender(<DetailPanel {...props} timeRange="1y" />);
@@ -210,6 +210,41 @@ it("준비 실패를 재시도하고 기간 변경 시 이전 상세와 요청�
   await waitFor(() =>
     expect(request.mock.calls.at(-1)?.[0]).toContain("RECENT_1_YEAR"),
   );
+});
+
+it("FOLLOWUP 성공 0건은 error가 아니라 승인된 normal empty를 표시한다", async () => {
+  request.mockImplementation(async (path: string) => ({
+    ok: true,
+    status: 200,
+    json: async () =>
+      path.includes("/questions") || path.includes("/relations")
+        ? { items: [], next_cursor: null }
+        : result(path),
+  }));
+  render(<DetailPanel {...props} />);
+  expect(
+    await screen.findByText("이 기간에는 공개된 후속 질문이 없습니다."),
+  ).toBeTruthy();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("NODE_INSIGHT 성공 empty는 error가 아니라 승인된 normal empty를 표시한다", async () => {
+  request.mockImplementation(async (path: string) => ({
+    ok: true,
+    status: 200,
+    json: async () =>
+      path.includes("/insight-report")
+        ? { items: [], next_cursor: null }
+        : path.includes("/relations")
+          ? { items: [], next_cursor: null }
+          : result(path),
+  }));
+  render(<DetailPanel {...props} />);
+  fireEvent.click(screen.getByRole("tab", { name: "인사이트" }));
+  expect(
+    await screen.findByText("이 기간에는 공개된 인사이트가 없습니다."),
+  ).toBeTruthy();
+  expect(screen.queryByRole("alert")).toBeNull();
 });
 
 it("안전하지 않은 원문 URL은 표시 전에 거부한다", async () => {
