@@ -1255,7 +1255,11 @@ export function GraphCanvas({
     const labelLayer = containerRef.current?.querySelector<HTMLElement>(
       "[data-graph-labels]",
     );
-    if (pendingNodeId && introCompletedRef.current) {
+    if (
+      pendingNodeId &&
+      pendingNodeId !== centerId &&
+      introCompletedRef.current
+    ) {
       setBusy(true);
       if (reducedMotion) return;
       preparingRef.current = designPreview;
@@ -1640,6 +1644,16 @@ export function GraphCanvas({
       startIntro();
     } else if (introStarted && changed) {
       animate("center");
+    } else if (
+      introStarted &&
+      pendingNodeId === centerId &&
+      introCompletedRef.current
+    ) {
+      paint(1, false);
+      removeOutgoing();
+      graph.enableNavigationControls(true).enablePointerInteraction(true);
+      setBusy(false);
+      onTransitionCompleteRef.current(centerId);
     } else if (introStarted && restoring) {
       animate("restore");
     } else if (introStarted && resizing) {
