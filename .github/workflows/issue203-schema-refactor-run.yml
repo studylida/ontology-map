@@ -24,8 +24,59 @@ jobs:
       - name: Apply canonical metadata refactor
         run: |
           python scripts/issue203_schema_refactor_temp.py
+          python - <<'PY'
+          from pathlib import Path
+
+          schema = Path("server/src/ontology_map/db/schema.py")
+          text = schema.read_text()
+          start = text.index(
+              "    sa.CheckConstraint(\n"
+              "        \"((topic_code = 'SEMICONDUCTOR'"
+          )
+          end = text.index(
+              "        name=\"ck_topic_reference__approved_definition\",\n"
+              "    ),\n",
+              start,
+          )
+          replacement = '''    sa.CheckConstraint(
+        (
+            "(topic_code = 'SEMICONDUCTOR' "
+            "AND canonical_display_name = '반도체') OR "
+            "(topic_code = 'MEMORY_SEMICONDUCTOR' "
+            "AND canonical_display_name = '메모리 반도체') OR "
+            "(topic_code = 'ADVANCED_PACKAGING' "
+            "AND canonical_display_name = '첨단 패키징') OR "
+            "(topic_code = 'ARTIFICIAL_INTELLIGENCE' "
+            "AND canonical_display_name = '인공지능') OR "
+            "(topic_code = 'DATA_CENTER' "
+            "AND canonical_display_name = '데이터센터') OR "
+            "(topic_code = 'MANUFACTURING_PROCESS' "
+            "AND canonical_display_name = '제조 공정') OR "
+            "(topic_code = 'INVESTMENT' "
+            "AND canonical_display_name = '투자') OR "
+            "(topic_code = 'COMMERCIALIZATION' "
+            "AND canonical_display_name = '상용화') OR "
+            "(topic_code = 'REGULATION_POLICY' "
+            "AND canonical_display_name = '규제·정책')"
+        ),
+'''
+          schema.write_text(text[:start] + replacement + text[end:])
+
+          references = Path("server/src/ontology_map/db/topic_references.py")
+          text = references.read_text()
+          old = '        raise ValueError("Topic reference definition is not in the approved #203 contract")\n'
+          new = '''        raise ValueError(
+            "Topic reference definition is not in the approved #203 contract"
+        )
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f"topic reference error marker count={text.count(old)}")
+          references.write_text(text.replace(old, new))
+          PY
           uv sync --project server --frozen
-          uv run --project server --frozen ruff format server/src/ontology_map/db/schema.py
+          uv run --project server --frozen ruff format \
+            server/src/ontology_map/db/schema.py \
+            server/src/ontology_map/db/topic_references.py
           uv run --project server --frozen ruff check server
           uv run --project server --frozen mypy --config-file server/pyproject.toml server/src/ontology_map
           uv run --project server --frozen python scripts/check_docs.py --write
@@ -35,6 +86,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add server/src/ontology_map/db/schema.py docs/data/schema-reference.md
+          git add server/src/ontology_map/db/schema.py \
+            server/src/ontology_map/db/topic_references.py \
+            docs/data/schema-reference.md
           git commit -m "refactor: make Topic reference metadata canonical"
           git push origin HEAD:issue-203-topic-reference-lifecycle
