@@ -39,7 +39,9 @@ def _row(value: sa.RowMapping) -> TopicReferenceRow:
 def _validate_definition(topic_code: str, canonical_display_name: str) -> None:
     expected = _APPROVED_BY_CODE.get(topic_code)
     if expected is None or expected != canonical_display_name:
-        raise ValueError("Topic reference definition is not in the approved #203 contract")
+        raise ValueError(
+            "Topic reference definition is not in the approved #203 contract"
+        )
 
 
 def get_topic_reference(session: Session, node_id: int) -> TopicReferenceRow | None:

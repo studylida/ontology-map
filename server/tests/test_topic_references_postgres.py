@@ -28,9 +28,9 @@ from ontology_map.db.schema import (
     relation_type_revision,
     search_document_basis,
     source_document,
+    topic_reference,
 )
 from ontology_map.db.session import get_engine
-from ontology_map.db.topic_reference_schema import topic_reference
 from ontology_map.db.topic_references import (
     ensure_topic_reference,
     set_topic_reference_active,
