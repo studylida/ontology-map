@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { KnowledgeNode } from "./data";
 import { TopicPanel } from "./TopicPanel";
@@ -58,7 +64,12 @@ afterEach(() => {
 
 describe("TopicPanel", () => {
   it("shows only the top three recent-evidence members as rich cards without evidence counts", async () => {
-    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation(async () => emptyReportResponse()));
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockImplementation(async () => emptyReportResponse()),
+    );
     const view = topicView([
       node("1", "가 회사", "회사", "COMPANY", 8),
       node("2", "나 기술", "기술", "TECHNOLOGY", 6),
@@ -91,13 +102,19 @@ describe("TopicPanel", () => {
     const recentSection = screen.getByRole("heading", {
       name: "최근 근거가 있는 연결",
     }).parentElement;
-    expect(within(recentSection as HTMLElement).getByText("라 회사")).toBeTruthy();
-    expect(within(recentSection as HTMLElement).queryByText("가 회사")).toBeNull();
+    expect(
+      within(recentSection as HTMLElement).getByText("라 회사"),
+    ).toBeTruthy();
+    expect(
+      within(recentSection as HTMLElement).queryByText("가 회사"),
+    ).toBeNull();
 
     const otherSection = screen.getByRole("heading", {
       name: "그 외 연결",
     }).parentElement;
-    expect(within(otherSection as HTMLElement).getByText("마 기술")).toBeTruthy();
+    expect(
+      within(otherSection as HTMLElement).getByText("마 기술"),
+    ).toBeTruthy();
   });
 
   it("distinguishes no membership from no selected-period evidence", () => {
