@@ -1,0 +1,96 @@
+name: Issue 203 regression fixes
+
+on:
+  push:
+    branches:
+      - issue-203-topic-reference-lifecycle
+    paths:
+      - ".github/workflows/issue203-regression-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: issue-203-topic-reference-lifecycle
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.7"
+      - name: Apply #203 regression fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, got {count}")
+              target.write_text(text.replace(old, new))
+
+          migration = "server/migrations/versions/0004_support_topic_reference_lifecycle.py"
+          replace_once(
+              migration,
+              '''            IF v_node_type_code = 'TOPIC' THEN\n                IF v_item_kind <> 'NODE'\n                   OR v_lifecycle_kind <> 'PRODUCT_REFERENCE'\n                   OR NOT v_has_reference THEN\n                    RAISE EXCEPTION\n                        'TOPIC node % must use PRODUCT_REFERENCE lifecycle and topic_reference',\n                        p_node_id;\n                END IF;\n            ELSIF v_lifecycle_kind = 'PRODUCT_REFERENCE' OR v_has_reference THEN\n                RAISE EXCEPTION\n                    'only TOPIC nodes may use PRODUCT_REFERENCE lifecycle: %',\n                    p_node_id;\n            END IF;\n''',
+              '''            IF v_lifecycle_kind = 'PRODUCT_REFERENCE' OR v_has_reference THEN\n                IF v_item_kind <> 'NODE'\n                   OR v_node_type_code <> 'TOPIC'\n                   OR v_lifecycle_kind <> 'PRODUCT_REFERENCE'\n                   OR NOT v_has_reference THEN\n                    RAISE EXCEPTION\n                        'PRODUCT_REFERENCE must be a TOPIC node with topic_reference: %',\n                        p_node_id;\n                END IF;\n            END IF;\n''',
+          )
+          text = Path(migration).read_text()
+          start = text.index("def upgrade() -> None:\n")
+          add_column = text.index("    op.add_column(\n", start)
+          text = text[:start] + "def upgrade() -> None:\n" + text[add_column:]
+          Path(migration).write_text(text)
+
+          migration_test = "server/tests/test_topic_reference_migration_postgres.py"
+          text = Path(migration_test).read_text()
+          start = text.index("def test_legacy_topic_node_upgrade_fails_without_partial_state() -> None:\n")
+          end = text.index("\ndef test_reference_topic_downgrade_fails_without_data_loss() -> None:\n", start)
+          replacement = '''def test_existing_evidence_topic_is_preserved_without_reclassification() -> None:\n    _upgrade("0003")\n    engine = _engine()\n    try:\n        with engine.begin() as connection:\n            batch_id = _insert_policy_and_batch(connection)\n            topic_type_id = int(\n                connection.execute(\n                    sa.text(\n                        """\n                        INSERT INTO node_type (\n                            node_type_code, display_name, creation_rule, is_active\n                        ) VALUES ('TOPIC', '주제', 'legacy topic', true)\n                        RETURNING node_type_id\n                        """\n                    )\n                ).scalar_one()\n            )\n            topic_node_id = int(\n                connection.execute(\n                    sa.text(\n                        """\n                        INSERT INTO knowledge_item (\n                            item_kind, current_state, promotion_batch_id\n                        ) VALUES ('NODE', 'EVIDENCE_VERIFIED', :batch_id)\n                        RETURNING knowledge_item_id\n                        """\n                    ),\n                    {"batch_id": batch_id},\n                ).scalar_one()\n            )\n            connection.execute(\n                sa.text(\n                    "INSERT INTO node (node_id, node_type_id) "\n                    "VALUES (:node_id, :type_id)"\n                ),\n                {"node_id": topic_node_id, "type_id": topic_type_id},\n            )\n\n        _upgrade("0004")\n\n        with engine.connect() as connection:\n            assert _version(connection) == "0004"\n            row = connection.execute(\n                sa.text(\n                    """\n                    SELECT lifecycle_kind, current_state, promotion_batch_id\n                    FROM knowledge_item\n                    WHERE knowledge_item_id = :id\n                    """\n                ),\n                {"id": topic_node_id},\n            ).one()\n            assert row.lifecycle_kind == "EVIDENCE_BACKED"\n            assert row.current_state == "EVIDENCE_VERIFIED"\n            assert int(row.promotion_batch_id) == batch_id\n            assert connection.scalar(\n                sa.text("SELECT count(*) FROM topic_reference WHERE node_id = :id"),\n                {"id": topic_node_id},\n            ) == 0\n\n        _downgrade("0003")\n        with engine.connect() as connection:\n            assert _version(connection) == "0003"\n            assert connection.scalar(\n                sa.text(\n                    "SELECT current_state FROM knowledge_item "\n                    "WHERE knowledge_item_id = :id"\n                ),\n                {"id": topic_node_id},\n            ) == "EVIDENCE_VERIFIED"\n    finally:\n        engine.dispose()\n\n'''
+          Path(migration_test).write_text(text[:start] + replacement + text[end + 1:])
+
+          postgres_test = "server/tests/test_topic_references_postgres.py"
+          text = Path(postgres_test).read_text()
+          start = text.index("def _node_type(session: Session, code: str) -> int:\n")
+          end = text.index("\ndef _evidence_node(\n", start)
+          helper = '''def _node_type(session: Session, code: str) -> int:\n    existing = session.scalar(\n        sa.select(node_type.c.node_type_id).where(node_type.c.node_type_code == code)\n    )\n    if existing is not None:\n        return int(existing)\n    return int(\n        session.execute(\n            node_type.insert()\n            .values(\n                node_type_code=code,\n                display_name={"TOPIC": "주제", "COMPANY": "회사"}.get(code, code),\n                creation_rule="Issue #203 synthetic test type",\n                is_active=True,\n            )\n            .returning(node_type.c.node_type_id)\n        ).scalar_one()\n    )\n\n'''
+          text = text[:start] + helper + text[end + 1:]
+          old_legacy_block = '''        with pytest.raises(sa.exc.DBAPIError), session.begin_nested():\n            legacy_topic_id = int(\n                session.execute(\n                    knowledge_item.insert()\n                    .values(\n                        item_kind="NODE",\n                        lifecycle_kind="EVIDENCE_BACKED",\n                        current_state="EVIDENCE_VERIFIED",\n                        promotion_batch_id=batch_id,\n                    )\n                    .returning(knowledge_item.c.knowledge_item_id)\n                ).scalar_one()\n            )\n            session.execute(\n                node.insert().values(\n                    node_id=legacy_topic_id, node_type_id=topic_type_id\n                )\n            )\n            session.execute(sa.text("SET CONSTRAINTS ALL IMMEDIATE"))\n\n'''
+          new_legacy_block = '''        legacy_topic_id = _evidence_node(\n            session, batch_id=batch_id, node_type_id=topic_type_id\n        )\n        _force_deferred_constraints(session)\n        assert session.scalar(\n            sa.select(knowledge_item.c.lifecycle_kind).where(\n                knowledge_item.c.knowledge_item_id == legacy_topic_id\n            )\n        ) == "EVIDENCE_BACKED"\n\n'''
+          if text.count(old_legacy_block) != 1:
+              raise SystemExit("legacy Topic test block not found exactly once")
+          Path(postgres_test).write_text(text.replace(old_legacy_block, new_legacy_block))
+
+          unit_test = "server/tests/test_entity_resolution.py"
+          text = Path(unit_test).read_text()
+          start = text.index("def test_topic_reuses_only_approved_target_and_does_not_create(")
+          end = text.index("\n\n@pytest.mark.parametrize(\n    \"payload\",", start)
+          replacement = '''def test_topic_reuses_only_active_reference_and_does_not_call_agent(\n    prepared, monkeypatch\n):\n    reference = Mock(node_id=10, canonical_display_name="인공지능")\n    reference_lookup = Mock(return_value=reference)\n    monkeypatch.setattr(service, "find_topic_reference_by_name", reference_lookup)\n    target = mention(text="AI", node_type="TOPIC", approved_topic_name="인공지능")\n    agent = Mock(side_effect=AssertionError("Topic resolution must be deterministic"))\n\n    same = service.resolve_mention(Mock(), target, agent)\n\n    assert same.decision == "SAME"\n    assert same.node_id == 10\n    assert same.candidates.nodes[0].candidate.preferred_alias == "인공지능"\n    assert same.candidates.nodes[0].candidate.aliases == ()\n    reference_lookup.assert_called_once_with(Mock.ANY if False else same.candidates and None)\n'''
+          # Replace the final assertion below with explicit call arguments after text insertion.
+          replacement = replacement.replace(
+              '    reference_lookup.assert_called_once_with(Mock.ANY if False else same.candidates and None)\n',
+              '    assert reference_lookup.call_args.args[1] == "인공지능"\n'
+              '    assert reference_lookup.call_args.kwargs == {"active_only": True}\n'
+              '    agent.assert_not_called()\n',
+          )
+          Path(unit_test).write_text(text[:start] + replacement + text[end:])
+          PY
+          uv sync --project server --frozen
+          uv run --project server --frozen ruff format server
+          uv run --project server --frozen ruff check server
+          uv run --project server --frozen mypy --config-file server/pyproject.toml server/src/ontology_map
+          uv run --project server --frozen pytest -q server/tests/test_entity_resolution.py
+      - name: Commit focused fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/migrations/versions/0004_support_topic_reference_lifecycle.py \
+            server/tests/test_topic_reference_migration_postgres.py \
+            server/tests/test_topic_references_postgres.py \
+            server/tests/test_entity_resolution.py
+          git commit -m "fix: preserve legacy evidence Topic lifecycle"
+          git push origin HEAD:issue-203-topic-reference-lifecycle
