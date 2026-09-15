@@ -11,7 +11,6 @@ import { DetailPanel } from "./DetailPanel";
 import {
   APIRequestError,
   type ExplorationView,
-  fetchExploration,
   type KnowledgeNode,
   type TimeRange,
 } from "./data";
@@ -22,6 +21,12 @@ import {
   type EvidenceSelection,
   PageNotice,
 } from "./RelationPanel";
+import {
+  fetchCenterExploration,
+  isTopicExploration,
+} from "./topicData";
+import { TopicPanel } from "./TopicPanel";
+import { TopicPicker } from "./TopicPicker";
 import { useInitialLoading } from "./useInitialLoading";
 import { usePeripheral } from "./usePeripheral";
 
@@ -39,6 +44,7 @@ interface ExplorationRequest {
   centerId: string;
   range: TimeRange;
   navigation: Navigation | null;
+  panelTab?: 0 | 1 | 2;
 }
 
 interface PendingTransition {
@@ -81,7 +87,11 @@ function errorCopy(error: APIRequestError | null): {
   title: string;
   detail: string;
 } {
-  if (error?.code === "NODE_NOT_FOUND" || error?.status === 404) {
+  if (
+    error?.code === "NODE_NOT_FOUND" ||
+    error?.code === "TOPIC_NOT_FOUND" ||
+    error?.status === 404
+  ) {
     return {
       title: "요청한 node를 찾을 수 없습니다.",
       detail: "중심 node ID를 확인한 뒤 다시 열어 주세요.",
@@ -328,6 +338,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
       delete document.documentElement.dataset.theme;
     };
   }, [designPreview, theme]);
+
   const [currentView, setCurrentView] = useState<ExplorationView | null>(null);
   const [graphView, setGraphView] = useState<ExplorationView | null>(null);
   const [timeRange, setTimeRange] = useState(initial.range);
@@ -335,14 +346,13 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
     initial.centerId ? [initial.centerId] : [],
   );
   const [panelOpen, setPanelOpen] = useState(true);
+  const [panelTab, setPanelTab] = useState<0 | 1 | 2>(0);
   const [evidence, setEvidence] = useState<EvidenceSelection | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
   const [graphReady, setGraphReady] = useState(false);
   const [introComplete, setIntroComplete] = useState(false);
   const [status, setStatus] = useState<LoadStatus>("loading");
-  const [requestError, setRequestError] = useState<APIRequestError | null>(
-    null,
-  );
+  const [requestError, setRequestError] = useState<APIRequestError | null>(null);
   const [announcement, setAnnouncement] = useState(
     "탐색 데이터를 불러오는 중입니다.",
   );
@@ -365,6 +375,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
       setCurrentView(view);
       setGraphView(view);
       setTimeRange(request.range);
+      setPanelTab(request.panelTab ?? 0);
       setPanelOpen(true);
       const navigation = request.navigation;
       if (navigation) {
@@ -405,7 +416,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
       setRequestError(null);
 
       try {
-        const view = await fetchExploration(
+        const view = await fetchCenterExploration(
           request.centerId,
           request.range,
           controller.signal,
@@ -481,6 +492,15 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
     });
   };
 
+  const selectNodeInsight = (targetId: string) => {
+    void loadExploration({
+      centerId: targetId,
+      range: timeRange,
+      navigation: { trailIndex: null, historyMode: "push" },
+      panelTab: 2,
+    });
+  };
+
   const finishNodeTransition = (completedCenterId: string) => {
     const pending = pendingTransitionRef.current;
     if (!pending || pending.view.centerId !== completedCenterId) return;
@@ -513,7 +533,9 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
   const peripheral = usePeripheral(
     graphView,
     timeRange,
-    status === "idle" && !pendingTransitionRef.current,
+    status === "idle" &&
+      !pendingTransitionRef.current &&
+      !isTopicExploration(graphView),
     initialLoading || introComplete,
   );
 
@@ -528,8 +550,9 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
     ["TOPIC", "주제"],
     ["EVENT", "사건"],
   ]);
-  for (const node of peripheral.graphView?.nodes ?? [])
+  for (const node of peripheral.graphView?.nodes ?? []) {
     nodeTypes.set(node.kindCode, node.kind);
+  }
 
   return (
     <>
@@ -551,7 +574,9 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                 aria-label="라이트 모드"
                 aria-pressed={theme === "light"}
                 onClick={() =>
-                  setTheme((current) => (current === "dark" ? "light" : "dark"))
+                  setTheme((current) =>
+                    current === "dark" ? "light" : "dark",
+                  )
                 }
               >
                 {theme === "dark" ? "☀ 라이트 모드" : "☾ 다크 모드"}
@@ -573,12 +598,20 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
               panelOpen={panelOpen}
               onIntroComplete={() => setIntroComplete(true)}
               view={peripheral.graphView}
-              onPanBoundary={peripheral.trigger}
+              onPanBoundary={
+                isTopicExploration(peripheral.graphView)
+                  ? () => undefined
+                  : peripheral.trigger
+              }
               introStarted={graphReady && !initialLoading}
               introCompleted={introComplete}
               onReady={() => setGraphReady(true)}
               onSelect={selectNode}
-              onEvidence={setEvidence}
+              onEvidence={
+                isTopicExploration(peripheral.graphView)
+                  ? () => undefined
+                  : setEvidence
+              }
               onTransitionComplete={finishNodeTransition}
             />
           )}
@@ -587,7 +620,10 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
             <>
               <div className={styles.controls}>
                 <label htmlFor="node-search">노드 검색</label>
-                <NodeSearch onSelect={selectNode} />
+                <div className={styles.searchWithTopics}>
+                  <NodeSearch onSelect={selectNode} />
+                  <TopicPicker onSelect={selectNode} />
+                </div>
                 <div className={styles.scopeSummary}>
                   <strong>{currentNode.name} 주변</strong>
                 </div>
@@ -631,13 +667,25 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
               />
 
               {panelOpen ? (
-                <DetailPanel
-                  key={`${currentView.centerId}:${timeRange}`}
-                  timeRange={timeRange}
-                  view={currentView}
-                  onClose={() => setPanelOpen(false)}
-                  onSelect={selectNode}
-                />
+                isTopicExploration(currentView) ? (
+                  <TopicPanel
+                    key={`${currentView.centerId}:${timeRange}`}
+                    timeRange={timeRange}
+                    view={currentView}
+                    onClose={() => setPanelOpen(false)}
+                    onSelect={selectNode}
+                    onSelectInsight={selectNodeInsight}
+                  />
+                ) : (
+                  <DetailPanel
+                    key={`${currentView.centerId}:${timeRange}:${panelTab}`}
+                    timeRange={timeRange}
+                    view={currentView}
+                    initialTab={panelTab}
+                    onClose={() => setPanelOpen(false)}
+                    onSelect={selectNode}
+                  />
+                )
               ) : (
                 <button
                   type="button"
@@ -650,22 +698,23 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
             </>
           )}
 
-          {(peripheral.loading || peripheral.error || peripheral.exhausted) && (
-            <aside
-              className={styles.peripheralStatus}
-              aria-label="주변부 조회 상태"
-            >
-              <PageNotice
-                loading={peripheral.loading}
-                error={peripheral.error}
-                empty={false}
-                onRetry={peripheral.retry}
-              />
-              {peripheral.exhausted && !peripheral.error && (
-                <span role="status">추가 주변부 결과가 없습니다.</span>
-              )}
-            </aside>
-          )}
+          {!isTopicExploration(peripheral.graphView) &&
+            (peripheral.loading || peripheral.error || peripheral.exhausted) && (
+              <aside
+                className={styles.peripheralStatus}
+                aria-label="주변부 조회 상태"
+              >
+                <PageNotice
+                  loading={peripheral.loading}
+                  error={peripheral.error}
+                  empty={false}
+                  onRetry={peripheral.retry}
+                />
+                {peripheral.exhausted && !peripheral.error && (
+                  <span role="status">추가 주변부 결과가 없습니다.</span>
+                )}
+              </aside>
+            )}
           <LoadNotice
             status={status}
             hasView={Boolean(currentView)}
