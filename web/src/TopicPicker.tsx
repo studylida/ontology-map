@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import styles from "./App.module.css";
+import topicStyles from "./Topic.module.css";
 import {
   fetchTopicReferences,
   type TopicReference,
@@ -38,10 +38,10 @@ export function TopicPicker({
   };
 
   return (
-    <div className={styles.topicPicker}>
+    <div className={topicStyles.topicPicker}>
       <button
         type="button"
-        className={styles.topicButton}
+        className={topicStyles.topicButton}
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={showTopics}
@@ -49,14 +49,18 @@ export function TopicPicker({
         주제
       </button>
       {open && (
-        <div className={styles.topicPopover} role="listbox" aria-label="주제 목록">
+        <div
+          className={topicStyles.topicPopover}
+          role="listbox"
+          aria-label="주제 목록"
+        >
           {topics.map((topic) => (
             <button
               type="button"
               role="option"
               aria-selected={false}
               key={topic.nodeId}
-              className={styles.topicOption}
+              className={topicStyles.topicOption}
               onClick={() => {
                 setOpen(false);
                 onSelect(topic.nodeId);
