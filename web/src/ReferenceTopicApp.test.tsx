@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -145,10 +151,7 @@ describe("Reference Topic App navigation", () => {
           404,
         );
       }
-      if (
-        input ===
-        "/api/v1/topics/77/exploration?time_window=RECENT_1_YEAR"
-      ) {
+      if (input === "/api/v1/topics/77/exploration?time_window=RECENT_1_YEAR") {
         return response(topicPayload);
       }
       if (input === "/api/v1/exploration/10?time_window=RECENT_1_YEAR") {
@@ -164,7 +167,10 @@ describe("Reference Topic App navigation", () => {
         return response({ items: [], next_cursor: null });
       }
       if (input.includes("/peripheral?")) {
-        return response({ graph: { nodes: [], relations: [] }, next_cursor: null });
+        return response({
+          graph: { nodes: [], relations: [] },
+          next_cursor: null,
+        });
       }
       throw new Error(`unexpected request: ${input}`);
     });
@@ -181,12 +187,12 @@ describe("Reference Topic App navigation", () => {
   it("keeps the period and trail while entering member Insight and returning to Topic", async () => {
     render(<App />);
 
-    expect(
-      await screen.findByRole("heading", { name: "반도체" }),
-    ).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "반도체" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "그래프 준비 완료" }));
     expect(
-      screen.getByRole("button", { name: "최근 1년" }).getAttribute("aria-pressed"),
+      screen
+        .getByRole("button", { name: "최근 1년" })
+        .getAttribute("aria-pressed"),
     ).toBe("true");
 
     fireEvent.click(
@@ -199,18 +205,18 @@ describe("Reference Topic App navigation", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "중심 전환 완료" }));
+    expect(await screen.findByRole("heading", { name: "회사 A" })).toBeTruthy();
     expect(
-      await screen.findByRole("heading", { name: "회사 A" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("tab", { name: "인사이트" }).getAttribute("aria-selected"),
+      screen
+        .getByRole("tab", { name: "인사이트" })
+        .getAttribute("aria-selected"),
     ).toBe("true");
-    expect(screen.getByRole("navigation", { name: "최근 탐색 경로" }).textContent).toContain(
-      "반도체",
-    );
-    expect(screen.getByRole("navigation", { name: "최근 탐색 경로" }).textContent).toContain(
-      "회사 A",
-    );
+    expect(
+      screen.getByRole("navigation", { name: "최근 탐색 경로" }).textContent,
+    ).toContain("반도체");
+    expect(
+      screen.getByRole("navigation", { name: "최근 탐색 경로" }).textContent,
+    ).toContain("회사 A");
 
     window.history.replaceState({}, "", "/?center=77&range=1y");
     fireEvent(window, new PopStateEvent("popstate"));
@@ -221,7 +227,9 @@ describe("Reference Topic App navigation", () => {
       expect(screen.getByRole("heading", { name: "반도체" })).toBeTruthy(),
     );
     expect(
-      screen.getByRole("button", { name: "최근 1년" }).getAttribute("aria-pressed"),
+      screen
+        .getByRole("button", { name: "최근 1년" })
+        .getAttribute("aria-pressed"),
     ).toBe("true");
   });
 });
