@@ -25,6 +25,32 @@ jobs:
         run: |
           uv sync --project server --frozen
           uv run --project server --frozen ruff format server
+          python - <<'PY'
+          from pathlib import Path
+
+          init_path = Path("server/src/ontology_map/db/__init__.py")
+          init_text = init_path.read_text()
+          init_text = init_text.replace(
+              "from ontology_map.db import topic_reference_schema as _topic_reference_schema\n",
+              "from ontology_map.db import topic_reference_schema as topic_reference_schema\n",
+          )
+          init_path.write_text(init_text)
+
+          test_path = Path("server/tests/test_topic_reference_migration_postgres.py")
+          test_text = test_path.read_text()
+          test_text = test_text.replace(
+              '"INSERT INTO node (node_id, node_type_id) VALUES (:node_id, :type_id)"',
+              '"INSERT INTO node (node_id, node_type_id) "\n'
+              '                    "VALUES (:node_id, :type_id)"',
+          )
+          test_text = test_text.replace(
+              '"SELECT current_state FROM knowledge_item WHERE knowledge_item_id=:id"',
+              '"SELECT current_state FROM knowledge_item "\n'
+              '                        "WHERE knowledge_item_id=:id"',
+          )
+          test_path.write_text(test_text)
+          PY
+          uv run --project server --frozen ruff format server
           uv run --project server --frozen ruff check server
       - name: Commit formatter output
         run: |
