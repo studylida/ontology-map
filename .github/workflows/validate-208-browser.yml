@@ -19,12 +19,17 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: issue-208-public-read-states
-      - name: Install frontend and browser runner
+      - name: Install frontend
         working-directory: web
+        run: npm ci
+      - name: Install isolated browser runner
         run: |
-          npm ci
-          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          mkdir -p /tmp/pw
+          cd /tmp/pw
+          npm init -y
+          npm install @playwright/test@1.55.0
           npx playwright install --with-deps chromium
+          cp "$GITHUB_WORKSPACE/.github/validation/browser-208.spec.ts" browser-208.spec.ts
       - name: Start Vite with no configured center
         working-directory: web
         run: |
@@ -38,6 +43,5 @@ jobs:
           cat /tmp/ontology-web.log
           exit 1
       - name: Run focused real-browser validation
-        run: |
-          cd web
-          npx playwright test ../.github/validation/browser-208.spec.ts --reporter=line
+        working-directory: /tmp/pw
+        run: npx playwright test browser-208.spec.ts --reporter=line
