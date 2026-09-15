@@ -2,9 +2,9 @@
 
 > 상태: Logical Schema v1.2 — Frozen
 >
-> 변경 기준일: 2026-09-14
+> 변경 기준일: 2026-09-15
 >
-> 관련 변경: Issue #41, #64, #69, #91, #110, #200
+> 관련 변경: Issue #41, #64, #69, #91, #110, #200, #203
 >
 > 제품 기준: 공개 자료를 근거와 시간축이 있는 지식그래프로 축적하고, 검색한 노드를 중심으로 탐색하는 HBF POC
 
@@ -18,7 +18,7 @@ Logical Schema v1.2는 다음 원칙을 고정한다.
 - 모든 준비 문서는 저장 시점부터 정확히 하나의 독립 근거 묶음에 속한다.
 - Agent 출력 JSON과 후보 payload는 DB에 저장하지 않는다. Agent는 후보만 제안하고 일반 코드와 DB가 승격 여부를 결정한다.
 - 노드·관계·Claim의 의미를 덮어쓰지 않는다. 의미가 바뀌면 새 행이나 새 revision을 만든다.
-- 모든 공개 지식은 Claim과 정확한 observation을 거쳐 `source_document`까지 추적할 수 있어야 한다.
+- 모든 evidence-backed 공개 지식은 Claim과 정확한 observation을 거쳐 `source_document`까지 추적할 수 있어야 한다. 제품 Reference Topic 자체는 Evidence가 아닌 controlled vocabulary이며 별도 lifecycle로 식별한다.
 - 기준 지식그래프와 화면용 지식맵을 분리한다. 지도 구성원·좌표·카메라·표시 단계는 기준 데이터로 저장하지 않는다.
 - 단일 `confidence`를 만들지 않는다. 모델 실행 성공, 원문 충실성, 지식 상태와 독립 근거 수를 서로 다른 축으로 유지한다.
 - 공개 준비 실패는 기준 지식을 되돌리지 않는다. 이전 `READY` 결과를 계속 제공한다.
@@ -79,6 +79,7 @@ erDiagram
     NODE_TYPE ||--o{ RELATION_ENDPOINT_RULE : target_type
     NODE_TYPE ||--o{ ATTRIBUTE_REVISION : targets
     NODE_TYPE ||--o{ NODE : classifies
+    NODE ||--o| TOPIC_REFERENCE : reference_definition
     NODE ||--o{ NODE_ALIAS : names
     NODE_ALIAS ||--o{ NODE_ALIAS_EVIDENCE : supported_by
     OBSERVATION ||--o{ NODE_ALIAS_EVIDENCE : proves
@@ -288,6 +289,12 @@ POC는 전체 활성 규칙 집합을 `ontology_version`과 `ontology_member` ma
 
 `node_type_id`, 안정된 `node_type_code`, 표시 이름, 생성 규칙과 `is_active`를 가진다. 초기 코드는 `PERSON`, `COMPANY`, `TECHNOLOGY`, `TOPIC`, `EVENT`다. 비활성화는 기존 노드를 삭제·거절·숨김 처리하지 않는다.
 
+#203 이후 `TOPIC` type 자체가 Evidence 예외를 뜻하지 않는다. 기존 evidence-backed TOPIC Node는 기존 lifecycle로 보존할 수 있고, 제품 controlled vocabulary로 만드는 Reference Topic만 `PRODUCT_REFERENCE` lifecycle과 정확히 하나의 `topic_reference` 정의를 가진다. 일반 Agent/entity-resolution 경로는 새 TOPIC Node를 만들지 않고 active Reference Topic만 재사용한다.
+
+#### `topic_reference`
+
+제품 정의 Topic의 1:1 reference definition이다. 공유 `node_id` 정체성을 유지하면서 stable `topic_code`, canonical 표시 이름, `is_active`를 소유한다. canonical 이름은 `node_alias`나 외부 Evidence가 아니라 이 정의가 source of truth다. `is_active=false`는 새 `HAS_TOPIC` mapping 생성만 막으며 기존 Topic Node나 과거 Relation을 삭제·비공개·재해석하지 않는다. #203은 schema와 activation/read boundary만 제공하고 실제 승인 Topic 9개 row 활성화는 #201이 담당한다.
+
 #### `relation_type`, `relation_type_revision`, `relation_endpoint_rule`
 
 `relation_type`은 불변 `relation_code`를 관리한다. `relation_type_revision`은 `relation_type_id`, `version_no`, 표시 이름, `DIRECTED | SYMMETRIC`, 선택적 역관계 revision과 `is_active`를 가진다. 같은 관계 코드에는 활성 revision이 최대 하나다.
@@ -330,9 +337,11 @@ POC는 전체 활성 규칙 집합을 `ontology_version`과 `ontology_member` ma
 
 #### `knowledge_item`, `knowledge_state_event`
 
-`knowledge_item`은 ID, `item_kind`, `current_state`, `promotion_batch_id`, `created_at`을 가진다. 정확히 하나의 `node`, `relation`, `claim` 하위 행과 대응한다.
+`knowledge_item`은 ID, `item_kind`, `lifecycle_kind`, `current_state`, `promotion_batch_id`, `created_at`을 가진다. 정확히 하나의 `node`, `relation`, `claim` 하위 행과 대응한다.
 
-초기 `근거 확인됨`은 시스템 생성 상태이며 사람 이벤트를 만들지 않는다. `knowledge_state_event`는 사람의 상태 변경만 append-only로 기록한다. 처리자 물리 계약은 관리자 기능까지 보류한다.
+`EVIDENCE_BACKED` lifecycle은 기존 지식 계약으로 `current_state`와 `promotion_batch_id`가 모두 필수이며 Evidence Trace·lint·publication을 그대로 따른다. `PRODUCT_REFERENCE`는 승인된 Reference Topic Node에만 허용되고 두 값은 모두 비어 있어야 한다. 이 NULL 허용은 기존 지식 제약 완화가 아니라 lifecycle별 조건부 무결성이다. Reference Topic 자체에는 가짜 `EVIDENCE_VERIFIED`, promotion batch 또는 publication READY를 만들지 않는다.
+
+초기 `근거 확인됨`은 evidence-backed 시스템 생성 상태이며 사람 이벤트를 만들지 않는다. `knowledge_state_event`는 사람의 상태 변경만 append-only로 기록한다. 처리자 물리 계약은 관리자 기능까지 보류한다.
 
 #### `relation`
 
