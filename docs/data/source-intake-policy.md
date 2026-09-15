@@ -2,7 +2,7 @@
 
 > 상태: 승인된 데이터 정책 · 구현 미포함
 >
-> 확정일: 2026-09-10
+> 확정일: 2026-09-15
 >
 > 근거: [Issue #110](https://github.com/studylida/ontology-map/issues/110), 선행 [Issue #64](https://github.com/studylida/ontology-map/issues/64), 연계 [Issue #124](https://github.com/studylida/ontology-map/issues/124)·[#126](https://github.com/studylida/ontology-map/issues/126)
 
@@ -75,6 +75,8 @@
 ## lint 정책
 
 Structured Output 계약을 만족한 후보만 승격 전 lint에 들어간다. 현재 정책의 분류는 다음과 같다.
+
+#203의 제품 Reference Topic 자체는 외부 사실 주장이 아니라 승인 controlled vocabulary이므로 `PRODUCT_REFERENCE` lifecycle로 식별하고 아래 Evidence Trace lint 대상에서 제외한다. 이는 `node_type=TOPIC` 전체를 건너뛰는 예외가 아니다. 기존 evidence-backed TOPIC, `HAS_TOPIC` Relation과 지지 Claim은 기존 Evidence Trace·ontology·lint 계약을 그대로 따른다. Reference Topic을 위해 가짜 `source_document`, Observation, Claim, 상태, promotion 또는 publication READY를 만들지 않는다.
 
 | 적용 범위 | 분류 | 검사 | 처리 |
 | --- | --- | --- | --- |

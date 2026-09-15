@@ -3,13 +3,13 @@
 ## 문서 상태
 
 - 상태: Physical Schema v2 — 동결 및 migration 구현 완료
-- 확인일: 2026-09-14
-- 관련 Issue: [#40 Define PostgreSQL physical schema conventions](https://github.com/studylida/ontology-map/issues/40), [#200 NUMBER attribute 복수 허용 단위 지원](https://github.com/studylida/ontology-map/issues/200)
+- 확인일: 2026-09-15
+- 관련 Issue: [#40 Define PostgreSQL physical schema conventions](https://github.com/studylida/ontology-map/issues/40), [#200 NUMBER attribute 복수 허용 단위 지원](https://github.com/studylida/ontology-map/issues/200), [#203 Topic reference lifecycle 지원](https://github.com/studylida/ontology-map/issues/203)
 - 논리 모델: [논리 스키마](logical-schema.md)
 - 생성 목록: [스키마 참고 문서](schema-reference.md)
 - 구현 스택: [구현 스택](../development/implementation-stack.md)
 - 코드·migration 규칙: [코드 규칙](../development/code-conventions.md)
-- 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`; #200, `server/migrations/versions/0003_support_multiple_number_attribute_units.py`
+- 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`; #200, `server/migrations/versions/0003_support_multiple_number_attribute_units.py`; #203, `server/migrations/versions/0004_support_topic_reference_lifecycle.py`
 
 이 문서는 Logical Schema v1.2의 의미를 PostgreSQL로 옮기는 공통 표현 규칙을 정의한다. 실제 table, column, constraint와 index 목록은 SQLAlchemy metadata에서 생성한 [스키마 참고 문서](schema-reference.md)가 소유한다.
 
@@ -18,7 +18,7 @@
 ## 현재 구현 기준
 
 - SQLAlchemy metadata: `server/src/ontology_map/db/schema.py`
-- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_support_multiple_number_attribute_units.py`
+- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_support_multiple_number_attribute_units.py` → `0004_support_topic_reference_lifecycle.py`
 - 개발 fixture: `server/src/ontology_map/db/fixture.py`
 - PostgreSQL namespace: `public`
 - 현재 metadata에 구현된 table 수와 각 객체의 세부 정의는 [스키마 참고 문서](schema-reference.md)에서 확인한다.
@@ -53,6 +53,8 @@ READY 전환은 같은 transaction에서 모든 영향 node를 검사한다. 새
 이 완결성은 여러 table의 개수, task kind와 상태를 함께 읽어야 하므로 DB의 nullable column만으로 보장하지 않고 publication application service가 짧은 transaction 안에서 보장한다. `READY` 뒤 선택 pointer와 산출물은 바꾸지 않는다.
 
 일반 사용자 조회는 node별 `ready_at DESC, promotion_batch_id DESC` 순서의 최신 `COMMITTED + READY`를 선택한다. node, Relation, Claim과 파생 결과의 basis 지식이 `EVIDENCE_VERIFIED | HUMAN_VERIFIED` 상태이고 열린 `BLOCKING` lint가 없는지 read-time에서 다시 확인한다. 새 publication이 실패하면 기준 지식과 과거 산출물을 삭제하지 않고 이전 READY를 계속 제공한다. 이전 READY가 전혀 없으면 현재 exploration 계열 API는 `503 PUBLICATION_NOT_READY`를 반환한다.
+
+제품 Reference Topic은 일반 READY를 흉내 내는 예외가 아니라 별도 lifecycle/read contract다. `PRODUCT_REFERENCE` row에는 일반 state/promotion을 넣지 않고 `node_search_document`와 `publication_affected_node`도 금지한다. Topic 중심 조회는 `topic_reference` canonical 이름과 공개 가능한 direct `HAS_TOPIC` Relation을 역조회하며, 그 Relation과 지지 Claim은 계속 `EVIDENCE_BACKED` lifecycle·Evidence Trace·lint·publication basis 검증을 따라야 한다.
 
 관계가 없는 공개 node도 각자 완전한 READY 결과를 가지면 검색과 주변부 조회에 포함할 수 있다. 검색, node 선택, 후속 질문과 주변부 이동은 Relation을 새로 만들지 않는다.
 
@@ -207,6 +209,8 @@ knowledge_item.knowledge_item_id
 - subtype 행은 같은 트랜잭션에서 상위 식별자를 전달받아 생성한다.
 
 “정확히 한 subtype”의 교차 행 검증은 짧은 승격 transaction이 담당하며 공유 PK와 item kind의 로컬 조건은 DB가 보장한다.
+
+#203의 `knowledge_item.lifecycle_kind`는 공유 ID를 유지하면서 `EVIDENCE_BACKED`와 `PRODUCT_REFERENCE`를 구분한다. 전자는 `current_state`와 `promotion_batch_id`를 필수로 유지하고 후자는 `NODE + NULL state/batch` 형태만 허용한다. `topic_reference`와 deferred constraint trigger는 product-reference row가 실제 TOPIC node와 1:1인지 검증한다. 기존 evidence-backed TOPIC은 자동 변환하지 않는다. 새 `HAS_TOPIC` INSERT/target 변경은 active reference target만 허용하며 reference 비활성화는 기존 Relation을 손대지 않는다.
 
 ### 4.3 연결 테이블과 순번
 

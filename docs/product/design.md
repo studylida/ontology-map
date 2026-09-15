@@ -97,6 +97,14 @@ ontology-map은 공개 자료에서 얻은 근거와 시간축을 탐색하는 �
 
 UI 문구는 한국어를 기본으로 한다. node type, relation type, model identifier, ontology code와 API 값처럼 정확한 식별이 필요한 값은 원래 영어 표기를 보존한다.
 
+## Reference Topic 읽기 계약
+
+제품 Reference Topic은 일반 evidence-backed 지식이 아니라 승인 controlled vocabulary다. canonical 표시 이름은 `topic_reference` 정의가 소유하고 일반 검색 문서나 alias Evidence를 만들지 않는다. #203은 lifecycle/schema/read boundary만 지원하며 실제 승인 Topic 9개 활성화는 #201이 담당한다.
+
+일반 검색에는 Reference Topic을 포함하지 않는다. Topic 진입은 승인 Topic/카테고리 목록 또는 일반 graph에 이미 표시된 Topic 선택을 전제로 한다. `GET /api/v1/topics/{topic_node_id}/exploration?time_window=RECENT_90_DAYS|RECENT_1_YEAR`는 공개 가능한 direct `HAS_TOPIC` membership만 반환하고 Topic 중심 2-hop·3-hop 확장은 하지 않는다. 응답은 전체 공개 membership 수와 선택 기간의 최근 member 수·최근 Evidence Group 수를 구분한다.
+
+Topic이 비활성화되어도 기존 유효 membership은 삭제·비공개·재해석하지 않고 새 `HAS_TOPIC` 생성만 차단한다. 연결된 일반 Node를 선택하면 기존 exploration을 그대로 사용한다. 일반 Node exploration의 직접 이웃 상한은 24개이며 direct `HAS_TOPIC` Reference Topic도 같은 후보군에 포함하지만 Topic 전용 quota·별도 graph layer는 두지 않는다.
+
 ## 가독성 디자인 미리보기
 
 노드 유형 필터는 범례에 통합한다. 유형의 원이나 글자를 누르면 해당 유형을 숨기고 원·글자를 무채색과 취소선으로 표시하며, 다시 누르면 복원한다. 각 항목은 키보드로 조작하는 토글 버튼이며 눌림 상태는 표시 여부를 뜻한다. 여러 유형을 동시에 선택할 수 있고 접힌 범례에서도 무채색 점과 필터 적용 상태를 유지한다. 검색·기간 조작부에는 별도 유형 필터를 두지 않는다. 첫 진입에는 모든 유형을 표시하며 중심·기간 이동 중에도 선택을 유지한다. 필터는 이미 불러온 graph의 표시만 바꾸고 node 좌표·camera·확대배율·우측 정보와 주변부 조회를 유지한다. 제외한 유형의 node와 그 node에 연결된 간선은 표시·pointer 선택·keyboard 목록에서 함께 제외하며 hover로도 다시 나타나지 않는다. 중심 node에도 같은 조건을 적용한다. 전체 표시와 전체 해제를 제공하며 새로 불러온 node에도 유형 선택을 적용한다. 필터를 바꾸면 표시 대상 node의 외곽선을 기본 밝기에서 약 2.5초 동안 부드럽게 강조한 뒤 원래 밝기로 돌린다. 빠른 재선택은 이전 강조를 교체하고 reduced-motion에서는 깜빡임 없이 잠시 강조한다. 이 강조는 hover의 이름·간선 표시 범위를 넓히지 않는다.
