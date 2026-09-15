@@ -18,7 +18,7 @@ PYTHONPATH=src uv run --env-file ../.env python -m ontology_map.db.ontology_refe
 
 앱 startup은 이 명령을 암묵적으로 실행하지 않는다. stable code가 이미 승인 의미와 같은 active revision을 가리키면 그대로 재사용한다. active revision이 없으면 의미가 정확히 같은 기존 inactive revision을 재활성화하고, 그런 revision도 없을 때만 다음 `version_no`의 새 immutable revision을 만든다. 같은 stable code에 계약과 다른 active revision이 있으면 fail-closed하며 기존 revision이나 저장 지식을 자동 rewrite하지 않는다.
 
-clean migrated DB에는 ontology row가 없으므로 activation은 frozen logical schema의 초기 stable node type `PERSON`, `COMPANY`, `TECHNOLOGY`, `TOPIC`, `EVENT`도 공통 prerequisite로 보장한다. 이 다섯 type은 아래 제품 Relation·attribute·Topic payload와 HBF 개발 fixture가 공유하는 기반 코드이며, fixture의 시험 Relation을 제품 ontology로 승격시키지 않는다.
+clean migrated DB에는 ontology row가 없으므로 activation은 frozen logical schema의 초기 stable node type `PERSON`, `COMPANY`, `TECHNOLOGY`, `TOPIC`, `EVENT`를 공통 prerequisite로 생성할 수 있다. 이미 같은 code가 있으면 display name·creation rule이 호환되고 active인 row만 재사용한다. 기존 row가 inactive이거나 정의가 충돌하면 그 상태를 변경하지 않고 fail-closed하며, 특히 inactive `TOPIC`을 몰래 재활성화하지 않는다. HBF fixture도 같은 compatible active node type을 재사용하므로 fixture → activation과 activation → fixture 두 순서가 모두 가능하고, fixture 소유 `PUBLICLY_ASSOCIATED_WITH`는 제품 ontology와 계속 분리된다.
 
 ## Relation
 
@@ -74,4 +74,4 @@ Topic은 #203의 explicit `ensure_topic_reference()` 경계를 통해서만 생�
 
 ## 보존과 검증
 
-activation은 Relation type/revision/endpoint, attribute/revision/unit과 Topic reference만 다룬다. 기존 Relation·Claim·Evidence·publication과 HBF fixture를 새 제품 code로 소급 변환하지 않는다. 실제 PostgreSQL 검증에서는 activation 재실행 시 동일 revision/Topic ID가 유지되는지, HBF fixture 이후 실행해도 fixture Relation·Claim·source·Observation·promotion·검색 문서 수가 바뀌지 않는지 확인한다.
+activation은 Relation type/revision/endpoint, attribute/revision/unit과 Topic reference만 다룬다. 기존 Relation·Claim·Evidence·publication과 HBF fixture를 새 제품 code로 소급 변환하지 않는다. 실제 PostgreSQL 검증에서는 fixture → activation과 activation → fixture 양방향 실행 및 양쪽 재실행의 idempotency, inactive node type 보존/fail-closed, conflicting active Relation·Attribute revision의 transaction rollback, exact inactive revision ID 재사용을 함께 확인한다.
