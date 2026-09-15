@@ -21,12 +21,9 @@ import {
   type EvidenceSelection,
   PageNotice,
 } from "./RelationPanel";
-import {
-  fetchCenterExploration,
-  isTopicExploration,
-} from "./topicData";
 import { TopicPanel } from "./TopicPanel";
 import { TopicPicker } from "./TopicPicker";
+import { fetchCenterExploration, isTopicExploration } from "./topicData";
 import { useInitialLoading } from "./useInitialLoading";
 import { usePeripheral } from "./usePeripheral";
 
@@ -352,7 +349,9 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
   const [graphReady, setGraphReady] = useState(false);
   const [introComplete, setIntroComplete] = useState(false);
   const [status, setStatus] = useState<LoadStatus>("loading");
-  const [requestError, setRequestError] = useState<APIRequestError | null>(null);
+  const [requestError, setRequestError] = useState<APIRequestError | null>(
+    null,
+  );
   const [announcement, setAnnouncement] = useState(
     "탐색 데이터를 불러오는 중입니다.",
   );
@@ -574,9 +573,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                 aria-label="라이트 모드"
                 aria-pressed={theme === "light"}
                 onClick={() =>
-                  setTheme((current) =>
-                    current === "dark" ? "light" : "dark",
-                  )
+                  setTheme((current) => (current === "dark" ? "light" : "dark"))
                 }
               >
                 {theme === "dark" ? "☀ 라이트 모드" : "☾ 다크 모드"}
@@ -699,7 +696,9 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
           )}
 
           {!isTopicExploration(peripheral.graphView) &&
-            (peripheral.loading || peripheral.error || peripheral.exhausted) && (
+            (peripheral.loading ||
+              peripheral.error ||
+              peripheral.exhausted) && (
               <aside
                 className={styles.peripheralStatus}
                 aria-label="주변부 조회 상태"
