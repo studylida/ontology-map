@@ -39,6 +39,7 @@ export function TopicPicker({
       <button
         type="button"
         className={topicStyles.topicButton}
+        aria-label="주제 목록 열기"
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={showTopics}
