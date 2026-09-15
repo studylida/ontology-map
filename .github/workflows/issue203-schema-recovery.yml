@@ -1,0 +1,47 @@
+name: Issue 203 schema recovery
+
+on:
+  push:
+    branches:
+      - issue-203-topic-reference-lifecycle
+    paths:
+      - ".github/workflows/issue203-schema-recovery.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: issue-203-topic-reference-lifecycle
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          version: "0.12.7"
+      - name: Apply schema metadata recovery
+        run: |
+          python scripts/issue203_schema_refactor_temp.py
+          uv sync --project server --frozen
+          uv run --project server --frozen ruff format \
+            server/src/ontology_map/db/schema.py \
+            server/src/ontology_map/db/topic_references.py \
+            server/tests/test_topic_references_postgres.py
+          uv run --project server --frozen ruff check \
+            server/src/ontology_map/db/schema.py \
+            server/src/ontology_map/db/topic_references.py \
+            server/tests/test_topic_references_postgres.py
+          uv run --project server --frozen mypy \
+            --config-file server/pyproject.toml server/src/ontology_map
+      - name: Commit recovered schema metadata
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            server/src/ontology_map/db/schema.py \
+            server/src/ontology_map/db/topic_references.py \
+            server/tests/test_topic_references_postgres.py
+          git commit -m "fix: complete canonical Topic reference metadata"
+          git push origin HEAD:issue-203-topic-reference-lifecycle
