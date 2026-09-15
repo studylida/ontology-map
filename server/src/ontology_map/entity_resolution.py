@@ -12,10 +12,12 @@ from types import MappingProxyType
 from sqlalchemy.orm import Session
 
 from ontology_map.db import entity_resolution as queries
+from ontology_map.db.topic_references import find_topic_reference_by_name
 from ontology_map.entity_resolution_contracts import (
     APPROVED_TOPICS,
     CandidateSet,
     EntityMention,
+    NodeCandidate,
     NodeRecord,
     PromotionNodeBinding,
     Resolution,
@@ -65,6 +67,29 @@ def _topic_allowed(mention: EntityMention, record: NodeRecord) -> bool:
     label = mention.approved_topic_name or mention.text
     names = (*record.candidate.aliases, record.candidate.preferred_alias)
     return label in APPROVED_TOPICS and label in names
+
+
+def _topic_candidates(session: Session, mention: EntityMention) -> CandidateSet:
+    label = mention.approved_topic_name or mention.text
+    if label not in APPROVED_TOPICS:
+        return CandidateSet((), False)
+    reference = find_topic_reference_by_name(session, label, active_only=True)
+    if reference is None:
+        return CandidateSet((), False)
+    type_id = queries.active_type_id(session, "TOPIC")
+    if type_id is None:
+        return CandidateSet((), False)
+    candidate = NodeCandidate(
+        node_id=reference.node_id,
+        node_type="TOPIC",
+        preferred_alias=reference.canonical_display_name,
+        aliases=(),
+        external_identifiers=(),
+    )
+    return CandidateSet(
+        (NodeRecord(candidate=candidate, node_type_id=type_id, usable=True),),
+        False,
+    )
 
 
 def _same_node(
@@ -117,6 +142,15 @@ def resolve_mention(
     never disguised as an empty lookup or an eligible NEW result.
     """
     context = queries.verified_context(session, mention)
+    if mention.node_type == "TOPIC":
+        candidates = _topic_candidates(session, mention)
+        node_id = (
+            candidates.nodes[0].candidate.node_id
+            if len(candidates.nodes) == 1
+            else None
+        )
+        decision: ResolutionStatus = "SAME" if node_id is not None else "UNRESOLVED"
+        return Resolution(mention, decision, node_id, context, candidates, ())
     identifiers = queries.identifier_matches(session, mention)
     candidates = CandidateSet((), False)
     node_id = None
@@ -191,11 +225,18 @@ def select_resolvable_knowledge(
     return ResolvableKnowledge(tuple(accepted), tuple(excluded), frozenset(used))
 
 
-def _revalidate(session: Session, result: Resolution) -> None:
-    if result.decision not in ("SAME", "NEW"):
-        raise ValueError("unresolved mention cannot participate in promotion")
-    if queries.verified_context(session, result.mention) != result.context:
-        raise ValueError("source context changed after resolution")
+def _revalidate_topic(session: Session, result: Resolution) -> None:
+    current = _topic_candidates(session, result.mention)
+    if current != result.candidates:
+        raise ValueError("Topic reference changed after resolution")
+    if (
+        result.decision != "SAME"
+        or _same_node(result.mention, result.node_id, current.nodes) is None
+    ):
+        raise ValueError("Topic promotion must reuse an active reference")
+
+
+def _revalidate_standard(session: Session, result: Resolution) -> None:
     identifiers = queries.identifier_matches(session, result.mention)
     if identifiers != result.identifier_nodes:
         raise ValueError("external identity changed after resolution")
@@ -210,13 +251,19 @@ def _revalidate(session: Session, result: Resolution) -> None:
         records = identifiers or current.nodes
         if _same_node(result.mention, result.node_id, records) is None:
             raise ValueError("resolved existing node is no longer usable")
-    elif (
-        current.truncated
-        or identifiers
-        or result.mention.node_type == "TOPIC"
-        or not _usable_name(result.mention.text)
-    ):
+    elif current.truncated or identifiers or not _usable_name(result.mention.text):
         raise ValueError("NEW no longer satisfies the creation boundary")
+
+
+def _revalidate(session: Session, result: Resolution) -> None:
+    if result.decision not in ("SAME", "NEW"):
+        raise ValueError("unresolved mention cannot participate in promotion")
+    if queries.verified_context(session, result.mention) != result.context:
+        raise ValueError("source context changed after resolution")
+    if result.mention.node_type == "TOPIC":
+        _revalidate_topic(session, result)
+        return
+    _revalidate_standard(session, result)
 
 
 def _materialize(
@@ -235,7 +282,8 @@ def _materialize(
         observation_id = queries._ensure_observation(session, item)
         observations.append(observation_id)
         if (
-            _usable_name(result.mention.text)
+            result.mention.node_type != "TOPIC"
+            and _usable_name(result.mention.text)
             and result.mention.text in item.source.quote_text
         ):
             queries._ensure_alias(

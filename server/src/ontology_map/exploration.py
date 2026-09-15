@@ -17,9 +17,12 @@ from ontology_map.db.exploration import (
     list_peripheral_node_rows,
     list_previous_peripheral_ids,
 )
+from ontology_map.db.topic_exploration import (
+    list_topic_adjacencies_for_members,
+)
 from ontology_map.pagination import InvalidCursorError, decode_cursor, encode_cursor
 
-MAX_DIRECT_NODES = 12
+MAX_DIRECT_NODES = 24
 MAX_TWO_HOP_NODES = 18
 MAX_THREE_HOP_NODES = 20
 MAX_RELATIONS = 60
@@ -382,7 +385,10 @@ def get_exploration(
     end_at = now or datetime.now(UTC)
     start_at = time_window.start_at(end_at)
 
-    direct_rows = list_adjacencies(session, [center_node_id])
+    direct_rows = [
+        *list_adjacencies(session, [center_node_id]),
+        *list_topic_adjacencies_for_members(session, [center_node_id]),
+    ]
     direct_candidates = _collect_candidates(direct_rows, {center_node_id})
     direct_activity = get_activity_counts(
         session, list(direct_candidates), start_at, end_at
@@ -422,7 +428,10 @@ def get_exploration(
     activity_counts = get_activity_counts(
         session, sorted(selected_ids), start_at, end_at
     )
-    relation_rows = list_adjacencies(session, sorted(selected_ids))
+    relation_rows = [
+        *list_adjacencies(session, sorted(selected_ids)),
+        *list_topic_adjacencies_for_members(session, sorted(selected_ids)),
+    ]
     relations = _collect_relations(relation_rows, selected_ids)
     selected_relations = _select_relations(
         relations, center_node_id, direct, two_hop + three_hop
