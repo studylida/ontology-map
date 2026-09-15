@@ -1,0 +1,40 @@
+name: Apply 206 camera race fix
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/apply-206-camera-race-fix.yml"
+      - ".github/validation/apply-206-camera-race-fix.py"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ github.event.pull_request.number == 209 }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Worker branch 받기
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: issue-206-reference-topic-frontend
+          persist-credentials: true
+      - name: Camera race fix 적용
+        run: python "$GITHUB_WORKSPACE/.github/validation/apply-206-camera-race-fix.py"
+      - name: Biome formatter 적용
+        working-directory: web
+        run: |
+          npm ci
+          npx biome check --write src/App.tsx src/GraphCanvas.tsx src/GraphCanvas.test.tsx
+      - name: Worker branch 커밋
+        run: |
+          if git diff --quiet -- web; then
+            echo "camera race fix already applied"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/src/App.tsx web/src/GraphCanvas.tsx web/src/GraphCanvas.test.tsx
+          git commit -m "fix: complete center transition when navigation lands during intro"
+          git push origin HEAD:issue-206-reference-topic-frontend
