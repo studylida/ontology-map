@@ -83,22 +83,12 @@ replace_once(
   );
   expect(callbacks.onTransitionComplete).toHaveBeenCalledExactlyOnceWith("2");
   rerender(
-    <GraphCanvas
-      {...callbacks}
-      introStarted
-      introCompleted
-      view={next}
-    />,
+    <GraphCanvas {...callbacks} introStarted introCompleted view={next} />,
   );''',
     '''  act(() => vi.advanceTimersByTime(2200));
   expect(callbacks.onIntroComplete).toHaveBeenCalledTimes(1);
   expect(callbacks.onTransitionComplete).toHaveBeenCalledExactlyOnceWith("2");
   rerender(
-    <GraphCanvas
-      {...callbacks}
-      introStarted
-      introCompleted
-      view={next}
-    />,
+    <GraphCanvas {...callbacks} introStarted introCompleted view={next} />,
   );''',
 )
