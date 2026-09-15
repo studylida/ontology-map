@@ -68,6 +68,11 @@ jobs:
               "from ontology_map.db import entity_resolution as queries\n"
               "from ontology_map.db.topic_references import find_topic_reference_by_name\n",
           )
+          replace_once(
+              resolution,
+              "    NodeRecord,\n",
+              "    NodeCandidate,\n    NodeRecord,\n",
+          )
           marker = "    return label in APPROVED_TOPICS and label in names\n\n\ndef _same_node("
           helper = '''    return label in APPROVED_TOPICS and label in names\n\n\ndef _topic_candidates(session: Session, mention: EntityMention) -> CandidateSet:\n    label = mention.approved_topic_name or mention.text\n    if label not in APPROVED_TOPICS:\n        return CandidateSet((), False)\n    reference = find_topic_reference_by_name(session, label, active_only=True)\n    if reference is None:\n        return CandidateSet((), False)\n    type_id = queries.active_type_id(session, "TOPIC")\n    if type_id is None:\n        return CandidateSet((), False)\n    candidate = NodeCandidate(\n        node_id=reference.node_id,\n        node_type="TOPIC",\n        preferred_alias=reference.canonical_display_name,\n        aliases=(),\n        external_identifiers=(),\n    )\n    return CandidateSet(\n        (NodeRecord(candidate=candidate, node_type_id=type_id, usable=True),),\n        False,\n    )\n\n\ndef _same_node('''
           replace_once(resolution, marker, helper)
@@ -89,34 +94,9 @@ jobs:
               "        return Resolution(mention, decision, node_id, context, candidates, ())\n"
               "    identifiers = queries.identifier_matches(session, mention)\n",
           )
-          replace_once(
-              resolution,
-              "    if result.decision not in (\"SAME\", \"NEW\"):\n"
-              "        raise ValueError(\"unresolved mention cannot participate in promotion\")\n"
-              "    if queries.verified_context(session, result.mention) != result.context:\n",
-              "    if result.decision not in (\"SAME\", \"NEW\"):\n"
-              "        raise ValueError(\"unresolved mention cannot participate in promotion\")\n"
-              "    if queries.verified_context(session, result.mention) != result.context:\n",
-          )
-          # Insert the Topic-specific revalidation immediately after source-context recheck.
-          replace_once(
-              resolution,
-              "    if queries.verified_context(session, result.mention) != result.context:\n"
-              "        raise ValueError(\"source context changed after resolution\")\n"
-              "    identifiers = queries.identifier_matches(session, result.mention)\n",
-              "    if queries.verified_context(session, result.mention) != result.context:\n"
-              "        raise ValueError(\"source context changed after resolution\")\n"
-              "    if result.mention.node_type == \"TOPIC\":\n"
-              "        current = _topic_candidates(session, result.mention)\n"
-              "        if current != result.candidates:\n"
-              "            raise ValueError(\"Topic reference changed after resolution\")\n"
-              "        if result.decision != \"SAME\" or _same_node(\n"
-              "            result.mention, result.node_id, current.nodes\n"
-              "        ) is None:\n"
-              "            raise ValueError(\"Topic promotion must reuse an active reference\")\n"
-              "        return\n"
-              "    identifiers = queries.identifier_matches(session, result.mention)\n",
-          )
+          old_revalidate = '''def _revalidate(session: Session, result: Resolution) -> None:\n    if result.decision not in ("SAME", "NEW"):\n        raise ValueError("unresolved mention cannot participate in promotion")\n    if queries.verified_context(session, result.mention) != result.context:\n        raise ValueError("source context changed after resolution")\n    identifiers = queries.identifier_matches(session, result.mention)\n    if identifiers != result.identifier_nodes:\n        raise ValueError("external identity changed after resolution")\n    current = (\n        CandidateSet((), False)\n        if identifiers\n        else queries.name_candidates(session, result.mention)\n    )\n    if current != result.candidates:\n        raise ValueError("candidate snapshot changed after resolution")\n    if result.decision == "SAME":\n        records = identifiers or current.nodes\n        if _same_node(result.mention, result.node_id, records) is None:\n            raise ValueError("resolved existing node is no longer usable")\n    elif (\n        current.truncated\n        or identifiers\n        or result.mention.node_type == "TOPIC"\n        or not _usable_name(result.mention.text)\n    ):\n        raise ValueError("NEW no longer satisfies the creation boundary")\n'''
+          new_revalidate = '''def _revalidate_topic(session: Session, result: Resolution) -> None:\n    current = _topic_candidates(session, result.mention)\n    if current != result.candidates:\n        raise ValueError("Topic reference changed after resolution")\n    if result.decision != "SAME" or _same_node(\n        result.mention, result.node_id, current.nodes\n    ) is None:\n        raise ValueError("Topic promotion must reuse an active reference")\n\n\ndef _revalidate_standard(session: Session, result: Resolution) -> None:\n    identifiers = queries.identifier_matches(session, result.mention)\n    if identifiers != result.identifier_nodes:\n        raise ValueError("external identity changed after resolution")\n    current = (\n        CandidateSet((), False)\n        if identifiers\n        else queries.name_candidates(session, result.mention)\n    )\n    if current != result.candidates:\n        raise ValueError("candidate snapshot changed after resolution")\n    if result.decision == "SAME":\n        records = identifiers or current.nodes\n        if _same_node(result.mention, result.node_id, records) is None:\n            raise ValueError("resolved existing node is no longer usable")\n    elif current.truncated or identifiers or not _usable_name(result.mention.text):\n        raise ValueError("NEW no longer satisfies the creation boundary")\n\n\ndef _revalidate(session: Session, result: Resolution) -> None:\n    if result.decision not in ("SAME", "NEW"):\n        raise ValueError("unresolved mention cannot participate in promotion")\n    if queries.verified_context(session, result.mention) != result.context:\n        raise ValueError("source context changed after resolution")\n    if result.mention.node_type == "TOPIC":\n        _revalidate_topic(session, result)\n        return\n    _revalidate_standard(session, result)\n'''
+          replace_once(resolution, old_revalidate, new_revalidate)
           replace_once(
               resolution,
               "            _usable_name(result.mention.text)\n"
