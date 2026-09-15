@@ -50,6 +50,10 @@ jobs:
           text = path.read_text()
           text = text.replace('const escape = await screen.findByRole', 'const defaultEscape = await screen.findByRole')
           text = text.replace('fireEvent.click(escape);', 'fireEvent.click(defaultEscape);')
+          text = text.replace(
+              'await screen.findByText("탐색할 Node를 검색하거나 주제를 선택해 주세요."),',
+              '(await screen.findAllByText("탐색할 Node를 검색하거나 주제를 선택해 주세요."))[0],',
+          )
           path.write_text(text)
           PY
       - name: Frontend 포맷 및 종합 검사
