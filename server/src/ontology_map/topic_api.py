@@ -13,6 +13,7 @@ from ontology_map.api import (
     NodeTypeResponse,
 )
 from ontology_map.db.session import open_read_session
+from ontology_map.db.topic_references import list_topic_references
 from ontology_map.exploration import TimeWindow
 from ontology_map.topic_exploration import (
     TopicExplorationNotFoundError,
@@ -30,6 +31,10 @@ class TopicReferenceResponse(BaseModel):
     is_active: bool
 
 
+class TopicReferenceListResponse(BaseModel):
+    items: list[TopicReferenceResponse]
+
+
 class TopicExplorationResponse(BaseModel):
     topic: TopicReferenceResponse
     time_window: TimeWindow
@@ -44,6 +49,38 @@ def _resource_id(value: str) -> int:
     if resource_id > _MAX_BIGINT:
         raise APIError(422, "INVALID_REQUEST", retryable=False)
     return resource_id
+
+
+def _topic_response(
+    *,
+    node_id: int,
+    topic_code: str,
+    canonical_display_name: str,
+    is_active: bool,
+) -> TopicReferenceResponse:
+    return TopicReferenceResponse(
+        node_id=str(node_id),
+        topic_code=topic_code,
+        canonical_display_name=canonical_display_name,
+        is_active=is_active,
+    )
+
+
+@router.get("/topics", response_model=TopicReferenceListResponse)
+def read_topic_references(
+    session: Annotated[Session, Depends(open_read_session)],
+) -> TopicReferenceListResponse:
+    return TopicReferenceListResponse(
+        items=[
+            _topic_response(
+                node_id=row.node_id,
+                topic_code=row.topic_code,
+                canonical_display_name=row.canonical_display_name,
+                is_active=row.is_active,
+            )
+            for row in list_topic_references(session)
+        ]
+    )
 
 
 @router.get(
@@ -66,8 +103,8 @@ def read_topic_exploration(
         raise APIError(404, "TOPIC_NOT_FOUND", retryable=False) from error
 
     return TopicExplorationResponse(
-        topic=TopicReferenceResponse(
-            node_id=str(result.topic.node_id),
+        topic=_topic_response(
+            node_id=result.topic.node_id,
             topic_code=result.topic.topic_code,
             canonical_display_name=result.topic.canonical_display_name,
             is_active=result.topic.is_active,
