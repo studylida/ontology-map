@@ -216,7 +216,10 @@ export async function fetchCenterExploration(
     try {
       return await fetchTopicExploration(centerId, range, signal);
     } catch (topicError) {
-      if (topicError instanceof DOMException && topicError.name === "AbortError") {
+      if (
+        topicError instanceof DOMException &&
+        topicError.name === "AbortError"
+      ) {
         throw topicError;
       }
       throw error;
