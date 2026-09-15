@@ -16,7 +16,7 @@ interface TopicPanelProps {
   onClose: () => void;
   onSelect: (nodeId: string) => void;
   onSelectInsight: (nodeId: string) => void;
-  onEvidence: (selection: EvidenceSelection) => void;
+  onEvidence?: (selection: EvidenceSelection) => void;
 }
 
 function byName(left: KnowledgeNode, right: KnowledgeNode) {
@@ -71,7 +71,7 @@ export function TopicPanel({
   onClose,
   onSelect,
   onSelectInsight,
-  onEvidence,
+  onEvidence = () => undefined,
 }: TopicPanelProps) {
   const { rich, remainingRecent, older, groups, relationByMember } =
     useMemo(() => {
