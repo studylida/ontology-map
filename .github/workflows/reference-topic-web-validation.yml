@@ -7,7 +7,7 @@ on:
       - "web/**"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   web:
@@ -17,11 +17,26 @@ jobs:
     steps:
       - name: 저장소 받기
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: issue-206-reference-topic-frontend
       - name: Node 환경 확인
         run: node --version && npm --version
       - name: Web 의존성 설치
         working-directory: web
         run: npm ci
+      - name: Biome safe-write 적용
+        working-directory: web
+        run: npx biome check --write .
+      - name: Formatter 변경 커밋
+        run: |
+          if git diff --quiet -- web; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web
+          git commit -m "style: apply web formatter"
+          git push origin HEAD:issue-206-reference-topic-frontend
       - name: Web 전체 검사
         working-directory: web
         run: npm run check
