@@ -1,14 +1,14 @@
 import { useCallback, useId, useState } from "react";
 import styles from "./App.module.css";
 import type { TimeRange } from "./data";
+import { ClaimCard, PeriodNote } from "./PanelEvidence";
+import type { EvidenceSelection } from "./RelationPanel";
+import { PageNotice } from "./RelationPanel";
 import {
   fetchPanelAnswer213,
   fetchPanelQuestions213,
   type PanelQuestion213,
 } from "./read213";
-import { ClaimCard, PeriodNote } from "./PanelEvidence";
-import type { EvidenceSelection } from "./RelationPanel";
-import { PageNotice } from "./RelationPanel";
 import { useCursorPage } from "./useCursorPage";
 
 type Props = {
@@ -61,7 +61,10 @@ function Answer({
     </div>
   );
 }
-function Question({ question, ...props }: Props & { question: PanelQuestion213 }) {
+function Question({
+  question,
+  ...props
+}: Props & { question: PanelQuestion213 }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   return (

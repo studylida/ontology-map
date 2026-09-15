@@ -11,10 +11,7 @@ export type ClaimModality =
   | "PREDICTION_OR_ESTIMATE"
   | "OPINION_OR_EVALUATION";
 
-export type ClaimRole =
-  | "KEY_CLAIM"
-  | "SUPPORTING_CLAIM"
-  | "CONTRASTING_CLAIM";
+export type ClaimRole = "KEY_CLAIM" | "SUPPORTING_CLAIM" | "CONTRASTING_CLAIM";
 
 type JsonObject = Record<string, unknown>;
 
@@ -83,7 +80,8 @@ async function fetchAPI(path: string, signal?: AbortSignal): Promise<unknown> {
   try {
     response = await fetch(path, signal ? { signal } : undefined);
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    if (error instanceof DOMException && error.name === "AbortError")
+      throw error;
     throw new APIRequestError("NETWORK_ERROR", 0, true);
   }
   const payload: unknown = await response.json().catch(() => null);
@@ -439,7 +437,10 @@ export async function fetchPanelAnswer213(
   signal: AbortSignal,
 ): Promise<CursorPage<PanelAnswer213>> {
   const item = object(
-    await fetchAPI(`/api/v1/questions/${encodeURIComponent(questionId)}`, signal),
+    await fetchAPI(
+      `/api/v1/questions/${encodeURIComponent(questionId)}`,
+      signal,
+    ),
   );
   return {
     items: [
@@ -481,7 +482,9 @@ export async function fetchPanelReport213(
         asOf: string(item.as_of_at),
         evidenceGroupCount: number(item.evidence_group_count),
         conclusion:
-          item.conclusion === undefined ? null : nullableString(item.conclusion),
+          item.conclusion === undefined
+            ? null
+            : nullableString(item.conclusion),
         caveat: item.caveat === undefined ? null : nullableString(item.caveat),
         sections: array(item.sections).map((value) => {
           const section = object(value);
@@ -493,7 +496,9 @@ export async function fetchPanelReport213(
                 ? null
                 : nullableString(section.synthesis),
             caveat:
-              section.caveat === undefined ? null : nullableString(section.caveat),
+              section.caveat === undefined
+                ? null
+                : nullableString(section.caveat),
             claims:
               section.claims === undefined
                 ? []

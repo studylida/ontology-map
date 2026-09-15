@@ -64,11 +64,17 @@ function relationBadge(
   loadedGraph: ExplorationView | null,
   hiddenKinds: readonly string[],
 ): string | null {
-  if (!loadedGraph?.relations.some((item) => item.id === relation.id)) return null;
-  const source = loadedGraph.nodes.find((node) => node.id === relation.sourceId);
-  const target = loadedGraph.nodes.find((node) => node.id === relation.targetId);
+  if (!loadedGraph?.relations.some((item) => item.id === relation.id))
+    return null;
+  const source = loadedGraph.nodes.find(
+    (node) => node.id === relation.sourceId,
+  );
+  const target = loadedGraph.nodes.find(
+    (node) => node.id === relation.targetId,
+  );
   if (!source || !target) return null;
-  return hiddenKinds.includes(source.kindCode) || hiddenKinds.includes(target.kindCode)
+  return hiddenKinds.includes(source.kindCode) ||
+    hiddenKinds.includes(target.kindCode)
     ? "지도 유형 필터로 숨김"
     : "현재 지도에 포함됨";
 }
@@ -90,9 +96,14 @@ export function RelationList({
 }) {
   const page = useCursorPage(nodeId, fetchNodeRelations213);
   return (
-    <section className={styles.followupSection} aria-label="Node의 전체 공개 관계">
+    <section
+      className={styles.followupSection}
+      aria-label="Node의 전체 공개 관계"
+    >
       <h2>전체 관계</h2>
-      <p className={styles.panelMeta}>전체 공개 관계 · 선택한 분석 기간과 별도</p>
+      <p className={styles.panelMeta}>
+        전체 공개 관계 · 선택한 분석 기간과 별도
+      </p>
       <div className={styles.relationAccordion}>
         {page.items.map((relation) => {
           const badge = relationBadge(relation, loadedGraph, hiddenKinds);
@@ -199,12 +210,16 @@ export function EvidenceDialog({
           ×
         </button>
       </header>
-      <p className={styles.panelMeta}>전체 공개 관계 근거 · 선택한 분석 기간과 별도</p>
+      <p className={styles.panelMeta}>
+        전체 공개 관계 근거 · 선택한 분석 기간과 별도
+      </p>
       {page.items.map((trace) => {
         const modality = modalityLabel(trace.modality);
         return (
           <article key={trace.key} className={styles.evidenceEntry}>
-            <span>{trace.stance === "SUPPORT" ? "지지 근거" : "반박 근거"}</span>
+            <span>
+              {trace.stance === "SUPPORT" ? "지지 근거" : "반박 근거"}
+            </span>
             {modality && <span>{modality}</span>}
             <h3>{trace.claimText}</h3>
             <TraceContent trace={trace} claimText={trace.claimText} />

@@ -1,17 +1,21 @@
 import { useCallback, useId, useRef, useState } from "react";
 import styles from "./App.module.css";
-import { type ExplorationView, relationPathLabel, type TimeRange } from "./data";
 import {
-  fetchPanelClaims213,
-  fetchPanelTraces213,
-  type PanelClaim213,
-} from "./read213";
+  type ExplorationView,
+  relationPathLabel,
+  type TimeRange,
+} from "./data";
 import {
   type EvidenceSelection,
   PageNotice,
   RelationList,
   TraceContent,
 } from "./RelationPanel";
+import {
+  fetchPanelClaims213,
+  fetchPanelTraces213,
+  type PanelClaim213,
+} from "./read213";
 import { useCursorPage } from "./useCursorPage";
 
 export function PeriodNote({
@@ -92,7 +96,8 @@ function claimKindLabel(claim: PanelClaim213): string {
   const role = roleLabel(claim);
   if (role) return role;
   if (claim.connections.some((c) => c.kind === "ATTRIBUTE")) return "노드 속성";
-  if (claim.connections.some((c) => c.kind === "EVENT_TIME")) return "사건 시간";
+  if (claim.connections.some((c) => c.kind === "EVENT_TIME"))
+    return "사건 시간";
   if (claim.connections.some((c) => c.kind === "RELATION")) return "관계 근거";
   return "연결 근거";
 }
@@ -118,12 +123,15 @@ export function ClaimCard({
   const open = expanded ?? localOpen;
   const id = useId();
   const modality = modalityLabel(claim);
-  const conflict = claim.connections.some((connection) => connection.kind === "CONFLICT");
+  const conflict = claim.connections.some(
+    (connection) => connection.kind === "CONFLICT",
+  );
   const relationConnections = claim.connections.filter(
     (connection) => connection.kind === "RELATION" && connection.relation,
   );
   const otherConnections = claim.connections.filter(
-    (connection) => connection.kind !== "RELATION" && connection.kind !== "CONFLICT",
+    (connection) =>
+      connection.kind !== "RELATION" && connection.kind !== "CONFLICT",
   );
   return (
     <article className={styles.panelClaim}>
@@ -171,7 +179,10 @@ export function ClaimCard({
                 <small>{relation.stance === "SUPPORT" ? "지지" : "반박"}</small>
               </span>
               <span>
-                <button type="button" onClick={() => onSelect(relation.otherNode.id)}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(relation.otherNode.id)}
+                >
                   {relation.otherNode.name} · Node 보기
                 </button>
                 <button
@@ -192,7 +203,9 @@ export function ClaimCard({
       })}
 
       {otherConnections.map((connection) => (
-        <small key={`${connection.kind}:${connection.id}:${connection.position}`}>
+        <small
+          key={`${connection.kind}:${connection.id}:${connection.position}`}
+        >
           {connection.label}
         </small>
       ))}
@@ -255,7 +268,9 @@ export function PanelEvidence({
       >
         <h2>주장과 근거</h2>
         <PeriodNote range={range} />
-        <p className={styles.panelMeta}>주장을 펼쳐 원문과 출처를 확인하세요.</p>
+        <p className={styles.panelMeta}>
+          주장을 펼쳐 원문과 출처를 확인하세요.
+        </p>
         <button ref={relationOpenerRef} type="button" onClick={openRelations}>
           전체 관계 보기
         </button>

@@ -73,39 +73,40 @@ export function TopicPanel({
   onSelectInsight,
   onEvidence,
 }: TopicPanelProps) {
-  const { rich, remainingRecent, older, groups, relationByMember } = useMemo(() => {
-    const members = view.nodes.filter((node) => node.id !== view.centerId);
-    const recent = members
-      .filter((node) => node.activityEvidenceGroupCount > 0)
-      .sort(byRecentEvidence);
-    const richNodes = recent.slice(0, 3);
-    const richIds = new Set(richNodes.map((node) => node.id));
-    const olderNodes = members
-      .filter((node) => node.activityEvidenceGroupCount === 0)
-      .sort(
-        (left, right) =>
-          left.kind.localeCompare(right.kind, "ko") || byName(left, right),
-      );
-    const grouped = new Map<string, KnowledgeNode[]>();
-    for (const node of olderNodes) {
-      const current = grouped.get(node.kind) ?? [];
-      current.push(node);
-      grouped.set(node.kind, current);
-    }
-    const relations = new Map<string, KnowledgeRelation>();
-    for (const relation of view.relations) {
-      const memberId =
-        relation.source === view.centerId ? relation.target : relation.source;
-      relations.set(memberId, relation);
-    }
-    return {
-      rich: richNodes,
-      remainingRecent: recent.filter((node) => !richIds.has(node.id)),
-      older: olderNodes,
-      groups: grouped,
-      relationByMember: relations,
-    };
-  }, [view]);
+  const { rich, remainingRecent, older, groups, relationByMember } =
+    useMemo(() => {
+      const members = view.nodes.filter((node) => node.id !== view.centerId);
+      const recent = members
+        .filter((node) => node.activityEvidenceGroupCount > 0)
+        .sort(byRecentEvidence);
+      const richNodes = recent.slice(0, 3);
+      const richIds = new Set(richNodes.map((node) => node.id));
+      const olderNodes = members
+        .filter((node) => node.activityEvidenceGroupCount === 0)
+        .sort(
+          (left, right) =>
+            left.kind.localeCompare(right.kind, "ko") || byName(left, right),
+        );
+      const grouped = new Map<string, KnowledgeNode[]>();
+      for (const node of olderNodes) {
+        const current = grouped.get(node.kind) ?? [];
+        current.push(node);
+        grouped.set(node.kind, current);
+      }
+      const relations = new Map<string, KnowledgeRelation>();
+      for (const relation of view.relations) {
+        const memberId =
+          relation.source === view.centerId ? relation.target : relation.source;
+        relations.set(memberId, relation);
+      }
+      return {
+        rich: richNodes,
+        remainingRecent: recent.filter((node) => !richIds.has(node.id)),
+        older: olderNodes,
+        groups: grouped,
+        relationByMember: relations,
+      };
+    }, [view]);
   const [insightTitles, setInsightTitles] = useState<Map<string, string>>(
     new Map(),
   );
@@ -253,7 +254,10 @@ export function TopicPanel({
                     <div className={topicStyles.topicMemberList}>
                       {nodes.map((node) => (
                         <article key={node.id}>
-                          <button type="button" onClick={() => onSelect(node.id)}>
+                          <button
+                            type="button"
+                            onClick={() => onSelect(node.id)}
+                          >
                             <span>{node.name}</span>
                           </button>
                           <MemberActions
