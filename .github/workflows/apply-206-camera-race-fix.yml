@@ -15,19 +15,28 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - name: Validation script 받기
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: validate-206-c2a845b
+          path: validation
+          persist-credentials: false
       - name: Worker branch 받기
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: issue-206-reference-topic-frontend
+          path: worker
           persist-credentials: true
       - name: Camera race fix 적용
-        run: python "$GITHUB_WORKSPACE/.github/validation/apply-206-camera-race-fix.py"
+        working-directory: worker
+        run: python ../validation/.github/validation/apply-206-camera-race-fix.py
       - name: Biome formatter 적용
-        working-directory: web
+        working-directory: worker/web
         run: |
           npm ci
           npx biome check --write src/App.tsx src/GraphCanvas.tsx src/GraphCanvas.test.tsx
       - name: Worker branch 커밋
+        working-directory: worker
         run: |
           if git diff --quiet -- web; then
             echo "camera race fix already applied"
