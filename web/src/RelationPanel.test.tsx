@@ -37,7 +37,9 @@ const relation = {
   has_conflict: false,
 };
 const trace = {
+  item_key: "opaque-item-key",
   claim_text: "확인한 기술 관계",
+  modality: "FACT",
   stance: "SUPPORT",
   source: {
     title: "발표 자료",
