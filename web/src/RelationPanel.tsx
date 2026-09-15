@@ -77,16 +77,16 @@ export function RelationList({
   nodeId,
   nodeName,
   onEvidence,
-  onSelect,
-  loadedGraph,
-  hiddenKinds,
+  onSelect = () => undefined,
+  loadedGraph = null,
+  hiddenKinds = [],
 }: {
   nodeId: string;
   nodeName: string;
   onEvidence: (selection: EvidenceSelection) => void;
-  onSelect: (nodeId: string) => void;
-  loadedGraph: ExplorationView | null;
-  hiddenKinds: readonly string[];
+  onSelect?: (nodeId: string) => void;
+  loadedGraph?: ExplorationView | null;
+  hiddenKinds?: readonly string[];
 }) {
   const page = useCursorPage(nodeId, fetchNodeRelations213);
   return (
@@ -121,11 +121,16 @@ export function RelationList({
                   {badge && <small>{badge}</small>}
                 </span>
                 <span>
-                  <button type="button" onClick={() => onSelect(relation.other.id)}>
+                  <button
+                    type="button"
+                    aria-label={`${relation.other.name} Node 보기`}
+                    onClick={() => onSelect(relation.other.id)}
+                  >
                     Node 보기
                   </button>
                   <button
                     type="button"
+                    aria-label={`${relation.other.name} 관계 근거 보기`}
                     onClick={() =>
                       onEvidence({
                         id: relation.id,
