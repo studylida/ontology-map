@@ -52,9 +52,7 @@ RELATION_DEFINITIONS: tuple[RelationDefinition, ...] = (
         "DIRECTED",
         (("COMPANY", "TECHNOLOGY"), ("PERSON", "TECHNOLOGY")),
     ),
-    RelationDefinition(
-        "COLLABORATES_WITH", "SYMMETRIC", (("COMPANY", "COMPANY"),)
-    ),
+    RelationDefinition("COLLABORATES_WITH", "SYMMETRIC", (("COMPANY", "COMPANY"),)),
     RelationDefinition(
         "ANNOUNCES",
         "DIRECTED",
@@ -94,9 +92,7 @@ RELATION_DEFINITIONS: tuple[RelationDefinition, ...] = (
             ("PERSON", "EVENT"),
         ),
     ),
-    RelationDefinition(
-        "RELATED_TO", "SYMMETRIC", (("EVENT", "TECHNOLOGY"),)
-    ),
+    RelationDefinition("RELATED_TO", "SYMMETRIC", (("EVENT", "TECHNOLOGY"),)),
     RelationDefinition(
         "HAS_TOPIC",
         "DIRECTED",
@@ -143,7 +139,9 @@ class ActivationResult:
 
 def _require_transaction(session: Session) -> None:
     if not session.in_transaction():
-        raise ValueError("ontology reference activation requires an explicit transaction")
+        raise ValueError(
+            "ontology reference activation requires an explicit transaction"
+        )
 
 
 def _ensure_node_types(session: Session) -> dict[str, int]:
@@ -205,9 +203,7 @@ def _revision_endpoint_pairs(
         sa.select(
             relation_endpoint_rule.c.source_node_type_id,
             relation_endpoint_rule.c.target_node_type_id,
-        ).where(
-            relation_endpoint_rule.c.relation_type_revision_id == revision_id
-        )
+        ).where(relation_endpoint_rule.c.relation_type_revision_id == revision_id)
     )
     return {
         _canonical_endpoint_pair(int(source_id), int(target_id), directionality)
@@ -238,9 +234,7 @@ def _relation_revision_matches(
     return (
         str(row["directionality"]) == definition.directionality
         and row["inverse_relation_type_revision_id"] is None
-        and _revision_endpoint_pairs(
-            session, revision_id, definition.directionality
-        )
+        and _revision_endpoint_pairs(session, revision_id, definition.directionality)
         == expected_pairs
     )
 
