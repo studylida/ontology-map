@@ -83,6 +83,61 @@ def _claim(row: dict[str, Any], as_of_at: datetime) -> dict[str, Any]:
     }
 
 
+def _connection(row: dict[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "kind": row["kind"],
+        "target_id": str(row["target_id"]),
+        "position": row["position"],
+        "label": row["label"],
+        "relation": None,
+    }
+    if row["kind"] != "RELATION":
+        return result
+
+    def node(prefix: str) -> dict[str, Any]:
+        return {
+            "node_id": str(row[f"{prefix}_node_id"]),
+            "name": row[f"{prefix}_node_name"],
+            "node_type": {
+                "code": row[f"{prefix}_node_type_code"],
+                "display_name": row[f"{prefix}_node_type_display_name"],
+            },
+        }
+
+    result["relation"] = {
+        "relation_id": str(row["target_id"]),
+        "display_name": row["relation_display_name"],
+        "directionality": row["directionality"],
+        "source_node": node("source"),
+        "target_node": node("target"),
+        "other_node": node("other"),
+        "stance": row["position"],
+    }
+    return result
+
+
+def _connections(
+    session: Session,
+    *,
+    node_id: int,
+    basis_ids: list[int],
+    start_at: datetime,
+    as_of_at: datetime,
+    claim_id: int,
+) -> list[dict[str, Any]]:
+    rows = queries.claim_connections(
+        session,
+        {
+            "node_id": node_id,
+            "basis_ids": basis_ids,
+            "start_at": start_at,
+            "as_of_at": as_of_at,
+            "claim_id": claim_id,
+        },
+    )
+    return [_connection(row) for row in rows]
+
+
 def list_claims(
     session: Session, node_id: int, window: TimeWindow, cursor: str | None, limit: int
 ) -> dict[str, Any]:
@@ -106,12 +161,14 @@ def list_claims(
     rows = queries.node_claims(session, params)
     items = []
     for row in rows[:limit]:
-        connections = queries.claim_connections(
-            session, params | {"claim_id": row["claim_id"]}
+        row["connections"] = _connections(
+            session,
+            node_id=node_id,
+            basis_ids=ids,
+            start_at=params["start_at"],
+            as_of_at=as_of_at,
+            claim_id=row["claim_id"],
         )
-        row["connections"] = [
-            c | {"target_id": str(c["target_id"])} for c in connections
-        ]
         items.append(_claim(row, as_of_at))
     return {
         "items": items,
@@ -217,18 +274,29 @@ def list_questions(
 
 
 def _referenced_claims(
-    session: Session, rows: list[dict[str, Any]], window: TimeWindow, as_of_at: datetime
+    session: Session,
+    node_id: int,
+    basis_ids: list[int],
+    rows: list[dict[str, Any]],
+    window: TimeWindow,
+    as_of_at: datetime,
 ) -> list[dict[str, Any]]:
-    return [
-        _claim(
-            row
-            | queries.claim_counts(
-                session, row["claim_id"], _start(as_of_at, window), as_of_at
-            ),
-            as_of_at,
+    start_at = _start(as_of_at, window)
+    claims: list[dict[str, Any]] = []
+    for row in rows:
+        enriched = row | queries.claim_counts(
+            session, row["claim_id"], start_at, as_of_at
         )
-        for row in rows
-    ]
+        enriched["connections"] = _connections(
+            session,
+            node_id=node_id,
+            basis_ids=basis_ids,
+            start_at=start_at,
+            as_of_at=as_of_at,
+            claim_id=row["claim_id"],
+        )
+        claims.append(_claim(enriched, as_of_at))
+    return claims
 
 
 def read_question(session: Session, question_id: int) -> dict[str, Any]:
@@ -236,7 +304,7 @@ def read_question(session: Session, question_id: int) -> dict[str, Any]:
     if row is None:
         raise PanelNotFoundError
     window = TimeWindow(row["time_window"])
-    group, _ = _question_set(session, row["node_id"], window)
+    group, ids = _question_set(session, row["node_id"], window)
     if row["question_set_id"] != group["question_set_id"]:
         raise PanelNotFoundError
     section_id = None
@@ -255,6 +323,8 @@ def read_question(session: Session, question_id: int) -> dict[str, Any]:
         "section_id": section_id,
         "claims": _referenced_claims(
             session,
+            row["node_id"],
+            ids,
             queries.question_claims(session, question_id),
             window,
             row["as_of_at"],
@@ -264,7 +334,7 @@ def read_question(session: Session, question_id: int) -> dict[str, Any]:
 
 def _report(
     session: Session, node_id: int, window: TimeWindow
-) -> tuple[dict[str, Any], Any, list[dict[str, Any]]]:
+) -> tuple[dict[str, Any], Any, list[dict[str, Any]], list[int]]:
     context, ids, complete = _context(session, node_id)
     bundle = insight_queries.get_bundle(session, node_id)
     if bundle is None or not complete:
@@ -275,7 +345,7 @@ def _report(
     if group is None:
         raise PanelNotReadyError
     if group["node_insight_id"] is None:
-        return group, None, []
+        return group, None, [], ids
     reports = list_node_insights(session, node_id, window)
     report = next(
         (r for r in reports if r.node_insight_id == group["node_insight_id"]), None
@@ -296,14 +366,14 @@ def _report(
         ):
             raise PanelNotReadyError
         section["claims"] = refs
-    return group, report, sections
+    return group, report, sections, ids
 
 
 def _visible_section(
     session: Session, node_id: int, window: TimeWindow, section_id: int
 ) -> str | None:
     try:
-        _, _, sections = _report(session, node_id, window)
+        _, _, sections, _ = _report(session, node_id, window)
     except PanelNotReadyError:
         return None
     return (
@@ -316,7 +386,7 @@ def _visible_section(
 def read_report(
     session: Session, node_id: int, window: TimeWindow, *, detail: bool
 ) -> dict[str, Any]:
-    group, report, sections = _report(session, node_id, window)
+    group, report, sections, ids = _report(session, node_id, window)
     if report is None:
         return {"items": [], "next_cursor": None}
     item = {
@@ -341,7 +411,12 @@ def read_report(
                 "synthesis": s["synthesis_text"],
                 "caveat": s["caveat_text"],
                 "claims": _referenced_claims(
-                    session, s["claims"], window, group["as_of_at"]
+                    session,
+                    node_id,
+                    ids,
+                    s["claims"],
+                    window,
+                    group["as_of_at"],
                 ),
             }
             for s in sections
