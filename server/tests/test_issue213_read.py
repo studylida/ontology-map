@@ -297,37 +297,22 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
                     if item["kind"] == "RELATION"
                     and item["target_id"] == str(relation_id)
                 )
-                assert relation_connection["relation"] == {
-                    "relation_id": str(relation_id),
-                    "display_name": "HAS_TOPIC",
-                    "directionality": "DIRECTED",
-                    "source_node": {
-                        "node_id": str(source_id),
-                        "name": membership.other_node.name
-                        if source_id == topic_id
-                        else next(
-                            node.name
-                            for node in relations_page.items
-                            if node.relation_id != relation_id
-                        ).split("\0")[0]
-                        if False
-                        else relation_connection["relation"]["source_node"]["name"],
-                        "node_type": relation_connection["relation"]["source_node"][
-                            "node_type"
-                        ],
-                    },
-                    "target_node": {
-                        "node_id": str(topic_id),
-                        "name": "반도체",
-                        "node_type": {"code": "TOPIC", "display_name": "주제"},
-                    },
-                    "other_node": {
-                        "node_id": str(topic_id),
-                        "name": "반도체",
-                        "node_type": {"code": "TOPIC", "display_name": "주제"},
-                    },
-                    "stance": "SUPPORT",
+                relation_projection = relation_connection["relation"]
+                assert relation_projection is not None
+                assert relation_projection["relation_id"] == str(relation_id)
+                assert relation_projection["display_name"] == "HAS_TOPIC"
+                assert relation_projection["directionality"] == "DIRECTED"
+                assert relation_projection["source_node"]["node_id"] == str(source_id)
+                assert relation_projection["source_node"]["node_type"]["code"] == "COMPANY"
+                assert relation_projection["target_node"] == {
+                    "node_id": str(topic_id),
+                    "name": "반도체",
+                    "node_type": {"code": "TOPIC", "display_name": "주제"},
                 }
+                assert relation_projection["other_node"] == relation_projection[
+                    "target_node"
+                ]
+                assert relation_projection["stance"] == "SUPPORT"
                 assert not any(
                     item["kind"] == "CONFLICT"
                     for item in projected["connections"]
