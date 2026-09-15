@@ -152,6 +152,7 @@ def _ensure_node_types(session: Session) -> dict[str, int]:
                 sa.select(
                     node_type.c.node_type_id,
                     node_type.c.display_name,
+                    node_type.c.creation_rule,
                     node_type.c.is_active,
                 ).where(node_type.c.node_type_code == code)
             )
@@ -172,18 +173,19 @@ def _ensure_node_types(session: Session) -> dict[str, int]:
                 ).scalar_one()
             )
         else:
-            if str(row["display_name"]) != display_name:
+            if (
+                str(row["display_name"]) != display_name
+                or str(row["creation_rule"]) != _NODE_CREATION_RULE
+            ):
                 raise RuntimeError(
-                    f"node_type {code} has a conflicting display name: "
-                    f"{row['display_name']!r}"
+                    f"node_type {code} conflicts with the frozen prerequisite contract"
+                )
+            if not bool(row["is_active"]):
+                raise RuntimeError(
+                    f"node_type {code} is inactive; #201 activation "
+                    "will not reactivate it"
                 )
             node_type_id = int(row["node_type_id"])
-            if not bool(row["is_active"]):
-                session.execute(
-                    node_type.update()
-                    .where(node_type.c.node_type_id == node_type_id)
-                    .values(is_active=True)
-                )
         result[code] = node_type_id
     return result
 
