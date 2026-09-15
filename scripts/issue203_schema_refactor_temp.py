@@ -1,10 +1,12 @@
 from pathlib import Path
 
-schema_path = Path("server/src/ontology_map/db/schema.py")
-text = schema_path.read_text()
+SCHEMA = Path("server/src/ontology_map/db/schema.py")
+TOPIC_REFS = Path("server/src/ontology_map/db/topic_references.py")
+POSTGRES_TEST = Path("server/tests/test_topic_references_postgres.py")
 
-start = text.index("knowledge_item = sa.Table(\n")
-end = text.index("\nnode = sa.Table(\n", start)
+schema = SCHEMA.read_text()
+start = schema.index("knowledge_item = sa.Table(\n")
+end = schema.index("\nnode = sa.Table(\n", start)
 knowledge_block = '''knowledge_item = sa.Table(
     "knowledge_item",
     metadata,
@@ -31,7 +33,7 @@ knowledge_block = '''knowledge_item = sa.Table(
         nullable=True,
         comment=(
             "EVIDENCE_VERIFIED는 출처와 구조 검사를 통과했다는 뜻이며 객관적 "
-            "사실 확정이나 사람 승인을 뜻하지 않는다. PRODUCT_REFERENCE에는 없다."
+            "사실 확정이나 사람 승인을 뜻하지 않는다."
         ),
     ),
     sa.Column(
@@ -88,11 +90,12 @@ sa.Index(
     knowledge_item.c.knowledge_item_id,
 )
 '''
-text = text[:start] + knowledge_block + text[end:]
+schema = schema[:start] + knowledge_block + schema[end:]
 
 marker = 'sa.Index("ix_node__type", node.c.node_type_id, node.c.node_id)\n\nrelation = sa.Table(\n'
-if text.count(marker) != 1:
-    raise SystemExit(f"node/relation marker count={text.count(marker)}")
+if schema.count(marker) != 1:
+    raise SystemExit(f"node/relation marker count={schema.count(marker)}")
+
 topic_block = '''sa.Index("ix_node__type", node.c.node_type_id, node.c.node_id)
 
 topic_reference = sa.Table(
@@ -162,16 +165,35 @@ topic_reference = sa.Table(
 
 relation = sa.Table(
 '''
-text = text.replace(marker, topic_block)
-schema_path.write_text(text)
+schema = schema.replace(marker, topic_block)
+SCHEMA.write_text(schema)
 
-references_path = Path("server/src/ontology_map/db/topic_references.py")
-text = references_path.read_text()
-old = '        raise ValueError("Topic reference definition is not in the approved #203 contract")\n'
-new = '''        raise ValueError(
+refs = TOPIC_REFS.read_text()
+old_error = (
+    '        raise ValueError('
+    '"Topic reference definition is not in the approved #203 contract")\n'
+)
+new_error = '''        raise ValueError(
             "Topic reference definition is not in the approved #203 contract"
         )
 '''
-if text.count(old) != 1:
-    raise SystemExit(f"topic reference error marker count={text.count(old)}")
-references_path.write_text(text.replace(old, new))
+if refs.count(old_error) != 1:
+    raise SystemExit(f"topic reference error marker count={refs.count(old_error)}")
+TOPIC_REFS.write_text(refs.replace(old_error, new_error))
+
+test = POSTGRES_TEST.read_text()
+old_import = (
+    "    source_document,\n"
+    ")\n"
+    "from ontology_map.db.session import get_engine\n"
+    "from ontology_map.db.topic_reference_schema import topic_reference\n"
+)
+new_import = (
+    "    source_document,\n"
+    "    topic_reference,\n"
+    ")\n"
+    "from ontology_map.db.session import get_engine\n"
+)
+if test.count(old_import) != 1:
+    raise SystemExit(f"postgres test import marker count={test.count(old_import)}")
+POSTGRES_TEST.write_text(test.replace(old_import, new_import))
