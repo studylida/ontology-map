@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import styles from "./App.module.css";
-import { fetchPanelReport, type TimeRange } from "./data";
+import type { TimeRange } from "./data";
+import { fetchPanelReport213 } from "./read213";
 import { ClaimCard, PeriodNote } from "./PanelEvidence";
-import { PageNotice, useModalDialog } from "./RelationPanel";
+import {
+  type EvidenceSelection,
+  PageNotice,
+  useModalDialog,
+} from "./RelationPanel";
 import { useCursorPage } from "./useCursorPage";
 
 export function ReportDialog({
@@ -10,11 +15,15 @@ export function ReportDialog({
   timeRange,
   sectionId,
   onClose,
+  onEvidence,
+  onSelect,
 }: {
   nodeId: string;
   timeRange: TimeRange;
   sectionId: string;
   onClose: () => void;
+  onEvidence: (selection: EvidenceSelection) => void;
+  onSelect: (nodeId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(new Set<string>());
   const updateExpanded = (key: string, open: boolean) =>
@@ -28,7 +37,7 @@ export function ReportDialog({
   const titleId = useId();
   const fetchPage = useCallback(
     (id: string, _cursor: string | null, signal: AbortSignal) =>
-      fetchPanelReport(id, timeRange, true, signal),
+      fetchPanelReport213(id, timeRange, true, signal),
     [timeRange],
   );
   const page = useCursorPage(nodeId, fetchPage);
@@ -101,6 +110,8 @@ export function ReportDialog({
                       updateExpanded(`${section.id}:${claim.id}`, open)
                     }
                     range={timeRange}
+                    onEvidence={onEvidence}
+                    onSelect={onSelect}
                   />
                 ))}
                 {section.caveat && (
@@ -138,7 +149,7 @@ export function InsightPanel({
 }) {
   const fetchPage = useCallback(
     (id: string, _cursor: string | null, signal: AbortSignal) =>
-      fetchPanelReport(id, timeRange, false, signal),
+      fetchPanelReport213(id, timeRange, false, signal),
     [timeRange],
   );
   const page = useCursorPage(nodeId, fetchPage);
