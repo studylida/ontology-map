@@ -192,7 +192,7 @@ def _canonical_endpoint_pair(
     source_id: int, target_id: int, directionality: str
 ) -> tuple[int, int]:
     if directionality == "SYMMETRIC":
-        return tuple(sorted((source_id, target_id)))
+        return min(source_id, target_id), max(source_id, target_id)
     return source_id, target_id
 
 
