@@ -1,0 +1,47 @@
+name: Issue 203 mypy fix
+
+on:
+  push:
+    branches:
+      - issue-203-topic-reference-lifecycle
+    paths:
+      - ".github/workflows/issue203-mypy-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: issue-203-topic-reference-lifecycle
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.7"
+      - name: Rename Topic branch decision variable
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("server/src/ontology_map/entity_resolution.py")
+          text = path.read_text()
+          old = '''        decision: ResolutionStatus = (\n            "SAME" if node_id is not None else "UNRESOLVED"\n        )\n        return Resolution(mention, decision, node_id, context, candidates, ())\n'''
+          new = '''        topic_decision: ResolutionStatus = (\n            "SAME" if node_id is not None else "UNRESOLVED"\n        )\n        return Resolution(\n            mention, topic_decision, node_id, context, candidates, ()\n        )\n'''
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one replacement, got {text.count(old)}")
+          path.write_text(text.replace(old, new))
+          PY
+          uv sync --project server --frozen
+          uv run --project server --frozen ruff format server/src/ontology_map/entity_resolution.py
+          uv run --project server --frozen ruff check server/src/ontology_map/entity_resolution.py
+          uv run --project server --frozen mypy --config-file server/pyproject.toml server/src/ontology_map
+      - name: Commit focused fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/src/ontology_map/entity_resolution.py
+          git commit -m "fix: separate Topic resolution decision variable"
+          git push origin HEAD:issue-203-topic-reference-lifecycle
