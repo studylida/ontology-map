@@ -216,13 +216,10 @@ export async function fetchCenterExploration(
     try {
       return await fetchTopicExploration(centerId, range, signal);
     } catch (topicError) {
-      if (
-        topicError instanceof APIRequestError &&
-        topicError.code === "TOPIC_NOT_FOUND"
-      ) {
-        throw error;
+      if (topicError instanceof DOMException && topicError.name === "AbortError") {
+        throw topicError;
       }
-      throw topicError;
+      throw error;
     }
   }
 }
