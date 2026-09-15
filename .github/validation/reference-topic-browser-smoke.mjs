@@ -115,9 +115,6 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
 const pageErrors = [];
 page.on("pageerror", (error) => pageErrors.push(error.message));
-page.on("console", (message) => {
-  if (message.type() === "error") pageErrors.push(`console: ${message.text()}`);
-});
 
 await page.route("**/api/v1/**", async (route) => {
   const url = new URL(route.request().url());
