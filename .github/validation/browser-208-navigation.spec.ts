@@ -286,7 +286,8 @@ test("Evidence first-read error stays modal and Escape restores opener focus", a
     .getByRole("navigation", { name: "지도 관계 목록" })
     .getByRole("button", { name: /SK하이닉스.*HBF/ });
   await expect(opener).toBeVisible();
-  await opener.click();
+  await opener.focus();
+  await opener.press("Enter");
 
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByRole("alert")).toContainText(
