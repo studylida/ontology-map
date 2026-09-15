@@ -53,7 +53,9 @@ def test_topic_list_read_keeps_active_and_inactive_reference_rows() -> None:
             transaction.rollback()
 
 
-def test_approved_activation_is_readable_hidden_from_search_and_normally_empty() -> None:
+def test_approved_activation_is_readable_hidden_from_search_and_normally_empty() -> (
+    None
+):
     with get_engine().connect() as connection:
         transaction = connection.begin()
         try:
@@ -67,8 +69,7 @@ def test_approved_activation_is_readable_hidden_from_search_and_normally_empty()
                 rows = list_topic_references(session)
                 assert len(rows) == 9
                 assert {
-                    (row.topic_code, row.canonical_display_name)
-                    for row in rows
+                    (row.topic_code, row.canonical_display_name) for row in rows
                 } == set(APPROVED_TOPIC_DEFINITIONS)
                 assert all(row.is_active for row in rows)
 
