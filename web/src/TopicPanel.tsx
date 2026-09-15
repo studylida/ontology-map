@@ -5,6 +5,7 @@ import {
   type KnowledgeNode,
   type TimeRange,
 } from "./data";
+import topicStyles from "./Topic.module.css";
 import type { TopicExplorationView } from "./topicData";
 
 interface TopicPanelProps {
@@ -33,34 +34,32 @@ export function TopicPanel({
   onSelect,
   onSelectInsight,
 }: TopicPanelProps) {
-  const members = useMemo(
-    () => view.nodes.filter((node) => node.id !== view.centerId),
-    [view],
-  );
-  const recent = useMemo(
-    () =>
-      members
-        .filter((node) => node.activityEvidenceGroupCount > 0)
-        .sort(byRecentEvidence),
-    [members],
-  );
-  const rich = recent.slice(0, 3);
-  const richIds = new Set(rich.map((node) => node.id));
-  const remainingRecent = recent.filter((node) => !richIds.has(node.id));
-  const older = members
-    .filter((node) => node.activityEvidenceGroupCount === 0)
-    .sort((left, right) =>
-      left.kind.localeCompare(right.kind, "ko") || byName(left, right),
-    );
-  const groups = useMemo(() => {
-    const result = new Map<string, KnowledgeNode[]>();
-    for (const node of older) {
-      const current = result.get(node.kind) ?? [];
+  const { rich, remainingRecent, older, groups } = useMemo(() => {
+    const members = view.nodes.filter((node) => node.id !== view.centerId);
+    const recent = members
+      .filter((node) => node.activityEvidenceGroupCount > 0)
+      .sort(byRecentEvidence);
+    const richNodes = recent.slice(0, 3);
+    const richIds = new Set(richNodes.map((node) => node.id));
+    const olderNodes = members
+      .filter((node) => node.activityEvidenceGroupCount === 0)
+      .sort((left, right) =>
+        left.kind.localeCompare(right.kind, "ko") || byName(left, right),
+      );
+    const grouped = new Map<string, KnowledgeNode[]>();
+    for (const node of olderNodes) {
+      const current = grouped.get(node.kind) ?? [];
       current.push(node);
-      result.set(node.kind, current);
+      grouped.set(node.kind, current);
     }
-    return result;
-  }, [older]);
+    return {
+      rich: richNodes,
+      remainingRecent: recent.filter((node) => !richIds.has(node.id)),
+      older: olderNodes,
+      groups: grouped,
+    };
+  }, [view]);
+  const richKey = rich.map((node) => node.id).join(":");
   const [insightTitles, setInsightTitles] = useState<Map<string, string>>(
     new Map(),
   );
@@ -96,7 +95,9 @@ export function TopicPanel({
       })
       .catch(() => undefined);
     return () => controller.abort();
-  }, [rich.map((node) => node.id).join(":"), timeRange]);
+    // richKey intentionally scopes title reads to the current top-card membership set.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: rich is derived from view and represented by richKey.
+  }, [richKey, timeRange]);
 
   const periodLabel = timeRange === "90d" ? "최근 90일" : "최근 1년";
 
@@ -120,7 +121,7 @@ export function TopicPanel({
         </span>
         <h1>{view.topic.name}</h1>
       </header>
-      <div className={styles.topicPanelBody}>
+      <div className={topicStyles.topicPanelBody}>
         {view.totalPublicMembershipCount === 0 ? (
           <p className={styles.empty}>아직 공개된 연결 대상이 없습니다.</p>
         ) : (
@@ -128,18 +129,18 @@ export function TopicPanel({
             <section>
               <h2>최근 근거가 많은 연결</h2>
               {rich.length > 0 ? (
-                <div className={styles.topicRichCards}>
+                <div className={topicStyles.topicRichCards}>
                   {rich.map((node) => {
                     const insightTitle = insightTitles.get(node.id);
                     return (
                       <article
                         key={node.id}
-                        className={styles.topicRichCard}
+                        className={topicStyles.topicRichCard}
                         data-kind={node.kind}
                       >
                         <button
                           type="button"
-                          className={styles.topicMemberButton}
+                          className={topicStyles.topicMemberButton}
                           onClick={() => onSelect(node.id)}
                         >
                           <span>
@@ -151,7 +152,7 @@ export function TopicPanel({
                         {insightTitle && (
                           <button
                             type="button"
-                            className={styles.topicInsightLink}
+                            className={topicStyles.topicInsightLink}
                             onClick={() => onSelectInsight(node.id)}
                           >
                             {insightTitle}
@@ -172,7 +173,7 @@ export function TopicPanel({
             {remainingRecent.length > 0 && (
               <section>
                 <h2>최근 근거가 있는 연결</h2>
-                <div className={styles.topicMemberList}>
+                <div className={topicStyles.topicMemberList}>
                   {remainingRecent.map((node) => (
                     <button
                       type="button"
@@ -191,9 +192,9 @@ export function TopicPanel({
               <section>
                 <h2>그 외 연결</h2>
                 {[...groups].map(([kind, nodes]) => (
-                  <div className={styles.topicMemberGroup} key={kind}>
+                  <div className={topicStyles.topicMemberGroup} key={kind}>
                     <h3>{kind}</h3>
-                    <div className={styles.topicMemberList}>
+                    <div className={topicStyles.topicMemberList}>
                       {nodes.map((node) => (
                         <button
                           type="button"
