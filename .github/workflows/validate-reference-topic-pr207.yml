@@ -1,0 +1,50 @@
+name: Validate Reference Topic PR207
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/validate-reference-topic-pr207.yml"
+      - ".github/validation/reference-topic-browser-smoke.mjs"
+      - "web/**"
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head:
+    name: exact web check · Chromium smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: 저장소 받기
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Node 환경 확인
+        run: node --version && npm --version
+      - name: Web 의존성 설치
+        working-directory: web
+        run: npm ci
+      - name: Exact web 전체 검사
+        working-directory: web
+        run: npm run check
+      - name: Browser smoke 도구 격리 설치
+        run: |
+          mkdir -p .github/playwright
+          printf '%s\n' '{"private":true,"type":"module"}' > .github/playwright/package.json
+          npm install --prefix .github/playwright --package-lock=false --no-save playwright@1.55.0
+          ln -s ../../.github/playwright/node_modules/playwright web/node_modules/playwright
+          ln -s ../../.github/playwright/node_modules/playwright-core web/node_modules/playwright-core
+          .github/playwright/node_modules/.bin/playwright install --with-deps chromium
+      - name: 실제 Chromium Topic navigation smoke
+        run: |
+          (cd web && npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/ontology-map-vite.log 2>&1 & echo $! > /tmp/ontology-map-vite.pid)
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/ >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4173/ >/dev/null
+          node .github/validation/reference-topic-browser-smoke.mjs
+      - name: Vite 로그
+        if: ${{ failure() }}
+        run: cat /tmp/ontology-map-vite.log || true
