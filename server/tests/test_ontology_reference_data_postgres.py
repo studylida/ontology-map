@@ -69,7 +69,8 @@ def _relation_contract(session: Session) -> dict[str, tuple[str, set[tuple[str, 
         )
         .join(
             relation_type_revision,
-            relation_type_revision.c.relation_type_id == relation_type.c.relation_type_id,
+            relation_type_revision.c.relation_type_id
+            == relation_type.c.relation_type_id,
         )
         .where(relation_type_revision.c.is_active)
     )
@@ -79,9 +80,7 @@ def _relation_contract(session: Session) -> dict[str, tuple[str, set[tuple[str, 
             sa.select(
                 relation_endpoint_rule.c.source_node_type_id,
                 relation_endpoint_rule.c.target_node_type_id,
-            ).where(
-                relation_endpoint_rule.c.relation_type_revision_id == revision_id
-            )
+            ).where(relation_endpoint_rule.c.relation_type_revision_id == revision_id)
         )
         pairs = {
             (type_codes[int(source_id)], type_codes[int(target_id)])
@@ -157,7 +156,9 @@ def test_clean_activation_is_exact_and_idempotent() -> None:
                         definition.code for definition in RELATION_DEFINITIONS
                     }
                     for definition in RELATION_DEFINITIONS:
-                        actual_direction, actual_pairs = relation_contract[definition.code]
+                        actual_direction, actual_pairs = relation_contract[
+                            definition.code
+                        ]
                         assert actual_direction == definition.directionality
                         assert _normalized_pairs(actual_direction, actual_pairs) == (
                             _normalized_pairs(
@@ -212,10 +213,13 @@ def test_clean_activation_is_exact_and_idempotent() -> None:
                             node_type.c.node_type_code,
                         )
                         .join(node, node.c.node_id == topic_reference.c.node_id)
-                        .join(node_type, node_type.c.node_type_id == node.c.node_type_id)
+                        .join(
+                            node_type, node_type.c.node_type_id == node.c.node_type_id
+                        )
                         .join(
                             knowledge_item,
-                            knowledge_item.c.knowledge_item_id == topic_reference.c.node_id,
+                            knowledge_item.c.knowledge_item_id
+                            == topic_reference.c.node_id,
                         )
                         .order_by(topic_reference.c.topic_code)
                     ).all()
@@ -224,7 +228,9 @@ def test_clean_activation_is_exact_and_idempotent() -> None:
                         for _node_id, code, name, *_rest in topic_rows
                     } == set(APPROVED_TOPIC_DEFINITIONS)
                     assert all(bool(row.is_active) for row in topic_rows)
-                    assert all(row.lifecycle_kind == PRODUCT_REFERENCE for row in topic_rows)
+                    assert all(
+                        row.lifecycle_kind == PRODUCT_REFERENCE for row in topic_rows
+                    )
                     assert all(row.current_state is None for row in topic_rows)
                     assert all(row.promotion_batch_id is None for row in topic_rows)
                     assert all(row.node_type_code == "TOPIC" for row in topic_rows)
@@ -276,17 +282,23 @@ def test_activation_preserves_hbf_fixture_and_existing_knowledge() -> None:
             _force_constraints(session)
 
     with Session(engine) as session:
-        assert session.scalar(
-            sa.select(relation_type.c.relation_type_id).where(
-                relation_type.c.relation_code == "PUBLICLY_ASSOCIATED_WITH"
+        assert (
+            session.scalar(
+                sa.select(relation_type.c.relation_type_id).where(
+                    relation_type.c.relation_code == "PUBLICLY_ASSOCIATED_WITH"
+                )
             )
-        ) == dev_relation_type_id
-        assert session.scalar(
-            sa.select(relation_type_revision.c.relation_type_revision_id).where(
-                relation_type_revision.c.relation_type_id == dev_relation_type_id,
-                relation_type_revision.c.is_active,
+            == dev_relation_type_id
+        )
+        assert (
+            session.scalar(
+                sa.select(relation_type_revision.c.relation_type_revision_id).where(
+                    relation_type_revision.c.relation_type_id == dev_relation_type_id,
+                    relation_type_revision.c.is_active,
+                )
             )
-        ) == dev_revision_id
+            == dev_revision_id
+        )
         assert {
             "relation": _count(session, relation),
             "claim": _count(session, claim),
