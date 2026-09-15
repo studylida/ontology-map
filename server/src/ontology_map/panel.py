@@ -150,7 +150,7 @@ def list_claims(
         "document_id": context["node_search_document_id"],
     }
     after_id, as_of_at = _position(cursor, "panel-claims", scope, datetime.now(UTC))
-    params = {
+    params: dict[str, Any] = {
         "node_id": node_id,
         "basis_ids": ids,
         "start_at": _start(as_of_at, window),
