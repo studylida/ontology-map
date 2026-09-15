@@ -99,7 +99,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 
 ## Reference Topic 읽기 계약
 
-제품 Reference Topic은 일반 evidence-backed 지식이 아니라 승인 controlled vocabulary다. canonical 표시 이름은 `topic_reference` 정의가 소유하고 일반 검색 문서나 alias Evidence를 만들지 않는다. #203은 lifecycle/schema/read boundary만 지원하며 실제 승인 Topic 9개 활성화는 #201이 담당한다.
+제품 Reference Topic은 일반 evidence-backed 지식이 아니라 승인 controlled vocabulary다. canonical 표시 이름은 `topic_reference` 정의가 소유하고 일반 검색 문서나 alias Evidence를 만들지 않는다. #203은 lifecycle/schema/read boundary를 제공하고 #201의 명시적 reference-data activation이 승인 Topic 9개를 실제 제품 row로 활성화한다. 앱 startup이 누락 Topic을 자동 생성하거나 보정하지 않는다.
 
 일반 검색에는 Reference Topic을 포함하지 않는다. Topic 진입은 승인 Topic/카테고리 목록 또는 일반 graph에 이미 표시된 Topic 선택을 전제로 한다. `GET /api/v1/topics/{topic_node_id}/exploration?time_window=RECENT_90_DAYS|RECENT_1_YEAR`는 공개 가능한 direct `HAS_TOPIC` membership만 반환하고 Topic 중심 2-hop·3-hop 확장은 하지 않는다. 응답은 전체 공개 membership 수와 선택 기간의 최근 member 수·최근 Evidence Group 수를 구분한다.
 
