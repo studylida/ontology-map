@@ -151,7 +151,7 @@ async function installRoutes(
       return;
     }
 
-    if (path === "/api/v1/relations/rel-a-b/evidence") {
+    if (/^\/api\/v1\/relations\/[^/]+\/evidence$/.test(path)) {
       if (options.relationEvidenceFails) {
         await json(
           route,
@@ -282,7 +282,9 @@ test("Evidence first-read error stays modal and Escape restores opener focus", a
 
   await page.goto(`/?center=${A}&range=90d`);
   await expect(page.getByRole("heading", { name: "SK하이닉스" })).toBeVisible();
-  const opener = page.getByRole("button", { name: /HBF.*근거 보기/ });
+  const opener = page
+    .getByRole("navigation", { name: "지도 관계 목록" })
+    .getByRole("button", { name: /SK하이닉스.*HBF/ });
   await expect(opener).toBeVisible();
   await opener.click();
 
