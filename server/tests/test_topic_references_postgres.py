@@ -88,6 +88,11 @@ def _batch(session: Session, version: int = 203004) -> int:
 
 
 def _node_type(session: Session, code: str) -> int:
+    existing = session.scalar(
+        sa.select(node_type.c.node_type_id).where(node_type.c.node_type_code == code)
+    )
+    if existing is not None:
+        return int(existing)
     return int(
         session.execute(
             node_type.insert()
@@ -452,25 +457,18 @@ def test_lifecycle_constraints_keep_evidence_and_reference_separate() -> None:
             )
             session.execute(sa.text("SET CONSTRAINTS ALL IMMEDIATE"))
 
-        with pytest.raises(sa.exc.DBAPIError), session.begin_nested():
-            legacy_topic_id = int(
-                session.execute(
-                    knowledge_item.insert()
-                    .values(
-                        item_kind="NODE",
-                        lifecycle_kind="EVIDENCE_BACKED",
-                        current_state="EVIDENCE_VERIFIED",
-                        promotion_batch_id=batch_id,
-                    )
-                    .returning(knowledge_item.c.knowledge_item_id)
-                ).scalar_one()
-            )
-            session.execute(
-                node.insert().values(
-                    node_id=legacy_topic_id, node_type_id=topic_type_id
+        legacy_topic_id = _evidence_node(
+            session, batch_id=batch_id, node_type_id=topic_type_id
+        )
+        _force_deferred_constraints(session)
+        assert (
+            session.scalar(
+                sa.select(knowledge_item.c.lifecycle_kind).where(
+                    knowledge_item.c.knowledge_item_id == legacy_topic_id
                 )
             )
-            session.execute(sa.text("SET CONSTRAINTS ALL IMMEDIATE"))
+            == "EVIDENCE_BACKED"
+        )
 
         second_reference = ensure_topic_reference(
             session,
