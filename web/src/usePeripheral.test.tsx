@@ -61,6 +61,7 @@ it("첫 페이지를 자동 요청하고 한 요청씩 병합하며 실패한 cu
   vi.mocked(fetchPeripheral).mockRejectedValueOnce(new Error("offline"));
   await act(async () => result.current.trigger());
   expect(result.current.error).not.toBeNull();
+  expect(result.current.graphView?.nodes).toHaveLength(2);
   await act(async () => result.current.trigger());
   expect(fetchPeripheral).toHaveBeenCalledTimes(2);
   vi.mocked(fetchPeripheral).mockResolvedValueOnce({
@@ -74,6 +75,7 @@ it("첫 페이지를 자동 요청하고 한 요청씩 병합하며 실패한 cu
     "next",
   ]);
   expect(result.current.graphView?.nodes).toHaveLength(2);
+  expect(result.current.retrySuccess).toBe(true);
   expect(result.current.exhausted).toBe(true);
   act(() => result.current.trigger());
   expect(fetchPeripheral).toHaveBeenCalledTimes(3);

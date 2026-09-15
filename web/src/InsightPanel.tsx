@@ -57,7 +57,12 @@ export function ReportDialog({
         </button>
         <span className={styles.dialogEyebrow}>종합보고서</span>
         <h2 id={titleId}>{report?.title ?? "분석 불러오기"}</h2>
-        <PageNotice {...page} empty={!report} onRetry={page.retry} />
+        <PageNotice
+          {...page}
+          empty={!report}
+          emptyMessage="이 기간에는 공개된 인사이트가 없습니다."
+          onRetry={page.retry}
+        />
         {report && (
           <>
             <PeriodNote range={timeRange} asOf={report.asOf} />
@@ -146,7 +151,12 @@ export function InsightPanel({
   return (
     <section aria-label="인사이트 보고서">
       <h2>인사이트</h2>
-      <PageNotice {...page} empty={!report} onRetry={page.retry} />
+      <PageNotice
+        {...page}
+        empty={!report}
+        emptyMessage="이 기간에는 공개된 인사이트가 없습니다."
+        onRetry={page.retry}
+      />
       {report && (
         <>
           <PeriodNote range={timeRange} asOf={report.asOf} />
