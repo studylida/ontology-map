@@ -55,7 +55,12 @@ function ClaimTraces({
           <TraceContent trace={trace} claimText={claim.text} />
         </article>
       ))}
-      <PageNotice {...page} empty={!page.items.length} onRetry={page.retry} />
+      <PageNotice
+        {...page}
+        empty={!page.items.length}
+        additional={page.items.length > 0}
+        onRetry={page.retry}
+      />
       {page.nextCursor && (
         <button
           type="button"

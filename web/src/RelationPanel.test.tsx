@@ -179,7 +179,17 @@ it.each([404, 422, 503, 0])(
     else
       request.mockResolvedValueOnce(
         response(
-          { error: { code: "REQUEST_FAILED", retryable: status === 503 } },
+          {
+            error: {
+              code:
+                status === 503
+                  ? "PANEL_NOT_READY"
+                  : status === 404
+                    ? "PANEL_NOT_FOUND"
+                    : "INVALID_REQUEST",
+              retryable: status === 503,
+            },
+          },
           status,
         ),
       );
@@ -190,12 +200,12 @@ it.each([404, 422, 503, 0])(
     await screen.findByRole("alert");
     expect(screen.queryByText("현재 공개된 자료가 없습니다.")).toBeNull();
     if (status === 503 || status === 0) {
-      fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+      fireEvent.click(screen.getByRole("button", { name: "다시 조회" }));
       expect(
         await screen.findByRole("button", { name: /HBF.*근거 보기/ }),
       ).toBeTruthy();
     } else
-      expect(screen.queryByRole("button", { name: "다시 시도" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "다시 조회" })).toBeNull();
   },
 );
 
@@ -218,6 +228,65 @@ it("중심이 바뀌면 진행 중 요청을 취소하고 이전 결과를 표�
     finish(response({ items: [relation], next_cursor: null })),
   );
   expect(screen.queryByRole("button", { name: /HBF.*근거 보기/ })).toBeNull();
+});
+
+it("Evidence dialog 첫 read 실패가 dialog를 닫지 않고 retry와 사용자 close를 유지한다", async () => {
+  request.mockResolvedValueOnce(
+    response({ error: { code: "PANEL_NOT_READY", retryable: true } }, 503),
+  );
+  render(
+    <EvidenceDialog
+      selection={{ id: "1", label: "검토 관계" }}
+      onClose={vi.fn()}
+    />,
+  );
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect(screen.getByRole("dialog").getAttribute("open")).toBe("");
+  expect(screen.getByRole("button", { name: "다시 조회" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "근거 창 닫기" })).toBeTruthy();
+});
+
+it("Relation next page 404에서도 이미 읽은 item을 유지하고 추가 read 위치에 안내한다", async () => {
+  request
+    .mockResolvedValueOnce(response({ items: [relation], next_cursor: "next" }))
+    .mockResolvedValueOnce(
+      response({ error: { code: "PANEL_NOT_FOUND", retryable: false } }, 404),
+    );
+  render(
+    <RelationList nodeId="1" nodeName="SK하이닉스" onEvidence={vi.fn()} />,
+  );
+  expect(
+    await screen.findByRole("button", { name: /HBF.*근거 보기/ }),
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "관계 더 보기" }));
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "추가 자료를 불러올 수 없습니다. 이미 불러온 내용은 계속 볼 수 있습니다.",
+  );
+  expect(screen.getByRole("button", { name: /HBF.*근거 보기/ })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "다시 조회" })).toBeNull();
+});
+
+it("Trace page1 성공 뒤 next page 404에서도 page1과 dialog를 유지한다", async () => {
+  request
+    .mockResolvedValueOnce(
+      response({ items: [trace], next_cursor: "next", trace_count: 1 }),
+    )
+    .mockResolvedValueOnce(
+      response({ error: { code: "PANEL_NOT_FOUND", retryable: false } }, 404),
+    );
+  render(
+    <EvidenceDialog
+      selection={{ id: "1", label: "검토 관계" }}
+      onClose={vi.fn()}
+    />,
+  );
+  await screen.findByText("원문 인용");
+  fireEvent.click(screen.getByRole("button", { name: "근거 더 보기" }));
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "추가 자료를 불러올 수 없습니다. 이미 불러온 내용은 계속 볼 수 있습니다.",
+  );
+  expect(screen.getByText("원문 인용")).toBeTruthy();
+  expect(screen.getByRole("dialog").getAttribute("open")).toBe("");
 });
 
 it("근거 URL의 실행 가능한 scheme을 거부하고 날짜 정밀도를 확대하지 않는다", async () => {

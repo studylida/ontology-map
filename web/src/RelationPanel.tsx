@@ -19,40 +19,54 @@ export function PageNotice({
   error,
   empty,
   onRetry,
+  emptyMessage = "현재 공개된 자료가 없습니다.",
+  additional = false,
+  kind = "panel",
+  retrySuccess = false,
 }: {
   loading: boolean;
   error: APIRequestError | null;
   empty: boolean;
   onRetry: () => void;
+  emptyMessage?: string;
+  additional?: boolean;
+  kind?: "panel" | "relationTrace";
+  retrySuccess?: boolean;
 }) {
   if (loading) return <p role="status">불러오는 중입니다.</p>;
   if (error) {
-    const message =
-      error.status === 404
-        ? "공개된 자료를 찾을 수 없습니다."
+    const message = additional
+      ? "추가 자료를 불러올 수 없습니다. 이미 불러온 내용은 계속 볼 수 있습니다."
+      : error.status === 404
+        ? kind === "relationTrace"
+          ? "이 연결의 공개 근거를 현재 불러올 수 없습니다."
+          : "요청한 자료를 찾을 수 없습니다."
         : error.status === 422
-          ? "조회 요청을 확인할 수 없습니다. 다시 선택해 주세요."
-          : error.status === 503
-            ? error.code === "PANEL_NOT_READY"
-              ? "이 기간에 공개할 수 있는 자료가 아직 준비되지 않았습니다."
-              : "공개 자료를 준비하고 있습니다."
-            : "자료를 불러오지 못했습니다.";
+          ? "요청을 확인할 수 없습니다."
+          : error.code === "PANEL_NOT_READY" || error.status === 503
+            ? "현재 이 영역의 공개 자료를 불러올 수 없습니다."
+            : "자료를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
     return (
       <div role="alert">
         <p>{message}</p>
         {error.retryable && (
           <button type="button" onClick={onRetry}>
-            다시 시도
+            다시 조회
           </button>
         )}
       </div>
     );
   }
-  return empty ? (
-    <p className={styles.empty} role="status">
-      현재 공개된 자료가 없습니다.
-    </p>
-  ) : null;
+  return (
+    <>
+      {retrySuccess && <p role="status">최신 공개 상태로 다시 불러왔습니다.</p>}
+      {empty && (
+        <p className={styles.empty} role="status">
+          {emptyMessage}
+        </p>
+      )}
+    </>
+  );
 }
 
 export function RelationList({
@@ -111,7 +125,12 @@ export function RelationList({
           </article>
         ))}
       </div>
-      <PageNotice {...page} empty={!page.items.length} onRetry={page.retry} />
+      <PageNotice
+        {...page}
+        empty={!page.items.length}
+        additional={page.items.length > 0}
+        onRetry={page.retry}
+      />
       {page.nextCursor && (
         <button
           type="button"
@@ -164,7 +183,13 @@ export function EvidenceDialog({
           <TraceContent trace={trace} claimText={trace.claimText} />
         </article>
       ))}
-      <PageNotice {...page} empty={!page.items.length} onRetry={page.retry} />
+      <PageNotice
+        {...page}
+        empty={!page.items.length}
+        additional={page.items.length > 0}
+        kind="relationTrace"
+        onRetry={page.retry}
+      />
       {page.nextCursor && (
         <button
           type="button"

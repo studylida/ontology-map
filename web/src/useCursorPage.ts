@@ -12,14 +12,16 @@ export function useCursorPage<T>(id: string, fetchPage: FetchPage<T>) {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<APIRequestError | null>(null);
+  const [retrySuccess, setRetrySuccess] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
   const pendingRef = useRef(false);
   const lastCursorRef = useRef<string | null>(null);
 
   const load = useCallback(
-    async (cursor: string | null) => {
+    async (cursor: string | null, retryAttempt = false) => {
       if (pendingRef.current) return;
       pendingRef.current = true;
+      setRetrySuccess(false);
       const controller = new AbortController();
       controllerRef.current = controller;
       lastCursorRef.current = cursor;
@@ -32,6 +34,7 @@ export function useCursorPage<T>(id: string, fetchPage: FetchPage<T>) {
           cursor === null ? page.items : [...current, ...page.items],
         );
         setNextCursor(page.nextCursor);
+        if (retryAttempt) setRetrySuccess(true);
       } catch (cause) {
         if (!controller.signal.aborted)
           setError(
@@ -52,6 +55,7 @@ export function useCursorPage<T>(id: string, fetchPage: FetchPage<T>) {
   useEffect(() => {
     setItems([]);
     setNextCursor(null);
+    setRetrySuccess(false);
     pendingRef.current = false;
     void load(null);
     return () => {
@@ -63,12 +67,13 @@ export function useCursorPage<T>(id: string, fetchPage: FetchPage<T>) {
     items,
     loading,
     error,
+    retrySuccess,
     nextCursor,
     more: () => {
       if (nextCursor !== null && !error) void load(nextCursor);
     },
     retry: () => {
-      void load(lastCursorRef.current);
+      void load(lastCursorRef.current, true);
     },
   };
 }

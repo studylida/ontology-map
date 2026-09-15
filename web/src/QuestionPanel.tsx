@@ -90,7 +90,13 @@ export function QuestionPanel(props: Props) {
       {page.items.map((question) => (
         <Question key={question.id} question={question} {...props} />
       ))}
-      <PageNotice {...page} empty={!page.items.length} onRetry={page.retry} />
+      <PageNotice
+        {...page}
+        empty={!page.items.length}
+        additional={page.items.length > 0}
+        emptyMessage="이 기간에는 공개된 후속 질문이 없습니다."
+        onRetry={page.retry}
+      />
       {page.nextCursor && (
         <button
           type="button"
