@@ -368,13 +368,18 @@ def test_lifecycle_constraints_keep_evidence_and_reference_separate() -> None:
         )
         _force_deferred_constraints(session)
 
-        assert session.scalar(
-            sa.select(knowledge_item.c.lifecycle_kind).where(
-                knowledge_item.c.knowledge_item_id.in_(
-                    [company_id, relation_id, claim_id]
+        assert (
+            session.scalar(
+                sa.select(knowledge_item.c.lifecycle_kind)
+                .where(
+                    knowledge_item.c.knowledge_item_id.in_(
+                        [company_id, relation_id, claim_id]
+                    )
                 )
-            ).limit(1)
-        ) == "EVIDENCE_BACKED"
+                .limit(1)
+            )
+            == "EVIDENCE_BACKED"
+        )
 
         with pytest.raises(sa.exc.DBAPIError), session.begin_nested():
             session.execute(
@@ -410,11 +415,14 @@ def test_lifecycle_constraints_keep_evidence_and_reference_separate() -> None:
             ).where(knowledge_item.c.knowledge_item_id == reference.node_id)
         ).one()
         assert reference_state == ("PRODUCT_REFERENCE", None, None)
-        assert session.scalar(
-            sa.select(sa.func.count()).select_from(node_alias).where(
-                node_alias.c.node_id == reference.node_id
+        assert (
+            session.scalar(
+                sa.select(sa.func.count())
+                .select_from(node_alias)
+                .where(node_alias.c.node_id == reference.node_id)
             )
-        ) == 0
+            == 0
+        )
 
         with pytest.raises(sa.exc.DBAPIError), session.begin_nested():
             product_company_id = int(
@@ -458,7 +466,9 @@ def test_lifecycle_constraints_keep_evidence_and_reference_separate() -> None:
                 ).scalar_one()
             )
             session.execute(
-                node.insert().values(node_id=legacy_topic_id, node_type_id=topic_type_id)
+                node.insert().values(
+                    node_id=legacy_topic_id, node_type_id=topic_type_id
+                )
             )
             session.execute(sa.text("SET CONSTRAINTS ALL IMMEDIATE"))
 
@@ -564,11 +574,14 @@ def test_entity_resolution_reuses_active_reference_without_topic_alias() -> None
             frozenset({"topic-ai"}),
         ) as bindings:
             assert bindings["topic-ai"].node_id == reference.node_id
-        assert session.scalar(
-            sa.select(sa.func.count()).select_from(node_alias).where(
-                node_alias.c.node_id == reference.node_id
+        assert (
+            session.scalar(
+                sa.select(sa.func.count())
+                .select_from(node_alias)
+                .where(node_alias.c.node_id == reference.node_id)
             )
-        ) == 0
+            == 0
+        )
 
         set_topic_reference_active(session, reference.node_id, is_active=False)
         unresolved = resolve_mention(session, mention, must_not_call_model)
@@ -708,11 +721,14 @@ def test_topic_exploration_and_has_topic_lifecycle_contract() -> None:
         )
 
         set_topic_reference_active(session, reference.node_id, is_active=False)
-        assert session.scalar(
-            sa.select(sa.func.count()).select_from(relation).where(
-                relation.c.relation_id.in_([recent_relation, old_relation])
+        assert (
+            session.scalar(
+                sa.select(sa.func.count())
+                .select_from(relation)
+                .where(relation.c.relation_id.in_([recent_relation, old_relation]))
             )
-        ) == 2
+            == 2
+        )
         inactive = get_topic_exploration(
             session,
             reference.node_id,

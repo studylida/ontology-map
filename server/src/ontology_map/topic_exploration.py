@@ -62,7 +62,9 @@ def get_topic_exploration(
         GraphNode(
             node_id=topic_node_id,
             name=center.reference.canonical_display_name,
-            node_type=NodeType(code="TOPIC", display_name=center.node_type_display_name),
+            node_type=NodeType(
+                code="TOPIC", display_name=center.node_type_display_name
+            ),
             tier="CENTER",
             activity_evidence_group_count=activity.recent_evidence_group_count,
         ),

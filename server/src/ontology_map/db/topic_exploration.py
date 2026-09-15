@@ -223,9 +223,7 @@ def _adjacency_rows(
     if member_node_ids is not None:
         if not member_node_ids:
             return []
-        predicates.append(
-            "member.node_id = ANY(CAST(:member_node_ids AS bigint[]))"
-        )
+        predicates.append("member.node_id = ANY(CAST(:member_node_ids AS bigint[]))")
         parameters["member_node_ids"] = member_node_ids
     if topic_node_id is not None:
         predicates.append("tr.node_id = :topic_node_id")
@@ -360,17 +358,19 @@ def get_topic_activity(
         ORDER BY member.node_id
         """
     )
-    rows = session.execute(
-        statement,
-        {
-            "topic_node_id": topic_node_id,
-            "start_at": start_at,
-            "end_at": end_at,
-        },
-    ).mappings().all()
-    counts = {
-        int(row["node_id"]): int(row["evidence_group_count"]) for row in rows
-    }
+    rows = (
+        session.execute(
+            statement,
+            {
+                "topic_node_id": topic_node_id,
+                "start_at": start_at,
+                "end_at": end_at,
+            },
+        )
+        .mappings()
+        .all()
+    )
+    counts = {int(row["node_id"]): int(row["evidence_group_count"]) for row in rows}
     evidence_group_count = session.scalar(
         sa.text(
             _PUBLIC_MEMBER_NODES_CTE

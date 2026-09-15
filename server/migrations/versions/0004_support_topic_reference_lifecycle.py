@@ -38,10 +38,8 @@ APPROVED_TOPIC_CHECK = " OR ".join(
         "(topic_code = 'MANUFACTURING_PROCESS' "
         "AND canonical_display_name = '제조 공정')",
         "(topic_code = 'INVESTMENT' AND canonical_display_name = '투자')",
-        "(topic_code = 'COMMERCIALIZATION' "
-        "AND canonical_display_name = '상용화')",
-        "(topic_code = 'REGULATION_POLICY' "
-        "AND canonical_display_name = '규제·정책')",
+        "(topic_code = 'COMMERCIALIZATION' AND canonical_display_name = '상용화')",
+        "(topic_code = 'REGULATION_POLICY' AND canonical_display_name = '규제·정책')",
     )
 )
 
@@ -275,13 +273,9 @@ def _drop_integrity_functions_and_triggers() -> None:
         "ON node_search_document"
     )
     op.execute("DROP FUNCTION reject_product_reference_publication_output()")
-    op.execute(
-        "DROP TRIGGER trg_relation__has_topic_active_reference ON relation"
-    )
+    op.execute("DROP TRIGGER trg_relation__has_topic_active_reference ON relation")
     op.execute("DROP FUNCTION enforce_has_topic_active_reference()")
-    op.execute(
-        "DROP TRIGGER trg_topic_reference__node_integrity ON topic_reference"
-    )
+    op.execute("DROP TRIGGER trg_topic_reference__node_integrity ON topic_reference")
     op.execute("DROP FUNCTION enforce_topic_reference_node()")
     op.execute("DROP TRIGGER trg_node__topic_reference_integrity ON node")
     op.execute("DROP FUNCTION enforce_node_topic_reference()")
