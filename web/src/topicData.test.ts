@@ -143,6 +143,35 @@ describe("Reference Topic reads", () => {
     );
   });
 
+  it("preserves a retryable Topic read failure after the general 404 fallback", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: { code: "NODE_NOT_FOUND", retryable: false },
+          }),
+          { status: 404, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: { code: "TOPIC_READ_FAILED", retryable: true },
+          }),
+          { status: 500, headers: { "content-type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchCenterExploration("77", "90d")).rejects.toMatchObject({
+      code: "TOPIC_READ_FAILED",
+      status: 500,
+      retryable: true,
+    } satisfies Partial<APIRequestError>);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("preserves the general publication-not-ready request without Topic fallback", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
       new Response(
