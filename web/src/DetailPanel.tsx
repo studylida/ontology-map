@@ -8,12 +8,12 @@ import type { EvidenceSelection } from "./RelationPanel";
 
 interface DetailPanelProps {
   view: ExplorationView;
-  loadedGraph: ExplorationView | null;
-  hiddenKinds: readonly string[];
+  loadedGraph?: ExplorationView | null;
+  hiddenKinds?: readonly string[];
   timeRange: TimeRange;
   onClose: () => void;
   onSelect: (nodeId: string) => void;
-  onEvidence: (selection: EvidenceSelection) => void;
+  onEvidence?: (selection: EvidenceSelection) => void;
   initialTab?: 0 | 1 | 2;
 }
 
@@ -25,12 +25,12 @@ const recommendationStatusLabel = {
 
 function DetailPanelContent({
   view,
-  loadedGraph,
-  hiddenKinds,
+  loadedGraph = null,
+  hiddenKinds = [],
   timeRange,
   onClose,
   onSelect,
-  onEvidence,
+  onEvidence = () => undefined,
   initialTab = 0,
 }: DetailPanelProps) {
   const [tab, setTab] = useState<0 | 1 | 2>(initialTab);
