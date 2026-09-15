@@ -293,7 +293,7 @@ POC는 전체 활성 규칙 집합을 `ontology_version`과 `ontology_member` ma
 
 #### `topic_reference`
 
-제품 정의 Topic의 1:1 reference definition이다. 공유 `node_id` 정체성을 유지하면서 stable `topic_code`, canonical 표시 이름, `is_active`를 소유한다. canonical 이름은 `node_alias`나 외부 Evidence가 아니라 이 정의가 source of truth다. `is_active=false`는 새 `HAS_TOPIC` mapping 생성만 막으며 기존 Topic Node나 과거 Relation을 삭제·비공개·재해석하지 않는다. #203은 schema와 activation/read boundary만 제공하고 실제 승인 Topic 9개 row 활성화는 #201이 담당한다.
+제품 정의 Topic의 1:1 reference definition이다. 공유 `node_id` 정체성을 유지하면서 stable `topic_code`, canonical 표시 이름, `is_active`를 소유한다. canonical 이름은 `node_alias`나 외부 Evidence가 아니라 이 정의가 source of truth다. `is_active=false`는 새 `HAS_TOPIC` mapping 생성만 막으며 기존 Topic Node나 과거 Relation을 삭제·비공개·재해석하지 않는다. #203이 schema와 activation/read boundary를 제공하고 #201의 별도 idempotent activation이 승인 Topic 9개 row를 실제 제품 reference data로 만든다. 활성 목록과 실행 경계는 [승인 ontology reference data](ontology-reference-data.md)가 소유한다.
 
 #### `relation_type`, `relation_type_revision`, `relation_endpoint_rule`
 
