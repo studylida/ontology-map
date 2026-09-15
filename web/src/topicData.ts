@@ -221,7 +221,13 @@ export async function fetchCenterExploration(
       ) {
         throw topicError;
       }
-      throw error;
+      if (
+        topicError instanceof APIRequestError &&
+        topicError.code === "TOPIC_NOT_FOUND"
+      ) {
+        throw error;
+      }
+      throw topicError;
     }
   }
 }
