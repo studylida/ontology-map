@@ -172,7 +172,7 @@ export function NodeSearch({
               : undefined
           }
           value={query}
-          placeholder="회사, 사람, 기술 또는 주제 검색"
+          placeholder="회사, 사람 또는 기술 검색"
           onFocus={() => {
             if (status !== "idle") setOpen(true);
           }}
