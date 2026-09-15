@@ -39,7 +39,9 @@ def _context() -> tuple[VerifiedContext, ...]:
     )
 
 
-def test_topic_without_active_reference_is_unresolved_without_agent(monkeypatch) -> None:
+def test_topic_without_active_reference_is_unresolved_without_agent(
+    monkeypatch,
+) -> None:
     context = _context()
     monkeypatch.setattr(service.queries, "verified_context", Mock(return_value=context))
     lookup = Mock(return_value=None)
@@ -76,7 +78,9 @@ def test_forged_new_topic_cannot_enter_promotion(monkeypatch) -> None:
     monkeypatch.setattr(service, "_topic_candidates", Mock(return_value=candidates))
     monkeypatch.setattr(service.queries, "_insert_node", insert_node)
 
-    with pytest.raises(ValueError, match="Topic promotion must reuse an active reference"):
+    with pytest.raises(
+        ValueError, match="Topic promotion must reuse an active reference"
+    ):
         with service.resolved_nodes_for_promotion(
             session,
             7,
