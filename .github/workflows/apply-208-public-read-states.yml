@@ -1,0 +1,51 @@
+name: Apply 208 public read states
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/apply-208-public-read-states.yml"
+      - ".github/validation/apply-208-public-read-states.py"
+      - "web/**"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Worker branch 받기
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: issue-208-public-read-states
+          persist-credentials: true
+      - name: Issue 208 변경 적용
+        run: |
+          python .github/validation/apply-208-public-read-states.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('web/src/useCursorPage.ts')
+          text = path.read_text()
+          text = text.replace('    nextCursor:\n', '    nextCursor,\n')
+          path.write_text(text)
+          PY
+      - name: Frontend 포맷 및 종합 검사
+        working-directory: web
+        run: |
+          npm ci
+          npx biome check --write src/App.tsx src/RelationPanel.tsx src/QuestionPanel.tsx src/InsightPanel.tsx src/PanelEvidence.tsx src/useCursorPage.ts src/usePeripheral.ts
+          npm run check
+      - name: Diff whitespace 검사
+        run: git diff --check
+      - name: 구현 커밋
+        run: |
+          if git diff --quiet -- web; then
+            echo "Issue 208 implementation already applied"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/src/App.tsx web/src/RelationPanel.tsx web/src/QuestionPanel.tsx web/src/InsightPanel.tsx web/src/PanelEvidence.tsx web/src/useCursorPage.ts web/src/usePeripheral.ts
+          git commit -m "feat: preserve public read state across failures"
+          git push origin HEAD:issue-208-public-read-states
