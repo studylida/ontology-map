@@ -1,0 +1,145 @@
+name: Issue 203 source patch
+
+on:
+  push:
+    branches:
+      - issue-203-topic-reference-lifecycle
+    paths:
+      - ".github/workflows/issue203-source-patch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: issue-203-topic-reference-lifecycle
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.7"
+      - name: Apply exact #203 source patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, got {count}: {old!r}")
+              target.write_text(text.replace(old, new))
+
+          exploration = "server/src/ontology_map/exploration.py"
+          replace_once(
+              exploration,
+              "from ontology_map.pagination import InvalidCursorError, decode_cursor, encode_cursor\n",
+              "from ontology_map.db.topic_exploration import (\n"
+              "    list_topic_adjacencies_for_members,\n"
+              ")\n"
+              "from ontology_map.pagination import InvalidCursorError, decode_cursor, encode_cursor\n",
+          )
+          replace_once(exploration, "MAX_DIRECT_NODES = 12\n", "MAX_DIRECT_NODES = 24\n")
+          replace_once(
+              exploration,
+              "    direct_rows = list_adjacencies(session, [center_node_id])\n",
+              "    direct_rows = [\n"
+              "        *list_adjacencies(session, [center_node_id]),\n"
+              "        *list_topic_adjacencies_for_members(session, [center_node_id]),\n"
+              "    ]\n",
+          )
+          replace_once(
+              exploration,
+              "    relation_rows = list_adjacencies(session, sorted(selected_ids))\n",
+              "    relation_rows = [\n"
+              "        *list_adjacencies(session, sorted(selected_ids)),\n"
+              "        *list_topic_adjacencies_for_members(session, sorted(selected_ids)),\n"
+              "    ]\n",
+          )
+
+          resolution = "server/src/ontology_map/entity_resolution.py"
+          replace_once(
+              resolution,
+              "from ontology_map.db import entity_resolution as queries\n",
+              "from ontology_map.db import entity_resolution as queries\n"
+              "from ontology_map.db.topic_references import find_topic_reference_by_name\n",
+          )
+          marker = "    return label in APPROVED_TOPICS and label in names\n\n\ndef _same_node("
+          helper = '''    return label in APPROVED_TOPICS and label in names\n\n\ndef _topic_candidates(session: Session, mention: EntityMention) -> CandidateSet:\n    label = mention.approved_topic_name or mention.text\n    if label not in APPROVED_TOPICS:\n        return CandidateSet((), False)\n    reference = find_topic_reference_by_name(session, label, active_only=True)\n    if reference is None:\n        return CandidateSet((), False)\n    type_id = queries.active_type_id(session, "TOPIC")\n    if type_id is None:\n        return CandidateSet((), False)\n    candidate = NodeCandidate(\n        node_id=reference.node_id,\n        node_type="TOPIC",\n        preferred_alias=reference.canonical_display_name,\n        aliases=(),\n        external_identifiers=(),\n    )\n    return CandidateSet(\n        (NodeRecord(candidate=candidate, node_type_id=type_id, usable=True),),\n        False,\n    )\n\n\ndef _same_node('''
+          replace_once(resolution, marker, helper)
+          replace_once(
+              resolution,
+              "    context = queries.verified_context(session, mention)\n"
+              "    identifiers = queries.identifier_matches(session, mention)\n",
+              "    context = queries.verified_context(session, mention)\n"
+              "    if mention.node_type == \"TOPIC\":\n"
+              "        candidates = _topic_candidates(session, mention)\n"
+              "        node_id = (\n"
+              "            candidates.nodes[0].candidate.node_id\n"
+              "            if len(candidates.nodes) == 1\n"
+              "            else None\n"
+              "        )\n"
+              "        decision: ResolutionStatus = (\n"
+              "            \"SAME\" if node_id is not None else \"UNRESOLVED\"\n"
+              "        )\n"
+              "        return Resolution(mention, decision, node_id, context, candidates, ())\n"
+              "    identifiers = queries.identifier_matches(session, mention)\n",
+          )
+          replace_once(
+              resolution,
+              "    if result.decision not in (\"SAME\", \"NEW\"):\n"
+              "        raise ValueError(\"unresolved mention cannot participate in promotion\")\n"
+              "    if queries.verified_context(session, result.mention) != result.context:\n",
+              "    if result.decision not in (\"SAME\", \"NEW\"):\n"
+              "        raise ValueError(\"unresolved mention cannot participate in promotion\")\n"
+              "    if queries.verified_context(session, result.mention) != result.context:\n",
+          )
+          # Insert the Topic-specific revalidation immediately after source-context recheck.
+          replace_once(
+              resolution,
+              "    if queries.verified_context(session, result.mention) != result.context:\n"
+              "        raise ValueError(\"source context changed after resolution\")\n"
+              "    identifiers = queries.identifier_matches(session, result.mention)\n",
+              "    if queries.verified_context(session, result.mention) != result.context:\n"
+              "        raise ValueError(\"source context changed after resolution\")\n"
+              "    if result.mention.node_type == \"TOPIC\":\n"
+              "        current = _topic_candidates(session, result.mention)\n"
+              "        if current != result.candidates:\n"
+              "            raise ValueError(\"Topic reference changed after resolution\")\n"
+              "        if result.decision != \"SAME\" or _same_node(\n"
+              "            result.mention, result.node_id, current.nodes\n"
+              "        ) is None:\n"
+              "            raise ValueError(\"Topic promotion must reuse an active reference\")\n"
+              "        return\n"
+              "    identifiers = queries.identifier_matches(session, result.mention)\n",
+          )
+          replace_once(
+              resolution,
+              "            _usable_name(result.mention.text)\n"
+              "            and result.mention.text in item.source.quote_text\n",
+              "            result.mention.node_type != \"TOPIC\"\n"
+              "            and _usable_name(result.mention.text)\n"
+              "            and result.mention.text in item.source.quote_text\n",
+          )
+          PY
+          uv sync --project server --frozen
+          uv run --project server --frozen ruff format \
+            server/src/ontology_map/exploration.py \
+            server/src/ontology_map/entity_resolution.py
+          uv run --project server --frozen ruff check \
+            server/src/ontology_map/exploration.py \
+            server/src/ontology_map/entity_resolution.py
+      - name: Commit focused patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            exit 0
+          fi
+          git add server/src/ontology_map/exploration.py server/src/ontology_map/entity_resolution.py
+          git commit -m "feat: integrate Topic reference lifecycle reads"
+          git push origin HEAD:issue-203-topic-reference-lifecycle
