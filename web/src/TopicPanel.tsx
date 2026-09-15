@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import styles from "./App.module.css";
-import { fetchPanelReport, type KnowledgeNode, type TimeRange } from "./data";
+import {
+  fetchPanelReport,
+  type KnowledgeNode,
+  type KnowledgeRelation,
+  type TimeRange,
+} from "./data";
+import type { EvidenceSelection } from "./RelationPanel";
 import topicStyles from "./Topic.module.css";
 import type { TopicExplorationView } from "./topicData";
 
@@ -10,6 +16,7 @@ interface TopicPanelProps {
   onClose: () => void;
   onSelect: (nodeId: string) => void;
   onSelectInsight: (nodeId: string) => void;
+  onEvidence: (selection: EvidenceSelection) => void;
 }
 
 function byName(left: KnowledgeNode, right: KnowledgeNode) {
@@ -23,14 +30,50 @@ function byRecentEvidence(left: KnowledgeNode, right: KnowledgeNode) {
   );
 }
 
+function MemberActions({
+  node,
+  relation,
+  topicName,
+  onSelect,
+  onEvidence,
+}: {
+  node: KnowledgeNode;
+  relation: KnowledgeRelation | undefined;
+  topicName: string;
+  onSelect: (nodeId: string) => void;
+  onEvidence: (selection: EvidenceSelection) => void;
+}) {
+  return (
+    <span>
+      <button type="button" onClick={() => onSelect(node.id)}>
+        Node 보기
+      </button>
+      {relation && (
+        <button
+          type="button"
+          onClick={() =>
+            onEvidence({
+              id: relation.id,
+              label: `${node.name} · ${relation.label} · ${topicName}`,
+            })
+          }
+        >
+          관계 근거
+        </button>
+      )}
+    </span>
+  );
+}
+
 export function TopicPanel({
   view,
   timeRange,
   onClose,
   onSelect,
   onSelectInsight,
+  onEvidence,
 }: TopicPanelProps) {
-  const { rich, remainingRecent, older, groups } = useMemo(() => {
+  const { rich, remainingRecent, older, groups, relationByMember } = useMemo(() => {
     const members = view.nodes.filter((node) => node.id !== view.centerId);
     const recent = members
       .filter((node) => node.activityEvidenceGroupCount > 0)
@@ -49,11 +92,18 @@ export function TopicPanel({
       current.push(node);
       grouped.set(node.kind, current);
     }
+    const relations = new Map<string, KnowledgeRelation>();
+    for (const relation of view.relations) {
+      const memberId =
+        relation.source === view.centerId ? relation.target : relation.source;
+      relations.set(memberId, relation);
+    }
     return {
       rich: richNodes,
       remainingRecent: recent.filter((node) => !richIds.has(node.id)),
       older: olderNodes,
       groups: grouped,
+      relationByMember: relations,
     };
   }, [view]);
   const [insightTitles, setInsightTitles] = useState<Map<string, string>>(
@@ -143,6 +193,13 @@ export function TopicPanel({
                           </span>
                           <small>{node.kind}</small>
                         </button>
+                        <MemberActions
+                          node={node}
+                          relation={relationByMember.get(node.id)}
+                          topicName={view.topic.name}
+                          onSelect={onSelect}
+                          onEvidence={onEvidence}
+                        />
                         {insightTitle && (
                           <button
                             type="button"
@@ -169,14 +226,19 @@ export function TopicPanel({
                 <h2>최근 근거가 있는 연결</h2>
                 <div className={topicStyles.topicMemberList}>
                   {remainingRecent.map((node) => (
-                    <button
-                      type="button"
-                      key={node.id}
-                      onClick={() => onSelect(node.id)}
-                    >
-                      <span>{node.name}</span>
-                      <small>{node.kind}</small>
-                    </button>
+                    <article key={node.id}>
+                      <button type="button" onClick={() => onSelect(node.id)}>
+                        <span>{node.name}</span>
+                        <small>{node.kind}</small>
+                      </button>
+                      <MemberActions
+                        node={node}
+                        relation={relationByMember.get(node.id)}
+                        topicName={view.topic.name}
+                        onSelect={onSelect}
+                        onEvidence={onEvidence}
+                      />
+                    </article>
                   ))}
                 </div>
               </section>
@@ -190,13 +252,18 @@ export function TopicPanel({
                     <h3>{kind}</h3>
                     <div className={topicStyles.topicMemberList}>
                       {nodes.map((node) => (
-                        <button
-                          type="button"
-                          key={node.id}
-                          onClick={() => onSelect(node.id)}
-                        >
-                          <span>{node.name}</span>
-                        </button>
+                        <article key={node.id}>
+                          <button type="button" onClick={() => onSelect(node.id)}>
+                            <span>{node.name}</span>
+                          </button>
+                          <MemberActions
+                            node={node}
+                            relation={relationByMember.get(node.id)}
+                            topicName={view.topic.name}
+                            onSelect={onSelect}
+                            onEvidence={onEvidence}
+                          />
+                        </article>
                       ))}
                     </div>
                   </div>
