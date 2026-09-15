@@ -4,12 +4,16 @@ import type { ExplorationView, TimeRange } from "./data";
 import { InsightPanel, ReportDialog } from "./InsightPanel";
 import { PanelEvidence } from "./PanelEvidence";
 import { QuestionPanel } from "./QuestionPanel";
+import type { EvidenceSelection } from "./RelationPanel";
 
 interface DetailPanelProps {
   view: ExplorationView;
+  loadedGraph: ExplorationView | null;
+  hiddenKinds: readonly string[];
   timeRange: TimeRange;
   onClose: () => void;
   onSelect: (nodeId: string) => void;
+  onEvidence: (selection: EvidenceSelection) => void;
   initialTab?: 0 | 1 | 2;
 }
 
@@ -21,9 +25,12 @@ const recommendationStatusLabel = {
 
 function DetailPanelContent({
   view,
+  loadedGraph,
+  hiddenKinds,
   timeRange,
   onClose,
   onSelect,
+  onEvidence,
   initialTab = 0,
 }: DetailPanelProps) {
   const [tab, setTab] = useState<0 | 1 | 2>(initialTab);
@@ -94,6 +101,8 @@ function DetailPanelContent({
               nodeId={center.id}
               range={timeRange}
               onReport={setReportSection}
+              onEvidence={onEvidence}
+              onSelect={onSelect}
             />
             <div className={styles.sectionHeading}>
               <h2>이어서 탐색</h2>
@@ -136,7 +145,17 @@ function DetailPanelContent({
             )}
           </>
         )}
-        {tab === 1 && <PanelEvidence nodeId={center.id} range={timeRange} />}
+        {tab === 1 && (
+          <PanelEvidence
+            nodeId={center.id}
+            nodeName={center.name}
+            range={timeRange}
+            onEvidence={onEvidence}
+            onSelect={onSelect}
+            loadedGraph={loadedGraph}
+            hiddenKinds={hiddenKinds}
+          />
+        )}
         {tab === 2 && (
           <InsightPanel
             key={`${center.id}:${timeRange}`}
@@ -152,6 +171,8 @@ function DetailPanelContent({
           timeRange={timeRange}
           sectionId={reportSection}
           onClose={() => setReportSection(null)}
+          onEvidence={onEvidence}
+          onSelect={onSelect}
         />
       )}
     </aside>
