@@ -149,8 +149,10 @@ def resolve_mention(
             if len(candidates.nodes) == 1
             else None
         )
-        decision: ResolutionStatus = "SAME" if node_id is not None else "UNRESOLVED"
-        return Resolution(mention, decision, node_id, context, candidates, ())
+        topic_decision: ResolutionStatus = (
+            "SAME" if node_id is not None else "UNRESOLVED"
+        )
+        return Resolution(mention, topic_decision, node_id, context, candidates, ())
     identifiers = queries.identifier_matches(session, mention)
     candidates = CandidateSet((), False)
     node_id = None
