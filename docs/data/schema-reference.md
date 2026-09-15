@@ -4,7 +4,7 @@
 
 이 문서는 [SQLAlchemy metadata](../../server/src/ontology_map/db/schema.py)의 실제 table, column, constraint와 index를 이름순으로 보여 주는 생성 결과다. 데이터 의미와 수명주기는 [논리 스키마](logical-schema.md), PostgreSQL 공통 표현 규칙은 [물리 스키마](physical-schema.md)가 소유한다.
 
-- table 수: 49
+- table 수: 50
 - 생성 명령: `uv run --project server --frozen python scripts/check_docs.py --write`
 - 검사 명령: `uv run --project server --frozen python scripts/check_docs.py --check`
 
@@ -59,6 +59,7 @@
 - [`relation_type_revision`](#relation_type_revision)
 - [`search_document_basis`](#search_document_basis)
 - [`source_document`](#source_document)
+- [`topic_reference`](#topic_reference)
 
 ## `agent_attempt`
 
@@ -604,7 +605,7 @@ Claim이 관계를 지지하거나 반박하는 의미 연결. 근거 강도와 
 
 ## `knowledge_item`
 
-node·relation·claim의 공유 ID, 현재 지식 상태와 생성 batch를 관리하는 상위 엔터티. 정확히 한 subtype은 승격 서비스가 커밋 전에 검증한다.
+node·relation·claim의 공유 ID와 수명주기를 관리하는 상위 엔터티. EVIDENCE_BACKED는 기존 state·promotion을 필수로 사용하고, PRODUCT_REFERENCE는 승인된 reference Node에만 제한한다.
 
 ### Columns
 
@@ -612,8 +613,9 @@ node·relation·claim의 공유 ID, 현재 지식 상태와 생성 batch를 관�
 | --- | --- | --- | --- | --- | --- |
 | `knowledge_item_id` | `BIGINT` | 아니요 | — | `GENERATED ALWAYS AS IDENTITY` | — |
 | `item_kind` | `TEXT` | 아니요 | — | — | — |
-| `current_state` | `TEXT` | 아니요 | — | — | EVIDENCE_VERIFIED는 출처와 구조 검사를 통과했다는 뜻이며 객관적 사실 확정이나 사람 승인을 뜻하지 않는다. |
-| `promotion_batch_id` | `BIGINT` | 아니요 | — | — | — |
+| `lifecycle_kind` | `TEXT` | 아니요 | `'EVIDENCE_BACKED'` | — | EVIDENCE_BACKED는 기존 promotion·state·Evidence/publication 수명주기, PRODUCT_REFERENCE는 승인된 제품 reference Node 수명주기다. |
+| `current_state` | `TEXT` | 예 | — | — | EVIDENCE_VERIFIED는 출처와 구조 검사를 통과했다는 뜻이며 객관적 사실 확정이나 사람 승인을 뜻하지 않는다. |
+| `promotion_batch_id` | `BIGINT` | 예 | — | — | — |
 | `created_at` | `TIMESTAMP WITH TIME ZONE` | 아니요 | `CURRENT_TIMESTAMP` | — | — |
 
 ### Constraints
@@ -623,6 +625,8 @@ node·relation·claim의 공유 ID, 현재 지식 상태와 생성 batch를 관�
 | CHECK | `ck_knowledge_item__created_at_finite` | `CHECK (isfinite(created_at))` |
 | CHECK | `ck_knowledge_item__current_state` | `CHECK (current_state IN ('EVIDENCE_VERIFIED', 'HUMAN_VERIFIED', 'ON_HOLD', 'REJECTED'))` |
 | CHECK | `ck_knowledge_item__item_kind` | `CHECK (item_kind IN ('NODE', 'RELATION', 'CLAIM'))` |
+| CHECK | `ck_knowledge_item__lifecycle_kind` | `CHECK (lifecycle_kind IN ('EVIDENCE_BACKED', 'PRODUCT_REFERENCE'))` |
+| CHECK | `ck_knowledge_item__lifecycle_shape` | `CHECK ((lifecycle_kind = 'EVIDENCE_BACKED' AND current_state IS NOT NULL AND promotion_batch_id IS NOT NULL) OR (lifecycle_kind = 'PRODUCT_REFERENCE' AND item_kind = 'NODE' AND current_state IS NULL AND promotion_batch_id IS NULL))` |
 | FOREIGN KEY | `fk_knowledge_item__promotion_batch` | `FOREIGN KEY (promotion_batch_id) REFERENCES promotion_batch (promotion_batch_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
 | PRIMARY KEY | `pk_knowledge_item` | `PRIMARY KEY (knowledge_item_id)` |
 
@@ -1688,3 +1692,33 @@ alias가 확인된 원문 위치를 다대다로 연결한다.
 | --- | --- | --- | --- |
 | `ix_source_document__body_hash` | 아니요 | `body_hash` | — |
 | `ix_source_document__evidence_group` | 아니요 | `evidence_group_id, source_document_id` | — |
+
+## `topic_reference`
+
+TOPIC Node identity에 연결된 제품 controlled vocabulary 정의. canonical 이름과 active mapping 여부의 source of truth이며 Evidence가 아니다.
+
+### Columns
+
+| 이름 | PostgreSQL type | nullable | default | identity | 설명 |
+| --- | --- | --- | --- | --- | --- |
+| `node_id` | `BIGINT` | 아니요 | — | — | — |
+| `topic_code` | `TEXT` | 아니요 | — | — | — |
+| `canonical_display_name` | `TEXT` | 아니요 | — | — | — |
+| `is_active` | `BOOLEAN` | 아니요 | `false` | — | 새 HAS_TOPIC mapping의 target으로 사용할 수 있는지 나타낸다. 비활성화는 기존 relation의 의미·공개 여부를 바꾸지 않는다. |
+
+### Constraints
+
+| 종류 | 이름 | 정의 |
+| --- | --- | --- |
+| CHECK | `ck_topic_reference__approved_definition` | `CHECK ((topic_code = 'SEMICONDUCTOR' AND canonical_display_name = '반도체') OR (topic_code = 'MEMORY_SEMICONDUCTOR' AND canonical_display_name = '메모리 반도체') OR (topic_code = 'ADVANCED_PACKAGING' AND canonical_display_name = '첨단 패키징') OR (topic_code = 'ARTIFICIAL_INTELLIGENCE' AND canonical_display_name = '인공지능') OR (topic_code = 'DATA_CENTER' AND canonical_display_name = '데이터센터') OR (topic_code = 'MANUFACTURING_PROCESS' AND canonical_display_name = '제조 공정') OR (topic_code = 'INVESTMENT' AND canonical_display_name = '투자') OR (topic_code = 'COMMERCIALIZATION' AND canonical_display_name = '상용화') OR (topic_code = 'REGULATION_POLICY' AND canonical_display_name = '규제·정책'))` |
+| CHECK | `ck_topic_reference__code_nonblank` | `CHECK (btrim(topic_code) <> '')` |
+| CHECK | `ck_topic_reference__display_name_nonblank` | `CHECK (btrim(canonical_display_name) <> '')` |
+| FOREIGN KEY | `fk_topic_reference__node` | `FOREIGN KEY (node_id) REFERENCES node (node_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| PRIMARY KEY | `pk_topic_reference` | `PRIMARY KEY (node_id)` |
+| UNIQUE | `uq_topic_reference__code` | `UNIQUE (topic_code)` |
+
+### Indexes
+
+| 이름 | unique | column 또는 expression | 조건 |
+| --- | --- | --- | --- |
+| — | — | — | — |
