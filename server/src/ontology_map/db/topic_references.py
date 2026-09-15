@@ -9,11 +9,10 @@ from dataclasses import dataclass
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from ontology_map.db.schema import knowledge_item, node, node_type
+from ontology_map.db.schema import knowledge_item, node, node_type, topic_reference
 from ontology_map.db.topic_reference_schema import (
     APPROVED_TOPIC_DEFINITIONS,
     PRODUCT_REFERENCE,
-    topic_reference,
 )
 
 _APPROVED_BY_CODE = dict(APPROVED_TOPIC_DEFINITIONS)
@@ -40,9 +39,7 @@ def _row(value: sa.RowMapping) -> TopicReferenceRow:
 def _validate_definition(topic_code: str, canonical_display_name: str) -> None:
     expected = _APPROVED_BY_CODE.get(topic_code)
     if expected is None or expected != canonical_display_name:
-        raise ValueError(
-            "Topic reference definition is not in the approved #203 contract"
-        )
+        raise ValueError("Topic reference definition is not in the approved #203 contract")
 
 
 def get_topic_reference(session: Session, node_id: int) -> TopicReferenceRow | None:
