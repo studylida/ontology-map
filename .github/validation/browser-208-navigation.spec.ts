@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+test.use({ baseURL: "http://127.0.0.1:4173" });
+
 const A = "9223372036854775807";
 const B = "9223372036854775806";
 const names: Record<string, string> = { [A]: "SK하이닉스", [B]: "HBF" };
