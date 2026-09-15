@@ -121,7 +121,10 @@ def test_topic_api_lists_active_and_inactive_references(monkeypatch) -> None:
     response = topic_api.read_topic_references(Mock())
 
     assert [item.node_id for item in response.items] == ["77", "88"]
-    assert [item.canonical_display_name for item in response.items] == ["반도체", "투자"]
+    assert [item.canonical_display_name for item in response.items] == [
+        "반도체",
+        "투자",
+    ]
     assert [item.is_active for item in response.items] == [True, False]
 
 
