@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./App.module.css";
-import { fetchPanelReport, type KnowledgeNode, type TimeRange } from "./data";
+import {
+  APIRequestError,
+  fetchPanelReport,
+  type KnowledgeNode,
+  type TimeRange,
+} from "./data";
+import { PageNotice } from "./RelationPanel";
 import topicStyles from "./Topic.module.css";
 import type { TopicExplorationView } from "./topicData";
 
@@ -20,6 +26,78 @@ function byRecentEvidence(left: KnowledgeNode, right: KnowledgeNode) {
   return (
     right.activityEvidenceGroupCount - left.activityEvidenceGroupCount ||
     byName(left, right)
+  );
+}
+
+function TopicInsightTitle({
+  nodeId,
+  timeRange,
+  onSelect,
+}: {
+  nodeId: string;
+  timeRange: TimeRange;
+  onSelect: () => void;
+}) {
+  const [title, setTitle] = useState<string | null>(null);
+  const [error, setError] = useState<APIRequestError | null>(null);
+  const [retrySuccess, setRetrySuccess] = useState(false);
+  const controllerRef = useRef<AbortController | null>(null);
+
+  const load = useCallback(
+    async (retry = false) => {
+      controllerRef.current?.abort();
+      const controller = new AbortController();
+      controllerRef.current = controller;
+      setTitle(null);
+      setError(null);
+      setRetrySuccess(false);
+      try {
+        const page = await fetchPanelReport(
+          nodeId,
+          timeRange,
+          false,
+          controller.signal,
+        );
+        if (controller.signal.aborted) return;
+        setTitle(page.items[0]?.title ?? null);
+        if (retry) setRetrySuccess(true);
+      } catch (caught) {
+        if (controller.signal.aborted) return;
+        setError(
+          caught instanceof APIRequestError
+            ? caught
+            : new APIRequestError("NETWORK_ERROR", 0, true),
+        );
+      }
+    },
+    [nodeId, timeRange],
+  );
+
+  useEffect(() => {
+    void load();
+    return () => controllerRef.current?.abort();
+  }, [load]);
+
+  return (
+    <>
+      <PageNotice
+        loading={false}
+        error={error}
+        empty={false}
+        retrySuccess={retrySuccess}
+        onRetry={() => void load(true)}
+      />
+      {title && (
+        <button
+          type="button"
+          className={topicStyles.topicInsightLink}
+          onClick={onSelect}
+        >
+          {title}
+          <span aria-hidden="true"> ›</span>
+        </button>
+      )}
+    </>
   );
 }
 
@@ -56,42 +134,6 @@ export function TopicPanel({
       groups: grouped,
     };
   }, [view]);
-  const [insightTitles, setInsightTitles] = useState<Map<string, string>>(
-    new Map(),
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setInsightTitles(new Map());
-    void Promise.all(
-      rich.map(async (node) => {
-        try {
-          const page = await fetchPanelReport(
-            node.id,
-            timeRange,
-            false,
-            controller.signal,
-          );
-          return [node.id, page.items[0]?.title ?? null] as const;
-        } catch (error) {
-          if (controller.signal.aborted) throw error;
-          return [node.id, null] as const;
-        }
-      }),
-    )
-      .then((rows) => {
-        if (controller.signal.aborted) return;
-        setInsightTitles(
-          new Map(
-            rows.flatMap(([nodeId, title]) =>
-              title === null ? [] : [[nodeId, title] as const],
-            ),
-          ),
-        );
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, [rich, timeRange]);
 
   const periodLabel = timeRange === "90d" ? "최근 90일" : "최근 1년";
 
@@ -124,38 +166,30 @@ export function TopicPanel({
               <h2>최근 근거가 많은 연결</h2>
               {rich.length > 0 ? (
                 <div className={topicStyles.topicRichCards}>
-                  {rich.map((node) => {
-                    const insightTitle = insightTitles.get(node.id);
-                    return (
-                      <article
-                        key={node.id}
-                        className={topicStyles.topicRichCard}
-                        data-kind={node.kind}
+                  {rich.map((node) => (
+                    <article
+                      key={node.id}
+                      className={topicStyles.topicRichCard}
+                      data-kind={node.kind}
+                    >
+                      <button
+                        type="button"
+                        className={topicStyles.topicMemberButton}
+                        onClick={() => onSelect(node.id)}
                       >
-                        <button
-                          type="button"
-                          className={topicStyles.topicMemberButton}
-                          onClick={() => onSelect(node.id)}
-                        >
-                          <span>
-                            <i className={styles.nodeTypeDot} />
-                            <strong>{node.name}</strong>
-                          </span>
-                          <small>{node.kind}</small>
-                        </button>
-                        {insightTitle && (
-                          <button
-                            type="button"
-                            className={topicStyles.topicInsightLink}
-                            onClick={() => onSelectInsight(node.id)}
-                          >
-                            {insightTitle}
-                            <span aria-hidden="true"> ›</span>
-                          </button>
-                        )}
-                      </article>
-                    );
-                  })}
+                        <span>
+                          <i className={styles.nodeTypeDot} />
+                          <strong>{node.name}</strong>
+                        </span>
+                        <small>{node.kind}</small>
+                      </button>
+                      <TopicInsightTitle
+                        nodeId={node.id}
+                        timeRange={timeRange}
+                        onSelect={() => onSelectInsight(node.id)}
+                      />
+                    </article>
+                  ))}
                 </div>
               ) : (
                 <p className={styles.empty}>
