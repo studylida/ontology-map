@@ -20,14 +20,26 @@ jobs:
         with:
           ref: issue-208-public-read-states
           persist-credentials: true
+          fetch-depth: 0
+      - name: 최신 206 head 반영
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin issue-206-reference-topic-frontend
+          git merge --no-edit origin/issue-206-reference-topic-frontend
       - name: Issue 208 변경 적용
         run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/validation/apply-208-public-read-states.py')
+          text = path.read_text().replace('    if count != 1:\n', '    if count < 1:\n')
+          path.write_text(text)
+          PY
           python .github/validation/apply-208-public-read-states.py
           python - <<'PY'
           from pathlib import Path
           path = Path('web/src/useCursorPage.ts')
-          text = path.read_text()
-          text = text.replace('    nextCursor:\n', '    nextCursor,\n')
+          text = path.read_text().replace('    nextCursor:\n', '    nextCursor,\n')
           path.write_text(text)
           PY
       - name: Frontend 포맷 및 종합 검사
@@ -42,10 +54,9 @@ jobs:
         run: |
           if git diff --quiet -- web; then
             echo "Issue 208 implementation already applied"
+            git push origin HEAD:issue-208-public-read-states
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add web/src/App.tsx web/src/RelationPanel.tsx web/src/QuestionPanel.tsx web/src/InsightPanel.tsx web/src/PanelEvidence.tsx web/src/useCursorPage.ts web/src/usePeripheral.ts
           git commit -m "feat: preserve public read state across failures"
           git push origin HEAD:issue-208-public-read-states
