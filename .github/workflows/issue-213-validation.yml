@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   autofix:
-    name: Issue 213 web format
+    name: Issue 213 format and contract fixtures
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -27,12 +27,41 @@ jobs:
           node-version: "24"
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - name: Format
+      - name: Update approved API shape regression
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("server/tests/test_relations.py")
+          text = path.read_text()
+          old = '''    assert set(evidence_item) == {
+              "claim_text",
+              "stance",
+              "source",
+              "quote_text",
+              "locator",
+          }
+'''
+          new = '''    assert set(evidence_item) == {
+              "item_key",
+              "claim_text",
+              "modality",
+              "stance",
+              "source",
+              "quote_text",
+              "locator",
+          }
+'''
+          if old in text:
+              path.write_text(text.replace(old, new, 1))
+          elif '"item_key"' not in text[text.index("evidence_item ="):text.index("serialized =", text.index("evidence_item ="))]:
+              raise SystemExit("relation evidence contract assertion not found")
+          PY
+      - name: Format web
         working-directory: web
         run: |
           npm ci
           npx biome check --write .
-      - name: Commit formatting
+      - name: Commit generated fixes
         run: |
           git diff --check
           if git diff --quiet; then
@@ -40,8 +69,8 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add web/src
-          git commit -m "chore: autoformat issue 213 web"
+          git add web/src server/tests/test_relations.py
+          git commit -m "chore: sync issue 213 contract fixtures"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
   web:
