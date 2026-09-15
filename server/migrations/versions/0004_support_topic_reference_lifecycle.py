@@ -85,18 +85,15 @@ def _create_integrity_functions_and_triggers() -> None:
                 SELECT 1 FROM topic_reference WHERE node_id = p_node_id
             ) INTO v_has_reference;
 
-            IF v_node_type_code = 'TOPIC' THEN
+            IF v_lifecycle_kind = 'PRODUCT_REFERENCE' OR v_has_reference THEN
                 IF v_item_kind <> 'NODE'
+                   OR v_node_type_code <> 'TOPIC'
                    OR v_lifecycle_kind <> 'PRODUCT_REFERENCE'
                    OR NOT v_has_reference THEN
                     RAISE EXCEPTION
-                        'TOPIC node % must use PRODUCT_REFERENCE lifecycle and topic_reference',
+                        'PRODUCT_REFERENCE must be a TOPIC node with topic_reference: %',
                         p_node_id;
                 END IF;
-            ELSIF v_lifecycle_kind = 'PRODUCT_REFERENCE' OR v_has_reference THEN
-                RAISE EXCEPTION
-                    'only TOPIC nodes may use PRODUCT_REFERENCE lifecycle: %',
-                    p_node_id;
             END IF;
         END;
         $$
@@ -287,26 +284,6 @@ def _drop_integrity_functions_and_triggers() -> None:
 
 
 def upgrade() -> None:
-    bind = op.get_bind()
-    legacy_topic_nodes = bind.scalar(
-        sa.text(
-            """
-            SELECT EXISTS (
-                SELECT 1
-                  FROM node AS n
-                  JOIN node_type AS nt ON nt.node_type_id = n.node_type_id
-                 WHERE nt.node_type_code = 'TOPIC'
-            )
-            """
-        )
-    )
-    if legacy_topic_nodes:
-        raise RuntimeError(
-            "0003 DB에 기존 TOPIC node가 있습니다. #203은 evidence-backed TOPIC을 "
-            "제품 reference로 추측 변환하지 않으므로 명시적 reconciliation 없이 "
-            "0004로 승격할 수 없습니다."
-        )
-
     op.add_column(
         "knowledge_item",
         sa.Column(

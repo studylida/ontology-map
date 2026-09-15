@@ -361,7 +361,7 @@ def test_existing_evidence_data_round_trips_without_reclassification() -> None:
         engine.dispose()
 
 
-def test_legacy_topic_node_upgrade_fails_without_partial_state() -> None:
+def test_existing_evidence_topic_is_preserved_without_reclassification() -> None:
     _upgrade("0003")
     engine = _engine()
     try:
@@ -400,22 +400,39 @@ def test_legacy_topic_node_upgrade_fails_without_partial_state() -> None:
                 {"node_id": topic_node_id, "type_id": topic_type_id},
             )
 
-        with pytest.raises(RuntimeError, match="기존 TOPIC node"):
-            _upgrade("0004")
+        _upgrade("0004")
 
         with engine.connect() as connection:
-            assert _version(connection) == "0003"
-            assert not _table_exists(connection, "topic_reference")
-            assert not _column_exists(
-                connection,
-                table_name="knowledge_item",
-                column_name="lifecycle_kind",
+            assert _version(connection) == "0004"
+            row = connection.execute(
+                sa.text(
+                    """
+                    SELECT lifecycle_kind, current_state, promotion_batch_id
+                    FROM knowledge_item
+                    WHERE knowledge_item_id = :id
+                    """
+                ),
+                {"id": topic_node_id},
+            ).one()
+            assert row.lifecycle_kind == "EVIDENCE_BACKED"
+            assert row.current_state == "EVIDENCE_VERIFIED"
+            assert int(row.promotion_batch_id) == batch_id
+            assert (
+                connection.scalar(
+                    sa.text("SELECT count(*) FROM topic_reference WHERE node_id = :id"),
+                    {"id": topic_node_id},
+                )
+                == 0
             )
+
+        _downgrade("0003")
+        with engine.connect() as connection:
+            assert _version(connection) == "0003"
             assert (
                 connection.scalar(
                     sa.text(
                         "SELECT current_state FROM knowledge_item "
-                        "WHERE knowledge_item_id=:id"
+                        "WHERE knowledge_item_id = :id"
                     ),
                     {"id": topic_node_id},
                 )

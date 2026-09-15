@@ -215,32 +215,24 @@ def test_generic_names_do_not_trigger_creation_or_name_judgment(prepared, name):
     agent.assert_not_called()
 
 
-def test_topic_reuses_only_approved_target_and_does_not_create(prepared):
-    prepared[2].return_value = CandidateSet(
-        (record(node_type="TOPIC", aliases=("인공지능",)),), False
-    )
+def test_topic_reuses_only_active_reference_and_does_not_call_agent(
+    prepared, monkeypatch
+):
+    reference = Mock(node_id=10, canonical_display_name="인공지능")
+    reference_lookup = Mock(return_value=reference)
+    monkeypatch.setattr(service, "find_topic_reference_by_name", reference_lookup)
     target = mention(text="AI", node_type="TOPIC", approved_topic_name="인공지능")
-    same = service.resolve_mention(
-        Mock(),
-        target,
-        Mock(
-            return_value={
-                "decision": "SAME",
-                "node_id": 10,
-            }
-        ),
-    )
-    new = service.resolve_mention(
-        Mock(),
-        target,
-        Mock(
-            return_value={
-                "decision": "NEW",
-                "node_id": None,
-            }
-        ),
-    )
-    assert same.decision == "SAME" and new.decision == "UNRESOLVED"
+    agent = Mock(side_effect=AssertionError("Topic resolution must be deterministic"))
+
+    same = service.resolve_mention(Mock(), target, agent)
+
+    assert same.decision == "SAME"
+    assert same.node_id == 10
+    assert same.candidates.nodes[0].candidate.preferred_alias == "인공지능"
+    assert same.candidates.nodes[0].candidate.aliases == ()
+    assert reference_lookup.call_args.args[1] == "인공지능"
+    assert reference_lookup.call_args.kwargs == {"active_only": True}
+    agent.assert_not_called()
 
 
 @pytest.mark.parametrize(
