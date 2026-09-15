@@ -1,0 +1,40 @@
+name: Issue 203 schema refactor run
+
+on:
+  push:
+    branches:
+      - issue-203-topic-reference-lifecycle
+    paths:
+      - ".github/workflows/issue203-schema-refactor-run.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: issue-203-topic-reference-lifecycle
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.7"
+      - name: Apply canonical metadata refactor
+        run: |
+          python scripts/issue203_schema_refactor_temp.py
+          uv sync --project server --frozen
+          uv run --project server --frozen ruff format server/src/ontology_map/db/schema.py
+          uv run --project server --frozen ruff check server
+          uv run --project server --frozen mypy --config-file server/pyproject.toml server/src/ontology_map
+          uv run --project server --frozen python scripts/check_docs.py --write
+          uv run --project server --frozen python scripts/check_docs.py --check
+          git diff --check
+      - name: Commit canonical metadata and generated docs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/src/ontology_map/db/schema.py docs/data/schema-reference.md
+          git commit -m "refactor: make Topic reference metadata canonical"
+          git push origin HEAD:issue-203-topic-reference-lifecycle
