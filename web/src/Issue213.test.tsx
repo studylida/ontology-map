@@ -196,7 +196,9 @@ describe("Issue #213 relation verification UX", () => {
     expect(disclosure.textContent).not.toContain("충돌");
     expect(screen.getByText("지지")).toBeTruthy();
     expect(screen.getByText("반박")).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "관계 근거" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "관계 근거" })).toHaveLength(
+      2,
+    );
 
     fireEvent.click(screen.getAllByRole("button", { name: "관계 근거" })[1]);
     expect(onEvidence).toHaveBeenCalledWith(
@@ -212,12 +214,16 @@ describe("Issue #213 relation verification UX", () => {
     });
     relationSubviewOpener.focus();
     fireEvent.click(relationSubviewOpener);
-    expect(await screen.findByRole("heading", { name: "전체 관계" })).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: "전체 관계" }),
+    ).toBeTruthy();
     expect(screen.getByText("현재 지도에 포함됨")).toBeTruthy();
     fireEvent.click(
       screen.getByRole("button", { name: "주장과 근거로 돌아가기" }),
     );
-    await waitFor(() => expect(document.activeElement).toBe(relationSubviewOpener));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(relationSubviewOpener),
+    );
     expect(screen.getByText("Claim 직접 근거")).toBeTruthy();
   });
 
@@ -269,7 +275,9 @@ describe("Issue #213 relation verification UX", () => {
       canonical_url: "https://example.com/shared",
     };
     const locator = { paragraph_number: 1, start_char: 0, end_char: 5 };
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
     request.mockResolvedValue(
       response({
         items: [
