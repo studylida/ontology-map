@@ -36,6 +36,15 @@ def _row(value: sa.RowMapping) -> TopicReferenceRow:
     )
 
 
+def _projection() -> tuple[sa.ColumnElement[object], ...]:
+    return (
+        topic_reference.c.node_id,
+        topic_reference.c.topic_code,
+        topic_reference.c.canonical_display_name,
+        topic_reference.c.is_active,
+    )
+
+
 def _validate_definition(topic_code: str, canonical_display_name: str) -> None:
     expected = _APPROVED_BY_CODE.get(topic_code)
     if expected is None or expected != canonical_display_name:
@@ -44,15 +53,22 @@ def _validate_definition(topic_code: str, canonical_display_name: str) -> None:
         )
 
 
+def list_topic_references(session: Session) -> list[TopicReferenceRow]:
+    """Return every product Topic reference, including inactive definitions."""
+
+    values = session.execute(
+        sa.select(*_projection()).order_by(
+            topic_reference.c.canonical_display_name.asc(),
+            topic_reference.c.node_id.asc(),
+        )
+    ).mappings()
+    return [_row(value) for value in values]
+
+
 def get_topic_reference(session: Session, node_id: int) -> TopicReferenceRow | None:
     value = (
         session.execute(
-            sa.select(
-                topic_reference.c.node_id,
-                topic_reference.c.topic_code,
-                topic_reference.c.canonical_display_name,
-                topic_reference.c.is_active,
-            ).where(topic_reference.c.node_id == node_id)
+            sa.select(*_projection()).where(topic_reference.c.node_id == node_id)
         )
         .mappings()
         .one_or_none()
@@ -69,12 +85,7 @@ def find_topic_reference_by_name(
     topic_code = _APPROVED_BY_NAME.get(canonical_display_name)
     if topic_code is None:
         return None
-    statement = sa.select(
-        topic_reference.c.node_id,
-        topic_reference.c.topic_code,
-        topic_reference.c.canonical_display_name,
-        topic_reference.c.is_active,
-    ).where(
+    statement = sa.select(*_projection()).where(
         topic_reference.c.topic_code == topic_code,
         topic_reference.c.canonical_display_name == canonical_display_name,
     )
@@ -99,12 +110,7 @@ def ensure_topic_reference(
 
     existing = (
         session.execute(
-            sa.select(
-                topic_reference.c.node_id,
-                topic_reference.c.topic_code,
-                topic_reference.c.canonical_display_name,
-                topic_reference.c.is_active,
-            ).where(topic_reference.c.topic_code == topic_code)
+            sa.select(*_projection()).where(topic_reference.c.topic_code == topic_code)
         )
         .mappings()
         .one_or_none()
