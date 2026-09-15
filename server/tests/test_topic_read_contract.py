@@ -9,6 +9,7 @@ from ontology_map.db.exploration import (
     FollowupRow,
     NodeRow,
 )
+from ontology_map.db.topic_references import TopicReferenceRow
 from ontology_map.exploration import (
     Graph,
     GraphNode,
@@ -98,6 +99,30 @@ def test_general_exploration_caps_direct_neighbors_at_24(monkeypatch) -> None:
     assert len(direct_nodes) == 24
     assert [node.node_id for node in direct_nodes] == list(range(2, 26))
     assert all(node.tier != "TWO_HOP" for node in result.graph.nodes)
+
+
+def test_topic_api_lists_active_and_inactive_references(monkeypatch) -> None:
+    rows = [
+        TopicReferenceRow(
+            node_id=77,
+            topic_code="SEMICONDUCTOR",
+            canonical_display_name="반도체",
+            is_active=True,
+        ),
+        TopicReferenceRow(
+            node_id=88,
+            topic_code="INVESTMENT",
+            canonical_display_name="투자",
+            is_active=False,
+        ),
+    ]
+    monkeypatch.setattr(topic_api, "list_topic_references", Mock(return_value=rows))
+
+    response = topic_api.read_topic_references(Mock())
+
+    assert [item.node_id for item in response.items] == ["77", "88"]
+    assert [item.canonical_display_name for item in response.items] == ["반도체", "투자"]
+    assert [item.is_active for item in response.items] == [True, False]
 
 
 def test_topic_api_exposes_lightweight_counts_and_string_ids(monkeypatch) -> None:
