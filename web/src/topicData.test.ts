@@ -109,15 +109,15 @@ describe("Reference Topic reads", () => {
     ).toBe(9);
   });
 
-  it("falls back to Topic exploration only when general publication is unavailable", async () => {
+  it("falls back to Topic exploration only when the general center is not public", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            error: { code: "PUBLICATION_NOT_READY", retryable: false },
+            error: { code: "NODE_NOT_FOUND", retryable: false },
           }),
-          { status: 503, headers: { "content-type": "application/json" } },
+          { status: 404, headers: { "content-type": "application/json" } },
         ),
       )
       .mockResolvedValueOnce(
@@ -143,30 +143,21 @@ describe("Reference Topic reads", () => {
     );
   });
 
-  it("preserves the original general publication error for a non-Topic", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            error: { code: "PUBLICATION_NOT_READY", retryable: false },
-          }),
-          { status: 503, headers: { "content-type": "application/json" } },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            error: { code: "TOPIC_NOT_FOUND", retryable: false },
-          }),
-          { status: 404, headers: { "content-type": "application/json" } },
-        ),
-      );
+  it("preserves the general publication-not-ready request without Topic fallback", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          error: { code: "PUBLICATION_NOT_READY", retryable: true },
+        }),
+        { status: 503, headers: { "content-type": "application/json" } },
+      ),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(fetchCenterExploration("12", "90d")).rejects.toMatchObject({
       code: "PUBLICATION_NOT_READY",
       status: 503,
     } satisfies Partial<APIRequestError>);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
