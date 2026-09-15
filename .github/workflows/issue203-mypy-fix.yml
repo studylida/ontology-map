@@ -28,7 +28,7 @@ jobs:
 
           path = Path("server/src/ontology_map/entity_resolution.py")
           text = path.read_text()
-          old = '''        decision: ResolutionStatus = (\n            "SAME" if node_id is not None else "UNRESOLVED"\n        )\n        return Resolution(mention, decision, node_id, context, candidates, ())\n'''
+          old = '''        decision: ResolutionStatus = "SAME" if node_id is not None else "UNRESOLVED"\n        return Resolution(mention, decision, node_id, context, candidates, ())\n'''
           new = '''        topic_decision: ResolutionStatus = (\n            "SAME" if node_id is not None else "UNRESOLVED"\n        )\n        return Resolution(\n            mention, topic_decision, node_id, context, candidates, ()\n        )\n'''
           if text.count(old) != 1:
               raise SystemExit(f"expected one replacement, got {text.count(old)}")
