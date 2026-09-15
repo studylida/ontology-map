@@ -64,9 +64,7 @@ function nodeTier(value: unknown): Exclude<NodeTier, "ambient"> {
   throw new APIRequestError("INVALID_RESPONSE", 0, true);
 }
 
-function directionality(
-  value: unknown,
-): KnowledgeRelation["directionality"] {
+function directionality(value: unknown): KnowledgeRelation["directionality"] {
   if (value === "DIRECTED" || value === "SYMMETRIC") return value;
   throw new APIRequestError("INVALID_RESPONSE", 0, true);
 }
@@ -87,7 +85,8 @@ async function fetchJSON(path: string, signal?: AbortSignal): Promise<unknown> {
   try {
     response = await fetch(path, signal ? { signal } : undefined);
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    if (error instanceof DOMException && error.name === "AbortError")
+      throw error;
     throw new APIRequestError("NETWORK_ERROR", 0, true);
   }
 
@@ -209,7 +208,8 @@ export async function fetchCenterExploration(
   } catch (error) {
     if (
       !(error instanceof APIRequestError) ||
-      (error.code !== "PUBLICATION_NOT_READY" && error.code !== "NODE_NOT_FOUND")
+      (error.code !== "PUBLICATION_NOT_READY" &&
+        error.code !== "NODE_NOT_FOUND")
     ) {
       throw error;
     }
@@ -230,5 +230,7 @@ export async function fetchCenterExploration(
 export function isTopicExploration(
   view: ExplorationView | null,
 ): view is TopicExplorationView {
-  return Boolean(view && "topic" in view && "totalPublicMembershipCount" in view);
+  return Boolean(
+    view && "topic" in view && "totalPublicMembershipCount" in view,
+  );
 }
