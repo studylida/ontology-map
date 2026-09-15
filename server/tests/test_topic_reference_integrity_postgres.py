@@ -75,9 +75,7 @@ def _type_id(session: Session, code: str) -> int:
     return int(value)
 
 
-def _evidence_node(
-    session: Session, *, batch_id: int, node_type_id: int
-) -> int:
+def _evidence_node(session: Session, *, batch_id: int, node_type_id: int) -> int:
     node_id = int(
         session.execute(
             knowledge_item.insert()
@@ -244,9 +242,7 @@ def test_lint_scope_is_lifecycle_based_not_topic_type() -> None:
         with pytest.raises(sa.exc.DBAPIError), session.begin_nested():
             session.execute(
                 knowledge_item.update()
-                .where(
-                    knowledge_item.c.knowledge_item_id == node_ids["sk_hynix"]
-                )
+                .where(knowledge_item.c.knowledge_item_id == node_ids["sk_hynix"])
                 .values(
                     lifecycle_kind="PRODUCT_REFERENCE",
                     current_state=None,
@@ -330,7 +326,14 @@ def test_has_topic_requires_active_reference_and_keeps_existing_rows() -> None:
             )
             == 1
         )
-        assert session.scalar(sa.select(sa.func.count()).select_from(claim).where(claim.c.claim_id == claim_id)) == 1
+        assert (
+            session.scalar(
+                sa.select(sa.func.count())
+                .select_from(claim)
+                .where(claim.c.claim_id == claim_id)
+            )
+            == 1
+        )
 
         with pytest.raises(sa.exc.DBAPIError), session.begin_nested():
             _relation(
