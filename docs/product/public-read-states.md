@@ -52,6 +52,11 @@ Evidence/report dialog 첫 read가 실패해도 dialog를 자동으로 닫지 �
 
 Reference Topic은 일반 FOLLOWUP_QUESTIONS와 NODE_INSIGHT의 대상이 아니다. 질문/인사이트 부재를 empty·미준비·실패로 재해석하지 않고 #206의 Topic 전용 panel과 Topic membership 정상 empty 계약을 유지한다.
 
+#206 병합 후 Topic read integration도 같은 경계를 따른다.
+
+- `주제` picker의 Topic 목록 read가 실패하면 popover 안에서 실패를 표시하고 `retryable=true`인 경우 같은 목록 read의 `다시 조회`를 제공한다. 목록 read 실패를 정상 empty처럼 조용히 삼키지 않는다.
+- Topic rich card가 일반 Node의 Insight title을 보조로 읽을 때 `SUCCESS + 0 reports`이면 기존처럼 title 영역을 생략한다. read 자체가 실패하면 해당 rich card 범위에만 오류를 표시하고 retryability를 반영하며, Topic center나 다른 card를 blocking error로 확대하지 않는다.
+
 ## 구현 경계
 
 현재 frontend는 서버가 제공하는 `code + retryable`만으로 이 계약을 표현한다. 새로운 recovery reason/status API, polling/push/streaming, 사용자 클릭 기반 model/recovery 실행, cache/eviction 정책을 이 계약에 추가하지 않는다.
