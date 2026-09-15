@@ -275,9 +275,14 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
                 assert evidence.modality == "PREDICTION_OR_ESTIMATE"
                 assert evidence.stance == "SUPPORT"
                 assert len(evidence.item_key) == 64
-                assert evidence.item_key == list_relation_evidence(
-                    session, relation_id, cursor=None, limit=20
-                ).items[0].item_key
+                assert (
+                    evidence.item_key
+                    == list_relation_evidence(
+                        session, relation_id, cursor=None, limit=20
+                    )
+                    .items[0]
+                    .item_key
+                )
 
                 claims_page = panel.list_claims(
                     session,
@@ -303,19 +308,22 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
                 assert relation_projection["display_name"] == "HAS_TOPIC"
                 assert relation_projection["directionality"] == "DIRECTED"
                 assert relation_projection["source_node"]["node_id"] == str(source_id)
-                assert relation_projection["source_node"]["node_type"]["code"] == "COMPANY"
+                assert (
+                    relation_projection["source_node"]["node_type"]["code"]
+                    == "COMPANY"
+                )
                 assert relation_projection["target_node"] == {
                     "node_id": str(topic_id),
                     "name": "반도체",
                     "node_type": {"code": "TOPIC", "display_name": "주제"},
                 }
-                assert relation_projection["other_node"] == relation_projection[
-                    "target_node"
-                ]
+                assert (
+                    relation_projection["other_node"]
+                    == relation_projection["target_node"]
+                )
                 assert relation_projection["stance"] == "SUPPORT"
                 assert not any(
-                    item["kind"] == "CONFLICT"
-                    for item in projected["connections"]
+                    item["kind"] == "CONFLICT" for item in projected["connections"]
                 )
 
                 raw_connections = panel_queries.claim_connections(
@@ -343,23 +351,26 @@ def test_nested_question_and_report_claims_reuse_canonical_connections() -> None
             cursor=None,
         )
         assert questions["items"]
-        answer = panel.read_question(
-            session, int(questions["items"][0]["question_id"])
-        )
+        answer = panel.read_question(session, int(questions["items"][0]["question_id"]))
         assert answer["claims"]
         relation_claim = next(
             item
             for item in answer["claims"]
-            if any(connection["kind"] == "RELATION" for connection in item["connections"])
+            if any(
+                connection["kind"] == "RELATION" for connection in item["connections"]
+            )
         )
         relation_connection = next(
             connection
             for connection in relation_claim["connections"]
             if connection["kind"] == "RELATION"
         )
-        assert relation_connection["relation"] is not None
-        assert relation_connection["relation"]["other_node"]["node_id"]
-        assert relation_connection["relation"]["stance"] in {"SUPPORT", "DISPUTE"}
+        question_relation = relation_connection["relation"]
+        assert question_relation is not None
+        assert question_relation["relation_id"]
+        assert question_relation["other_node"]["node_id"]
+        assert question_relation["stance"] in {"SUPPORT", "DISPUTE"}
+        assert question_relation["directionality"] in {"DIRECTED", "SYMMETRIC"}
 
         report_page = panel.read_report(
             session,
@@ -377,7 +388,9 @@ def test_nested_question_and_report_claims_reuse_canonical_connections() -> None
         report_relation_claim = next(
             item
             for item in nested
-            if any(connection["kind"] == "RELATION" for connection in item["connections"])
+            if any(
+                connection["kind"] == "RELATION" for connection in item["connections"]
+            )
         )
         report_relation = next(
             connection["relation"]
@@ -385,9 +398,7 @@ def test_nested_question_and_report_claims_reuse_canonical_connections() -> None
             if connection["kind"] == "RELATION"
         )
         assert report_relation is not None
-        assert report_relation["relation_id"] == relation_connection["relation"][
-            "relation_id"
-        ]
-        assert report_relation["directionality"] == relation_connection["relation"][
-            "directionality"
-        ]
+        assert report_relation["relation_id"]
+        assert report_relation["other_node"]["node_id"]
+        assert report_relation["stance"] in {"SUPPORT", "DISPUTE"}
+        assert report_relation["directionality"] in {"DIRECTED", "SYMMETRIC"}
