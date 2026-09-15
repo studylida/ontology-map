@@ -26,11 +26,14 @@ jobs:
       - name: Exact web 전체 검사
         working-directory: web
         run: npm run check
-      - name: Browser smoke 도구 설치
-        working-directory: web
+      - name: Browser smoke 도구 격리 설치
         run: |
-          npm install --no-save --package-lock=false playwright@1.55.0
-          npx playwright install --with-deps chromium
+          mkdir -p .github/playwright
+          printf '%s\n' '{"private":true,"type":"module"}' > .github/playwright/package.json
+          npm install --prefix .github/playwright --package-lock=false --no-save playwright@1.55.0
+          ln -s ../../.github/playwright/node_modules/playwright web/node_modules/playwright
+          ln -s ../../.github/playwright/node_modules/playwright-core web/node_modules/playwright-core
+          .github/playwright/node_modules/.bin/playwright install --with-deps chromium
       - name: 실제 Chromium Topic navigation smoke
         run: |
           (cd web && npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/ontology-map-vite.log 2>&1 & echo $! > /tmp/ontology-map-vite.pid)
