@@ -206,7 +206,10 @@ export async function fetchCenterExploration(
   try {
     return await fetchExploration(centerId, range, signal);
   } catch (error) {
-    if (!(error instanceof APIRequestError) || error.code !== "NODE_NOT_FOUND") {
+    if (
+      !(error instanceof APIRequestError) ||
+      error.code !== "NODE_NOT_FOUND"
+    ) {
       throw error;
     }
     try {
