@@ -29,6 +29,29 @@ jobs:
         run: |
           uv sync --project server --frozen
           uv run --project server --frozen python scripts/issue201_reviewer_fix_temp.py
+          python - <<'PY'
+          from pathlib import Path
+
+          activation = Path('server/src/ontology_map/db/ontology_reference_data.py')
+          text = activation.read_text()
+          text = text.replace(
+              'f"node_type {code} is inactive; #201 activation will not reactivate it"',
+              'f"node_type {code} is inactive; #201 activation "\n                    "will not reactivate it"',
+          )
+          activation.write_text(text)
+
+          fixture = Path('server/src/ontology_map/db/fixture.py')
+          text = fixture.read_text()
+          text = text.replace(
+              'f"기존 node_type {code}가 HBF fixture prerequisite와 호환되지 않습니다."',
+              'f"기존 node_type {code}가 HBF fixture prerequisite와 "\n                    "호환되지 않습니다."',
+          )
+          fixture.write_text(text)
+          PY
+          uv run --project server --frozen ruff format \
+            server/src/ontology_map/db/ontology_reference_data.py \
+            server/src/ontology_map/db/fixture.py \
+            server/tests/test_ontology_reference_data_postgres.py
           rm scripts/issue201_reviewer_fix_temp.py
           rm .github/workflows/issue201-reviewer-fix-temp.yml
           uv run --project server --frozen ruff format --check server
