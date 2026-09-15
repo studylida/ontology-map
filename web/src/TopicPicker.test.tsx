@@ -40,7 +40,7 @@ describe("TopicPicker", () => {
     const onSelect = vi.fn();
 
     render(<TopicPicker onSelect={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: "주제" }));
+    fireEvent.click(screen.getByRole("button", { name: "주제 목록 열기" }));
 
     const list = await screen.findByRole("listbox", { name: "주제 목록" });
     const options = within(list).getAllByRole("option");
