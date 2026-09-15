@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import topicStyles from "./Topic.module.css";
-import {
-  fetchTopicReferences,
-  type TopicReference,
-} from "./topicData";
+import { fetchTopicReferences, type TopicReference } from "./topicData";
 
 export function TopicPicker({
   onSelect,
