@@ -1,0 +1,216 @@
+name: Issue 127 B2 integration
+
+on:
+  push:
+    paths:
+      - ".github/workflows/issue-127-b2-integration.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/127-role-harness
+          fetch-depth: 2
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.7"
+          enable-cache: true
+      - name: Wire product adapter and update PostgreSQL contract tests
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          provider = Path("server/src/ontology_map/extraction_provider.py")
+          text = provider.read_text(encoding="utf-8")
+          old_import = "from ontology_map.extraction_runner import GenerationRequest\n"
+          new_import = "from ontology_map import extraction as harness\nfrom ontology_map.db import extraction_tasks as inputs\nfrom ontology_map.extraction_runner import (\n    GenerationRequest,\n    RunnerResult,\n    RuntimeInput,\n    run_extraction,\n)\n"
+          if text.count(old_import) != 1:
+              raise SystemExit("provider import anchor count != 1")
+          text = text.replace(old_import, new_import, 1)
+          append = '''
+
+          def run_model_studio_extraction(
+              engine: Any,
+              task_id: int,
+              worker_name: str,
+              execution: inputs.ExecutionInput,
+              runtime: RuntimeInput,
+              helpers: harness.ExtractionModels,
+              adapter: ModelStudioGenerationAdapter,
+          ) -> RunnerResult:
+              """Run one durable extraction using the production Flash send boundary.
+
+              The caller owns adapter lifetime and helper policy. This function only
+              composes the approved durable generation adapter with the existing runner;
+              helper calls remain non-durable runtime calls.
+              """
+              return run_extraction(
+                  engine,
+                  task_id,
+                  worker_name,
+                  execution,
+                  runtime,
+                  helpers,
+                  adapter.prepare,
+              )
+          '''
+          if "def run_model_studio_extraction(" in text:
+              raise SystemExit("composition function already exists")
+          provider.write_text(text.rstrip() + append + "\n", encoding="utf-8")
+
+          pg = Path("server/tests/test_extraction_runner_postgres.py")
+          text = pg.read_text(encoding="utf-8")
+          old = "import pytest\nimport sqlalchemy as sa\nfrom openai import APIConnectionError\n"
+          new = "import pytest\nimport sqlalchemy as sa\nfrom openai import APIConnectionError\nfrom pydantic import SecretStr\n"
+          if text.count(old) != 1:
+              raise SystemExit("pg pydantic import anchor count != 1")
+          text = text.replace(old, new, 1)
+          old = "from ontology_map.extraction_contracts import KnowledgeProposals\nfrom ontology_map.extraction_runner import RuntimeInput, run_extraction\n"
+          new = "from ontology_map.extraction_contracts import KnowledgeProposals\nfrom ontology_map.extraction_provider import (\n    ModelStudioGenerationAdapter,\n    run_model_studio_extraction,\n)\nfrom ontology_map.extraction_runner import RuntimeInput, run_extraction\n"
+          if text.count(old) != 1:
+              raise SystemExit("pg provider import anchor count != 1")
+          text = text.replace(old, new, 1)
+
+          timeout_old = '''def test_generation_timeout_records_retry_and_runner_does_not_loop(runtime_task):
+              engine, task_id, _, _ = runtime_task
+              calls = OfflineCalls()
+
+              def timeout():
+                  raise httpx.ReadTimeout("private request data")
+
+              calls.on_send = timeout
+          '''
+          timeout_new = '''def test_confirmed_provider_timeout_records_retry_and_runner_does_not_loop(runtime_task):
+              engine, task_id, _, _ = runtime_task
+              calls = OfflineCalls()
+
+              def timeout():
+                  request = httpx.Request("POST", "https://example.invalid")
+                  response = httpx.Response(504, request=request)
+                  raise httpx.HTTPStatusError(
+                      "confirmed provider timeout", request=request, response=response
+                  )
+
+              calls.on_send = timeout
+          '''
+          if text.count(timeout_old) != 1:
+              raise SystemExit("pg timeout anchor count != 1")
+          text = text.replace(timeout_old, timeout_new, 1)
+
+          ambiguous_anchor = '''        RuntimeError("private ambiguous wire failure"),
+                  httpx.ReadError("private lost reply"),
+          '''
+          ambiguous_new = '''        RuntimeError("private ambiguous wire failure"),
+                  httpx.ReadTimeout("private lost reply timeout"),
+                  httpx.ReadError("private lost reply"),
+          '''
+          if text.count(ambiguous_anchor) != 1:
+              raise SystemExit("pg ambiguous anchor count != 1")
+          text = text.replace(ambiguous_anchor, ambiguous_new, 1)
+
+          insert_anchor = '''def test_verified_result_uses_one_product_slot_and_writes_no_knowledge(runtime_task):
+          '''
+          integration_test = '''def test_model_studio_adapter_sends_only_after_reserved_slot_commit(runtime_task):
+              engine, task_id, execution, runtime = runtime_task
+              helpers = OfflineCalls()
+
+              def handle(request: httpx.Request) -> httpx.Response:
+                  # A separate connection must see the durable reservation before send.
+                  assert count(engine, schema.provider_call_slot, task_id) == 1
+                  assert count(engine, schema.agent_attempt, task_id) == 0
+                  with engine.connect() as connection:
+                      state = connection.scalar(
+                          sa.select(schema.provider_call_slot.c.state).where(
+                              schema.provider_call_slot.c.model_task_id == task_id
+                          )
+                      )
+                  assert state == "RESERVED"
+                  output = KnowledgeProposals.model_validate(
+                      {"claims": helpers.claims}
+                  ).model_dump_json()
+                  return httpx.Response(
+                      200,
+                      request=request,
+                      json={
+                          "id": "offline",
+                          "object": "chat.completion",
+                          "created": 0,
+                          "model": FLASH,
+                          "choices": [
+                              {
+                                  "index": 0,
+                                  "finish_reason": "stop",
+                                  "message": {
+                                      "role": "assistant",
+                                      "content": output,
+                                  },
+                              }
+                          ],
+                          "usage": {
+                              "prompt_tokens": 100,
+                              "completion_tokens": 100,
+                              "total_tokens": 200,
+                          },
+                      },
+                  )
+
+              adapter = ModelStudioGenerationAdapter(
+                  SecretStr("offline-key"),
+                  base_url=(
+                      "https://ws-product-test.ap-southeast-1.maas.aliyuncs.com/"
+                      "compatible-mode/v1"
+                  ),
+                  transport=httpx.MockTransport(handle),
+              )
+              try:
+                  result = run_model_studio_extraction(
+                      engine,
+                      task_id,
+                      "runner-test",
+                      execution,
+                      runtime,
+                      helpers,
+                      adapter,
+                  )
+              finally:
+                  adapter.close()
+              assert result.disposition == "VERIFIED_RUNTIME"
+              assert result.task_status == "RUNNING"
+              assert count(engine, schema.provider_call_slot, task_id) == 1
+              assert count(engine, schema.agent_attempt, task_id) == 1
+
+
+          '''
+          if text.count(insert_anchor) != 1:
+              raise SystemExit("pg integration insert anchor count != 1")
+          text = text.replace(insert_anchor, integration_test + insert_anchor, 1)
+          pg.write_text(text, encoding="utf-8")
+          PY
+
+          rm .github/workflows/issue-127-b2-integration.yml
+          uv sync --project server --frozen
+          uv run --project server --frozen ruff format \
+            server/src/ontology_map/extraction_provider.py \
+            server/tests/test_extraction_runner_postgres.py
+          uv run --project server --frozen ruff check \
+            server/src/ontology_map/extraction_provider.py \
+            server/tests/test_extraction_runner_postgres.py
+          uv run --project server --frozen mypy \
+            server/src/ontology_map/extraction_provider.py
+          uv run --project server --frozen pytest -q \
+            server/tests/test_extraction_provider.py \
+            server/tests/test_extraction_runner.py
+          git diff --check
+          git add -A
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test: connect Model Studio adapter to durable runner"
+          git push origin HEAD:feat/127-role-harness
