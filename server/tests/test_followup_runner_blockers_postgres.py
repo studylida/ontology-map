@@ -1,6 +1,14 @@
 from datetime import UTC, datetime
 
 import sqlalchemy as sa
+from test_followup_runner_postgres import (
+    FollowupCase,
+    _state,
+    _valid_proposal,
+)
+from test_followup_runner_postgres import (
+    followup_case as _followup_case_fixture,
+)
 
 from ontology_map import followup_execution
 from ontology_map.db import schema as s
@@ -11,12 +19,6 @@ from ontology_map.followup_generation_contracts import (
 )
 from ontology_map.followup_runner import run_followup
 from ontology_map.model_studio import CallLimits
-from test_followup_runner_postgres import (
-    FollowupCase,
-    _state,
-    _valid_proposal,
-    followup_case as _followup_case_fixture,
-)
 
 followup_case = _followup_case_fixture
 
@@ -53,7 +55,10 @@ def test_execution_limit_change_creates_distinct_durable_task(
         first.identity.output_schema_definition_id
         == changed.identity.output_schema_definition_id
     )
-    assert first.identity.output_schema_version == changed.identity.output_schema_version
+    assert (
+        first.identity.output_schema_version
+        == changed.identity.output_schema_version
+    )
     assert first.identity.input_hash != changed.identity.input_hash
     assert first.identity.cache_key != changed.identity.cache_key
     assert changed.created is True
