@@ -286,7 +286,6 @@ def _parse_manifest_line(
     *,
     line_number: int,
     only_test_item_ids: frozenset[str] | None,
-    seen_test_item_ids: set[str],
 ) -> SelectionItem | MaterializationResult | None:
     fallback_id = f"line:{line_number}"
     try:
@@ -307,15 +306,18 @@ def _parse_manifest_line(
     if only_test_item_ids is not None and fallback_id not in only_test_item_ids:
         return None
     try:
-        item = parse_selection_item(raw)
-        if item.test_item_id in seen_test_item_ids:
-            raise PreparationFailure(
-                "MANIFEST_DUPLICATE_ITEM", "test_item_id appears more than once"
-            )
+        return parse_selection_item(raw)
     except PreparationFailure as failure:
         return _failed_result(fallback_id, failure)
-    seen_test_item_ids.add(item.test_item_id)
-    return item
+
+
+def _duplicate_test_item_ids(
+    parsed_items: list[SelectionItem | MaterializationResult],
+) -> frozenset[str]:
+    counts: dict[str, int] = {}
+    for parsed in parsed_items:
+        counts[parsed.test_item_id] = counts.get(parsed.test_item_id, 0) + 1
+    return frozenset(test_item_id for test_item_id, count in counts.items() if count > 1)
 
 
 def _prepare_item_result(
@@ -401,8 +403,7 @@ def materialize_selection_manifest(
             "MANIFEST_UNREADABLE", "selection manifest is unavailable"
         ) from error
 
-    results: list[MaterializationResult] = []
-    seen_test_item_ids: set[str] = set()
+    parsed_items: list[SelectionItem | MaterializationResult] = []
     for line_number, line in enumerate(lines, start=1):
         if not line.strip():
             continue
@@ -410,9 +411,23 @@ def materialize_selection_manifest(
             line,
             line_number=line_number,
             only_test_item_ids=only_test_item_ids,
-            seen_test_item_ids=seen_test_item_ids,
         )
-        if parsed is None:
+        if parsed is not None:
+            parsed_items.append(parsed)
+
+    duplicate_ids = _duplicate_test_item_ids(parsed_items)
+    results: list[MaterializationResult] = []
+    for parsed in parsed_items:
+        if parsed.test_item_id in duplicate_ids:
+            results.append(
+                _failed_result(
+                    parsed.test_item_id,
+                    PreparationFailure(
+                        "MANIFEST_DUPLICATE_ITEM",
+                        "test_item_id appears more than once in selected manifest rows",
+                    ),
+                )
+            )
             continue
         if isinstance(parsed, MaterializationResult):
             results.append(parsed)
