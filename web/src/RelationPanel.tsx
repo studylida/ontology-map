@@ -107,10 +107,14 @@ export function RelationList({
       <div className={styles.relationAccordion}>
         {page.items.map((relation) => {
           const badge = relationBadge(relation, loadedGraph, hiddenKinds);
+          const sourceName =
+            relation.sourceId === nodeId ? nodeName : relation.other.name;
+          const targetName =
+            relation.targetId === nodeId ? nodeName : relation.other.name;
           const path = relationPathLabel(
-            relation.sourceId === nodeId ? nodeName : relation.other.name,
+            sourceName,
             relation.label,
-            relation.targetId === nodeId ? nodeName : relation.other.name,
+            targetName,
             relation.directionality,
           );
           return (
@@ -145,7 +149,7 @@ export function RelationList({
                     onClick={() =>
                       onEvidence({
                         id: relation.id,
-                        label: `${nodeName} · ${relation.label} · ${relation.other.name}`,
+                        label: `${sourceName} · ${relation.label} · ${targetName}`,
                       })
                     }
                   >
