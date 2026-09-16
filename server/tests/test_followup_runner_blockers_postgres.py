@@ -56,8 +56,7 @@ def test_execution_limit_change_creates_distinct_durable_task(
         == changed.identity.output_schema_definition_id
     )
     assert (
-        first.identity.output_schema_version
-        == changed.identity.output_schema_version
+        first.identity.output_schema_version == changed.identity.output_schema_version
     )
     assert first.identity.input_hash != changed.identity.input_hash
     assert first.identity.cache_key != changed.identity.cache_key
