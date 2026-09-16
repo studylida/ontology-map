@@ -33,6 +33,18 @@ jobs:
         with:
           version: "0.12.7"
           enable-cache: true
+      - name: Disambiguate staging patch anchor
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/issue_127_b3_wire_provenance.py")
+          text = path.read_text()
+          old = '''def replace_once(text: str, old: str, new: str, label: str) -> str:\n    if text.count(old) != 1:\n        raise RuntimeError(f"{label}: expected one anchor, got {text.count(old)}")\n    return text.replace(old, new, 1)'''
+          new = '''def replace_once(text: str, old: str, new: str, label: str) -> str:\n    count = text.count(old)\n    if label == "noop provenance count before":\n        if count < 1:\n            raise RuntimeError(f"{label}: missing anchor")\n        return text.replace(old, new, 1)\n    if count != 1:\n        raise RuntimeError(f"{label}: expected one anchor, got {count}")\n    return text.replace(old, new, 1)'''
+          if old not in text:
+              raise SystemExit("replace_once anchor changed")
+          path.write_text(text.replace(old, new, 1))
+          PY
       - name: Apply official #216 wiring
         run: python scripts/issue_127_b3_wire_provenance.py
       - name: Format and static checks
