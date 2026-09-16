@@ -114,6 +114,7 @@ def _relation_claim(
     stance: str,
     modality: str,
     key: str,
+    observation_id: int | None = None,
 ) -> int:
     claim_id = int(
         session.execute(
@@ -144,10 +145,12 @@ def _relation_claim(
             stance=stance,
         )
     )
+    if observation_id is None:
+        observation_id = _observation(session, key, text)
     session.execute(
         claim_observation.insert().values(
             claim_id=claim_id,
-            observation_id=_observation(session, key, text),
+            observation_id=observation_id,
         )
     )
     if document_id is not None:
@@ -202,6 +205,9 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
                         knowledge_item_id=relation_id,
                     )
                 )
+                shared_observation_id = _observation(
+                    session, "shared", "Issue 213 shared relation observation"
+                )
                 support_claim_id = _relation_claim(
                     session,
                     relation_id=relation_id,
@@ -210,6 +216,17 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
                     stance="SUPPORT",
                     modality="PREDICTION_OR_ESTIMATE",
                     key="support",
+                    observation_id=shared_observation_id,
+                )
+                _relation_claim(
+                    session,
+                    relation_id=relation_id,
+                    batch_id=batch_id,
+                    document_id=document_id,
+                    stance="DISPUTE",
+                    modality="OPINION_OR_EVALUATION",
+                    key="public-dispute",
+                    observation_id=shared_observation_id,
                 )
                 dispute_claim_id = _relation_claim(
                     session,
@@ -247,6 +264,38 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
                         },
                     ],
                 )
+                session.flush()
+
+                active_relations_page = list_node_relations(
+                    session, source_id, cursor=None, limit=50
+                )
+                active_membership = next(
+                    item
+                    for item in active_relations_page.items
+                    if item.relation_id == relation_id
+                )
+                assert active_membership.other_node.node_id == topic_id
+                assert active_membership.other_node.name == "반도체"
+                assert active_membership.other_node.node_type.code == "TOPIC"
+
+                active_evidence_page = list_relation_evidence(
+                    session, relation_id, cursor=None, limit=20
+                )
+                assert len(active_evidence_page.items) == 2
+                assert {item.stance for item in active_evidence_page.items} == {
+                    "SUPPORT",
+                    "DISPUTE",
+                }
+                assert {item.modality for item in active_evidence_page.items} == {
+                    "PREDICTION_OR_ESTIMATE",
+                    "OPINION_OR_EVALUATION",
+                }
+                active_item_keys = {
+                    item.item_key for item in active_evidence_page.items
+                }
+                assert len(active_item_keys) == 2
+                assert all(len(item_key) == 64 for item_key in active_item_keys)
+
                 session.execute(
                     topic_reference.update()
                     .where(topic_reference.c.node_id == topic_id)
@@ -270,19 +319,22 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
                 evidence_page = list_relation_evidence(
                     session, relation_id, cursor=None, limit=20
                 )
-                assert len(evidence_page.items) == 1
-                evidence = evidence_page.items[0]
-                assert evidence.modality == "PREDICTION_OR_ESTIMATE"
-                assert evidence.stance == "SUPPORT"
-                assert len(evidence.item_key) == 64
-                assert (
-                    evidence.item_key
-                    == list_relation_evidence(
+                assert len(evidence_page.items) == 2
+                assert {item.item_key for item in evidence_page.items} == active_item_keys
+                assert {item.stance for item in evidence_page.items} == {
+                    "SUPPORT",
+                    "DISPUTE",
+                }
+                assert {item.modality for item in evidence_page.items} == {
+                    "PREDICTION_OR_ESTIMATE",
+                    "OPINION_OR_EVALUATION",
+                }
+                assert {
+                    item.item_key
+                    for item in list_relation_evidence(
                         session, relation_id, cursor=None, limit=20
-                    )
-                    .items[0]
-                    .item_key
-                )
+                    ).items
+                } == active_item_keys
 
                 claims_page = panel.list_claims(
                     session,
