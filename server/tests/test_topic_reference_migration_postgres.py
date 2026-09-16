@@ -258,13 +258,14 @@ def _insert_evidence_knowledge(
     return batch_id, node_ids[0], relation_id, claim_id
 
 
-def test_clean_upgrade_reaches_0004() -> None:
+def test_clean_upgrade_reaches_current_head() -> None:
     _upgrade("head")
     engine = _engine()
     try:
         with engine.connect() as connection:
-            assert _version(connection) == "0004"
+            assert _version(connection) == "0005"
             assert _table_exists(connection, "topic_reference")
+            assert _table_exists(connection, "promotion_canonical_change")
             assert _column_exists(
                 connection,
                 table_name="knowledge_item",
@@ -469,7 +470,8 @@ def test_reference_topic_downgrade_fails_without_data_loss() -> None:
                         ) VALUES ('NODE', 'PRODUCT_REFERENCE', NULL, NULL)
                         RETURNING knowledge_item_id
                         """
-                    )
+                    ),
+                    {"batch_id": 0},
                 ).scalar_one()
             )
             connection.execute(
