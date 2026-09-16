@@ -1,0 +1,34 @@
+{
+  "purpose": "Review-only provenance; hashes identify bytes, not semantic truth. Prose summaries and reconstructed examples are pinned by the containing Git commit, not by this file.",
+  "base_main_commit": "ffbca386a875b517137412d385b3eea36719521e",
+  "trial_workspace_head": "ca8c8b62ca993c74c2ff48dde13c488bce1c87b4",
+  "public_asset_sha256": {
+    "prompts-and-schemas.json": "c75da2cf8dd66c5a2b166d69996c2d28fb1c34f14a00d22264d3b98602591977",
+    "results-metadata.json": "cdbd59e84382cfad03923de19765f95ad35a29345489f3a8089e6216ce1733dc",
+    "evaluation-summary.json": "b30433306f35e802012326593bef78b757d2eb1e3949f598962c0da5142a4c55",
+    "snapshots/amend_residual.py.txt": "f84ad8d8821d7eb0819692f0b4c0592d78bc34902b73f05b75167c234fc1dc52",
+    "snapshots/contracts.py.txt": "2a39aa0fa3dc15167aceb8bf2a0c93b425b14a6c42a98fc7f65a013387f4978d",
+    "snapshots/diagnostics.py.txt": "f80d683187a6c02fb4209172ff8c7140f4e8d439952a78eab9b4b904802f90ee",
+    "snapshots/score.py.txt": "53eb29c5c501a1e2a11a9198c27541cf0965c402f09f4b8906966e7e7c27d07f",
+    "snapshots/trial_residual.py.txt": "98fe6af24735470264eac6667857b9b55d11b202173f1a17c815afd6d6738235"
+  },
+  "unaltered_source_copies": {
+    "snapshots/diagnostics.py.txt": ".tmp/model-studio-reassessment/diagnostics.py",
+    "snapshots/contracts.py.txt": ".tmp/model-studio-residual/contracts.py",
+    "snapshots/trial_residual.py.txt": ".tmp/model-studio-residual/trial_residual.py",
+    "snapshots/amend_residual.py.txt": ".tmp/model-studio-residual/amend_residual.py",
+    "snapshots/score.py.txt": ".tmp/model-studio-residual/score.py"
+  },
+  "reformatted_json_sources": {
+    "evaluation-summary.json": ".tmp/model-studio-residual/review.json"
+  },
+  "unpublished_original_sha256": {
+    ".tmp/model-studio-agent-pipeline/results.jsonl": "03b42a76081d2cb6d42f00974e1f0c7a19bd891fce8dc5e8896c0ff18943755c",
+    ".tmp/model-studio-reassessment/results.jsonl": "da5a870de797d0b33ab84e615036a6fa12fdf23f70a8291efbb5917ec84110bd",
+    ".tmp/model-studio-reassessment/evaluation.json": "b66480bee8494a2db6f03d751bbe8b9fd6da054ee52db09ba2454f583826e6bb",
+    ".tmp/model-studio-residual/evaluation.json": "3e3d221a900179b505477590eea3fb4366b7797441d832ca3f78c5756d9f260b",
+    ".tmp/model-studio-residual/results.jsonl": "b7930faf2b37bbf775aa62e551edd454d79d5034e54e13369f8fffe8271195e1"
+  },
+  "scope_limit": "Full source documents, raw requests/responses, complete gold, private transport and credentials are omitted. Public verdict excerpts and local scoring labels do not enable independent semantic rescoring.",
+  "reconstructed_examples": "CASES.md contains paraphrased illustrative cases, not actual recorded request-response pairs."
+}

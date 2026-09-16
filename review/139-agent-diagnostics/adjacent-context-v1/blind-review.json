@@ -1,0 +1,733 @@
+{
+  "reviewer": "Codex manual semantic review against pre-frozen gold",
+  "conditions_revealed": false,
+  "ratings": [
+    {
+      "article_id": "N01",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s4",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s5",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "곽노정 사장의 전체 이름·소속을 문장에 썼지만 이를 확인하는 s4를 연결하지 않았다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s6",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "‘이어’의 발언자를 곽노정 사장으로 확인하는 s4·s5를 연결하지 않았다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s21",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s4",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s5",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "곽노정 사장의 전체 이름·소속을 문장에 썼지만 이를 확인하는 s4를 연결하지 않았다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s6",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "‘이어’의 발언자를 곽노정 사장으로 확인하는 s4·s5를 연결하지 않았다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s21",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "문장은 추진 중인 목표를 보존했지만 modality를 FACT로 분류했다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s4",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s5",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "곽노정 사장의 전체 이름·소속을 문장에 썼지만 이를 확인하는 s4를 연결하지 않았다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s6",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "‘이어’의 발언자를 곽노정 사장으로 확인하는 s4·s5를 연결하지 않았다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s21",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s4",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s5",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "곽노정 사장의 전체 이름·소속을 문장에 썼지만 이를 확인하는 s4를 연결하지 않았다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s6",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "‘이어’의 발언자를 곽노정 사장으로 확인하는 s4·s5를 연결하지 않았다."
+    },
+    {
+      "article_id": "N01",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s21",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s14",
+      "verdict": "FAIL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "박성현 CEO의 인용 중 적어도 개발 완료 사실을 귀속 없는 회사 사실로 바꿨다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s22",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "삼성전자의 SRAM 기술 경쟁력 강화 방안 소개를 OMIT_ALLOWED로 제외했다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s28",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "개발 추진 문장은 보존했지만 해당 requirement의 modality를 FACT로 분류했다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s31",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "디자인 솔루션 협력으로 생태계 기반을 넓히는 사실을 OMIT_ALLOWED로 제외했다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s14",
+      "verdict": "FAIL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "박성현 CEO의 인용 중 적어도 개발 완료 사실을 귀속 없는 회사 사실로 바꿨다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s22",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "삼성전자의 SRAM 기술 경쟁력 강화 방안 소개를 OMIT_ALLOWED로 제외했다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s28",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "개발 추진 문장은 보존했지만 해당 requirement의 modality를 FACT로 분류했다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s31",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "생략된 주체를 삼성전자로 풀어 썼지만 이를 확인하는 s29를 연결하지 않았다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s14",
+      "verdict": "FAIL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "박성현 CEO의 인용 중 적어도 개발 완료 사실을 귀속 없는 회사 사실로 바꿨다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s22",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "삼성전자의 SRAM 기술 경쟁력 강화 방안 소개를 OMIT_ALLOWED로 제외했다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s28",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s31",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "디자인 솔루션 협력으로 생태계 기반을 넓히는 사실을 OMIT_ALLOWED로 제외했다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s14",
+      "verdict": "FAIL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "박성현 CEO의 인용 중 적어도 개발 완료 사실을 귀속 없는 회사 사실로 바꿨다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s22",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "삼성전자의 SRAM 기술 경쟁력 강화 방안 소개를 OMIT_ALLOWED로 제외했다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s28",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N02",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s31",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT",
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "생략된 주체를 삼성전자로 풀어 썼지만 이를 확인하는 s29를 연결하지 않았다. 문장은 현재 진행을 유지했지만 modality도 PLAN_OR_TARGET으로 분류했다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s13",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s23",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT",
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "‘그’가 젠슨 황임을 확인하는 s22를 연결하지 않았고, 평가 발언을 FACT로 분류했다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s25",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "KV 캐시 계층의 대상이 NVIDIA 추론 컨텍스트 메모리 스토리지 플랫폼이라는 선행 의미가 빠졌다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s61",
+      "verdict": "FAIL",
+      "error_types": [
+        "UNSUPPORTED_OR_CHANGED_MEANING",
+        "EVIDENCE_INSUFFICIENT",
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "s62의 AI 정의 주행 도입 예정을 추가하면서 근거를 s61로 잘못 연결했고, 예측을 PLAN_OR_TARGET으로 분류했다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s13",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s23",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT",
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "‘그’가 젠슨 황임을 확인하는 s22를 연결하지 않았고, 평가 발언을 FACT로 분류했다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s25",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "KV 캐시 계층의 대상이 NVIDIA 추론 컨텍스트 메모리 스토리지 플랫폼이라는 선행 의미가 빠졌다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s61",
+      "verdict": "FAIL",
+      "error_types": [
+        "UNSUPPORTED_OR_CHANGED_MEANING",
+        "EVIDENCE_INSUFFICIENT",
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "s62의 AI 정의 주행 도입 예정을 추가하면서 근거를 s61로 잘못 연결했고, 예측을 PLAN_OR_TARGET으로 분류했다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s13",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s23",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT",
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "‘그’가 젠슨 황임을 확인하는 s22를 연결하지 않았고, 평가 발언을 FACT로 분류했다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s25",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "플랫폼 이름을 풀어 썼지만 이를 확인하는 s24를 연결하지 않았다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s61",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "조만간 볼 수 있다는 예측 문장은 보존했지만 modality를 PLAN_OR_TARGET으로 분류했다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s13",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s23",
+      "verdict": "FAIL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT",
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "‘그’가 젠슨 황임을 확인하는 s22를 연결하지 않았고, 평가 발언을 FACT로 분류했다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s25",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "KV 캐시 계층의 대상이 NVIDIA 추론 컨텍스트 메모리 스토리지 플랫폼이라는 선행 의미가 빠졌다."
+    },
+    {
+      "article_id": "N03",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s61",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "조만간 볼 수 있다는 예측 문장은 보존했지만 modality를 PLAN_OR_TARGET으로 분류했다."
+    },
+    {
+      "article_id": "N04",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s1",
+      "verdict": "CONTRACT_ERROR",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "호출 단위 출력 계약 실패"
+    },
+    {
+      "article_id": "N04",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s4",
+      "verdict": "CONTRACT_ERROR",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "호출 단위 출력 계약 실패"
+    },
+    {
+      "article_id": "N04",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s6",
+      "verdict": "CONTRACT_ERROR",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "호출 단위 출력 계약 실패"
+    },
+    {
+      "article_id": "N04",
+      "repeat": 1,
+      "candidate": 1,
+      "source_id": "s25",
+      "verdict": "CONTRACT_ERROR",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "호출 단위 출력 계약 실패"
+    },
+    {
+      "article_id": "N04",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s1",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N04",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s4",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N04",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s6",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N04",
+      "repeat": 1,
+      "candidate": 2,
+      "source_id": "s25",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N04",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s1",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N04",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s4",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "사우라브 쿨카니의 평가 발언은 보존했지만 modality를 FACT로 분류했다."
+    },
+    {
+      "article_id": "N04",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s6",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N04",
+      "repeat": 2,
+      "candidate": 1,
+      "source_id": "s25",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "s24를 연결했지만 문장의 ‘해당 툴킷’을 Dell Omnia로 풀지 않았다."
+    },
+    {
+      "article_id": "N04",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s1",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "발표일인 2025년 5월 21일을 생략했다."
+    },
+    {
+      "article_id": "N04",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s4",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "overcitation_source_ids": [],
+      "reason": "사우라브 쿨카니의 평가 발언은 보존했지만 modality를 FACT로 분류했다."
+    },
+    {
+      "article_id": "N04",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s6",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    },
+    {
+      "article_id": "N04",
+      "repeat": 2,
+      "candidate": 2,
+      "source_id": "s25",
+      "verdict": "PASS",
+      "error_types": [],
+      "overcitation_source_ids": [],
+      "reason": "동결한 필수 의미·modality와 연결 근거를 보존했다."
+    }
+  ]
+}

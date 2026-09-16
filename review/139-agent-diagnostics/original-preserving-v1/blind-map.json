@@ -1,0 +1,66 @@
+{
+  "P01:r1": [
+    "preserve",
+    "baseline"
+  ],
+  "P01:r2": [
+    "preserve",
+    "baseline"
+  ],
+  "P02:r1": [
+    "preserve",
+    "baseline"
+  ],
+  "P02:r2": [
+    "baseline",
+    "preserve"
+  ],
+  "P03:r1": [
+    "baseline",
+    "preserve"
+  ],
+  "P03:r2": [
+    "baseline",
+    "preserve"
+  ],
+  "P04:r1": [
+    "baseline",
+    "preserve"
+  ],
+  "P04:r2": [
+    "preserve",
+    "baseline"
+  ],
+  "P05:r1": [
+    "preserve",
+    "baseline"
+  ],
+  "P05:r2": [
+    "baseline",
+    "preserve"
+  ],
+  "P06:r1": [
+    "preserve",
+    "baseline"
+  ],
+  "P06:r2": [
+    "baseline",
+    "preserve"
+  ],
+  "P07:r1": [
+    "baseline",
+    "preserve"
+  ],
+  "P07:r2": [
+    "preserve",
+    "baseline"
+  ],
+  "P08:r1": [
+    "preserve",
+    "baseline"
+  ],
+  "P08:r2": [
+    "baseline",
+    "preserve"
+  ]
+}

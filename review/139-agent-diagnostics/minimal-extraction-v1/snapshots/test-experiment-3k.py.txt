@@ -1,0 +1,81 @@
+from copy import deepcopy
+from decimal import Decimal
+import importlib.util
+from pathlib import Path
+import sys
+
+import pytest
+
+
+spec = importlib.util.spec_from_file_location("minimal_extraction_trial", Path(__file__).with_name("experiment.py"))
+assert spec and spec.loader
+trial = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = trial
+spec.loader.exec_module(trial)
+
+
+def test_sources_gold_jobs_and_single_contract_axis():
+    docs = trial.source_docs()
+    gold = trial.gold_articles()
+    assert set(docs) == set(gold) == {"M01", "M02", "M03", "M04"}
+    assert sum(len(article["facts"]) for article in gold.values()) == 21
+    overlap = trial.prior_overlap()
+    assert overlap["exact_hash_matches"] == overlap["exact_url_matches"] == overlap["event_family_matches"] == []
+    jobs = trial.jobs()
+    assert len(jobs) == len({job["identity"] for job in jobs}) == 16
+    grouped = {}
+    for job in jobs:
+        _, _, _, article_id, repeat, arm = job["identity"].split("-")
+        grouped.setdefault((article_id, repeat), {})[arm] = job
+        assert job["model"] == trial.MODEL and job["maximum"] == 3000 and job["thinking"] is False
+    assert len(grouped) == 8
+    for pair in grouped.values():
+        assert pair["rich"]["inputs"] == pair["minimal"]["inputs"]
+        assert pair["rich"]["shape"] is trial.RichOutput
+        assert pair["minimal"]["shape"] is trial.MinimalOutput
+        assert trial.BASE_PROMPT in pair["rich"]["prompt"] and trial.BASE_PROMPT in pair["minimal"]["prompt"]
+        assert trial.PRESERVE.read_text(encoding="utf-8").strip() in pair["rich"]["prompt"]
+        assert trial.PRESERVE.read_text(encoding="utf-8").strip() in pair["minimal"]["prompt"]
+
+
+def test_manifest_budget_repeats_and_strict_settings():
+    manifest = trial.manifest()
+    assert manifest["planned_calls"] == 16
+    assert Decimal(str(manifest["planned_reservation_usd"])) <= trial.CAP_USD
+    assert Decimal(str(manifest["maximum_cumulative_usd"])) < Decimal("1")
+    hashes = [request["request_sha256"] for request in manifest["requests"]]
+    assert len(set(hashes)) == 8
+    assert all(hashes.count(value) == 2 for value in set(hashes))
+    for job in trial.jobs():
+        payload = trial.strict_payload(job["model"], job["shape"], job["prompt"], job["inputs"], job["maximum"], job["thinking"])
+        assert payload["response_format"]["type"] == "json_schema"
+        assert payload["response_format"]["json_schema"]["strict"] is True
+        assert payload["temperature"] == 0 and payload["enable_thinking"] is False and payload["stream"] is False
+
+
+def test_runtime_validation_uses_only_known_source_ids():
+    inputs = trial.article_input(trial.source_docs()["M01"])
+    minimal = {
+        "claims": [{"statement": "SK하이닉스는 HBM4 양산 체계를 구축했다.", "modality": "FACT", "source_ids": ["s9"]}],
+        "unresolved": [{"source_ids": ["s17", "s18"]}],
+    }
+    normalized = trial.validate_minimal(minimal, inputs)
+    assert normalized["claims"][0]["source_ids"] == ["s9"]
+    invalid = deepcopy(minimal)
+    invalid["claims"][0]["source_ids"] = ["missing"]
+    with pytest.raises(ValueError, match="INVALID_SOURCE_IDS"):
+        trial.validate_minimal(invalid, inputs)
+    rich = {
+        "claims": [{
+            "statement": "SK하이닉스는 HBM4 양산 체계를 구축했다.",
+            "modality": "FACT",
+            "critical_elements": [{"dimension": "ACTION", "value": "양산 체계 구축", "source_ids": ["s9"]}],
+            "main_source_ids": ["s9"],
+            "context_source_ids": [],
+        }],
+        "unresolved": [],
+    }
+    assert trial.validate_rich(rich, inputs)["claims"][0]["source_ids"] == ["s9"]
+    rich["claims"][0]["main_source_ids"] = []
+    with pytest.raises(ValueError, match="INVALID_RICH_CLAIM"):
+        trial.validate_rich(rich, inputs)

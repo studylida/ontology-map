@@ -1,0 +1,268 @@
+"""Local-only #139 6k feasibility and quality check for the minimal output."""
+
+from __future__ import annotations
+
+import argparse
+from collections import Counter
+from decimal import Decimal
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import sys
+
+
+ROOT = Path(__file__).resolve().parent
+PRIOR_ROOT = ROOT.parent / "model-studio-minimal-extraction-v1"
+spec = importlib.util.spec_from_file_location("minimal_extraction_3k", PRIOR_ROOT / "experiment.py")
+if not spec or not spec.loader:
+    raise RuntimeError("PRIOR_EXPERIMENT_IMPORT_FAILED")
+trial = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = trial
+spec.loader.exec_module(trial)
+
+trial.ROOT = ROOT
+trial.SOURCES = PRIOR_ROOT / "sources-frozen.json"
+trial.GOLD = PRIOR_ROOT / "gold.json"
+trial.MANIFEST = ROOT / "manifest.json"
+trial.AUTHORIZATION = ROOT / "authorization.json"
+trial.MAX_TOKENS = 6000
+trial.HISTORICAL_USD = Decimal("0.87786156")
+trial.CAP_USD = Decimal("0.015")
+
+
+def jobs() -> list[dict]:
+    prompt = trial.prompts()["minimal"]
+    result = []
+    for doc in trial.source_docs().values():
+        for repeat in trial.REPEATS:
+            result.append({
+                "identity": f"minimal-extraction-6k-v1-{doc['id']}-r{repeat}",
+                "model": trial.MODEL,
+                "shape": trial.MinimalOutput,
+                "prompt": prompt,
+                "inputs": trial.article_input(doc),
+                "maximum": trial.MAX_TOKENS,
+                "thinking": False,
+                "validator": trial.validate_minimal,
+                "category": "heldout",
+            })
+    if len(result) != 8 or len({job["identity"] for job in result}) != 8:
+        raise ValueError("JOB_SET_CHANGED")
+    return result
+
+
+trial.jobs = jobs
+
+
+def manifest() -> dict:
+    planned = [trial.request_record(job) for job in jobs()]
+    reservation = sum((Decimal(str(item["reservation_usd"])) for item in planned), Decimal(0))
+    overlap = trial.prior_overlap()
+    if any(overlap[key] for key in ("exact_hash_matches", "exact_url_matches", "event_family_matches")):
+        raise ValueError("PREVIOUS_SOURCE_EXPOSURE")
+    return {
+        "version": 1,
+        "issue": 139,
+        "purpose": "Check minimal whole-article extraction after the frozen 3000-token run exposed output truncation",
+        "model": trial.MODEL,
+        "settings": {"temperature": 0, "enable_thinking": False, "stream": False, "max_tokens": 6000, "strict_json_schema": True},
+        "changed_axis": "Only max_tokens changes from 3000 to 6000; prompt, schema, sources, gold and validation stay frozen",
+        "articles": 4,
+        "pre_frozen_required_facts": 21,
+        "repeats": list(trial.REPEATS),
+        "planned_calls": 8,
+        "planned_reservation_usd": float(reservation),
+        "historical_reserved_or_estimated_usd": float(trial.HISTORICAL_USD),
+        "cap_usd": float(trial.CAP_USD),
+        "maximum_cumulative_usd": float(trial.HISTORICAL_USD + trial.CAP_USD),
+        "source_exposure_check": overlap,
+        "candidate_criteria": {
+            "contract_pass_calls": 8,
+            "strict_required_fact_pass_minimum": 30,
+            "unsupported_claim_rate_maximum": 0.05,
+            "repeated_material_fact_errors": 0,
+        },
+        "dependency_hashes": {
+            "sources-frozen.json": trial.digest(trial.SOURCES),
+            "gold.json": trial.digest(trial.GOLD),
+            "preserve-addendum.txt": trial.digest(trial.PRESERVE),
+            "3k-experiment.py": trial.digest(PRIOR_ROOT / "experiment.py"),
+            "experiment.py": trial.digest(ROOT / "experiment.py"),
+        },
+        "requests": planned,
+        "stop_rules": [
+            "This is a new ceiling check, not a repair or retry of an individual failed response",
+            "Never repair or retry a failed request",
+            "Stop on authentication, transport, provider shape, unknown cost, budget, frozen input, or source integrity failure",
+            "Do not tune against these outputs and recount the articles as independent evaluation",
+            "Do not count omission or unresolved output as PASS",
+            "Do not infer a product contract, worker, automatic persistence, or operational quality",
+        ],
+    }
+
+
+trial.manifest = manifest
+
+
+def prepare() -> None:
+    trial.gold_articles()
+    frozen = manifest()
+    if Decimal(str(frozen["planned_reservation_usd"])) > trial.CAP_USD or frozen["maximum_cumulative_usd"] >= 1:
+        raise ValueError("BUDGET_STOP")
+    trial.save_once(trial.MANIFEST, frozen)
+    trial.configure_ledger()
+    print(json.dumps({
+        "status": "OFFLINE_READY",
+        "manifest_sha256": trial.digest(trial.MANIFEST),
+        "planned_calls": frozen["planned_calls"],
+        "planned_reservation_usd": frozen["planned_reservation_usd"],
+        "maximum_cumulative_usd": frozen["maximum_cumulative_usd"],
+    }, ensure_ascii=False, indent=2))
+
+
+def build_attempts(rows: dict[str, dict]) -> list[dict]:
+    attempts = []
+    for article_id in trial.source_docs():
+        for repeat in trial.REPEATS:
+            attempts.append({
+                "article_id": article_id,
+                "repeat": repeat,
+                "candidate": trial.public_candidate(rows[f"minimal-extraction-6k-v1-{article_id}-r{repeat}"]),
+            })
+    return attempts
+
+
+def build_review_template(attempts: list[dict]) -> dict:
+    gold = trial.gold_articles()
+    fact_ratings, claim_ratings = [], []
+    for attempt in attempts:
+        candidate = attempt["candidate"]
+        failed = candidate["status"] != "PASS"
+        fact_ratings.extend({
+            "article_id": attempt["article_id"], "repeat": attempt["repeat"], "fact_id": fact["fact_id"],
+            "verdict": "CONTRACT_ERROR" if failed else "PENDING", "error_types": [], "mapped_claim_nos": [],
+            "reason": "호출 단위 출력 계약 실패" if failed else "",
+        } for fact in gold[attempt["article_id"]]["facts"])
+        if not failed:
+            claim_ratings.extend({
+                "article_id": attempt["article_id"], "repeat": attempt["repeat"], "claim_no": claim["claim_no"],
+                "verdict": "PENDING", "error_types": [], "reason": "",
+            } for claim in candidate["claims"])
+    return {"reviewer": "Codex manual semantic review against pre-frozen gold", "fact_ratings": fact_ratings, "claim_ratings": claim_ratings}
+
+
+def packet() -> None:
+    trial.verify_manifest()
+    trial.configure_ledger()
+    rows = {row["identity"]: row for row in trial.base.results()}
+    if set(rows) != {job["identity"] for job in jobs()}:
+        raise ValueError("RESULT_SET_INCOMPLETE")
+    attempts = build_attempts(rows)
+    trial.save_once(ROOT / "review-packet.json", {
+        "instructions": "동결 gold의 필수 사실과 생성된 모든 Claim을 평가한다.",
+        "sources": {article_id: trial.article_input(doc) for article_id, doc in trial.source_docs().items()},
+        "gold": trial.read(trial.GOLD),
+        "attempts": attempts,
+    })
+    template = build_review_template(attempts)
+    trial.save_once(ROOT / "review-template.json", template)
+    print(json.dumps({"status": "REVIEW_PACKET_READY", "attempts": len(attempts), "fact_ratings": len(template["fact_ratings"]), "claim_ratings": len(template["claim_ratings"])}, ensure_ascii=False))
+
+
+def validate_review(review: dict, packet_value: dict) -> None:
+    if len(review["fact_ratings"]) != 42:
+        raise ValueError("FACT_REVIEW_SET_CHANGED")
+    expected = sum(len(attempt["candidate"].get("claims", [])) for attempt in packet_value["attempts"])
+    if len(review["claim_ratings"]) != expected:
+        raise ValueError("CLAIM_REVIEW_SET_CHANGED")
+    for rating in review["fact_ratings"]:
+        trial.validate_fact_rating(rating)
+    for rating in review["claim_ratings"]:
+        trial.validate_claim_rating(rating)
+
+
+def repeated_material_errors(ratings: list[dict]) -> list[dict]:
+    grouped: dict[str, list[dict]] = {}
+    for rating in ratings:
+        grouped.setdefault(rating["fact_id"], []).append(rating)
+    return [{
+        "fact_id": fact_id,
+        "errors": sorted(set(left["error_types"]) & set(right["error_types"]) & trial.MATERIAL_ERRORS),
+    } for fact_id, (left, right) in grouped.items()
+      if set(left["error_types"]) & set(right["error_types"]) & trial.MATERIAL_ERRORS]
+
+
+def review_counts(review: dict) -> tuple[Counter, Counter, Counter, float]:
+    fact_totals = Counter(rating["verdict"] for rating in review["fact_ratings"])
+    fact_errors = Counter(error for rating in review["fact_ratings"] for error in rating["error_types"])
+    claim_totals = Counter(rating["verdict"] for rating in review["claim_ratings"])
+    unsupported_rate = claim_totals["UNSUPPORTED"] / sum(claim_totals.values()) if claim_totals else 0
+    return fact_totals, fact_errors, claim_totals, unsupported_rate
+
+
+def candidate_decision(contract_pass: int, fact_pass: int, unsupported_rate: float, repeated: list[dict]) -> str:
+    if contract_pass < 8:
+        return "DEFERRED_MINIMAL_6K_CONTRACT_FAILURE"
+    if fact_pass >= 30 and unsupported_rate <= 0.05 and not repeated:
+        return "KEEP_MINIMAL_6K_FOR_NEW_HELDOUT_COMPARISON"
+    return "REJECT_MINIMAL_6K_QUALITY_CANDIDATE"
+
+
+def score() -> None:
+    review, packet_value = trial.read(ROOT / "review.json"), trial.read(ROOT / "review-packet.json")
+    validate_review(review, packet_value)
+    rows = [json.loads(line) for line in (ROOT / "results.jsonl").read_text(encoding="utf-8").splitlines()]
+    fact_totals, fact_errors, claim_totals, unsupported_rate = review_counts(review)
+    repeated = repeated_material_errors(review["fact_ratings"])
+    contract_pass = sum(row["status"] == "PASS" for row in rows)
+    decision = candidate_decision(contract_pass, fact_totals["PASS"], unsupported_rate, repeated)
+    ledger = trial.read(ROOT / "ledger.json")
+    result = {
+        "version": 1,
+        "issue": 139,
+        "contract_pass_calls": contract_pass,
+        "fact_verdicts": dict(fact_totals),
+        "fact_errors": dict(fact_errors),
+        "claim_verdicts": dict(claim_totals),
+        "unsupported_claim_rate": round(unsupported_rate, 4),
+        "repeated_material_fact_errors": repeated,
+        "decision": decision,
+        "cost": {
+            "experiment_usd": ledger["heldout_reserved_or_actual_usd"],
+            "historical_reserved_or_estimated_usd": ledger["historical_reserved_or_estimated_usd"],
+            "cumulative_usd": round(ledger["historical_reserved_or_estimated_usd"] + ledger["heldout_reserved_or_actual_usd"], 8),
+        },
+        "interpretation_limit": "The output ceiling was selected after length failures. These articles are development evidence, not a new independent comparison.",
+    }
+    trial.save_once(ROOT / "score.json", result)
+    print(json.dumps({"status": "SCORED", "decision": decision, "fact_pass": fact_totals["PASS"], "unsupported_claim_rate": round(unsupported_rate, 4)}, ensure_ascii=False))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", choices=("prepare", "run", "packet", "score"))
+    parser.add_argument("--paid", action="store_true")
+    parser.add_argument("--comment-id", type=int)
+    args = parser.parse_args()
+    if args.command == "prepare":
+        prepare()
+    elif args.command == "run":
+        if not args.paid or args.comment_id is None:
+            raise ValueError("EXPLICIT_PAID_FLAG_AND_COMMENT_REQUIRED")
+        trial.run(args.comment_id)
+    elif args.command == "packet":
+        packet()
+    else:
+        score()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as error:  # noqa: BLE001 - suppress credential-bearing tracebacks
+        print(json.dumps({"status": "STOPPED", "error_type": type(error).__name__, "reason": str(error) if isinstance(error, ValueError) else "details suppressed"}, ensure_ascii=False))
+        raise SystemExit(1) from None
+    finally:
+        os.environ.pop("DASHSCOPE_API_KEY", None)

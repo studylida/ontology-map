@@ -1,0 +1,457 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from collections import Counter, defaultdict
+from pathlib import Path
+from typing import Any, Callable, Iterable
+
+
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parents[1]
+TRIAL = REPO / ".tmp" / "model-studio-minimal-extraction-6k-v1"
+BASELINE = REPO / ".tmp" / "model-studio-minimal-extraction-v1"
+
+ALLOWED_SUPPORT = {"PASS", "FAIL"}
+ALLOWED_BINARY = {"PASS", "FAIL"}
+ALLOWED_SELECTION = {"IN_SCOPE", "EXCLUDED"}
+
+
+class AuditError(ValueError):
+    pass
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise AuditError(message)
+
+
+def load_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def write_json(path: Path, value: Any) -> None:
+    path.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def claim_key(article_id: str, repeat: int, claim_no: int) -> str:
+    return f"{article_id}:r{repeat}:c{claim_no}"
+
+
+def fact_key(article_id: str, repeat: int, fact_id: str) -> str:
+    return f"{article_id}:r{repeat}:{fact_id}"
+
+
+def index_unique(
+    rows: Iterable[dict[str, Any]], key_fn: Callable[[dict[str, Any]], str], label: str
+) -> dict[str, dict[str, Any]]:
+    indexed: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        key = key_fn(row)
+        require(key not in indexed, f"duplicate {label}: {key}")
+        indexed[key] = row
+    return indexed
+
+
+def expected_claims(packet: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    rows = []
+    for attempt in packet["attempts"]:
+        for claim in attempt["candidate"]["claims"]:
+            rows.append(
+                {
+                    "article_id": attempt["article_id"],
+                    "repeat": attempt["repeat"],
+                    **claim,
+                }
+            )
+    return index_unique(
+        rows,
+        lambda row: claim_key(row["article_id"], row["repeat"], row["claim_no"]),
+        "raw claim",
+    )
+
+
+def expected_source_ids(packet: dict[str, Any]) -> dict[str, set[str]]:
+    return {
+        article_id: {row["source_id"] for row in source["article"]}
+        for article_id, source in packet["sources"].items()
+    }
+
+
+def validate_axis(
+    axis: dict[str, Any], allowed: set[str], label: str, key: str
+) -> None:
+    require(axis["verdict"] in allowed, f"invalid {label} verdict: {key}")
+    require(isinstance(axis["reason"], str), f"invalid {label} reason: {key}")
+    if axis["verdict"] in {"FAIL", "EXCLUDED"}:
+        require(bool(axis["reason"]), f"missing {label} reason: {key}")
+    else:
+        require(not axis["reason"], f"unexpected {label} reason: {key}")
+
+
+def validate_support(axis: dict[str, Any], key: str) -> None:
+    validate_axis(axis, ALLOWED_SUPPORT, "source support", key)
+    require(isinstance(axis["error_types"], list), f"invalid support errors: {key}")
+    if axis["verdict"] == "FAIL":
+        require(bool(axis["error_types"]), f"missing support error: {key}")
+    else:
+        require(not axis["error_types"], f"unexpected support error: {key}")
+
+
+def validate_selection(axis: dict[str, Any], key: str) -> None:
+    validate_axis(axis, ALLOWED_SELECTION, "selection", key)
+    require(isinstance(axis["category"], str), f"invalid selection category: {key}")
+    if axis["verdict"] == "IN_SCOPE":
+        require(axis["category"] == "IN_SCOPE", f"invalid in-scope category: {key}")
+    else:
+        require(axis["category"] != "IN_SCOPE", f"invalid exclusion category: {key}")
+
+
+def validate_claim_row(
+    row: dict[str, Any], raw: dict[str, Any], source_ids: set[str]
+) -> None:
+    key = row["key"]
+    require(row["review_status"] == "REVIEWED", f"unreviewed claim: {key}")
+    require(row["source_ids"] == raw["source_ids"], f"source IDs changed: {key}")
+    require(set(row["source_ids"]) <= source_ids, f"unknown source ID: {key}")
+    require(row["reported_modality"] == raw["modality"], f"modality changed: {key}")
+    validate_support(row["source_support"], key)
+    validate_axis(row["modality"], ALLOWED_BINARY, "modality", key)
+    validate_axis(row["atomicity"], ALLOWED_BINARY, "atomicity", key)
+    validate_selection(row["selection"], key)
+
+
+def validate_claim_audit(
+    packet: dict[str, Any], prior_review: dict[str, Any], rows: list[dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
+    raw = expected_claims(packet)
+    sources = expected_source_ids(packet)
+    audited = index_unique(rows, lambda row: row["key"], "claim audit")
+    require(set(audited) == set(raw), "claim audit keys differ from raw claims")
+    prior = index_unique(
+        prior_review["claim_ratings"],
+        lambda row: claim_key(row["article_id"], row["repeat"], row["claim_no"]),
+        "prior claim rating",
+    )
+    require(set(prior) == set(raw), "prior claim rating keys differ from raw claims")
+    for key, row in audited.items():
+        validate_claim_row(row, raw[key], sources[row["article_id"]])
+        require(
+            row["prior_representative_verdict"] == prior[key]["verdict"],
+            f"prior verdict changed: {key}",
+        )
+    return audited
+
+
+def claim_is_eligible(row: dict[str, Any]) -> bool:
+    return (
+        row["source_support"]["verdict"] == "PASS"
+        and row["modality"]["verdict"] == "PASS"
+        and row["atomicity"]["verdict"] == "PASS"
+        and row["selection"]["verdict"] == "IN_SCOPE"
+    )
+
+
+def validate_fact_row(row: dict[str, Any], prior: dict[str, Any]) -> None:
+    key = row["key"]
+    require(row["review_status"] == "REVIEWED", f"unreviewed fact: {key}")
+    require(
+        row["original_verdict"] == prior["verdict"], f"original fact changed: {key}"
+    )
+    require(
+        row["mapped_claim_nos"] == prior["mapped_claim_nos"], f"mapping changed: {key}"
+    )
+    require(
+        row["verdict"] in {"PASS", "PARTIAL", "FAIL"}, f"invalid fact verdict: {key}"
+    )
+    if row["verdict"] == "PASS":
+        require(not row["error_types"], f"PASS fact has errors: {key}")
+        require(
+            bool(row["covering_claim_nos"]), f"PASS fact has no covering claims: {key}"
+        )
+    else:
+        require(bool(row["error_types"]), f"non-PASS fact has no errors: {key}")
+        require(
+            not row["covering_claim_nos"], f"non-PASS fact has covering claims: {key}"
+        )
+        require(bool(row["reason"]), f"non-PASS fact has no reason: {key}")
+
+
+def validate_fact_claim_links(
+    row: dict[str, Any], claims: dict[str, dict[str, Any]]
+) -> None:
+    prefix = (row["article_id"], row["repeat"])
+    mapped = {
+        claim_key(*prefix, claim_no): claim_no for claim_no in row["mapped_claim_nos"]
+    }
+    require(set(mapped) <= set(claims), f"unknown mapped claim: {row['key']}")
+    expected_eligible = [
+        claim_no for key, claim_no in mapped.items() if claim_is_eligible(claims[key])
+    ]
+    require(
+        row["eligible_claim_nos"] == expected_eligible,
+        f"eligible claim mismatch: {row['key']}",
+    )
+    require(
+        set(row["covering_claim_nos"]) <= set(expected_eligible),
+        f"fact borrows an ineligible claim: {row['key']}",
+    )
+
+
+def validate_fact_audit(
+    prior_review: dict[str, Any],
+    rows: list[dict[str, Any]],
+    claims: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    prior = index_unique(
+        prior_review["fact_ratings"],
+        lambda row: fact_key(row["article_id"], row["repeat"], row["fact_id"]),
+        "prior fact rating",
+    )
+    audited = index_unique(rows, lambda row: row["key"], "fact audit")
+    require(set(audited) == set(prior), "fact audit keys differ from prior facts")
+    for key, row in audited.items():
+        validate_fact_row(row, prior[key])
+        validate_fact_claim_links(row, claims)
+    return audited
+
+
+def validate_integrity(
+    policy: dict[str, Any],
+    amendment: dict[str, Any],
+    packet_path: Path,
+    review_path: Path,
+) -> None:
+    hashes = policy["input_sha256"]
+    require(
+        sha256(packet_path) == hashes["private_review_packet"], "review packet changed"
+    )
+    require(sha256(review_path) == hashes["private_review"], "prior review changed")
+    require(hashes["private_review"] == hashes["public_review"], "review copies differ")
+    require(sha256(BASELINE / "gold.json") == hashes["public_gold"], "gold changed")
+    require(sha256(TRIAL / "score.json") == hashes["public_score"], "score changed")
+    require(
+        sha256(BASELINE / "sources-frozen.json") == hashes["frozen_sources"],
+        "frozen sources changed",
+    )
+    require(
+        amendment["original_is_unchanged"] is True, "gold amendment overwrites original"
+    )
+    require(
+        amendment["original_gold_sha256"] == hashes["public_gold"], "gold hash mismatch"
+    )
+    require(len(amendment["amendments"]) == 1, "unexpected gold amendment count")
+    change = amendment["amendments"][0]
+    require(change["fact_id"] == "M04-F06", "unexpected amended fact")
+    require(change["added_set"] == ["s20"], "unexpected evidence amendment")
+
+
+def counter_dict(values: Iterable[str]) -> dict[str, int]:
+    return dict(sorted(Counter(values).items()))
+
+
+def transitions(facts: Iterable[dict[str, Any]]) -> dict[str, int]:
+    return counter_dict(f"{row['original_verdict']}->{row['verdict']}" for row in facts)
+
+
+def repeated_failures(facts: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in facts:
+        grouped[(row["article_id"], row["fact_id"])].append(row)
+    result = []
+    for (article_id, fact_id), pair in sorted(grouped.items()):
+        if len(pair) != 2 or any(row["verdict"] == "PASS" for row in pair):
+            continue
+        common = sorted(set(pair[0]["error_types"]) & set(pair[1]["error_types"]))
+        result.append(
+            {
+                "article_id": article_id,
+                "fact_id": fact_id,
+                "verdicts": [
+                    row["verdict"]
+                    for row in sorted(pair, key=lambda item: item["repeat"])
+                ],
+                "common_error_types": common,
+            }
+        )
+    return result
+
+
+def fact_changes(facts: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "key": row["key"],
+            "from": row["original_verdict"],
+            "to": row["verdict"],
+            "error_types": row["error_types"],
+        }
+        for row in facts
+        if row["original_verdict"] != row["verdict"]
+    ]
+
+
+def fact_record_changes(
+    prior_review: dict[str, Any], facts: Iterable[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    prior = index_unique(
+        prior_review["fact_ratings"],
+        lambda row: fact_key(row["article_id"], row["repeat"], row["fact_id"]),
+        "prior fact record",
+    )
+    return [
+        {
+            "key": row["key"],
+            "verdict": {"from": old["verdict"], "to": row["verdict"]},
+            "error_types": {"from": old["error_types"], "to": row["error_types"]},
+            "reason_changed": old["reason"] != row["reason"],
+        }
+        for row in facts
+        if (old := prior[row["key"]])["verdict"] != row["verdict"]
+        or old["error_types"] != row["error_types"]
+        or old["reason"] != row["reason"]
+    ]
+
+
+def build_score(
+    prior_review: dict[str, Any],
+    claims: list[dict[str, Any]],
+    facts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    audited_pass = sum(row["verdict"] == "PASS" for row in facts)
+    original_pass = sum(
+        row["verdict"] == "PASS" for row in prior_review["fact_ratings"]
+    )
+    eligible = sum(claim_is_eligible(row) for row in claims)
+    return {
+        "version": "evidence-boundary-audit-v1",
+        "status": "AUDIT_COMPLETE_MINIMAL_6K_QUALITY_CANDIDATE_REMAINS_REJECTED",
+        "model_calls": 0,
+        "api_cost_usd": 0,
+        "fact_scores": {
+            "original_frozen": {"pass": original_pass, "total": len(facts)},
+            "gold_correction_only": {"pass": original_pass + 2, "total": len(facts)},
+            "claim_boundary_audit_before_gold_correction": {
+                "pass": audited_pass - 2,
+                "total": len(facts),
+            },
+            "claim_boundary_audit_after_gold_correction": {
+                "pass": audited_pass,
+                "total": len(facts),
+            },
+            "verdict_transitions": transitions(facts),
+        },
+        "claim_axes": {
+            "source_support": counter_dict(
+                row["source_support"]["verdict"] for row in claims
+            ),
+            "modality": counter_dict(row["modality"]["verdict"] for row in claims),
+            "atomicity": counter_dict(row["atomicity"]["verdict"] for row in claims),
+            "selection": counter_dict(row["selection"]["verdict"] for row in claims),
+            "eligible_all_axes": {"pass": eligible, "total": len(claims)},
+        },
+        "interpretation": [
+            "같은 출력에 대한 평가 교정이며 모델 성능의 개선·회귀가 아니다.",
+            "source support FAIL은 연결 근거 부족을 포함하므로 환각률이 아니다.",
+            "네 Claim 축은 겹칠 수 있으므로 실패 수를 합산하지 않는다.",
+            "현재 최소 6,000-token 구성의 제품 계약·자동 저장·worker를 승인하지 않는다.",
+        ],
+    }
+
+
+def build_cross_check(
+    prior_review: dict[str, Any],
+    claims: list[dict[str, Any]],
+    facts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    prior_claims = index_unique(
+        prior_review["claim_ratings"],
+        lambda row: claim_key(row["article_id"], row["repeat"], row["claim_no"]),
+        "prior claim cross-check",
+    )
+    new_support_failures = [
+        row["key"]
+        for row in claims
+        if prior_claims[row["key"]]["verdict"] != "UNSUPPORTED"
+        and row["source_support"]["verdict"] == "FAIL"
+    ]
+    prior_atomicity = {
+        key for key, row in prior_claims.items() if "ATOMICITY" in row["error_types"]
+    }
+    audited_atomicity = {
+        row["key"] for row in claims if row["atomicity"]["verdict"] == "FAIL"
+    }
+    return {
+        "version": "evidence-boundary-audit-v1",
+        "exact_key_counts": {
+            "claims": len(claims),
+            "fact_ratings": len(facts),
+            "all_claims_reviewed": all(
+                row["review_status"] == "REVIEWED" for row in claims
+            ),
+            "all_facts_reviewed": all(
+                row["review_status"] == "REVIEWED" for row in facts
+            ),
+        },
+        "fact_verdict_changes": fact_changes(facts),
+        "fact_record_changes": fact_record_changes(prior_review, facts),
+        "new_source_support_failures": {
+            "count": len(new_support_failures),
+            "keys": new_support_failures,
+        },
+        "source_error_type_corrections": ["M02:r2:c34", "M02:r2:c35"],
+        "atomicity_reclassification": {
+            "prior_error_count": len(prior_atomicity),
+            "audited_error_count": len(audited_atomicity),
+            "removed": sorted(prior_atomicity - audited_atomicity),
+            "added": sorted(audited_atomicity - prior_atomicity),
+        },
+        "selection_categories": counter_dict(
+            row["selection"]["category"]
+            for row in claims
+            if row["selection"]["verdict"] == "EXCLUDED"
+        ),
+        "repeated_fact_failures": repeated_failures(facts),
+        "no_sibling_evidence_borrowing": all(
+            set(row["covering_claim_nos"]) <= set(row["eligible_claim_nos"])
+            for row in facts
+        ),
+    }
+
+
+def run() -> tuple[dict[str, Any], dict[str, Any]]:
+    packet_path = TRIAL / "review-packet.json"
+    review_path = TRIAL / "review.json"
+    packet = load_json(packet_path)
+    prior_review = load_json(review_path)
+    policy = load_json(HERE / "policy.json")
+    amendment = load_json(HERE / "gold-amendment.json")
+    claim_rows = load_json(HERE / "claim-audit.json")
+    fact_rows = load_json(HERE / "fact-audit.json")
+    validate_integrity(policy, amendment, packet_path, review_path)
+    claims = validate_claim_audit(packet, prior_review, claim_rows)
+    facts = validate_fact_audit(prior_review, fact_rows, claims)
+    score = build_score(prior_review, list(claims.values()), list(facts.values()))
+    cross_check = build_cross_check(
+        prior_review, list(claims.values()), list(facts.values())
+    )
+    require(
+        score["fact_scores"]["original_frozen"]["pass"] == 20, "baseline score changed"
+    )
+    require(
+        score["fact_scores"]["claim_boundary_audit_after_gold_correction"]["pass"]
+        == 16,
+        "unexpected audited score",
+    )
+    write_json(HERE / "score.json", score)
+    write_json(HERE / "cross-check.json", cross_check)
+    return score, cross_check
+
+
+if __name__ == "__main__":
+    run()

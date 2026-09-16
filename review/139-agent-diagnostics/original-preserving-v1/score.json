@@ -1,0 +1,258 @@
+{
+  "version": 1,
+  "issue": 139,
+  "method": "Single-reviewer manual semantic review against pre-frozen gold with condition names hidden until ratings were frozen",
+  "arms": {
+    "baseline": {
+      "calls": 16,
+      "contract_pass_calls": 14,
+      "ratings": {
+        "PASS": 27,
+        "FAIL": 9,
+        "CONTRACT_ERROR": 8,
+        "PARTIAL": 20
+      },
+      "strict_pass_rate_percent": 42.2,
+      "pass_rate_given_contract_percent": 48.2,
+      "complete_four_unit_attempts": 0,
+      "repeat_verdict_agreement": {
+        "agree": 19,
+        "eligible": 24,
+        "percent": 79.2
+      },
+      "estimated_usd": 0.00652995,
+      "prompt_tokens": 61782,
+      "completion_tokens": 35973
+    },
+    "preserve": {
+      "calls": 16,
+      "contract_pass_calls": 15,
+      "ratings": {
+        "PASS": 37,
+        "FAIL": 10,
+        "PARTIAL": 13,
+        "CONTRACT_ERROR": 4
+      },
+      "strict_pass_rate_percent": 57.8,
+      "pass_rate_given_contract_percent": 61.7,
+      "complete_four_unit_attempts": 0,
+      "repeat_verdict_agreement": {
+        "agree": 25,
+        "eligible": 28,
+        "percent": 89.3
+      },
+      "estimated_usd": 0.00614035,
+      "prompt_tokens": 64534,
+      "completion_tokens": 32341
+    }
+  },
+  "strict_pass_rate_difference_percentage_points": 15.6,
+  "paired_noncontract": {
+    "tie": 40,
+    "excluded_contract": 12,
+    "preserve_better": 11,
+    "baseline_better": 1
+  },
+  "paired_changes": [
+    {
+      "article_id": "P02",
+      "repeat": 2,
+      "source_id": "s17",
+      "direction": "preserve_better"
+    },
+    {
+      "article_id": "P02",
+      "repeat": 2,
+      "source_id": "s6",
+      "direction": "preserve_better"
+    },
+    {
+      "article_id": "P03",
+      "repeat": 2,
+      "source_id": "s18",
+      "direction": "preserve_better"
+    },
+    {
+      "article_id": "P04",
+      "repeat": 1,
+      "source_id": "s1",
+      "direction": "preserve_better"
+    },
+    {
+      "article_id": "P05",
+      "repeat": 1,
+      "source_id": "s13",
+      "direction": "preserve_better"
+    },
+    {
+      "article_id": "P05",
+      "repeat": 1,
+      "source_id": "s16",
+      "direction": "preserve_better"
+    },
+    {
+      "article_id": "P05",
+      "repeat": 2,
+      "source_id": "s13",
+      "direction": "preserve_better"
+    },
+    {
+      "article_id": "P05",
+      "repeat": 2,
+      "source_id": "s16",
+      "direction": "preserve_better"
+    },
+    {
+      "article_id": "P06",
+      "repeat": 2,
+      "source_id": "s3",
+      "direction": "preserve_better"
+    },
+    {
+      "article_id": "P07",
+      "repeat": 1,
+      "source_id": "s10",
+      "direction": "preserve_better"
+    },
+    {
+      "article_id": "P07",
+      "repeat": 1,
+      "source_id": "s4",
+      "direction": "baseline_better"
+    },
+    {
+      "article_id": "P08",
+      "repeat": 1,
+      "source_id": "s14",
+      "direction": "preserve_better"
+    }
+  ],
+  "by_article": {
+    "P01": {
+      "preserve": {
+        "PASS": 6,
+        "FAIL": 2
+      },
+      "baseline": {
+        "PASS": 3,
+        "FAIL": 1,
+        "CONTRACT_ERROR": 4
+      }
+    },
+    "P02": {
+      "preserve": {
+        "PASS": 6,
+        "PARTIAL": 2
+      },
+      "baseline": {
+        "PASS": 4,
+        "PARTIAL": 4
+      }
+    },
+    "P03": {
+      "baseline": {
+        "PASS": 4,
+        "FAIL": 2,
+        "PARTIAL": 2
+      },
+      "preserve": {
+        "CONTRACT_ERROR": 4,
+        "PASS": 3,
+        "FAIL": 1
+      }
+    },
+    "P04": {
+      "baseline": {
+        "PARTIAL": 1,
+        "PASS": 5,
+        "FAIL": 2
+      },
+      "preserve": {
+        "PASS": 6,
+        "FAIL": 2
+      }
+    },
+    "P05": {
+      "preserve": {
+        "FAIL": 2,
+        "PARTIAL": 2,
+        "PASS": 4
+      },
+      "baseline": {
+        "FAIL": 2,
+        "PARTIAL": 6
+      }
+    },
+    "P06": {
+      "preserve": {
+        "PARTIAL": 2,
+        "PASS": 6
+      },
+      "baseline": {
+        "PARTIAL": 2,
+        "PASS": 5,
+        "FAIL": 1
+      }
+    },
+    "P07": {
+      "baseline": {
+        "PASS": 1,
+        "PARTIAL": 2,
+        "FAIL": 1,
+        "CONTRACT_ERROR": 4
+      },
+      "preserve": {
+        "PARTIAL": 5,
+        "FAIL": 3
+      }
+    },
+    "P08": {
+      "preserve": {
+        "PARTIAL": 2,
+        "PASS": 6
+      },
+      "baseline": {
+        "PARTIAL": 3,
+        "PASS": 5
+      }
+    }
+  },
+  "contract_failures": [
+    {
+      "identity": "original-preserving-v1-P01-r2-baseline",
+      "error_type": "ValidationError",
+      "finish_reason": "stop",
+      "estimated_usd": 0.0003411
+    },
+    {
+      "identity": "original-preserving-v1-P03-r1-preserve",
+      "error_type": "ValidationError",
+      "finish_reason": "stop",
+      "estimated_usd": 0.00035976
+    },
+    {
+      "identity": "original-preserving-v1-P07-r2-baseline",
+      "error_type": "ValueError",
+      "finish_reason": "length",
+      "estimated_usd": 0.00049818
+    }
+  ],
+  "cost": {
+    "experiment_usd": 0.0126703,
+    "historical_reserved_or_estimated_usd": 0.85175493,
+    "cumulative_usd": 0.86442523
+  },
+  "dependency_hashes": {
+    "manifest.json": "4057405944d00da6b5ab057ef104cc39f4d1cfa7f9f918f9a5ed0dfc0c241b60",
+    "gold.json": "4baca7c0218112c0c675f30617efd5f3d5b1e377f3459f36e0629340ace08669",
+    "blind-review.json": "67978f09fc679e9afaae06e500348c57bb4da7bc990aee6c06d1bb791728409f",
+    "blind-map.json": "364ddefbd1a12ce4d0a51570fcc90e01202f2fe94e51bc4fbc821bebcab644e9",
+    "results.jsonl": "a7664ecef0f02badac97d2886c024f8ca8053f7f940ad41af4600898310cf3ce",
+    "ledger.json": "b9a34cc888007cf47ad99545d0f4ceba05a2cd8e9eae1bec19ea213f5d10d7cb"
+  },
+  "interpretation": {
+    "promising": "The original-preserving addendum improved strict unit pass rate and paired non-contract outcomes.",
+    "not_approved": "Neither arm produced a complete four-unit article attempt; three calls failed the output contract; this purpose-sampled pilot is not product or operational validation.",
+    "next": "Promote the preserve wording only to the next candidate, keep these articles as regression data, and test discourse/evidence grouping plus strict structured-output support before using a new untouched set."
+  }
+}

@@ -1,0 +1,209 @@
+{
+  "version": 1,
+  "issue": 139,
+  "purpose": "Compare R7 selection wording with one original-preserving writing addendum",
+  "model": "qwen3.7-flash-2026-07-15",
+  "settings": {
+    "temperature": 0,
+    "enable_thinking": false,
+    "stream": false,
+    "max_tokens": 3000
+  },
+  "arms": {
+    "baseline": "frozen R7 prompt",
+    "preserve": "frozen R7 prompt plus preserve-addendum.txt"
+  },
+  "articles": 8,
+  "focus_units": 32,
+  "repeats": [
+    1,
+    2
+  ],
+  "planned_calls": 32,
+  "planned_reservation_usd": 0.03170364,
+  "historical_reserved_or_estimated_usd": 0.85175493,
+  "heldout_cap_usd": 0.1,
+  "maximum_cumulative_usd": 0.95175493,
+  "source_exposure_check": {
+    "comparison_docs": 8,
+    "exact_hash_matches": [],
+    "exact_url_matches": []
+  },
+  "dependency_hashes": {
+    "sources-frozen.json": "f0345b6a944a374c0c2e2a6a934b4771b7dd0b09618edd65c3ff9eb2951297bf",
+    "gold.json": "4baca7c0218112c0c675f30617efd5f3d5b1e377f3459f36e0629340ace08669",
+    "preserve-addendum.txt": "71bfec1e6e1b6fa860e95b47fc039b35bf0a49a5e5cd6001818d64872adb7aae",
+    "comparison.py": "655962fb1d0d371c68b92eeb4b027f41ebc39ca75ceac67e0fc00058b317cac5",
+    "trial_v6.py": "1400c2dd1e5a7aa9f6440ac350e19a10105030f5b103da8aa61446231b5a485f",
+    "trial_v7.py": "1c971bc9cee991d4b97a6efbdbe1f0096a7a66dd3dacd6e1b2d50e7daae44971",
+    "selection-r7-addendum.txt": "008e2ee53b4a1b7a7e52ed9120882dacdf9998ac6a88a031b8fd09a39f77660a"
+  },
+  "requests": [
+    {
+      "identity": "original-preserving-v1-P01-r1-baseline",
+      "request_sha256": "321b840470fba2b74583287e0ce9d3d8f537734bd8307716d16c099b012fb95c",
+      "reservation_usd": 0.00092871
+    },
+    {
+      "identity": "original-preserving-v1-P01-r1-preserve",
+      "request_sha256": "8eac75d0cf52e16bbdf9611146eac6478d69a93b8b888061fa1b0845e856ae6c",
+      "reservation_usd": 0.00095265
+    },
+    {
+      "identity": "original-preserving-v1-P01-r2-preserve",
+      "request_sha256": "8eac75d0cf52e16bbdf9611146eac6478d69a93b8b888061fa1b0845e856ae6c",
+      "reservation_usd": 0.00095265
+    },
+    {
+      "identity": "original-preserving-v1-P01-r2-baseline",
+      "request_sha256": "321b840470fba2b74583287e0ce9d3d8f537734bd8307716d16c099b012fb95c",
+      "reservation_usd": 0.00092871
+    },
+    {
+      "identity": "original-preserving-v1-P02-r1-preserve",
+      "request_sha256": "813172f30b7a1acbb4a1370c0d7ad6b69b434f3645ddb43e4aa150b192a75060",
+      "reservation_usd": 0.00118293
+    },
+    {
+      "identity": "original-preserving-v1-P02-r1-baseline",
+      "request_sha256": "fb22d053a900c60dfb70ac58d7d3070de070e1ccfd6f60eef712db43be09c60e",
+      "reservation_usd": 0.00115899
+    },
+    {
+      "identity": "original-preserving-v1-P02-r2-baseline",
+      "request_sha256": "fb22d053a900c60dfb70ac58d7d3070de070e1ccfd6f60eef712db43be09c60e",
+      "reservation_usd": 0.00115899
+    },
+    {
+      "identity": "original-preserving-v1-P02-r2-preserve",
+      "request_sha256": "813172f30b7a1acbb4a1370c0d7ad6b69b434f3645ddb43e4aa150b192a75060",
+      "reservation_usd": 0.00118293
+    },
+    {
+      "identity": "original-preserving-v1-P03-r1-baseline",
+      "request_sha256": "9e87d338604071f7183d042faae7b77924c4337aa986bba82aed2998a3e28112",
+      "reservation_usd": 0.00100755
+    },
+    {
+      "identity": "original-preserving-v1-P03-r1-preserve",
+      "request_sha256": "dce700a8529b5a4dcf82ea4334cdaf95ac4849217a3d52c2ecd456a05e1921f7",
+      "reservation_usd": 0.00103149
+    },
+    {
+      "identity": "original-preserving-v1-P03-r2-preserve",
+      "request_sha256": "dce700a8529b5a4dcf82ea4334cdaf95ac4849217a3d52c2ecd456a05e1921f7",
+      "reservation_usd": 0.00103149
+    },
+    {
+      "identity": "original-preserving-v1-P03-r2-baseline",
+      "request_sha256": "9e87d338604071f7183d042faae7b77924c4337aa986bba82aed2998a3e28112",
+      "reservation_usd": 0.00100755
+    },
+    {
+      "identity": "original-preserving-v1-P04-r1-preserve",
+      "request_sha256": "3239cbc2323f35f33d9349c7b8c5038efbab8d5e7579ef528acb597e41e8e747",
+      "reservation_usd": 0.00100272
+    },
+    {
+      "identity": "original-preserving-v1-P04-r1-baseline",
+      "request_sha256": "789b76c1151822b48f1eba628f4c13101956d8c42c424ee6c2bdf2f23a6b8ecf",
+      "reservation_usd": 0.00097878
+    },
+    {
+      "identity": "original-preserving-v1-P04-r2-baseline",
+      "request_sha256": "789b76c1151822b48f1eba628f4c13101956d8c42c424ee6c2bdf2f23a6b8ecf",
+      "reservation_usd": 0.00097878
+    },
+    {
+      "identity": "original-preserving-v1-P04-r2-preserve",
+      "request_sha256": "3239cbc2323f35f33d9349c7b8c5038efbab8d5e7579ef528acb597e41e8e747",
+      "reservation_usd": 0.00100272
+    },
+    {
+      "identity": "original-preserving-v1-P05-r1-baseline",
+      "request_sha256": "24e7869b997c355e81fec2f1cff4856c35c916e0a004553e156221954ae8ba26",
+      "reservation_usd": 0.00091476
+    },
+    {
+      "identity": "original-preserving-v1-P05-r1-preserve",
+      "request_sha256": "ab0a5eb4970d9c1a51714cdad6ad07d18b062e62010fb773abb054a7cf2a9502",
+      "reservation_usd": 0.0009387
+    },
+    {
+      "identity": "original-preserving-v1-P05-r2-preserve",
+      "request_sha256": "ab0a5eb4970d9c1a51714cdad6ad07d18b062e62010fb773abb054a7cf2a9502",
+      "reservation_usd": 0.0009387
+    },
+    {
+      "identity": "original-preserving-v1-P05-r2-baseline",
+      "request_sha256": "24e7869b997c355e81fec2f1cff4856c35c916e0a004553e156221954ae8ba26",
+      "reservation_usd": 0.00091476
+    },
+    {
+      "identity": "original-preserving-v1-P06-r1-preserve",
+      "request_sha256": "7d733e65c08836dd12f54aa30d3080666caf04a87654fd308efb2408b3cc2714",
+      "reservation_usd": 0.00090621
+    },
+    {
+      "identity": "original-preserving-v1-P06-r1-baseline",
+      "request_sha256": "ec35f419f114ab898ca4f98178dc40584af6b1e5b18eedc77c3f60460af6b0b4",
+      "reservation_usd": 0.00088227
+    },
+    {
+      "identity": "original-preserving-v1-P06-r2-baseline",
+      "request_sha256": "ec35f419f114ab898ca4f98178dc40584af6b1e5b18eedc77c3f60460af6b0b4",
+      "reservation_usd": 0.00088227
+    },
+    {
+      "identity": "original-preserving-v1-P06-r2-preserve",
+      "request_sha256": "7d733e65c08836dd12f54aa30d3080666caf04a87654fd308efb2408b3cc2714",
+      "reservation_usd": 0.00090621
+    },
+    {
+      "identity": "original-preserving-v1-P07-r1-baseline",
+      "request_sha256": "b903e16a6ea50d240b56b2436f11808e0cfb382c9d1d013062fd55247987730a",
+      "reservation_usd": 0.00096198
+    },
+    {
+      "identity": "original-preserving-v1-P07-r1-preserve",
+      "request_sha256": "1a7a0006aa38acf0aff3de887b1f00fbfebed2834b0ebddc813d9980aa76f665",
+      "reservation_usd": 0.00098592
+    },
+    {
+      "identity": "original-preserving-v1-P07-r2-preserve",
+      "request_sha256": "1a7a0006aa38acf0aff3de887b1f00fbfebed2834b0ebddc813d9980aa76f665",
+      "reservation_usd": 0.00098592
+    },
+    {
+      "identity": "original-preserving-v1-P07-r2-baseline",
+      "request_sha256": "b903e16a6ea50d240b56b2436f11808e0cfb382c9d1d013062fd55247987730a",
+      "reservation_usd": 0.00096198
+    },
+    {
+      "identity": "original-preserving-v1-P08-r1-preserve",
+      "request_sha256": "1ec40cc878d5141f597ea55c068d3fb387a992e5468cc61a9399baf652858198",
+      "reservation_usd": 0.00102105
+    },
+    {
+      "identity": "original-preserving-v1-P08-r1-baseline",
+      "request_sha256": "a59518631ae2047e7e024622b228bf952d72535ce4fa374779f3877987afbbac",
+      "reservation_usd": 0.00099711
+    },
+    {
+      "identity": "original-preserving-v1-P08-r2-baseline",
+      "request_sha256": "a59518631ae2047e7e024622b228bf952d72535ce4fa374779f3877987afbbac",
+      "reservation_usd": 0.00099711
+    },
+    {
+      "identity": "original-preserving-v1-P08-r2-preserve",
+      "request_sha256": "1ec40cc878d5141f597ea55c068d3fb387a992e5468cc61a9399baf652858198",
+      "reservation_usd": 0.00102105
+    }
+  ],
+  "stop_rules": [
+    "No automatic repair or retry after a provider, transport, contract, or budget failure",
+    "Do not tune the prompt against these outputs and recount them as independent evaluation",
+    "Do not treat UNRESOLVED or omitted required knowledge as PASS",
+    "Do not infer product adoption, automatic persistence, or operational quality from this pilot"
+  ]
+}

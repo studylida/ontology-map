@@ -1,0 +1,2245 @@
+{
+  "scope": "Curated 49-call metadata and verdict-only excerpts; source text, statements, reasons and full responses omitted. Score labels are evaluator judgments, not independent truth.",
+  "raw_results_sha256": "b7930faf2b37bbf775aa62e551edd454d79d5034e54e13369f8fffe8271195e1",
+  "evaluation_sha256": "3e3d221a900179b505477590eea3fb4366b7797441d832ca3f78c5756d9f260b",
+  "calls": [
+    {
+      "identity": "evidence-full-A1-control-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "08de84fb9856085e9d253b1c19b03572099a2c2ec7380d098d181c978ebeedc7",
+      "reservation_usd": 0.0108168,
+      "usage": {
+        "prompt_tokens": 3514,
+        "total_tokens": 3607,
+        "completion_tokens": 93,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 3514
+        }
+      },
+      "estimated_usd": 0.0015544,
+      "elapsed_seconds": 3.319,
+      "label_scoring": {
+        "identity": "evidence-full-A1-control-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A1C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s24"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "evidence-selected-A1-control-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "e164d9123f2f6895f7e32de67947c24f9fba75bcb8cdcca0d536e659f0cf72ef",
+      "reservation_usd": 0.0065148,
+      "usage": {
+        "prompt_tokens": 698,
+        "total_tokens": 804,
+        "completion_tokens": 106,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 698
+        }
+      },
+      "estimated_usd": 0.0004488,
+      "elapsed_seconds": 3.057,
+      "label_scoring": {
+        "identity": "evidence-selected-A1-control-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A1C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s24"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "evidence-full-A1-fault-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "38273db2459b3f26d6d364718529eb8d0d69670594474af25330d269f2317d13",
+      "reservation_usd": 0.0108112,
+      "usage": {
+        "prompt_tokens": 3512,
+        "total_tokens": 3608,
+        "completion_tokens": 96,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 3512
+        }
+      },
+      "estimated_usd": 0.0015584,
+      "elapsed_seconds": 4.169,
+      "label_scoring": {
+        "identity": "evidence-full-A1-fault-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A1C1K1",
+            "expected": "FAIL",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "FAIL",
+          "basis_source_ids": [
+            "s24"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "evidence-selected-A1-fault-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "08058f7e609abaa97b944052eefe20d37f6f83e91aab1810d6320bf5466e3df6",
+      "reservation_usd": 0.0065092,
+      "usage": {
+        "prompt_tokens": 696,
+        "total_tokens": 780,
+        "completion_tokens": 84,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 696
+        }
+      },
+      "estimated_usd": 0.0004128,
+      "elapsed_seconds": 2.6,
+      "label_scoring": {
+        "identity": "evidence-selected-A1-fault-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A1C1K1",
+            "expected": "FAIL",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": false
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "FAIL",
+          "basis_source_ids": []
+        }
+      ]
+    },
+    {
+      "identity": "evidence-full-A5-control-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "5c41ceabe114b5d8d2464be59d21eac456ff2140a3a1ca63dadcce08dadb4e57",
+      "reservation_usd": 0.01171,
+      "usage": {
+        "prompt_tokens": 3912,
+        "total_tokens": 3988,
+        "completion_tokens": 76,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 3912
+        }
+      },
+      "estimated_usd": 0.0016864,
+      "elapsed_seconds": 2.707,
+      "label_scoring": {
+        "identity": "evidence-full-A5-control-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A5C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": false
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s19"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "evidence-selected-A5-control-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "be5e94103153cdf2223b8316e0f0cc42de4b8ba67234c3c3a59747fbdd5ec15f",
+      "reservation_usd": 0.0065728,
+      "usage": {
+        "prompt_tokens": 738,
+        "total_tokens": 820,
+        "completion_tokens": 82,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 738
+        }
+      },
+      "estimated_usd": 0.0004264,
+      "elapsed_seconds": 2.402,
+      "label_scoring": {
+        "identity": "evidence-selected-A5-control-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A5C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": false
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s19"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "evidence-full-A5-control-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "56e6ff8866a1d266de81ed8e956963be84ec7ef6417b60061ad1d24948946498",
+      "reservation_usd": 0.0117284,
+      "usage": {
+        "prompt_tokens": 3919,
+        "total_tokens": 4038,
+        "completion_tokens": 119,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 3919
+        }
+      },
+      "estimated_usd": 0.001758,
+      "elapsed_seconds": 3.379,
+      "label_scoring": {
+        "identity": "evidence-full-A5-control-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A5C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": false
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s19"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "evidence-selected-A5-control-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "d7493c94cfac7bd61826327e60ce126f4496eb00ba903c540e7a7b43a66aa471",
+      "reservation_usd": 0.0065912,
+      "usage": {
+        "prompt_tokens": 745,
+        "total_tokens": 828,
+        "completion_tokens": 83,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 745
+        }
+      },
+      "estimated_usd": 0.0004308,
+      "elapsed_seconds": 2.5,
+      "label_scoring": {
+        "identity": "evidence-selected-A5-control-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A5C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": false
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s19"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "evidence-full-A5-fault-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "e576d5f015509980909c5c034352a31fb19bc20cbd26f3db5a73a623b1bad7e1",
+      "reservation_usd": 0.0117072,
+      "usage": {
+        "prompt_tokens": 3908,
+        "total_tokens": 3980,
+        "completion_tokens": 72,
+        "prompt_tokens_details": {
+          "cached_tokens": 3456,
+          "text_tokens": 3908
+        }
+      },
+      "estimated_usd": 0.0016784,
+      "elapsed_seconds": 2.432,
+      "label_scoring": {
+        "identity": "evidence-full-A5-fault-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A5C1K1",
+            "expected": "FAIL",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": false,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": false
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s19"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "evidence-selected-A5-fault-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "3fadb2ce7afdb5bbb17cca14e1505206e53bf271975bf94df61554dd776f99ac",
+      "reservation_usd": 0.006452,
+      "usage": {
+        "prompt_tokens": 659,
+        "total_tokens": 749,
+        "completion_tokens": 90,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 659
+        }
+      },
+      "estimated_usd": 0.0004076,
+      "elapsed_seconds": 2.547,
+      "label_scoring": {
+        "identity": "evidence-selected-A5-fault-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A5C1K1",
+            "expected": "FAIL",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": false
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "FAIL",
+          "basis_source_ids": []
+        }
+      ]
+    },
+    {
+      "identity": "evidence-full-A5-fault-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "67223039be6cc63e7b19185806b57fd1f02768f50e935daff9c9f620e88bff84",
+      "reservation_usd": 0.0117256,
+      "usage": {
+        "prompt_tokens": 3915,
+        "total_tokens": 4029,
+        "completion_tokens": 114,
+        "prompt_tokens_details": {
+          "cached_tokens": 3456,
+          "text_tokens": 3915
+        }
+      },
+      "estimated_usd": 0.0017484,
+      "elapsed_seconds": 3.399,
+      "label_scoring": {
+        "identity": "evidence-full-A5-fault-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A5C1K2",
+            "expected": "FAIL",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": false,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": false
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s19"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "evidence-selected-A5-fault-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "b1bed35c1f29cc006ad1e87fb5c84ef94613a9cb3a79c4100aa0c4abca51a9e9",
+      "reservation_usd": 0.0064704,
+      "usage": {
+        "prompt_tokens": 666,
+        "total_tokens": 739,
+        "completion_tokens": 73,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 666
+        }
+      },
+      "estimated_usd": 0.0003832,
+      "elapsed_seconds": 2.824,
+      "label_scoring": {
+        "identity": "evidence-selected-A5-fault-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A5C1K2",
+            "expected": "FAIL",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": false
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "FAIL",
+          "basis_source_ids": []
+        }
+      ]
+    },
+    {
+      "identity": "atomic-verdict-A4-fault-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "91ed5ae571f2cf389e7432ae99eef16c2acb95bc85918d886120e2a5c6a6381c",
+      "reservation_usd": 0.0066948,
+      "usage": {
+        "prompt_tokens": 802,
+        "total_tokens": 987,
+        "completion_tokens": 185,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 802
+        }
+      },
+      "estimated_usd": 0.0006168,
+      "elapsed_seconds": 4.663,
+      "label_scoring": {
+        "identity": "atomic-verdict-A4-fault-1",
+        "reviews": [
+          {
+            "claim_id": "A4C1K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          },
+          {
+            "claim_id": "A4C1K2",
+            "expected": "PASS",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": false
+          }
+        ],
+        "packet_match": false
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "syn1"
+          ]
+        },
+        {
+          "claim_id": "c2",
+          "verdict": "FAIL",
+          "basis_source_ids": [
+            "syn2"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "atomic-units-A4-fault-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "bb53b2e55f0f760e024499556e39401f88ff59ff4127e4abdf8b4fbe58f135d8",
+      "reservation_usd": 0.0070972,
+      "usage": {
+        "prompt_tokens": 1003,
+        "total_tokens": 1263,
+        "completion_tokens": 260,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 1003
+        }
+      },
+      "estimated_usd": 0.0008172,
+      "elapsed_seconds": 5.47,
+      "label_scoring": {
+        "identity": "atomic-units-A4-fault-1",
+        "reviews": [
+          {
+            "claim_id": "A4C1K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          },
+          {
+            "claim_id": "A4C1K2",
+            "expected": "PASS",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": false
+          }
+        ],
+        "packet_match": false
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "syn1"
+          ],
+          "independent_statement_count": 1
+        },
+        {
+          "claim_id": "c2",
+          "verdict": "FAIL",
+          "basis_source_ids": [
+            "syn2"
+          ],
+          "independent_statement_count": 1
+        }
+      ]
+    },
+    {
+      "identity": "atomic-verdict-A4-control-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "a75cf146b81517d6bc7f7e2f081d5732d8908a235d989bd130be87c58bfbd699",
+      "reservation_usd": 0.006716,
+      "usage": {
+        "prompt_tokens": 815,
+        "total_tokens": 969,
+        "completion_tokens": 154,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 815
+        }
+      },
+      "estimated_usd": 0.0005724,
+      "elapsed_seconds": 4.285,
+      "label_scoring": {
+        "identity": "atomic-verdict-A4-control-1",
+        "reviews": [
+          {
+            "claim_id": "A4C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          },
+          {
+            "claim_id": "A4C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "syn1"
+          ]
+        },
+        {
+          "claim_id": "c2",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "syn2"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "atomic-units-A4-control-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "dfa4c93c87e1307d5fbe520ea3f6e10cbd2c5b2fc9c9f955d7e3bdd6cc1c16d8",
+      "reservation_usd": 0.0071184,
+      "usage": {
+        "prompt_tokens": 1016,
+        "total_tokens": 1264,
+        "completion_tokens": 248,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 1016
+        }
+      },
+      "estimated_usd": 0.0008032,
+      "elapsed_seconds": 5.264,
+      "label_scoring": {
+        "identity": "atomic-units-A4-control-1",
+        "reviews": [
+          {
+            "claim_id": "A4C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          },
+          {
+            "claim_id": "A4C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "syn1"
+          ],
+          "independent_statement_count": 1
+        },
+        {
+          "claim_id": "c2",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "syn2"
+          ],
+          "independent_statement_count": 1
+        }
+      ]
+    },
+    {
+      "identity": "atomic-verdict-A6-fault-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "15ca77ff5c693b1a6379bdfc4f2feb575eac860903aaf7bc39acdb05225454d6",
+      "reservation_usd": 0.0134816,
+      "usage": {
+        "prompt_tokens": 6534,
+        "total_tokens": 6654,
+        "completion_tokens": 120,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 6534
+        }
+      },
+      "estimated_usd": 0.0028056,
+      "elapsed_seconds": 3.346,
+      "label_scoring": {
+        "identity": "atomic-verdict-A6-fault-1",
+        "reviews": [
+          {
+            "claim_id": "A6C1K1",
+            "expected": "FAIL",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": false
+          }
+        ],
+        "packet_match": false
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s68"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "atomic-units-A6-fault-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "99974f0d59dc077bd50b235b46945695ca0a2c2d1ea71f131ce7b4f16adf4350",
+      "reservation_usd": 0.013884,
+      "usage": {
+        "prompt_tokens": 6735,
+        "total_tokens": 6908,
+        "completion_tokens": 173,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 6735
+        }
+      },
+      "estimated_usd": 0.0029708,
+      "elapsed_seconds": 4.426,
+      "label_scoring": {
+        "identity": "atomic-units-A6-fault-1",
+        "reviews": [
+          {
+            "claim_id": "A6C1K1",
+            "expected": "FAIL",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "FAIL",
+          "basis_source_ids": [
+            "s68"
+          ],
+          "independent_statement_count": 2
+        }
+      ]
+    },
+    {
+      "identity": "atomic-verdict-A6-control-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "f1ad5b43fe2c4aa2101bc069a4902825b24dc4de76ee2fa78369e7a7fa96691c",
+      "reservation_usd": 0.013526,
+      "usage": {
+        "prompt_tokens": 6569,
+        "total_tokens": 6738,
+        "completion_tokens": 169,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 6569
+        }
+      },
+      "estimated_usd": 0.002898,
+      "elapsed_seconds": 4.14,
+      "label_scoring": {
+        "identity": "atomic-verdict-A6-control-1",
+        "reviews": [
+          {
+            "claim_id": "A6C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          },
+          {
+            "claim_id": "A6C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s68"
+          ]
+        },
+        {
+          "claim_id": "c2",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s68"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "atomic-units-A6-control-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "1ecee15fad3d3f142d58a0cdc3325825a839aab139a587e5dcde9a4292249941",
+      "reservation_usd": 0.0139284,
+      "usage": {
+        "prompt_tokens": 6770,
+        "total_tokens": 7026,
+        "completion_tokens": 256,
+        "prompt_tokens_details": {
+          "cached_tokens": 6272,
+          "text_tokens": 6770
+        }
+      },
+      "estimated_usd": 0.0031176,
+      "elapsed_seconds": 5.436,
+      "label_scoring": {
+        "identity": "atomic-units-A6-control-1",
+        "reviews": [
+          {
+            "claim_id": "A6C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          },
+          {
+            "claim_id": "A6C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s68"
+          ],
+          "independent_statement_count": 1
+        },
+        {
+          "claim_id": "c2",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s68"
+          ],
+          "independent_statement_count": 1
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A1-control-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "5baf91fe41753f195d798fe7ff601df1622a34ab3b74c10a6a074b75d916b7c3",
+      "reservation_usd": 0.0068516,
+      "usage": {
+        "prompt_tokens": 867,
+        "total_tokens": 965,
+        "completion_tokens": 98,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 867
+        }
+      },
+      "estimated_usd": 0.0005036,
+      "elapsed_seconds": 3.359,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A1-control-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A1C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s24"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A1-fault-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "3ee1d0b5dc95e1e5b645c40723bdc8af8bab0f8db710e1574195c67d5d11228d",
+      "reservation_usd": 0.006846,
+      "usage": {
+        "prompt_tokens": 865,
+        "total_tokens": 955,
+        "completion_tokens": 90,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 865
+        }
+      },
+      "estimated_usd": 0.00049,
+      "elapsed_seconds": 2.79,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A1-fault-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A1C1K1",
+            "expected": "FAIL",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "FAIL",
+          "basis_source_ids": [
+            "s24"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A5-control-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "7895973c858f485c6ea8eeace4788d69ec703a5d8a15ea4ea41417d289bf1845",
+      "reservation_usd": 0.0069096,
+      "usage": {
+        "prompt_tokens": 907,
+        "total_tokens": 1001,
+        "completion_tokens": 94,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 907
+        }
+      },
+      "estimated_usd": 0.0005132,
+      "elapsed_seconds": 2.597,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A5-control-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A5C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s18",
+            "s19"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A5-control-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "4f5e78f55fa86f974fbcb7a87453cb3ea41b419d3dbea90006d036fce958ccc7",
+      "reservation_usd": 0.006928,
+      "usage": {
+        "prompt_tokens": 914,
+        "total_tokens": 1013,
+        "completion_tokens": 99,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 914
+        }
+      },
+      "estimated_usd": 0.000524,
+      "elapsed_seconds": 2.705,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A5-control-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A5C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s18",
+            "s19"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A5-fault-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "5af5aa6a99fd7c74d6dbc210056ac31fd5fc2d55b160d4d3f44bfa41d6331221",
+      "reservation_usd": 0.0067888,
+      "usage": {
+        "prompt_tokens": 828,
+        "total_tokens": 921,
+        "completion_tokens": 93,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 828
+        }
+      },
+      "estimated_usd": 0.00048,
+      "elapsed_seconds": 3.056,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A5-fault-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A5C1K1",
+            "expected": "FAIL",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "FAIL",
+          "basis_source_ids": [
+            "s19"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A5-fault-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "e47380c8506a60f8c6dbc34d32ca9f34dfa6d792e959cb7fa1fd26339c02a827",
+      "reservation_usd": 0.0068072,
+      "usage": {
+        "prompt_tokens": 835,
+        "total_tokens": 933,
+        "completion_tokens": 98,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 835
+        }
+      },
+      "estimated_usd": 0.0004908,
+      "elapsed_seconds": 3.75,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A5-fault-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A5C1K2",
+            "expected": "FAIL",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "FAIL",
+          "basis_source_ids": [
+            "s19"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-atomic-units-A4-fault-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "cbc52becb27d378dd0ea1b8799d320cb10aef69b49b4a668dc34fb33347d3f69",
+      "reservation_usd": 0.0074036,
+      "usage": {
+        "prompt_tokens": 1150,
+        "total_tokens": 1405,
+        "completion_tokens": 255,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 1150
+        }
+      },
+      "estimated_usd": 0.000868,
+      "elapsed_seconds": 6.064,
+      "label_scoring": {
+        "identity": "amended-atomic-units-A4-fault-1",
+        "reviews": [
+          {
+            "claim_id": "A4C1K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          },
+          {
+            "claim_id": "A4C1K2",
+            "expected": "PASS",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": false
+          }
+        ],
+        "packet_match": false
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "syn1"
+          ],
+          "independent_statement_count": 1
+        },
+        {
+          "claim_id": "c2",
+          "verdict": "FAIL",
+          "basis_source_ids": [
+            "syn2"
+          ],
+          "independent_statement_count": 1
+        }
+      ]
+    },
+    {
+      "identity": "amended-atomic-units-A4-control-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "b85668a1c68173facbcb6943bfd1526c6f13e1f8f7fcb8b40021d502c6ee2752",
+      "reservation_usd": 0.0074248,
+      "usage": {
+        "prompt_tokens": 1163,
+        "total_tokens": 1404,
+        "completion_tokens": 241,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 1163
+        }
+      },
+      "estimated_usd": 0.0008508,
+      "elapsed_seconds": 5.775,
+      "label_scoring": {
+        "identity": "amended-atomic-units-A4-control-1",
+        "reviews": [
+          {
+            "claim_id": "A4C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          },
+          {
+            "claim_id": "A4C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "syn1"
+          ],
+          "independent_statement_count": 1
+        },
+        {
+          "claim_id": "c2",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "syn2"
+          ],
+          "independent_statement_count": 1
+        }
+      ]
+    },
+    {
+      "identity": "amended-atomic-units-A6-fault-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "dfc09d4eeea6902f4df110def928240ee317bf30bcb9f5ccb2eab2f8c335b8a8",
+      "reservation_usd": 0.0141904,
+      "usage": {
+        "prompt_tokens": 6882,
+        "total_tokens": 7060,
+        "completion_tokens": 178,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 6882
+        }
+      },
+      "estimated_usd": 0.0030376,
+      "elapsed_seconds": 4.584,
+      "label_scoring": {
+        "identity": "amended-atomic-units-A6-fault-1",
+        "reviews": [
+          {
+            "claim_id": "A6C1K1",
+            "expected": "FAIL",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "FAIL",
+          "basis_source_ids": [
+            "s68"
+          ],
+          "independent_statement_count": 2
+        }
+      ]
+    },
+    {
+      "identity": "amended-atomic-units-A6-control-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "283580fbeb1dae06cbd6027d908a7aafc2f7098cc04246e4adcff943ae173eb6",
+      "reservation_usd": 0.0142348,
+      "usage": {
+        "prompt_tokens": 6917,
+        "total_tokens": 7171,
+        "completion_tokens": 254,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 6917
+        }
+      },
+      "estimated_usd": 0.0031732,
+      "elapsed_seconds": 5.858,
+      "label_scoring": {
+        "identity": "amended-atomic-units-A6-control-1",
+        "reviews": [
+          {
+            "claim_id": "A6C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          },
+          {
+            "claim_id": "A6C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s68"
+          ],
+          "independent_statement_count": 1
+        },
+        {
+          "claim_id": "c2",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s68"
+          ],
+          "independent_statement_count": 1
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A2-fault-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "8f6ec530a169026edf73cbbdecdd22e8381c4a7e680f5f034b618b1087cade8e",
+      "reservation_usd": 0.0068456,
+      "usage": {
+        "prompt_tokens": 865,
+        "total_tokens": 954,
+        "completion_tokens": 89,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 865
+        }
+      },
+      "estimated_usd": 0.0004884,
+      "elapsed_seconds": 2.791,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A2-fault-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A2C1K1",
+            "expected": "FAIL",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "FAIL",
+          "basis_source_ids": [
+            "s25"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A2-fault-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "5b19a21156cafa12d22b9fc604ce73a36e1d779a4c4c259f16d21e8d98949a69",
+      "reservation_usd": 0.0068788,
+      "usage": {
+        "prompt_tokens": 877,
+        "total_tokens": 968,
+        "completion_tokens": 91,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 877
+        }
+      },
+      "estimated_usd": 0.0004964,
+      "elapsed_seconds": 3.029,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A2-fault-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A2C1K2",
+            "expected": "FAIL",
+            "observed": "FAIL",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "FAIL",
+          "basis_source_ids": [
+            "s25"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A2-control-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "f8a1b706c73d62b7c022e0ded3ec8ce66ce7e7380dadb9e2302e64421612861f",
+      "reservation_usd": 0.0068468,
+      "usage": {
+        "prompt_tokens": 865,
+        "total_tokens": 958,
+        "completion_tokens": 93,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 865
+        }
+      },
+      "estimated_usd": 0.0004948,
+      "elapsed_seconds": 2.656,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A2-control-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A2C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s25"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A2-control-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "4aa32086842f85118606c28eb7d7fcf2ac5e60031e4da72a7050e3c1d94e8148",
+      "reservation_usd": 0.00688,
+      "usage": {
+        "prompt_tokens": 877,
+        "total_tokens": 977,
+        "completion_tokens": 100,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 877
+        }
+      },
+      "estimated_usd": 0.0005108,
+      "elapsed_seconds": 2.628,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A2-control-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A2C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s25"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A3-control-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "22f3f2d9d06ddbc72461180390abaf564523c6892f5944429662332de573d872",
+      "reservation_usd": 0.0069444,
+      "usage": {
+        "prompt_tokens": 895,
+        "total_tokens": 988,
+        "completion_tokens": 93,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 895
+        }
+      },
+      "estimated_usd": 0.0005068,
+      "elapsed_seconds": 2.815,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A3-control-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A3C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s6"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A3-control-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "66caa5a61e373f47ad37fb69cc8ab553d677912ff137521581611fcefff20e7f",
+      "reservation_usd": 0.006962,
+      "usage": {
+        "prompt_tokens": 905,
+        "total_tokens": 1004,
+        "completion_tokens": 99,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 905
+        }
+      },
+      "estimated_usd": 0.0005204,
+      "elapsed_seconds": 2.631,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A3-control-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A3C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s6"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A3-fault-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "22f3f2d9d06ddbc72461180390abaf564523c6892f5944429662332de573d872",
+      "reservation_usd": 0.0069444,
+      "usage": {
+        "prompt_tokens": 895,
+        "total_tokens": 967,
+        "completion_tokens": 72,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 895
+        }
+      },
+      "estimated_usd": 0.0004732,
+      "elapsed_seconds": 2.189,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A3-fault-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A3C1K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s6"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A3-fault-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "7a950d123af7ff2bd0167e529e3af4e21592b50e8f2427e1256fa7a598691a8b",
+      "reservation_usd": 0.0069376,
+      "usage": {
+        "prompt_tokens": 893,
+        "total_tokens": 986,
+        "completion_tokens": 93,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 893
+        }
+      },
+      "estimated_usd": 0.000506,
+      "elapsed_seconds": 2.885,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A3-fault-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A3C1K2",
+            "expected": "FAIL",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": false,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": false
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s6"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A4-fault-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "cbbf761ab28925e5a4782c1c8040f4bbc1a891deb366ed2aedb83155c70998b4",
+      "reservation_usd": 0.0067836,
+      "usage": {
+        "prompt_tokens": 830,
+        "total_tokens": 929,
+        "completion_tokens": 99,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 830
+        }
+      },
+      "estimated_usd": 0.0004904,
+      "elapsed_seconds": 3.195,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A4-fault-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A4C1K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "syn1"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A4-fault-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "1bb145612fe94e7a585a1dd8533a06dd49feb91a18d32abdf4a3e8d7ac449277",
+      "reservation_usd": 0.006796,
+      "usage": {
+        "prompt_tokens": 845,
+        "total_tokens": 939,
+        "completion_tokens": 94,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 845
+        }
+      },
+      "estimated_usd": 0.0004884,
+      "elapsed_seconds": 2.977,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A4-fault-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A4C1K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "syn2"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A4-control-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "cbbf761ab28925e5a4782c1c8040f4bbc1a891deb366ed2aedb83155c70998b4",
+      "reservation_usd": 0.0067836,
+      "usage": {
+        "prompt_tokens": 830,
+        "total_tokens": 930,
+        "completion_tokens": 100,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 830
+        }
+      },
+      "estimated_usd": 0.000492,
+      "elapsed_seconds": 2.81,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A4-control-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A4C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "syn1"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A4-control-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "c408fa65229cbe0f8ce7e73fcbebdaa9099e2a7cf10b7af4c75da9d2c67ea9aa",
+      "reservation_usd": 0.0068172,
+      "usage": {
+        "prompt_tokens": 858,
+        "total_tokens": 966,
+        "completion_tokens": 108,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 858
+        }
+      },
+      "estimated_usd": 0.000516,
+      "elapsed_seconds": 2.871,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A4-control-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A4C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "syn2"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A6-fault-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "8e3104089eac6a4996277cd5e8e3b122522ec0bcce77f33f8e20a309946e6115",
+      "reservation_usd": 0.0069232,
+      "usage": {
+        "prompt_tokens": 971,
+        "total_tokens": 1110,
+        "completion_tokens": 139,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 971
+        }
+      },
+      "estimated_usd": 0.0006108,
+      "elapsed_seconds": 3.46,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A6-fault-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A6C1K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s55",
+            "s68"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A6-control-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "eefacac09976d6ceba05106249fd5db03018ba117a314af2d3944f368b26bd79",
+      "reservation_usd": 0.0068852,
+      "usage": {
+        "prompt_tokens": 945,
+        "total_tokens": 1088,
+        "completion_tokens": 143,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 945
+        }
+      },
+      "estimated_usd": 0.0006068,
+      "elapsed_seconds": 3.38,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A6-control-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A6C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s55",
+            "s68"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A6-control-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "1984c1d879ad70eec3e98cfc312d1094ef353b3c16692b7c4ae7f5b5a7f85dea",
+      "reservation_usd": 0.0068828,
+      "usage": {
+        "prompt_tokens": 943,
+        "total_tokens": 1057,
+        "completion_tokens": 114,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 943
+        }
+      },
+      "estimated_usd": 0.0005596,
+      "elapsed_seconds": 3.102,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A6-control-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A6C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s55",
+            "s68"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A7-control-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "8a981e29e54018b989a566a9059af4ba3b790b7b61505339da5342753e920a60",
+      "reservation_usd": 0.0068336,
+      "usage": {
+        "prompt_tokens": 912,
+        "total_tokens": 1028,
+        "completion_tokens": 116,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 912
+        }
+      },
+      "estimated_usd": 0.0005504,
+      "elapsed_seconds": 2.966,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A7-control-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A7C2K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s74",
+            "s92"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A7-control-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "f81cb707aecd34ffdbca7b8abc8088497ce697058190d4d6beb414d42a7448a4",
+      "reservation_usd": 0.0068248,
+      "usage": {
+        "prompt_tokens": 902,
+        "total_tokens": 1024,
+        "completion_tokens": 122,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 902
+        }
+      },
+      "estimated_usd": 0.000556,
+      "elapsed_seconds": 3.453,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A7-control-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A7C2K2",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s74",
+            "s92"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A7-fault-c1-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "8a981e29e54018b989a566a9059af4ba3b790b7b61505339da5342753e920a60",
+      "reservation_usd": 0.0068336,
+      "usage": {
+        "prompt_tokens": 912,
+        "total_tokens": 1031,
+        "completion_tokens": 119,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 912
+        }
+      },
+      "estimated_usd": 0.0005552,
+      "elapsed_seconds": 3.906,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A7-fault-c1-1",
+        "reviews": [
+          {
+            "claim_id": "A7C1K1",
+            "expected": "PASS",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": true,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": true
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s74",
+            "s92"
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "amended-evidence-selected-A7-fault-c2-1",
+      "status": "PASS",
+      "model": "qwen3.7-plus-2026-05-26",
+      "thinking": false,
+      "max_tokens": 2200,
+      "request_sha256": "402de57ee485208a44a86574ad32100f3d4baacc796020fe672a28358fffe316",
+      "reservation_usd": 0.0068336,
+      "usage": {
+        "prompt_tokens": 912,
+        "total_tokens": 1035,
+        "completion_tokens": 123,
+        "prompt_tokens_details": {
+          "cached_tokens": 512,
+          "text_tokens": 912
+        }
+      },
+      "estimated_usd": 0.0005616,
+      "elapsed_seconds": 3.711,
+      "label_scoring": {
+        "identity": "amended-evidence-selected-A7-fault-c2-1",
+        "reviews": [
+          {
+            "claim_id": "A7C1K2",
+            "expected": "FAIL",
+            "observed": "PASS",
+            "transport_status": "PASS",
+            "verdict_match": false,
+            "decision_basis_match": true
+          }
+        ],
+        "packet_match": false
+      },
+      "output_excerpt": [
+        {
+          "claim_id": "c1",
+          "verdict": "PASS",
+          "basis_source_ids": [
+            "s74",
+            "s92"
+          ]
+        }
+      ]
+    }
+  ]
+}

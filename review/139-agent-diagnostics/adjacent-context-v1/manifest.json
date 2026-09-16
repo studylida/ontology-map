@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "issue": 139,
+  "purpose": "Test whether deterministic positional source-ID groups improve evidence linking under the frozen preserve wording",
+  "model": "qwen3.7-flash-2026-07-15",
+  "settings": {
+    "temperature": 0,
+    "enable_thinking": false,
+    "stream": false,
+    "max_tokens": 3000
+  },
+  "arms": {
+    "control": "adjacent_source_id_groups contains only each focus source ID",
+    "adjacent": "the same field contains up to two preceding units, the focus, and two following units"
+  },
+  "articles": 4,
+  "focus_units": 16,
+  "repeats": [
+    1,
+    2
+  ],
+  "planned_calls": 16,
+  "planned_reservation_usd": 0.0174726,
+  "historical_reserved_or_estimated_usd": 0.86442523,
+  "semantic_cap_usd": 0.03,
+  "strict_probe_cap_usd": 0.005,
+  "maximum_cumulative_usd": 0.89942523,
+  "source_exposure_check": {
+    "comparison_docs": 16,
+    "exact_hash_matches": [],
+    "exact_url_matches": [],
+    "event_family_review": "Four distinct official events; manually checked against the previous sixteen article families",
+    "event_family_matches": []
+  },
+  "dependency_hashes": {
+    "sources-frozen.json": "202f599bbe8dcc2e05c1012bff96d492fe033e014d133c30a145fc44d53d3d47",
+    "gold.json": "aa73e2eeb9daf8521ebb198472e9283c53ea3639356f39b3bd078dfc063725ad",
+    "preserve-addendum.txt": "71bfec1e6e1b6fa860e95b47fc039b35bf0a49a5e5cd6001818d64872adb7aae",
+    "experiment.py": "503d82b03150bcf2a8f16949e52cb43cfc636ae539e163232958cd0632f5ccac",
+    "trial_v6.py": "1400c2dd1e5a7aa9f6440ac350e19a10105030f5b103da8aa61446231b5a485f",
+    "trial_v7.py": "1c971bc9cee991d4b97a6efbdbe1f0096a7a66dd3dacd6e1b2d50e7daae44971",
+    "selection-r7-addendum.txt": "008e2ee53b4a1b7a7e52ed9120882dacdf9998ac6a88a031b8fd09a39f77660a"
+  },
+  "requests": [
+    {
+      "identity": "adjacent-context-v1-N01-r1-control",
+      "request_sha256": "9ade8964e724ce02b9afe45040e21c7fdde65936c0eeed3f1728cadfbb4f6548",
+      "reservation_usd": 0.00098052
+    },
+    {
+      "identity": "adjacent-context-v1-N01-r1-adjacent",
+      "request_sha256": "b6e6db323cb01c3b72aa82f0b77a589acc2df467f972804bd8dabf874c81008c",
+      "reservation_usd": 0.00098448
+    },
+    {
+      "identity": "adjacent-context-v1-N01-r2-adjacent",
+      "request_sha256": "b6e6db323cb01c3b72aa82f0b77a589acc2df467f972804bd8dabf874c81008c",
+      "reservation_usd": 0.00098448
+    },
+    {
+      "identity": "adjacent-context-v1-N01-r2-control",
+      "request_sha256": "9ade8964e724ce02b9afe45040e21c7fdde65936c0eeed3f1728cadfbb4f6548",
+      "reservation_usd": 0.00098052
+    },
+    {
+      "identity": "adjacent-context-v1-N02-r1-adjacent",
+      "request_sha256": "80662291e318c56f85cb96a035ad6fd9f9747fec80f3bb79e2ab429d2459b784",
+      "reservation_usd": 0.00108309
+    },
+    {
+      "identity": "adjacent-context-v1-N02-r1-control",
+      "request_sha256": "072a76c6bcb423c79bd97f4c7ea6c705a3665032829206796a0036fea7069a1b",
+      "reservation_usd": 0.00107877
+    },
+    {
+      "identity": "adjacent-context-v1-N02-r2-control",
+      "request_sha256": "072a76c6bcb423c79bd97f4c7ea6c705a3665032829206796a0036fea7069a1b",
+      "reservation_usd": 0.00107877
+    },
+    {
+      "identity": "adjacent-context-v1-N02-r2-adjacent",
+      "request_sha256": "80662291e318c56f85cb96a035ad6fd9f9747fec80f3bb79e2ab429d2459b784",
+      "reservation_usd": 0.00108309
+    },
+    {
+      "identity": "adjacent-context-v1-N03-r1-control",
+      "request_sha256": "5005645e363545a9e40d9b0af4dc64de4c56734f3d74f906d1867c56987c8ead",
+      "reservation_usd": 0.00128832
+    },
+    {
+      "identity": "adjacent-context-v1-N03-r1-adjacent",
+      "request_sha256": "34ab23a721392b96adf6ff3dcfa68acad439d83c0d0b07cda4cab8a958cd8c67",
+      "reservation_usd": 0.00129264
+    },
+    {
+      "identity": "adjacent-context-v1-N03-r2-adjacent",
+      "request_sha256": "34ab23a721392b96adf6ff3dcfa68acad439d83c0d0b07cda4cab8a958cd8c67",
+      "reservation_usd": 0.00129264
+    },
+    {
+      "identity": "adjacent-context-v1-N03-r2-control",
+      "request_sha256": "5005645e363545a9e40d9b0af4dc64de4c56734f3d74f906d1867c56987c8ead",
+      "reservation_usd": 0.00128832
+    },
+    {
+      "identity": "adjacent-context-v1-N04-r1-adjacent",
+      "request_sha256": "e14e0a6f85b0254fa821f56ec2b474bdb097acb4bc813255df140137fe8352e7",
+      "reservation_usd": 0.00101598
+    },
+    {
+      "identity": "adjacent-context-v1-N04-r1-control",
+      "request_sha256": "249db42e33f0e1256e191bac39fa5974d654abb2cfe1acbbe6d18bbd2e3c04e7",
+      "reservation_usd": 0.0010125
+    },
+    {
+      "identity": "adjacent-context-v1-N04-r2-control",
+      "request_sha256": "249db42e33f0e1256e191bac39fa5974d654abb2cfe1acbbe6d18bbd2e3c04e7",
+      "reservation_usd": 0.0010125
+    },
+    {
+      "identity": "adjacent-context-v1-N04-r2-adjacent",
+      "request_sha256": "e14e0a6f85b0254fa821f56ec2b474bdb097acb4bc813255df140137fe8352e7",
+      "reservation_usd": 0.00101598
+    }
+  ],
+  "stop_rules": [
+    "Never repair or retry a failed request",
+    "Continue only after an isolated output or validation contract error with known usage",
+    "Stop on authentication, transport, provider-shape, unknown-cost, budget, frozen-input, or source-integrity failure",
+    "Do not reuse these outputs as independent evaluation after tuning",
+    "Do not infer product adoption, automatic persistence, or operational quality"
+  ]
+}

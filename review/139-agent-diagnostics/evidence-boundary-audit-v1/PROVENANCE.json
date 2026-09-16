@@ -1,0 +1,20 @@
+{
+  "version": "evidence-boundary-audit-v1",
+  "review_input_commit": "43f89d63f65be903a2d6d305f2716542208795bc",
+  "origin_main_at_start": "9a42d94fac3406de3a3a582d224f109744b65558",
+  "model_calls": 0,
+  "api_cost_usd": 0,
+  "files": {
+    "PLAN.md": "cbaacd0145525dba947a73def6a96ba28cd44f93c8fbd757d9a9a848a0eddf14",
+    "README.md": "387f663a19bca43941766fcee48f4e9f0a9508f5b66299d8f6d27819a18df52c",
+    "REPORT.md": "09f76f2a2036f92f816a749ac4e503593813a46e9daca5ff78cfd89abda0ff4e",
+    "claim-audit.json": "ebcd754fa1da0ce9fca28aa18274808abc527fc90b59d169fbf24c07afc61f43",
+    "cross-check.json": "52def9d8fc3a20a644f0945dff03ac672195151505d08677dd2200454452a1b0",
+    "fact-audit.json": "ba14653546773f97e638f8be580f82f8367516e382451daed7c5f54b29b702a4",
+    "gold-amendment.json": "e1c3b01220c12d6388c28f35fc9e410e8cf33c9b7dc97cf3a387c4ede77f36ad",
+    "policy.json": "aa5888f65c189556175c2f5bfa1f002b7246c533b274b59346e9e612b4a79ed0",
+    "score.json": "b38d4fe5e9c9e8d83ba815deec3fcbcb62458a59266530124b9b6109a593e874",
+    "snapshots/audit.py.txt": "04345e85c8be3c3975de542f00d92baf2693045769aa6c0a4aa02b00404f80e3",
+    "snapshots/test_audit.py.txt": "685348e5dba93b8b863251d39670057333b64fde47f5dbf34fbc148c6673d329"
+  }
+}
