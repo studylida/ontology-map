@@ -145,6 +145,7 @@ def insight_case() -> InsightCase:
                 .values(
                     publication_status=old_publication_status,
                     ready_at=old_ready_at,
+                    publication_failure_reason=None,
                 )
             )
 
@@ -694,7 +695,10 @@ def test_stale_publication_after_provider_success_blocks_bundle(
                     .where(
                         s.promotion_batch.c.promotion_batch_id == insight_case.batch_id
                     )
-                    .values(publication_status="FAILED")
+                    .values(
+                        publication_status="FAILED",
+                        publication_failure_reason="stale during provider call",
+                    )
                 )
             return _bundle(None, None)
 
