@@ -17,7 +17,11 @@ from ontology_map.db import followup_generation as product_db
 from ontology_map.db import followup_tasks
 from ontology_map.db import model_tasks as tasks
 from ontology_map.db import schema
-from ontology_map.durable_provider import UncertainProviderFailure, execute_call
+from ontology_map.durable_provider import (
+    ConfirmedProviderFailure,
+    UncertainProviderFailure,
+    execute_call,
+)
 from ontology_map.exploration import TimeWindow
 from ontology_map.extraction_runner import classify_provider_error
 from ontology_map.followup_generation import parse_proposal
@@ -26,7 +30,6 @@ from ontology_map.followup_generation_contracts import (
     FollowupQuestionsProposal,
     PreparedFollowup,
 )
-from ontology_map.durable_provider import ConfirmedProviderFailure
 
 Disposition = Literal[
     "NOT_CLAIMED",
@@ -88,7 +91,9 @@ def _current_prepared(
     as_of_at: datetime,
 ) -> PreparedFollowup:
     # Release the consistent DB snapshot before provider preflight/send.
-    with engine.connect().execution_options(isolation_level="REPEATABLE READ") as connection:
+    with engine.connect().execution_options(
+        isolation_level="REPEATABLE READ"
+    ) as connection:
         with Session(connection) as session, session.begin():
             tasks.require_lease(session, lease)
             return followup_tasks.require_current_input(
