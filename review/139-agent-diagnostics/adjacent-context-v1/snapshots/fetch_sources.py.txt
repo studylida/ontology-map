@@ -1,0 +1,169 @@
+"""Freeze four new official Korean articles for the local #139 comparison."""
+
+from __future__ import annotations
+
+import hashlib
+from html.parser import HTMLParser
+import json
+from pathlib import Path
+import subprocess
+import sys
+import unicodedata
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
+
+
+ROOT = Path(__file__).resolve().parent
+OUTPUT = ROOT / "sources-frozen.json"
+LONG = ROOT.parent / "model-studio-long"
+sys.path.insert(0, str(LONG))
+from prepare import sentence_units  # noqa: E402 - reuse the frozen sentence/table-row splitter
+
+
+SOURCES = (
+    ("N01", "SK hynix", "https://news.skhynix.co.kr/fact-07/", {"post-contents"}),
+    (
+        "N02",
+        "Samsung Newsroom Korea",
+        "https://news.samsung.com/kr/%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90-%EC%84%B8%EC%9D%B4%ED%94%84-"
+        "%ED%8F%AC%EB%9F%BC-2026-%ED%95%9C%EA%B5%AD-%EA%B0%9C%EC%B5%9Cai-%EB%B0%98%EB%8F%84%EC%B2%B4-"
+        "%EC%83%9D%ED%83%9C%EA%B3%84",
+        {"single_contents"},
+    ),
+    ("N03", "NVIDIA Korea", "https://blogs.nvidia.co.kr/blog/2026-ces-special-presentation/", {"entry-content"}),
+    (
+        "N04",
+        "Intel Korea",
+        "https://www.intel.co.kr/content/www/kr/ko/newsroom/news/artificial-intelligence/"
+        "intel-gaudi-3-expands-availability-to-drive-ai-innovation-at-scale.html",
+        {"text", "cmp-text--longform"},
+    ),
+)
+ALLOWED_HOSTS = {"news.skhynix.co.kr", "news.samsung.com", "blogs.nvidia.co.kr", "www.intel.co.kr"}
+BLOCK_TAGS = {"p", "li", "h1", "h2", "h3", "h4", "blockquote", "tr", "th", "td", "br"}
+SKIP_TAGS = {"script", "style", "noscript", "svg", "form", "figure"}
+
+
+class ArticleText(HTMLParser):
+    def __init__(self, target_classes: set[str]) -> None:
+        super().__init__(convert_charrefs=True)
+        self.target_classes = target_classes
+        self.capture_depth = 0
+        self.skip_depth = 0
+        self.parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        classes = set(dict(attrs).get("class", "").split())
+        if not self.capture_depth and tag in {"div", "article"} and self.target_classes <= classes:
+            self.capture_depth = 1
+            self.parts.append("\n\n")
+            return
+        if not self.capture_depth:
+            return
+        self.capture_depth += 1
+        if self.skip_depth or tag in SKIP_TAGS:
+            self.skip_depth += 1
+        elif tag in BLOCK_TAGS:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if not self.capture_depth:
+            return
+        if self.skip_depth:
+            self.skip_depth -= 1
+        elif tag in BLOCK_TAGS:
+            self.parts.append("\n")
+        self.capture_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self.capture_depth and not self.skip_depth:
+            self.parts.append(data)
+
+    def text(self) -> str:
+        lines = [" ".join(line.replace("\u00a0", " ").split()) for line in "".join(self.parts).splitlines()]
+        lines = [line for line in lines if not (line.startswith("카테고리:") and "태그:" in line)]
+        compact: list[str] = []
+        for line in lines:
+            if line:
+                compact.append(line)
+            elif compact and compact[-1]:
+                compact.append("")
+        return unicodedata.normalize("NFC", "\n".join(compact).strip())
+
+
+def fetch(url: str, target_classes: set[str]) -> tuple[str, str]:
+    user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36"
+    request = Request(url, headers={"User-Agent": user_agent})
+    try:
+        with urlopen(request, timeout=60) as response:
+            resolved = response.geturl()
+            payload = response.read(2_000_001)
+            charset = response.headers.get_content_charset() or "utf-8"
+    except Exception as error:
+        if getattr(error, "code", None) != 403:
+            raise
+        marker = b"\nONTOLOGY_MAP_FINAL_URL:"
+        completed = subprocess.run(
+            [
+                "curl", "--proto", "=https", "--proto-redir", "=https", "--location", "--fail", "--silent",
+                "--show-error", "--max-time", "60", "--max-filesize", "2000000",
+                "--write-out", "\nONTOLOGY_MAP_FINAL_URL:%{url_effective}", url,
+            ],
+            check=True,
+            capture_output=True,
+        )
+        payload, resolved_bytes = completed.stdout.rsplit(marker, 1)
+        resolved, charset = resolved_bytes.decode("ascii"), "utf-8"
+    if urlparse(resolved).hostname not in ALLOWED_HOSTS:
+        raise ValueError("UNAPPROVED_REDIRECT")
+    if len(payload) > 2_000_000:
+        raise ValueError("SOURCE_TOO_LARGE")
+    parser = ArticleText(target_classes)
+    parser.feed(payload.decode(charset, errors="strict"))
+    text = parser.text()
+    if not 1_200 <= len(text) <= 20_000:
+        raise ValueError(f"UNEXPECTED_ARTICLE_LENGTH:{len(text)}")
+    if "AI 요약" in text:
+        raise ValueError("PUBLISHER_AI_SUMMARY_INCLUDED")
+    return resolved, text
+
+
+def validate(docs: list[dict]) -> None:
+    if [doc["id"] for doc in docs] != [source[0] for source in SOURCES]:
+        raise ValueError("SOURCE_SET_CHANGED")
+    if len({doc["sha256"] for doc in docs}) != len(docs):
+        raise ValueError("DUPLICATE_SOURCE")
+    for doc in docs:
+        if hashlib.sha256(doc["source"].encode()).hexdigest() != doc["sha256"]:
+            raise ValueError("SOURCE_HASH_CHANGED")
+        if any(doc["source"][unit["start_char"]:unit["end_char"]] != unit["text"] for unit in doc["sentences"]):
+            raise ValueError("SOURCE_SLICE_CHANGED")
+
+
+def main() -> None:
+    if OUTPUT.exists():
+        docs = json.loads(OUTPUT.read_text(encoding="utf-8"))
+    else:
+        docs = []
+        for identity, publisher, url, target_classes in SOURCES:
+            resolved, source = fetch(url, target_classes)
+            docs.append({
+                "id": identity,
+                "publisher": publisher,
+                "url": url,
+                "resolved_url": resolved,
+                "source": source,
+                "chars": len(source),
+                "sha256": hashlib.sha256(source.encode()).hexdigest(),
+                "sentences": sentence_units(source),
+            })
+        OUTPUT.write_text(json.dumps(docs, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    validate(docs)
+    print(json.dumps([
+        {"id": doc["id"], "publisher": doc["publisher"], "chars": doc["chars"], "units": len(doc["sentences"]), "sha256": doc["sha256"]}
+        for doc in docs
+    ], ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()

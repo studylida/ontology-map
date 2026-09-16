@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "purpose": "Pre-frozen required-fact bundles for whole-article rich-versus-minimal runtime output comparison",
+  "modality_policy": {
+    "FACT": "완료된 사건, 측정값과 현재 상태. 인용 내용을 사실로 쓰면 발언자 귀속을 유지한다.",
+    "PLAN_OR_TARGET": "계획, 의지, 예정과 추진 목표.",
+    "PREDICTION_OR_ESTIMATE": "수요, 실적과 환경에 대한 전망·예상.",
+    "OPINION_OR_EVALUATION": "발언자의 평가, 가치 판단과 해석. 발언자 귀속을 유지한다."
+  },
+  "articles": [
+    {
+      "article_id": "M01",
+      "facts": [
+        {
+          "fact_id": "M01-F01",
+          "required_semantics": ["곽 사장은 2025년 연결 매출액이 97.1조 원이고 영업이익이 47.2조 원이라고 설명했다.", "2024년 대비 매출액은 1.5배, 영업이익은 2배 수준으로 성장했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s5"]],
+          "atomicity": "두 성장 수치는 각 재무 항목과의 대응이 유지돼야 하며 다른 성과와 섞지 않는다."
+        },
+        {
+          "fact_id": "M01-F02",
+          "required_semantics": ["SK하이닉스는 HBM4 양산 체계를 구축했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s9"]],
+          "atomicity": "같은 문장에 열거된 다른 기술 성과와 독립된 사실이다."
+        },
+        {
+          "fact_id": "M01-F03",
+          "required_semantics": ["SK하이닉스는 성능과 원가 경쟁력을 갖춘 10나노급 6세대 1c DDR5 D램을 양산했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s9"]],
+          "atomicity": "HBM4, 서버 모듈, 낸드와 글로벌 협력 성과를 한 Claim으로 묶지 않는다."
+        },
+        {
+          "fact_id": "M01-F04",
+          "required_semantics": ["SK하이닉스는 2026년에 HBM뿐 아니라 AI D램과 낸드 수요도 증가할 것으로 전망했다."],
+          "accepted_modalities": ["PREDICTION_OR_ESTIMATE"],
+          "sufficient_evidence_sets": [["s15"]],
+          "atomicity": "회사의 사업 추진 계획과 전망을 하나의 현재 사실로 합치지 않는다."
+        },
+        {
+          "fact_id": "M01-F05",
+          "required_semantics": ["곽 사장은 올해 실적과 현금흐름을 고려해 배당과 자기주식 매입을 검토하고 주주환원을 확대할 예정이라고 밝혔다.", "미래 성장을 위해 순현금 100조 원을 확보하면서 재무 건전성과 주주환원의 균형을 유지하겠다고 밝혔다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s29"]],
+          "atomicity": "발언자와 계획 상태를 유지한다."
+        }
+      ]
+    },
+    {
+      "article_id": "M02",
+      "facts": [
+        {
+          "fact_id": "M02-F01",
+          "required_semantics": ["삼성전자의 2026년 1분기 연결 매출은 133.9조 원이고 영업이익은 57.2조 원이다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s1"]],
+          "atomicity": "기간과 두 재무 항목의 대응을 유지한다."
+        },
+        {
+          "fact_id": "M02-F02",
+          "required_semantics": ["삼성전자는 업계 최초로 HBM4와 SOCAMM2를 동시에 양산하고 판매를 시작했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s11"]],
+          "atomicity": "동시 양산·판매라는 공동 조건을 유지하되 PCIe Gen6 SSD 개발과 분리한다."
+        },
+        {
+          "fact_id": "M02-F03",
+          "required_semantics": ["삼성전자는 PCIe Gen6 SSD를 적기에 개발했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s11"]],
+          "atomicity": "HBM4·SOCAMM2 양산 및 판매와 독립된 사실이다."
+        },
+        {
+          "fact_id": "M02-F04",
+          "required_semantics": ["삼성전자 메모리 사업은 HBM4E 첫 샘플을 공급할 예정이다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s27", "s29"], ["s28", "s29"]],
+          "atomicity": "메모리 사업의 계획이며 현재 공급 사실로 바꾸지 않는다."
+        },
+        {
+          "fact_id": "M02-F05",
+          "required_semantics": ["삼성전자 파운드리는 2나노 2세대 모바일용 제품, 4나노 메모리용 제품과 LPU 신제품 양산을 시작할 예정이다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s48", "s51"], ["s51"]],
+          "atomicity": "각 공정·제품의 용도를 바꾸거나 현재 양산 사실로 쓰지 않는다."
+        }
+      ]
+    },
+    {
+      "article_id": "M03",
+      "facts": [
+        {
+          "fact_id": "M03-F01",
+          "required_semantics": ["삼성전자는 NVIDIA AI 인프라용 HBM4, SOCAMM2와 PM1763 기술 라인업을 NVIDIA Gallery에서 소개하며 NVIDIA와의 협력을 강조했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s6"]],
+          "atomicity": "제품 세 개의 NVIDIA AI 인프라 대상 범위를 유지한다."
+        },
+        {
+          "fact_id": "M03-F02",
+          "required_semantics": ["송용호 삼성전자 AI센터장은 3월 17일 에이전틱 AI 반도체 엔지니어링 혁신을 주제로 발표했다.", "발표에서 AI와 디지털 트윈이 EDA와 컴퓨테이셔널 리소그래피를 통해 반도체 제조를 변화시키는 방식과 NVIDIA 기반 제조 시설 활용 사례를 소개했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s7", "s8"]],
+          "atomicity": "발표자, 발표 행위와 소개 내용의 귀속을 유지한다."
+        },
+        {
+          "fact_id": "M03-F03",
+          "required_semantics": ["SK하이닉스는 NVIDIA와 협력해 NVIDIA AI 플랫폼용 HBM4, HBM3E와 SOCAMM2의 실제 적용 사례를 전시했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s10", "s11"]],
+          "atomicity": "SK하이닉스와 NVIDIA의 협력 및 NVIDIA AI 플랫폼 대상 범위를 유지한다."
+        },
+        {
+          "fact_id": "M03-F04",
+          "required_semantics": ["NVIDIA와 현대자동차그룹은 NVIDIA DRIVE Hyperion 기반 차세대 자율주행 기술 개발을 위한 전략적 협력을 확대한다.", "협력은 양사의 서로 다른 역량을 결합하는 것을 목표로 한다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s16", "s17"]],
+          "atomicity": "공동 협력과 양쪽 참여 주체를 단독 행위로 바꾸지 않는다."
+        },
+        {
+          "fact_id": "M03-F05",
+          "required_semantics": ["현대자동차그룹은 일부 차량에 레벨 2 이상 자율주행을 지원하는 NVIDIA 기술을 통합할 예정이다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s18"]],
+          "atomicity": "일부 차량, 레벨 2 이상과 예정 상태를 유지한다."
+        }
+      ]
+    },
+    {
+      "article_id": "M04",
+      "facts": [
+        {
+          "fact_id": "M04-F01",
+          "required_semantics": ["인텔은 고성능 오케스트레이션용 다이아몬드 래피즈 프로세서를 핫 칩스 2026에서 선보였다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s1"]],
+          "atomicity": "다른 두 아키텍처의 용도와 분리한다."
+        },
+        {
+          "fact_id": "M04-F02",
+          "required_semantics": ["인텔은 효율적인 추론용 크레센트 아일랜드 GPU를 핫 칩스 2026에서 선보였다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s1"]],
+          "atomicity": "다른 두 아키텍처의 용도와 분리한다."
+        },
+        {
+          "fact_id": "M04-F03",
+          "required_semantics": ["인텔은 지능형 클라이언트와 엣지 컴퓨팅용 와일드캣 레이크 SoC를 핫 칩스 2026에서 선보였다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s1"]],
+          "atomicity": "다른 두 아키텍처의 용도와 분리한다."
+        },
+        {
+          "fact_id": "M04-F04",
+          "required_semantics": ["인텔 CTO 푸시카르 라나데는 미래 시스템이 범용 컴퓨팅, 용도별 가속 기술, 첨단 패키징과 오픈 칩렛 기술을 통합해 실제 전력·비용·배포 제약 안에서 적응하고 확장해야 한다고 말했다."],
+          "accepted_modalities": ["OPINION_OR_EVALUATION"],
+          "sufficient_evidence_sets": [["s2", "s3"]],
+          "atomicity": "발언자 귀속과 실제 제약 조건을 유지한다."
+        },
+        {
+          "fact_id": "M04-F05",
+          "required_semantics": ["크레센트 아일랜드는 최대 480GB LPDDR5X 메모리를 제공한다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s12", "s17"], ["s15", "s17"]],
+          "atomicity": "사양을 다이아몬드 래피즈나 와일드캣 레이크에 적용하지 않는다."
+        },
+        {
+          "fact_id": "M04-F06",
+          "required_semantics": ["와일드캣 레이크는 하이브리드 AI용 최대 17 TOPS NPU를 결합했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s19", "s20"]],
+          "atomicity": "17 TOPS 사양을 다른 제품에 적용하지 않는다."
+        }
+      ]
+    }
+  ]
+}

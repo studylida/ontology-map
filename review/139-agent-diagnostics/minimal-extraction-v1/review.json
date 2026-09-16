@@ -1,0 +1,3854 @@
+{
+  "reviewer": "Codex manual semantic review against pre-frozen gold",
+  "fact_ratings": [
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "fact_id": "M01-F01",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "mapped_claim_nos": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "reason": "수치와 전년 대비 배율은 보존했지만 이를 설명한 곽 사장의 발언 귀속을 제거했다."
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "fact_id": "M01-F02",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "mapped_claim_nos": [
+        17
+      ],
+      "reason": "HBM4 양산 체계 구축 완료를 '구축을 위한 기술적 성과'로 약화했다."
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "fact_id": "M01-F03",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "mapped_claim_nos": [
+        18
+      ],
+      "reason": "1c DDR5 D램 양산 완료를 '양산을 위한 기술적 성과'로 약화했다."
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "fact_id": "M01-F04",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        26
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "fact_id": "M01-F05",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "mapped_claim_nos": [
+        49,
+        50,
+        51
+      ],
+      "reason": "계획과 발언자는 보존했지만 재무 건전성과 주주환원 사이의 균형이라는 관계를 온전히 표현하지 못했다."
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "fact_id": "M01-F01",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "mapped_claim_nos": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "reason": "수치와 전년 대비 배율은 보존했지만 이를 설명한 곽 사장의 발언 귀속을 제거했다."
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "fact_id": "M01-F02",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "mapped_claim_nos": [
+        19
+      ],
+      "reason": "HBM4 양산 체계 구축 완료를 '구축을 위한 기술적 성과'로 약화했다."
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "fact_id": "M01-F03",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "mapped_claim_nos": [
+        20
+      ],
+      "reason": "1c DDR5 D램 양산 완료를 '양산을 위한 기술적 성과'로 약화했다."
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "fact_id": "M01-F04",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        29,
+        30,
+        31
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "fact_id": "M01-F05",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "REQUIRED_MEANING_OMITTED"
+      ],
+      "mapped_claim_nos": [
+        55,
+        56,
+        57,
+        58
+      ],
+      "reason": "계획과 발언자는 보존했지만 재무 건전성과 주주환원 사이의 균형이라는 관계를 온전히 표현하지 못했다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "fact_id": "M02-F01",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        1
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "fact_id": "M02-F02",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        13
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "fact_id": "M02-F03",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        14
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "fact_id": "M02-F04",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "mapped_claim_nos": [
+        36
+      ],
+      "reason": "계획은 보존했지만 s29만으로는 주체가 메모리 사업임을 확인할 수 없어 s27 또는 s28의 선행 근거가 필요하다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "fact_id": "M02-F05",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        57
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "fact_id": "M02-F01",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        1
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "fact_id": "M02-F02",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        13
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "fact_id": "M02-F03",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        14
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "fact_id": "M02-F04",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "UNSUPPORTED_OR_CHANGED_MEANING",
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "mapped_claim_nos": [
+        34
+      ],
+      "reason": "s29만 연결한 채 메모리 사업의 계획을 삼성전자 전체의 계획으로 넓혔다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "fact_id": "M02-F05",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        54
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "fact_id": "M03-F01",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        6
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "fact_id": "M03-F02",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        7,
+        8,
+        9
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "fact_id": "M03-F03",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        10,
+        11
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "fact_id": "M03-F04",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "mapped_claim_nos": [
+        17,
+        18
+      ],
+      "reason": "협력 확대와 목표는 보존했지만 확정된 현재 사실이 아닌 계획을 FACT로 분류했다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "fact_id": "M03-F05",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        19
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "fact_id": "M03-F01",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "mapped_claim_nos": [
+        6,
+        7
+      ],
+      "reason": "제품과 NVIDIA 협력은 남겼지만 이를 소개한 주체인 삼성전자를 누락했다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "fact_id": "M03-F02",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        8,
+        9,
+        10
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "fact_id": "M03-F03",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        11,
+        12
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "fact_id": "M03-F04",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "mapped_claim_nos": [
+        18,
+        19
+      ],
+      "reason": "협력 확대와 목표는 보존했지만 확정된 현재 사실이 아닌 계획을 FACT로 분류했다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "fact_id": "M03-F05",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        20
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "fact_id": "M04-F01",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        2
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "fact_id": "M04-F02",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        3
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "fact_id": "M04-F03",
+      "verdict": "PASS",
+      "error_types": [],
+      "mapped_claim_nos": [
+        4
+      ],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "fact_id": "M04-F04",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "mapped_claim_nos": [
+        5,
+        6
+      ],
+      "reason": "발언자와 내용은 보존했지만 미래 시스템에 대한 견해를 FACT로 분류했다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "fact_id": "M04-F05",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "mapped_claim_nos": [
+        25
+      ],
+      "reason": "s17은 사양 행만 담아 크레센트 아일랜드의 사양임을 확인할 선행 근거가 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "fact_id": "M04-F06",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "mapped_claim_nos": [
+        29
+      ],
+      "reason": "s20에 제품명은 있지만 동결 gold가 요구한 s19의 제품 범위 근거를 연결하지 않았다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "fact_id": "M04-F01",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "ATOMICITY"
+      ],
+      "mapped_claim_nos": [
+        2
+      ],
+      "reason": "세 아키텍처의 서로 다른 용도를 하나의 Claim으로 묶었다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "fact_id": "M04-F02",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "ATOMICITY"
+      ],
+      "mapped_claim_nos": [
+        2
+      ],
+      "reason": "세 아키텍처의 서로 다른 용도를 하나의 Claim으로 묶었다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "fact_id": "M04-F03",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "ATOMICITY"
+      ],
+      "mapped_claim_nos": [
+        2
+      ],
+      "reason": "세 아키텍처의 서로 다른 용도를 하나의 Claim으로 묶었다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "fact_id": "M04-F04",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "MODALITY_OR_ATTRIBUTION_MISMATCH"
+      ],
+      "mapped_claim_nos": [
+        3,
+        4
+      ],
+      "reason": "발언자와 내용은 보존했지만 미래 시스템에 대한 견해를 FACT로 분류했다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "fact_id": "M04-F05",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "mapped_claim_nos": [
+        24
+      ],
+      "reason": "s17은 사양 행만 담아 크레센트 아일랜드의 사양임을 확인할 선행 근거가 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "fact_id": "M04-F06",
+      "verdict": "PARTIAL",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "mapped_claim_nos": [
+        28
+      ],
+      "reason": "s20에 제품명은 있지만 동결 gold가 요구한 s19의 제품 범위 근거를 연결하지 않았다."
+    }
+  ],
+  "claim_ratings": [
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 1,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 2,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 3,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 4,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 5,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 6,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 7,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 8,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 9,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 10,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 11,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 12,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 13,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 14,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 15,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 16,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 17,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 18,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 19,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 20,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 21,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 22,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 23,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 24,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 25,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 26,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 27,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 28,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 29,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 30,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 31,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 32,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 33,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 34,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 35,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 36,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 37,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 38,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 39,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 40,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 41,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 42,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 43,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 44,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 45,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 46,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 47,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 48,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 49,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 50,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 51,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 52,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 53,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 54,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 55,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 56,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 57,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 58,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_no": 59,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 1,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 2,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 3,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 4,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 5,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 6,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 7,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 8,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 9,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 10,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 11,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 12,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 13,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 14,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 15,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 16,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 17,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 18,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 19,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 20,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 21,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 22,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 23,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 24,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 25,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 26,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 27,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 28,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 29,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 30,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 31,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 32,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 33,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 34,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 35,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 36,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 37,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 38,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 39,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 40,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 41,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 42,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 43,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 44,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 45,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 46,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 47,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 48,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 49,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 50,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 51,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "UNSUPPORTED_OR_CHANGED_MEANING"
+      ],
+      "reason": "제목의 향후 방향을 이미 진행한 과거 사실로 바꿨다."
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 52,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 53,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 54,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 55,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 56,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 57,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 58,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 59,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 60,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 61,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 62,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 63,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 64,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 65,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_no": 66,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 1,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 2,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 3,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 4,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 5,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 6,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 7,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 8,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 9,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 10,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 11,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 12,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 13,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 14,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 15,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 16,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 17,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 18,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 19,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 20,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 21,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 22,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 23,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 24,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 25,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 26,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 27,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s20만으로는 실적 감소의 주체가 하만임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 28,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 29,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 30,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s22만으로는 중소형이 디스플레이 부문임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 31,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s23만으로는 대형이 디스플레이 부문임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 32,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 33,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 34,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 35,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 36,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s29만으로는 계획의 주체가 메모리 사업임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 37,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s30만으로는 대응 계획의 주체가 메모리 사업임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 38,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 39,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s32만으로는 매출 감소 예상의 주체가 시스템LSI임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 40,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 41,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 42,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 43,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 44,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 45,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 46,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 47,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s40만으로는 실적 개선 예상의 주체가 하만임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 48,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s42만으로는 계획의 주체가 디스플레이 중소형 부문임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 49,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s43만으로는 계획의 주체가 디스플레이 대형 부문임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 50,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 51,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 52,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 53,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 54,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 55,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 56,
+      "verdict": "OVERMERGED",
+      "error_types": [
+        "ATOMICITY"
+      ],
+      "reason": "시장 수요 둔화 예상과 고객 확대 계획을 하나의 Claim에 묶었다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 57,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 58,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s52의 '이를 통해'가 가리키는 파운드리 계획을 확인할 선행 근거가 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 59,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s53만으로는 사업 구조 다변화의 주체가 파운드리임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 60,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 61,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT",
+        "ATOMICITY"
+      ],
+      "reason": "s56만으로는 계획의 주체가 MX임을 식별할 수 없고 예상과 계획도 함께 묶었다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 62,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 63,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 64,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 65,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s61만으로는 계획의 주체가 하만임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 66,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s63만으로는 계획의 주체가 디스플레이 중소형 부문임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 1,
+      "claim_no": 67,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s64만으로는 계획의 주체가 디스플레이 대형 부문임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 1,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 2,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 3,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 4,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 5,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 6,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 7,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 8,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 9,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 10,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 11,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 12,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 13,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 14,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 15,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 16,
+      "verdict": "OVERMERGED",
+      "error_types": [
+        "ATOMICITY"
+      ],
+      "reason": "실적 감소와 수주 지속이라는 독립 사실을 하나의 Claim에 묶었다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 17,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 18,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 19,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 20,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 21,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 22,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 23,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 24,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 25,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 26,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s20만으로는 실적 감소의 주체가 하만임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 27,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 28,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 29,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s22만으로는 중소형이 디스플레이 부문임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 30,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s23만으로는 대형이 디스플레이 부문임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 31,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 32,
+      "verdict": "OVERMERGED",
+      "error_types": [
+        "ATOMICITY"
+      ],
+      "reason": "서로 다른 DX 판매·비용 계획과 조직·사업 체질 개선 계획을 하나의 Claim에 묶었다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 33,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 34,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT",
+        "UNSUPPORTED_OR_CHANGED_MEANING"
+      ],
+      "reason": "s29만 연결한 채 메모리 사업의 계획을 삼성전자 전체 계획으로 넓혔다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 35,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT",
+        "UNSUPPORTED_OR_CHANGED_MEANING"
+      ],
+      "reason": "s30만 연결한 채 메모리 사업의 대응 계획을 삼성전자 전체 계획으로 넓혔다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 36,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 37,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s32만으로는 매출 감소 예상의 주체가 시스템LSI임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 38,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 39,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 40,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 41,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 42,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 43,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 44,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 45,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s40만으로는 실적 개선 예상의 주체가 하만임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 46,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s42만으로는 계획의 주체가 디스플레이 중소형 부문임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 47,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s43만으로는 계획의 주체가 디스플레이 대형 부문임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 48,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 49,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 50,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 51,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 52,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 53,
+      "verdict": "OVERMERGED",
+      "error_types": [
+        "ATOMICITY"
+      ],
+      "reason": "시장 수요 둔화 예상과 고객 확대 계획을 하나의 Claim에 묶었다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 54,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 55,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s52의 '이를 통해'가 가리키는 파운드리 계획을 확인할 선행 근거가 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 56,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s53만으로는 사업 구조 다변화의 주체가 파운드리임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 57,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 58,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT",
+        "ATOMICITY"
+      ],
+      "reason": "s56만으로는 계획의 주체가 MX임을 식별할 수 없고 예상과 계획도 함께 묶었다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 59,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 60,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 61,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 62,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s61만으로는 계획의 주체가 하만임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 63,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s63만으로는 계획의 주체가 디스플레이 중소형 부문임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M02",
+      "repeat": 2,
+      "claim_no": 64,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s64만으로는 계획의 주체가 디스플레이 대형 부문임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 1,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "UNSUPPORTED_OR_CHANGED_MEANING"
+      ],
+      "reason": "행사에서 협력 사례를 살펴봤다는 편집자 서술을 NVIDIA의 행위로 바꿨다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 2,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "UNSUPPORTED_OR_CHANGED_MEANING"
+      ],
+      "reason": "수동형 소개 문장을 NVIDIA가 소개한 행위로 바꿨다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 3,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 4,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 5,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 6,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 7,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 8,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s8만으로는 소개 행위의 주체가 송용호 센터장임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 9,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s8만으로는 활용 사례를 공유한 주체가 송용호 센터장임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 10,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 11,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 12,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 13,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 14,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 15,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 16,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 17,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 18,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 19,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 20,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 21,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 22,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 23,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s23만으로는 '그 이후'의 선행 사건이 젠슨 황의 방문임을 확인할 수 없다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 24,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 25,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_no": 26,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 1,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "UNSUPPORTED_OR_CHANGED_MEANING"
+      ],
+      "reason": "행사에서 협력 사례를 살펴봤다는 편집자 서술을 NVIDIA의 행위로 바꿨다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 2,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "UNSUPPORTED_OR_CHANGED_MEANING"
+      ],
+      "reason": "수동형 소개 문장을 NVIDIA가 소개한 행위로 바꿨다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 3,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 4,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 5,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 6,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 7,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 8,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 9,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s8만으로는 소개 행위가 송용호 센터장의 발표에 귀속됨을 확인할 수 없다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 10,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s8만으로는 활용 사례를 공유한 주체가 송용호 센터장임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 11,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 12,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 13,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 14,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 15,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 16,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 17,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 18,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 19,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 20,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 21,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 22,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 23,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 24,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s23만으로는 '그 이후'의 선행 사건이 젠슨 황의 방문임을 확인할 수 없다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 25,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 26,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M03",
+      "repeat": 2,
+      "claim_no": 27,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 1,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 2,
+      "verdict": "OVERMERGED",
+      "error_types": [
+        "ATOMICITY"
+      ],
+      "reason": "제품의 용도·공개 사실과 18A 공정 기반이라는 독립 사실을 하나의 Claim에 묶었다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 3,
+      "verdict": "OVERMERGED",
+      "error_types": [
+        "ATOMICITY"
+      ],
+      "reason": "제품의 용도·공개 사실과 18A 공정 기반이라는 독립 사실을 하나의 Claim에 묶었다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 4,
+      "verdict": "OVERMERGED",
+      "error_types": [
+        "ATOMICITY"
+      ],
+      "reason": "제품의 용도·공개 사실과 18A 공정 기반이라는 독립 사실을 하나의 Claim에 묶었다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 5,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 6,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s3만으로는 발언자가 푸시카르 라나데임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 7,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s4의 '이 프로세서들'이 가리키는 세 제품을 확인할 선행 근거가 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 8,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s4의 '이러한 기능들'과 세 제품의 연결을 확인할 선행 근거가 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 9,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 10,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 11,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 12,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s7만으로는 기술 구성의 주체가 다이아몬드 래피즈임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 13,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 14,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s9의 사양 행만으로는 다이아몬드 래피즈의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 15,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s9의 사양 행만으로는 다이아몬드 래피즈의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 16,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s10의 사양 행만으로는 다이아몬드 래피즈의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 17,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s11의 사양 행만으로는 다이아몬드 래피즈의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 18,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 19,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s13의 지시어만으로는 GPU가 크레센트 아일랜드임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 20,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s13의 지시어만으로는 지원 기능의 주체가 크레센트 아일랜드임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 21,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s14만으로는 경제성 개선의 주체가 크레센트 아일랜드임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 22,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 23,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 24,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s16의 사양 행만으로는 크레센트 아일랜드의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 25,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s17의 사양 행만으로는 크레센트 아일랜드의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 26,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s18의 사양 행만으로는 크레센트 아일랜드의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 27,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 28,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 29,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 30,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 31,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s22의 사양 행만으로는 와일드캣 레이크의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 32,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s23의 사양 행만으로는 와일드캣 레이크의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 33,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s24의 사양 행만으로는 와일드캣 레이크의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 34,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 35,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 36,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 37,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 1,
+      "claim_no": 38,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 1,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 2,
+      "verdict": "OVERMERGED",
+      "error_types": [
+        "ATOMICITY"
+      ],
+      "reason": "서로 다른 세 아키텍처의 용도를 하나의 Claim에 묶었다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 3,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 4,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s3만으로는 발언자가 푸시카르 라나데임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 5,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s4의 '이 프로세서들'이 가리키는 세 제품을 확인할 선행 근거가 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 6,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 7,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 8,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 9,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 10,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 11,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s7만으로는 기술 구성의 주체가 다이아몬드 래피즈임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 12,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 13,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s9의 사양 행만으로는 다이아몬드 래피즈의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 14,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s9의 사양 행만으로는 다이아몬드 래피즈의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 15,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s10의 사양 행만으로는 다이아몬드 래피즈의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 16,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s11의 사양 행만으로는 다이아몬드 래피즈의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 17,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 18,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s13의 지시어만으로는 GPU가 크레센트 아일랜드임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 19,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s13의 지시어만으로는 지원 기능의 주체가 크레센트 아일랜드임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 20,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s14만으로는 경제성 개선의 주체가 크레센트 아일랜드임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 21,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 22,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 23,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s16의 사양 행만으로는 크레센트 아일랜드의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 24,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s17의 사양 행만으로는 크레센트 아일랜드의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 25,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s18의 사양 행만으로는 크레센트 아일랜드의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 26,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 27,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 28,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 29,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 30,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s22의 사양 행만으로는 와일드캣 레이크의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 31,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s23의 사양 행만으로는 와일드캣 레이크의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 32,
+      "verdict": "UNSUPPORTED",
+      "error_types": [
+        "EVIDENCE_INSUFFICIENT"
+      ],
+      "reason": "s24의 사양 행만으로는 와일드캣 레이크의 사양임을 식별할 수 없다."
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 33,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 34,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 35,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 36,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    },
+    {
+      "article_id": "M04",
+      "repeat": 2,
+      "claim_no": 37,
+      "verdict": "SUPPORTED",
+      "error_types": [],
+      "reason": ""
+    }
+  ],
+  "review_policy": {
+    "fact_pass": "동결 gold의 필수 의미, 허용 modality, 충분 근거와 분리 조건을 모두 만족한다.",
+    "fact_partial": "필수 사실을 찾았지만 의미 일부, 분류, 귀속, 근거 또는 분리 조건이 불완전하다.",
+    "fact_fail": "핵심 의미를 반대로 바꾸거나 원문이 지원하지 않는 핵심 의미를 추가했다.",
+    "claim_supported": "연결된 source_ids만으로 statement 전체를 확인할 수 있고 독립 사실 하나다.",
+    "selection_scope": "지원되는 Claim이라도 prompt가 제외한 일반 정의·중복은 별도 selection issue로 기록한다.",
+    "independence_limit": "출력 확인 뒤 작성한 단일 Codex 수동 판정이며 독립 평가가 아니다."
+  },
+  "selection_issues": [
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_nos": [
+        22,
+        23,
+        24,
+        25,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44
+      ],
+      "category": "DISALLOWED_GENERAL_DEFINITION",
+      "reason": "prompt가 제외한 일반 용어 정의를 Claim으로 만들었다."
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_nos": [
+        24,
+        25,
+        26,
+        27,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "category": "DISALLOWED_GENERAL_DEFINITION",
+      "reason": "prompt가 제외한 일반 용어 정의를 Claim으로 만들었다."
+    },
+    {
+      "article_id": "M01",
+      "repeat": 1,
+      "claim_nos": [
+        45,
+        48
+      ],
+      "category": "DUPLICATE_FACT",
+      "reason": "제목과 본문에서 같은 14.3조 원 주주환원 사실을 중복 추출했다."
+    },
+    {
+      "article_id": "M01",
+      "repeat": 2,
+      "claim_nos": [
+        50,
+        54
+      ],
+      "category": "DUPLICATE_FACT",
+      "reason": "제목과 본문에서 같은 14.3조 원 주주환원 사실을 중복 추출했다."
+    },
+    {
+      "article_id": "M03",
+      "repeat": 1,
+      "claim_nos": [
+        12,
+        13
+      ],
+      "category": "OVERLAPPING_CLAIMS",
+      "reason": "같은 전시 행위를 원인 설명을 붙여 겹치게 추출했다."
+    }
+  ]
+}

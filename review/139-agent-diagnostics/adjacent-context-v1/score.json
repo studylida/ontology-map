@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "issue": 139,
+  "method": "Single-reviewer manual semantic review against pre-frozen gold with condition names hidden until ratings were frozen",
+  "arms": {
+    "control": {
+      "calls": 8,
+      "contract_pass_calls": 8,
+      "ratings": {
+        "PASS": 12,
+        "FAIL": 9,
+        "PARTIAL": 11
+      },
+      "strict_pass_rate_percent": 37.5,
+      "complete_four_unit_attempts": 1,
+      "overcitation_ratings": 0,
+      "estimated_usd": 0.00296604
+    },
+    "adjacent": {
+      "calls": 8,
+      "contract_pass_calls": 7,
+      "ratings": {
+        "PASS": 9,
+        "FAIL": 12,
+        "PARTIAL": 7,
+        "CONTRACT_ERROR": 4
+      },
+      "strict_pass_rate_percent": 28.1,
+      "complete_four_unit_attempts": 0,
+      "overcitation_ratings": 0,
+      "estimated_usd": 0.00284292
+    }
+  },
+  "paired_noncontract": {
+    "adjacent_better": 2,
+    "tie": 22,
+    "control_better": 4,
+    "excluded_contract": 4
+  },
+  "net_strict_pass": -3,
+  "resolved_evidence_articles_both_repeats": [],
+  "new_material_regressions": [
+    {
+      "article_id": "N02",
+      "repeat": 1,
+      "source_id": "s31"
+    },
+    {
+      "article_id": "N02",
+      "repeat": 2,
+      "source_id": "s31"
+    },
+    {
+      "article_id": "N03",
+      "repeat": 2,
+      "source_id": "s25"
+    }
+  ],
+  "comparable_articles": [
+    "N01",
+    "N02",
+    "N03"
+  ],
+  "decision": "REJECT_ADJACENT_INPUT_CANDIDATE",
+  "contract_failures": [
+    {
+      "identity": "adjacent-context-v1-N04-r1-adjacent",
+      "error_type": "ValidationError",
+      "finish_reason": "stop",
+      "reason": "OUTPUT_SCHEMA_LITERAL_ERROR: critical element dimension RESULT"
+    }
+  ],
+  "cost": {
+    "experiment_usd": 0.00580896,
+    "historical_reserved_or_estimated_usd": 0.86442523,
+    "cumulative_usd": 0.87023419
+  },
+  "dependency_hashes": {
+    "manifest.json": "a321341a7b3450da862e11dd9e06332c52693fdda9e6dbebed24724b0bc92a73",
+    "gold.json": "aa73e2eeb9daf8521ebb198472e9283c53ea3639356f39b3bd078dfc063725ad",
+    "blind-review.json": "c7d8eeea27fe6635c435f9c1a74e526c109504fdd586162a4e5e435efeac4ff3",
+    "blind-map.json": "209f8ae9bbc94c0d17555e25564cb95fd2cd3c3e70ee0935716c6a5019ead8f6",
+    "results.jsonl": "5c49219bf156bed8551dc0da1731d220732b1496e2829cabb7f1b43201610e5e",
+    "ledger.json": "dbe77d088f73dc6423e2b3ca9d9dd4baeda889d858dbf8542f400e7b8e547b1a"
+  },
+  "interpretation_limit": "This purpose-sampled pilot compares one runtime input representation; it does not approve the product output contract, persistence, worker, or operational quality.",
+  "paired_comparable_strict_pass": {
+    "eligible": 28,
+    "control": 8,
+    "adjacent": 9
+  }
+}

@@ -1,0 +1,238 @@
+"""Aggregate the frozen blinded review after revealing the model mapping."""
+
+from __future__ import annotations
+
+from collections import Counter, defaultdict
+import hashlib
+import json
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent
+MODELS = ("flash", "plus")
+
+
+def load(name: str) -> object:
+    return json.loads((ROOT / name).read_text(encoding="utf-8"))
+
+
+def digest(name: str) -> str:
+    return hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+
+
+def model_for(row: dict, mapping: dict[str, list[str]]) -> str:
+    return mapping[f"{row['article_id']}:r{row['repeat']}"][row["candidate"] - 1]
+
+
+def percent(numerator: int, denominator: int) -> float:
+    return round(100 * numerator / denominator, 2) if denominator else 0.0
+
+
+def fact_summary(rows: list[dict], mapping: dict[str, list[str]]) -> dict:
+    output = {}
+    for model in MODELS:
+        selected = [row for row in rows if model_for(row, mapping) == model]
+        counts = Counter(row["verdict"] for row in selected)
+        per_article: dict[str, dict[str, object]] = {}
+        for article in sorted({row["article_id"] for row in selected}):
+            article_rows = [row for row in selected if row["article_id"] == article]
+            repeats = {
+                str(repeat): sum(row["verdict"] == "PASS" for row in article_rows if row["repeat"] == repeat)
+                for repeat in (1, 2)
+            }
+            per_article[article] = {
+                "pass": sum(repeats.values()),
+                "total": len(article_rows),
+                "pass_by_repeat": repeats,
+            }
+        output[model] = {
+            "counts": dict(sorted(counts.items())),
+            "pass": counts["PASS"],
+            "total": len(selected),
+            "pass_rate_percent": percent(counts["PASS"], len(selected)),
+            "per_article": per_article,
+        }
+    return output
+
+
+def claim_summary(rows: list[dict], mapping: dict[str, list[str]]) -> dict:
+    output = {}
+    for model in MODELS:
+        selected = [row for row in rows if model_for(row, mapping) == model]
+        support_fail = sum(row["source_support"]["verdict"] == "FAIL" for row in selected)
+        modality_fail = sum(row["modality"]["verdict"] == "FAIL" for row in selected)
+        atomicity_fail = sum(row["atomicity"]["verdict"] == "FAIL" for row in selected)
+        excluded = sum(row["selection"]["verdict"] == "EXCLUDED" for row in selected)
+        duplicates = sum(row["selection"]["category"] == "DUPLICATE" for row in selected)
+        valid = sum(
+            row["source_support"]["verdict"] == "PASS"
+            and row["modality"]["verdict"] == "PASS"
+            and row["atomicity"]["verdict"] == "PASS"
+            and row["selection"]["verdict"] == "IN_SCOPE"
+            for row in selected
+        )
+        output[model] = {
+            "total": len(selected),
+            "source_support_fail": support_fail,
+            "source_support_fail_rate_percent": percent(support_fail, len(selected)),
+            "modality_or_attribution_fail": modality_fail,
+            "atomicity_fail": atomicity_fail,
+            "selection_excluded": excluded,
+            "duplicates": duplicates,
+            "all_axes_pass_valid_nonduplicate": valid,
+            "all_axes_pass_valid_nonduplicate_rate_percent": percent(valid, len(selected)),
+            "all_axes_pass_valid_nonduplicate_per_attempt": round(valid / 8, 2),
+        }
+    return output
+
+
+def paired_facts(rows: list[dict], mapping: dict[str, list[str]]) -> dict[tuple[str, int, str], dict[str, str]]:
+    pairs: dict[tuple[str, int, str], dict[str, str]] = defaultdict(dict)
+    for row in rows:
+        pairs[(row["article_id"], row["repeat"], row["fact_id"])][model_for(row, mapping)] = row["verdict"]
+    return pairs
+
+
+def article_pass_delta(pairs: dict[tuple[str, int, str], dict[str, str]], article: str, repeat: int, model: str) -> int:
+    other = MODELS[1 - MODELS.index(model)]
+    selected = [pair for (name, number, _), pair in pairs.items() if name == article and number == repeat]
+    return sum(pair[model] == "PASS" for pair in selected) - sum(pair[other] == "PASS" for pair in selected)
+
+
+def repeatable_improvements(pairs: dict[tuple[str, int, str], dict[str, str]]) -> dict[str, list[dict]]:
+    result: dict[str, list[dict]] = {model: [] for model in MODELS}
+    for article in sorted({key[0] for key in pairs}):
+        for model in MODELS:
+            deltas = {str(repeat): article_pass_delta(pairs, article, repeat, model) for repeat in (1, 2)}
+            if all(delta > 0 for delta in deltas.values()):
+                result[model].append({"article_id": article, "pass_delta_by_repeat": deltas})
+    return result
+
+
+def group_fact_rows(rows: list[dict], mapping: dict[str, list[str]]) -> dict[tuple[str, str], dict[str, list[dict]]]:
+    grouped: dict[tuple[str, str], dict[str, list[dict]]] = defaultdict(lambda: {model: [] for model in MODELS})
+    for row in rows:
+        grouped[(row["article_id"], row["fact_id"])][model_for(row, mapping)].append(row)
+    return grouped
+
+
+def is_repeated_failure(rows: list[dict]) -> bool:
+    return len(rows) == 2 and all(row["verdict"] == "FAIL" for row in rows)
+
+
+def repeated_critical_regressions(rows: list[dict], mapping: dict[str, list[str]]) -> dict[str, list[dict]]:
+    result: dict[str, list[dict]] = {model: [] for model in MODELS}
+    for (article, fact_id), by_model in sorted(group_fact_rows(rows, mapping).items()):
+        for model in MODELS:
+            other = MODELS[1 - MODELS.index(model)]
+            if not is_repeated_failure(by_model[model]):
+                continue
+            if is_repeated_failure(by_model[other]):
+                continue
+            result[model].append({
+                "article_id": article,
+                "fact_id": fact_id,
+                "error_types": by_model[model][0]["error_types"],
+                "reason": by_model[model][0]["reason"],
+            })
+    return result
+
+
+def paired_summary(rows: list[dict], mapping: dict[str, list[str]]) -> dict:
+    pairs = paired_facts(rows, mapping)
+    transitions = Counter(f"{pair['plus']}→{pair['flash']}" for pair in pairs.values())
+    return {
+        "fact_verdict_transitions_plus_to_flash": dict(sorted(transitions.items())),
+        "repeatable_article_improvements": repeatable_improvements(pairs),
+        "new_repeated_critical_regressions": repeated_critical_regressions(rows, mapping),
+    }
+
+
+def call_summary() -> dict:
+    rows = [json.loads(line) for line in (ROOT / "results.jsonl").read_text(encoding="utf-8").splitlines()]
+    per_model = {}
+    for model in MODELS:
+        selected = [row for row in rows if row["identity"].endswith(f"-{model}")]
+        per_model[model] = {
+            "contract_success": sum(row["status"] == "PASS" for row in selected),
+            "calls": len(selected),
+            "finish_reasons": dict(Counter(row["finish_reason"] for row in selected)),
+            "claims": sum(len(row["normalized"]["claims"]) for row in selected),
+            "actual_estimated_cost_usd": round(sum(row["estimated_usd"] for row in selected), 8),
+        }
+    return {
+        "per_model": per_model,
+        "total_calls": len(rows),
+        "total_actual_estimated_cost_usd": round(sum(row["estimated_usd"] for row in rows), 8),
+    }
+
+
+def candidate_decision(facts: dict, claims: dict, paired: dict, manifest: dict) -> dict:
+    criteria = manifest["candidate_criteria"]
+    advantage = round(facts["flash"]["pass_rate_percent"] - facts["plus"]["pass_rate_percent"], 2)
+    flash_checks = {
+        "comparable_articles_at_least_3": len(facts["flash"]["per_article"]) >= criteria["comparable_articles_minimum"],
+        "pass_advantage_at_least_10pp": advantage >= criteria["strict_required_fact_pass_advantage_percentage_points"],
+        "repeatable_improvement_in_at_least_2_articles": len(paired["repeatable_article_improvements"]["flash"]) >= criteria["repeatable_article_improvements_minimum"],
+        "no_new_repeated_critical_regression": not paired["new_repeated_critical_regressions"]["flash"],
+        "source_support_fail_rate_not_worse": claims["flash"]["source_support_fail_rate_percent"] <= claims["plus"]["source_support_fail_rate_percent"],
+        "valid_nonduplicate_yield_not_lower": claims["flash"]["all_axes_pass_valid_nonduplicate_per_attempt"] >= claims["plus"]["all_axes_pass_valid_nonduplicate_per_attempt"],
+    }
+    plus_checks = {
+        "comparable_articles_at_least_3": len(facts["plus"]["per_article"]) >= criteria["comparable_articles_minimum"],
+        "pass_advantage_at_least_10pp": -advantage >= criteria["strict_required_fact_pass_advantage_percentage_points"],
+        "repeatable_improvement_in_at_least_2_articles": len(paired["repeatable_article_improvements"]["plus"]) >= criteria["repeatable_article_improvements_minimum"],
+        "no_new_repeated_critical_regression": not paired["new_repeated_critical_regressions"]["plus"],
+        "source_support_fail_rate_not_worse": claims["plus"]["source_support_fail_rate_percent"] <= claims["flash"]["source_support_fail_rate_percent"],
+        "valid_nonduplicate_yield_not_lower": claims["plus"]["all_axes_pass_valid_nonduplicate_per_attempt"] >= claims["flash"]["all_axes_pass_valid_nonduplicate_per_attempt"],
+    }
+    selected = [model for model, checks in (("flash", flash_checks), ("plus", plus_checks)) if all(checks.values())]
+    return {
+        "flash_minus_plus_strict_fact_pass_percentage_points": advantage,
+        "checks": {"flash": flash_checks, "plus": plus_checks},
+        "selected_model": selected[0] if len(selected) == 1 else None,
+        "decision": "MODEL_CANDIDATE_SELECTED" if len(selected) == 1 else "NO_MODEL_CANDIDATE_MEETS_FROZEN_CRITERIA",
+        "demo_gate": "NOT_EVALUATED_ON_SEPARATE_DEMO_GATE_DATA",
+    }
+
+
+def main() -> None:
+    review = load("blind-review.json")
+    mapping = load("blind-map.json")
+    manifest = load("manifest.json")
+    facts = fact_summary(review["fact_ratings"], mapping)
+    claims = claim_summary(review["claim_ratings"], mapping)
+    paired = paired_summary(review["fact_ratings"], mapping)
+    score = {
+        "version": 1,
+        "issue": 139,
+        "method": "Frozen condition-concealed Codex semantic review; mapping revealed only after blind-review.json was written",
+        "limitations": [
+            "The reviewer designed and ran the experiment and is not an independent human evaluator.",
+            "Claim counts exposed model-linked output shapes before the blinded ledger was frozen; condition labels were still concealed in the ledger.",
+            "The four purposefully selected articles become development/regression data after this result.",
+            "This comparison does not approve a product output contract, worker, persistence, or operating quality.",
+        ],
+        "input_hashes": {
+            "manifest.json": digest("manifest.json"),
+            "gold.json": digest("gold.json"),
+            "blind-review.json": digest("blind-review.json"),
+            "blind-map.json": digest("blind-map.json"),
+        },
+        "calls": call_summary(),
+        "facts": facts,
+        "claims": claims,
+        "paired": paired,
+    }
+    score["candidate_decision"] = candidate_decision(facts, claims, paired, manifest)
+    target = ROOT / "score.json"
+    encoded = json.dumps(score, ensure_ascii=False, indent=2) + "\n"
+    if target.exists() and target.read_text(encoding="utf-8") != encoded:
+        raise ValueError("FROZEN_SCORE_CHANGED")
+    if not target.exists():
+        target.write_text(encoded, encoding="utf-8")
+    print(json.dumps(score["candidate_decision"], ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

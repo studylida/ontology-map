@@ -1,0 +1,38 @@
+[
+  {
+    "identity": "strict-output-v1-tiny",
+    "status": "PASS",
+    "request_sha256": "7d71531facb64f58379c52077b0d8716ed4f6f3d5fa9d844ed44785bafb18b8d",
+    "reservation_usd": 0.00015965,
+    "model": "qwen3.7-flash-2026-07-15",
+    "usage": {
+      "prompt_tokens": 44,
+      "total_tokens": 63,
+      "completion_tokens": 19,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "text_tokens": 44
+      }
+    },
+    "estimated_usd": 3.79e-06,
+    "elapsed_seconds": 1.216
+  },
+  {
+    "identity": "strict-output-v1-selection",
+    "status": "PASS",
+    "request_sha256": "72380f7c5da847c81a1a72851db68fba7dfae0ce09fe645fae9620c532e0275d",
+    "reservation_usd": 0.00071026,
+    "model": "qwen3.7-flash-2026-07-15",
+    "usage": {
+      "prompt_tokens": 3246,
+      "total_tokens": 3652,
+      "completion_tokens": 406,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "text_tokens": 3246
+      }
+    },
+    "estimated_usd": 0.00015016,
+    "elapsed_seconds": 5.711
+  }
+]

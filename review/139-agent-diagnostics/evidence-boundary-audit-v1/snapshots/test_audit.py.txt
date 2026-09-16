@@ -1,0 +1,43 @@
+from __future__ import annotations
+
+import copy
+import unittest
+
+import audit
+
+
+class EvidenceBoundaryAuditTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.packet = audit.load_json(audit.TRIAL / "review-packet.json")
+        cls.prior = audit.load_json(audit.TRIAL / "review.json")
+        cls.claim_rows = audit.load_json(audit.HERE / "claim-audit.json")
+        cls.fact_rows = audit.load_json(audit.HERE / "fact-audit.json")
+
+    def test_complete_audit(self) -> None:
+        score, cross_check = audit.run()
+        self.assertEqual(score["fact_scores"]["original_frozen"]["pass"], 20)
+        self.assertEqual(
+            score["fact_scores"]["claim_boundary_audit_after_gold_correction"]["pass"],
+            16,
+        )
+        self.assertEqual(score["claim_axes"]["source_support"]["FAIL"], 93)
+        self.assertTrue(cross_check["no_sibling_evidence_borrowing"])
+
+    def test_missing_claim_is_rejected(self) -> None:
+        with self.assertRaisesRegex(audit.AuditError, "claim audit keys differ"):
+            audit.validate_claim_audit(self.packet, self.prior, self.claim_rows[:-1])
+
+    def test_fact_cannot_borrow_ineligible_claims(self) -> None:
+        claims = audit.validate_claim_audit(self.packet, self.prior, self.claim_rows)
+        facts = copy.deepcopy(self.fact_rows)
+        target = next(row for row in facts if row["key"] == "M03:r1:M03-F02")
+        target.update(
+            verdict="PASS", error_types=[], covering_claim_nos=[7, 8, 9], reason=""
+        )
+        with self.assertRaisesRegex(audit.AuditError, "ineligible claim"):
+            audit.validate_fact_audit(self.prior, facts, claims)
+
+
+if __name__ == "__main__":
+    unittest.main()

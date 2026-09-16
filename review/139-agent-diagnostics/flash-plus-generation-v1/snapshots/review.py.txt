@@ -1,0 +1,330 @@
+"""Apply the frozen manual review to every blinded #139 candidate."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent
+
+
+def load(name: str) -> dict:
+    return json.loads((ROOT / name).read_text(encoding="utf-8"))
+
+
+def save_once(name: str, value: object) -> None:
+    path = ROOT / name
+    encoded = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
+    if path.exists() and path.read_text(encoding="utf-8") != encoded:
+        raise ValueError(f"FROZEN_FILE_CHANGED:{name}")
+    if not path.exists():
+        path.write_text(encoded, encoding="utf-8")
+
+
+def claim_keys(article: str, repeat: int, candidate: int, numbers: list[int]) -> list[str]:
+    return [f"{article}:r{repeat}:k{candidate}:c{number}" for number in numbers]
+
+
+def add_keys(target: dict, article: str, repeat: int, candidate: int, numbers: list[int], value: object) -> None:
+    for key in claim_keys(article, repeat, candidate, numbers):
+        if key in target:
+            raise ValueError(f"DUPLICATE_OVERRIDE:{key}")
+        target[key] = value
+
+
+def source_failures() -> dict[str, tuple[list[str], str]]:
+    result: dict[str, tuple[list[str], str]] = {}
+    add_keys(result, "C01", 1, 1, [4, 5], (["EVIDENCE_INSUFFICIENT"], "s7은 회사 발언이며 안현 사장을 발언자로 확인하지 못한다."))
+    add_keys(result, "C01", 2, 2, [4, 5], (["EVIDENCE_INSUFFICIENT"], "s7은 회사 발언이며 안현 사장을 발언자로 확인하지 못한다."))
+    add_keys(result, "C01", 2, 2, [1], (["UNSUPPORTED_OR_CHANGED_MEANING"], "s4는 SK하이닉스의 발표이며 두 회사가 함께 밝혔다고 하지 않는다."))
+    add_keys(result, "C03", 1, 1, [18], (["EVIDENCE_INSUFFICIENT"], "s31의 지시어가 가리키는 기술명은 s30에 있다."))
+    add_keys(result, "C03", 2, 1, [18, 19], (["EVIDENCE_INSUFFICIENT"], "선택 원문만으로 기술명 또는 주체의 선행 대상을 확인할 수 없다."))
+    for repeat in (1, 2):
+        candidate = 2
+        add_keys(result, "C03", repeat, candidate, [6], (["UNSUPPORTED_OR_CHANGED_MEANING"], "원문은 워크로드 환경을 설명하며 Vera가 그 환경에서 작동한다고 직접 말하지 않는다."))
+        add_keys(result, "C03", repeat, candidate, [19, 20], (["EVIDENCE_INSUFFICIENT"], "s8만으로는 발언자가 젠슨 황인지 확인할 수 없다."))
+        add_keys(result, "C03", repeat, candidate, [23, 24, 25], (["UNSUPPORTED_OR_CHANGED_MEANING"], "발언의 행동 주체는 뉴욕증권거래소인데 레드판다로 바뀌었다."))
+        add_keys(result, "C03", repeat, candidate, [31], (["EVIDENCE_INSUFFICIENT"], "s17만으로는 발언자가 Mahesh Thiagarajan인지 확인할 수 없다."))
+    add_keys(result, "C03", 1, 2, [33], (["UNSUPPORTED_OR_CHANGED_MEANING"], "s19는 해당 워크로드가 핵심 단계라고 할 뿐 빠른 CPU가 필요하다고 말하지 않는다."))
+    add_keys(result, "C03", 2, 2, [33], (["EVIDENCE_INSUFFICIENT"], "s19의 이 워크로드가 무엇인지 확인하려면 s18이 필요하다."))
+    add_keys(result, "C03", 1, 2, [44, 45, 47, 48, 50, 51], (["EVIDENCE_INSUFFICIENT"], "지시어 또는 생략 주체를 확인할 선행 원문 ID가 연결되지 않았다."))
+    add_keys(result, "C03", 2, 2, [40, 41, 43, 44, 46, 47], (["EVIDENCE_INSUFFICIENT"], "지시어 또는 생략 주체를 확인할 선행 원문 ID가 연결되지 않았다."))
+    add_keys(result, "C04", 1, 1, [10], (["EVIDENCE_INSUFFICIENT"], "s7만으로는 발언자가 립부 탄인지 확인할 수 없다."))
+    add_keys(result, "C04", 1, 2, [11], (["EVIDENCE_INSUFFICIENT"], "s7만으로는 발언자가 립부 탄인지 확인할 수 없다."))
+    add_keys(result, "C04", 2, 1, [12], (["EVIDENCE_INSUFFICIENT"], "s7만으로는 발언자가 립부 탄인지 확인할 수 없다."))
+    add_keys(result, "C04", 2, 2, [10], (["EVIDENCE_INSUFFICIENT"], "s7만으로는 발언자가 립부 탄인지 확인할 수 없다."))
+    add_keys(result, "C04", 1, 2, [17], (["EVIDENCE_INSUFFICIENT"], "s16만으로는 생산 설계 대상이 인텔 18A인지 확인할 수 없다."))
+    add_keys(result, "C04", 2, 1, [31, 32, 33], (["UNSUPPORTED_OR_CHANGED_MEANING"], "s23은 옵션이 추가됐다고 하는데 미래에 추가될 계획으로 바뀌었다."))
+    return result
+
+
+def modality_failures() -> dict[str, str]:
+    result: dict[str, str] = {}
+    groups = [
+        ("C01", 1, 1, [3, 4, 5, 10, 11, 12, 13]),
+        ("C01", 1, 2, [4, 5, 6, 11, 12, 13, 14]),
+        ("C01", 2, 1, [4, 5, 6, 9, 10, 11, 12, 13, 14]),
+        ("C01", 2, 2, [3, 4, 5, 10, 11, 12]),
+        ("C02", 1, 1, [9, 10, 11, 13, 14]),
+        ("C02", 1, 2, [6, 10, 16, 17, 18, 19, 20]),
+        ("C02", 2, 1, [6, 7, 10, 13, 14, 16, 17, 18, 19, 20]),
+        ("C02", 2, 2, [9, 10, 11, 13, 14]),
+        ("C03", 1, 1, [1, 5, 6, 7, 8, 9, 11, 22, 23, 24]),
+        ("C03", 2, 1, [1, 5, 6, 7, 8, 9, 11, 22, 23, 24, 25]),
+        ("C03", 1, 2, [19, 20, 27]),
+        ("C03", 2, 2, [19, 20, 27]),
+        ("C04", 1, 1, [8, 9, 10, 16, 31, 32, 33, 35, 36]),
+        ("C04", 1, 2, [9, 10, 11, 16]),
+        ("C04", 2, 1, [10, 11, 31, 32, 33]),
+        ("C04", 2, 2, [8, 9, 10, 14, 24, 25, 27, 28]),
+    ]
+    for article, repeat, candidate, numbers in groups:
+        add_keys(result, article, repeat, candidate, numbers, "발언·평가·계획 또는 완료 상태와 출력 modality가 일치하지 않는다.")
+    return result
+
+
+def atomicity_failures() -> dict[str, str]:
+    result: dict[str, str] = {}
+    groups = [
+        ("C02", 1, 1, [7, 13, 14]),
+        ("C02", 2, 2, [7, 13, 14]),
+        ("C03", 1, 1, [5, 6, 7, 9, 11, 20, 21, 22, 23]),
+        ("C03", 2, 1, [5, 6, 7, 9, 11, 21, 22, 23, 24]),
+        ("C04", 1, 1, [16, 20, 37]),
+        ("C04", 1, 2, [16, 18, 19, 24, 26, 29, 34]),
+        ("C04", 2, 1, [36]),
+        ("C04", 2, 2, [14, 16, 17, 19, 21, 23, 26, 29]),
+    ]
+    for article, repeat, candidate, numbers in groups:
+        add_keys(result, article, repeat, candidate, numbers, "서로 독립적으로 저장할 사실·상태·대상 관계를 한 Claim에 묶었다.")
+    return result
+
+
+def selection_exclusions() -> dict[str, tuple[str, str]]:
+    result: dict[str, tuple[str, str]] = {}
+    groups = [
+        ("C01", 1, 1, [6, 7], "GENERAL_CONTEXT"),
+        ("C01", 1, 2, [7, 8], "GENERAL_CONTEXT"),
+        ("C01", 2, 1, [7, 8], "GENERAL_CONTEXT"),
+        ("C01", 2, 2, [6, 7], "GENERAL_CONTEXT"),
+        ("C02", 1, 1, [2], "EVENT_LOGISTICS"),
+        ("C02", 1, 2, [2], "EVENT_LOGISTICS"),
+        ("C02", 2, 1, [2], "EVENT_LOGISTICS"),
+        ("C02", 2, 2, [2], "EVENT_LOGISTICS"),
+        ("C02", 1, 2, [5], "GENERAL_CONTEXT"),
+        ("C02", 2, 1, [5], "GENERAL_CONTEXT"),
+        ("C02", 1, 2, [6, 10, 16], "PROMOTIONAL_EVALUATION"),
+        ("C02", 2, 1, [6, 10, 16], "PROMOTIONAL_EVALUATION"),
+        ("C03", 1, 1, [4, 10], "PROMOTIONAL_EVALUATION"),
+        ("C03", 2, 1, [4, 10], "PROMOTIONAL_EVALUATION"),
+        ("C03", 1, 2, [1, 7], "VAGUE_ACTOR"),
+        ("C03", 2, 2, [1, 7], "VAGUE_ACTOR"),
+        ("C03", 1, 2, [5, 29], "PROMOTIONAL_EVALUATION"),
+        ("C03", 2, 2, [5, 29], "PROMOTIONAL_EVALUATION"),
+        ("C03", 1, 2, [33, 34, 35, 36], "GENERAL_CONTEXT"),
+        ("C03", 2, 2, [33, 34, 35, 36], "GENERAL_CONTEXT"),
+        ("C04", 1, 1, [7], "EVENT_LOGISTICS"),
+        ("C04", 1, 2, [8], "EVENT_LOGISTICS"),
+        ("C04", 2, 1, [9], "EVENT_LOGISTICS"),
+        ("C04", 2, 2, [7], "EVENT_LOGISTICS"),
+        ("C04", 1, 1, [11], "PROMOTIONAL_EVALUATION"),
+        ("C04", 1, 2, [12, 31], "PROMOTIONAL_EVALUATION"),
+        ("C04", 2, 1, [13, 43], "PROMOTIONAL_EVALUATION"),
+        ("C04", 2, 2, [11], "PROMOTIONAL_EVALUATION"),
+        ("C04", 1, 2, [30], "VAGUE_ACTOR"),
+        ("C04", 2, 1, [42], "VAGUE_ACTOR"),
+    ]
+    reason_by_category = {
+        "GENERAL_CONTEXT": "특정 제품·회사 행동보다 일반 산업 배경을 설명한다.",
+        "EVENT_LOGISTICS": "단순 행사 참석 또는 무대 참여 정보다.",
+        "PROMOTIONAL_EVALUATION": "검증 가능한 제품 지식보다 포괄적인 홍보·평가 표현이다.",
+        "VAGUE_ACTOR": "식별할 수 없는 집합을 행동 주체로 삼는다.",
+    }
+    for article, repeat, candidate, numbers, category in groups:
+        add_keys(result, article, repeat, candidate, numbers, (category, reason_by_category[category]))
+    return result
+
+
+def duplicates() -> dict[str, int]:
+    result: dict[str, int] = {}
+    add_keys(result, "C01", 1, 2, [3], 1)
+    add_keys(result, "C01", 2, 1, [3], 1)
+    add_keys(result, "C03", 1, 2, [26], 9)
+    add_keys(result, "C03", 2, 2, [26], 9)
+    return result
+
+
+def fact_specs() -> dict[str, tuple[str, list[int], list[int], list[str], str]]:
+    result: dict[str, tuple[str, list[int], list[int], list[str], str]] = {}
+
+    def add(article: str, repeat: int, candidate: int, fact: int, verdict: str, mapped: list[int], covering: list[int], errors: list[str], reason: str = "") -> None:
+        key = f"{article}:r{repeat}:k{candidate}:{article}-F{fact:02d}"
+        if key in result:
+            raise ValueError(f"DUPLICATE_FACT_SPEC:{key}")
+        result[key] = (verdict, mapped, covering, errors, reason)
+
+    pass_reason = ""
+    modality = (["MODALITY_OR_ATTRIBUTION_MISMATCH"], "필수 의미는 있으나 상태 또는 발언 귀속의 modality가 맞지 않는다.")
+    evidence = (["EVIDENCE_INSUFFICIENT"], "필수 의미는 있으나 해당 Claim의 자기 근거만으로 전체 의미를 확인할 수 없다.")
+    atomic = (["ATOMICITY"], "필수 의미가 다른 독립 사실과 한 Claim에 묶였다.")
+    changed_actor = (["UNSUPPORTED_OR_CHANGED_MEANING"], "협력 계획의 행동 주체를 뉴욕증권거래소에서 레드판다로 바꿨다.")
+
+    c01 = {
+        (1, 1): [("PASS", [2], [2], [], pass_reason), ("PARTIAL", [3], [], *modality), ("PASS", [8], [8], [], pass_reason), ("PASS", [9], [9], [], pass_reason), ("PARTIAL", [11], [], *modality), ("PARTIAL", [12, 13], [], *modality)],
+        (1, 2): [("PASS", [1, 3], [1], [], pass_reason), ("PARTIAL", [4], [], *modality), ("PASS", [9], [9], [], pass_reason), ("PASS", [10], [10], [], pass_reason), ("PARTIAL", [12], [], *modality), ("PARTIAL", [13, 14], [], *modality)],
+        (2, 1): [("PASS", [1, 3], [1], [], pass_reason), ("PARTIAL", [4], [], *modality), ("PARTIAL", [9], [], *modality), ("PARTIAL", [10], [], *modality), ("PARTIAL", [12], [], *modality), ("PARTIAL", [13, 14], [], *modality)],
+        (2, 2): [("PASS", [2], [2], [], pass_reason), ("PARTIAL", [3], [], *modality), ("PASS", [8], [8], [], pass_reason), ("PASS", [9], [9], [], pass_reason), ("PARTIAL", [11], [], *modality), ("PARTIAL", [12, 13], [], *modality)],
+    }
+    for (repeat, candidate), rows in c01.items():
+        for fact, spec in enumerate(rows, 1):
+            add("C01", repeat, candidate, fact, *spec)
+
+    c02 = {
+        (1, 1): [("PASS", [1], [1], [], pass_reason), ("PASS", [4], [4], [], pass_reason), ("PASS", [6], [6], [], pass_reason), ("PARTIAL", [7], [], *atomic), ("PARTIAL", [9], [], *modality), ("PARTIAL", [13], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "발언의 평가와 미래 의지를 묶고 FACT로 분류했다.")],
+        (1, 2): [("PASS", [1], [1], [], pass_reason), ("PASS", [4], [4], [], pass_reason), ("PASS", [8], [8], [], pass_reason), ("PASS", [9], [9], [], pass_reason), ("PASS", [12], [12], [], pass_reason), ("PARTIAL", [18], [], *modality)],
+        (2, 1): [("PASS", [1], [1], [], pass_reason), ("PASS", [4], [4], [], pass_reason), ("PASS", [8], [8], [], pass_reason), ("PASS", [9], [9], [], pass_reason), ("PASS", [12], [12], [], pass_reason), ("PARTIAL", [18], [], *modality)],
+        (2, 2): [("PASS", [1], [1], [], pass_reason), ("PASS", [4], [4], [], pass_reason), ("PASS", [6], [6], [], pass_reason), ("PARTIAL", [7], [], *atomic), ("PARTIAL", [9], [], *modality), ("PARTIAL", [13], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "발언의 평가와 미래 의지를 묶고 FACT로 분류했다.")],
+    }
+    for (repeat, candidate), rows in c02.items():
+        for fact, spec in enumerate(rows, 1):
+            add("C02", repeat, candidate, fact, *spec)
+
+    c03 = {
+        (1, 1): [("PASS", [2], [2], [], pass_reason), ("PARTIAL", [5], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "도입 검토를 FACT로 분류하고 여러 대상을 한 Claim에 묶었다."), ("PARTIAL", [6], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "발언은 있으나 예측과 제품 설명을 묶고 FACT로 분류했다."), ("PARTIAL", [7], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "현재 상태·처리량·협력 계획을 한 FACT Claim에 묶었다."), ("PASS", [15], [15], [], pass_reason), ("PARTIAL", [24], [], *modality)],
+        (1, 2): [("PASS", [2], [2], [], pass_reason), ("PASS", [8, 9, 10], [8, 9, 10], [], pass_reason), ("PARTIAL", [20], [], ["EVIDENCE_INSUFFICIENT", "MODALITY_OR_ATTRIBUTION_MISMATCH"], "발언자 선행 근거가 없고 발언 성격의 modality가 맞지 않는다."), ("FAIL", [23, 24, 25], [], *changed_actor), ("PASS", [41, 42, 43], [41, 42, 43], [], pass_reason), ("PASS", [90], [90], [], pass_reason)],
+        (2, 1): [("PASS", [2], [2], [], pass_reason), ("PARTIAL", [5], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "도입 검토를 FACT로 분류하고 여러 대상을 한 Claim에 묶었다."), ("PARTIAL", [6], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "발언은 있으나 예측과 제품 설명을 묶고 FACT로 분류했다."), ("PARTIAL", [7], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "현재 상태·처리량·협력 계획을 한 FACT Claim에 묶었다."), ("PASS", [15], [15], [], pass_reason), ("PARTIAL", [25], [], *modality)],
+        (2, 2): [("PASS", [2], [2], [], pass_reason), ("PASS", [8, 9, 10], [8, 9, 10], [], pass_reason), ("PARTIAL", [20], [], ["EVIDENCE_INSUFFICIENT", "MODALITY_OR_ATTRIBUTION_MISMATCH"], "발언자 선행 근거가 없고 발언 성격의 modality가 맞지 않는다."), ("FAIL", [23, 24, 25], [], *changed_actor), ("PASS", [39], [39], [], pass_reason), ("PASS", [86], [86], [], pass_reason)],
+    }
+    for (repeat, candidate), rows in c03.items():
+        for fact, spec in enumerate(rows, 1):
+            add("C03", repeat, candidate, fact, *spec)
+
+    c04 = {
+        (1, 1): [("PASS", [1, 2], [1, 2], [], pass_reason), ("PARTIAL", [10], [], ["EVIDENCE_INSUFFICIENT", "MODALITY_OR_ATTRIBUTION_MISMATCH"], "발언자 선행 근거가 없고 예측을 FACT로 분류했다."), ("PASS", [12, 13, 14], [12, 13, 14], [], pass_reason), ("PARTIAL", [16], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "현재 단계와 미래 양산을 한 FACT Claim에 묶었다."), ("PARTIAL", [16], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "현재 단계와 미래 양산을 한 FACT Claim에 묶었다."), ("PARTIAL", [31, 32], [], *modality)],
+        (1, 2): [("PASS", [1, 2], [1, 2], [], pass_reason), ("PARTIAL", [11], [], ["EVIDENCE_INSUFFICIENT", "MODALITY_OR_ATTRIBUTION_MISMATCH"], "발언자 선행 근거가 없고 예측을 FACT로 분류했다."), ("PASS", [13, 14], [13, 14], [], pass_reason), ("PARTIAL", [16], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "현재 단계와 미래 양산을 한 PLAN Claim에 묶었다."), ("PARTIAL", [16], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "현재 단계와 미래 양산을 한 PLAN Claim에 묶었다."), ("PASS", [27], [27], [], pass_reason)],
+        (2, 1): [("PASS", [1, 2], [1, 2], [], pass_reason), ("PARTIAL", [12], [], *evidence), ("PASS", [14, 15, 16], [14, 15, 16], [], pass_reason), ("PASS", [19], [19], [], pass_reason), ("PASS", [20], [20], [], pass_reason), ("PASS", [37, 38], [37, 38], [], pass_reason)],
+        (2, 2): [("PASS", [1, 2], [1, 2], [], pass_reason), ("PARTIAL", [10], [], ["EVIDENCE_INSUFFICIENT", "MODALITY_OR_ATTRIBUTION_MISMATCH"], "발언자 선행 근거가 없고 예측을 FACT로 분류했다."), ("PASS", [12], [12], [], pass_reason), ("PARTIAL", [14], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "현재 단계와 미래 양산을 한 FACT Claim에 묶었다."), ("PARTIAL", [14], [], ["MODALITY_OR_ATTRIBUTION_MISMATCH", "ATOMICITY"], "현재 단계와 미래 양산을 한 FACT Claim에 묶었다."), ("PARTIAL", [24], [], *modality)],
+    }
+    for (repeat, candidate), rows in c04.items():
+        for fact, spec in enumerate(rows, 1):
+            add("C04", repeat, candidate, fact, *spec)
+    return result
+
+
+def review_claims(template: dict) -> None:
+    unsupported = source_failures()
+    modality = modality_failures()
+    atomicity = atomicity_failures()
+    excluded = selection_exclusions()
+    duplicate = duplicates()
+    keys = {row["key"] for row in template["claim_ratings"]}
+    overrides = set(unsupported) | set(modality) | set(atomicity) | set(excluded) | set(duplicate)
+    if not overrides <= keys:
+        raise ValueError(f"UNKNOWN_CLAIM_OVERRIDES:{sorted(overrides - keys)}")
+    for row in template["claim_ratings"]:
+        key = row["key"]
+        row["review_status"] = "REVIEWED"
+        if key in unsupported:
+            error_types, reason = unsupported[key]
+            row["source_support"] = {"verdict": "FAIL", "error_types": error_types, "reason": reason}
+        else:
+            row["source_support"] = {"verdict": "PASS", "error_types": [], "reason": ""}
+        row["modality"] = {"verdict": "FAIL", "reason": modality[key]} if key in modality else {"verdict": "PASS", "reason": ""}
+        row["atomicity"] = {"verdict": "FAIL", "reason": atomicity[key]} if key in atomicity else {"verdict": "PASS", "reason": ""}
+        if key in duplicate:
+            row["selection"] = {"verdict": "EXCLUDED", "category": "DUPLICATE", "reason": "앞선 Claim과 같은 의미를 반복한다."}
+            row["duplicate_of_claim_no"] = duplicate[key]
+        elif key in excluded:
+            category, reason = excluded[key]
+            row["selection"] = {"verdict": "EXCLUDED", "category": category, "reason": reason}
+        else:
+            row["selection"] = {"verdict": "IN_SCOPE", "category": "IN_SCOPE", "reason": ""}
+
+
+def review_facts(template: dict) -> None:
+    specs = fact_specs()
+    rows = {row["key"]: row for row in template["fact_ratings"]}
+    if set(rows) != set(specs):
+        raise ValueError("FACT_REVIEW_SET_CHANGED")
+    for key, row in rows.items():
+        verdict, mapped, covering, errors, reason = specs[key]
+        row.update(
+            review_status="REVIEWED",
+            verdict=verdict,
+            error_types=errors,
+            mapped_claim_nos=mapped,
+            covering_claim_nos=covering,
+            reason=reason,
+        )
+
+
+def validate_claim(row: dict) -> None:
+    verdicts = {
+        row["source_support"]["verdict"], row["modality"]["verdict"],
+        row["atomicity"]["verdict"], row["selection"]["verdict"],
+    }
+    if row["review_status"] != "REVIEWED" or "PENDING" in verdicts:
+        raise ValueError(f"UNREVIEWED_CLAIM:{row['key']}")
+    if row["selection"]["category"] == "DUPLICATE" and row["duplicate_of_claim_no"] is None:
+        raise ValueError(f"DUPLICATE_WITHOUT_TARGET:{row['key']}")
+
+
+def claim_key(row: dict, claim_no: int) -> str:
+    return f"{row['article_id']}:r{row['repeat']}:k{row['candidate']}:c{claim_no}"
+
+
+def validate_covering_claim(fact: dict, claim_no: int, claim: dict) -> None:
+    verdicts = (
+        claim["source_support"]["verdict"], claim["modality"]["verdict"],
+        claim["atomicity"]["verdict"], claim["selection"]["verdict"],
+    )
+    if verdicts != ("PASS", "PASS", "PASS", "IN_SCOPE"):
+        raise ValueError(f"INVALID_COVERING_CLAIM:{fact['key']}:{claim_no}")
+
+
+def validate_fact_state(row: dict) -> None:
+    if row["review_status"] != "REVIEWED":
+        raise ValueError(f"UNREVIEWED_FACT:{row['key']}")
+    if row["verdict"] == "PENDING":
+        raise ValueError(f"UNREVIEWED_FACT:{row['key']}")
+    if row["verdict"] == "PASS":
+        if row["error_types"] or not row["covering_claim_nos"]:
+            raise ValueError(f"INVALID_PASS_FACT:{row['key']}")
+        return
+    if not row["error_types"] or row["covering_claim_nos"] or not row["reason"]:
+        raise ValueError(f"INVALID_NONPASS_FACT:{row['key']}")
+
+
+def validate_fact(row: dict, claims: dict[str, dict]) -> None:
+    validate_fact_state(row)
+    for claim_no in row["mapped_claim_nos"]:
+        if claim_key(row, claim_no) not in claims:
+            raise ValueError(f"UNKNOWN_MAPPED_CLAIM:{row['key']}:{claim_no}")
+    for claim_no in row["covering_claim_nos"]:
+        validate_covering_claim(row, claim_no, claims[claim_key(row, claim_no)])
+
+
+def validate(review: dict) -> None:
+    if review["conditions_revealed"]:
+        raise ValueError("CONDITIONS_REVEALED_EARLY")
+    if len(review["fact_ratings"]) != 96 or len(review["claim_ratings"]) != 501:
+        raise ValueError("REVIEW_ROW_COUNT_CHANGED")
+    claims = {row["key"]: row for row in review["claim_ratings"]}
+    for row in claims.values():
+        validate_claim(row)
+    for row in review["fact_ratings"]:
+        validate_fact(row, claims)
+
+
+def main() -> None:
+    review = load("review-template.json")
+    review_claims(review)
+    review_facts(review)
+    validate(review)
+    save_once("blind-review.json", review)
+    print(json.dumps({"status": "REVIEW_FROZEN", "facts": 96, "claims": 501}, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

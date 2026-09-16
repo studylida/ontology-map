@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "model": "qwen3.7-flash-2026-07-15",
+  "settings": {
+    "temperature": 0,
+    "enable_thinking": false,
+    "stream": false,
+    "max_tokens": 3000
+  },
+  "preserve_addendum": "이번 비교에서는 지식 문장의 작성 방식만 바꾼다. 독립적으로 이해하기 위해 지시어·생략 주체를 명확히 하는 경우를 제외하면 원문의 핵심 절 순서와 주체·동사·대상·계획·예측·부정·발언 귀속·공동성·수치·대상 제한 표현을 가능한 한 그대로 유지한다. 요약, 번역, 문체 개선, 평가의 객관적 사실화, 계획의 현재 사실화, 공동 행위의 단독 행위화, 서로 다른 제품 사실의 병합을 하지 않는다. 원문 표현을 그대로 유지해도 뜻이 모호하면 억지로 보완하지 말고 기존 계약대로 UNRESOLVED를 사용한다. 이 지침은 기존 선정 기준, critical element 종류, 원문 ID 선택 규칙과 출력 형식을 바꾸지 않는다.",
+  "adjacent_prompt_rule": "입력의 adjacent_source_id_groups는 각 focus_source_id와 위치상 가까운 원문 ID를 보여주는 참고 범위다. 인접하다는 사실은 같은 발언, 같은 주체, 의미적 의존성이나 필수 근거라는 뜻이 아니다. 전체 article을 읽고 실제로 필요한 원문 ID만 기존 main_source_ids와 context_source_ids 규칙에 따라 선택하며, 목록 전체를 근거로 복사하지 않는다.",
+  "runtime_field": {
+    "name": "adjacent_source_id_groups",
+    "control": "Each source_ids list contains only focus_source_id",
+    "adjacent": "Each source_ids list contains up to two preceding units, focus_source_id, and two following units",
+    "persistence": "runtime only"
+  },
+  "selection_output_schema": {
+    "$defs": {
+      "SelectionElement": {
+        "additionalProperties": false,
+        "properties": {
+          "dimension": {
+            "enum": [
+              "ACTOR",
+              "ACTION",
+              "TARGET",
+              "SPEAKER",
+              "MODALITY",
+              "TIME",
+              "QUANTITY",
+              "POLARITY",
+              "CONDITION",
+              "TARGET_SCOPE",
+              "JOINTNESS",
+              "ANTECEDENT",
+              "RELATION"
+            ],
+            "title": "Dimension",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "dimension",
+          "value",
+          "source_ids"
+        ],
+        "title": "SelectionElement",
+        "type": "object"
+      },
+      "SourceIdDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "INCLUDE",
+              "OMIT_ALLOWED",
+              "UNRESOLVED"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/$defs/SourceIdRequirement"
+            },
+            "title": "Requirements",
+            "type": "array"
+          }
+        },
+        "required": [
+          "source_id",
+          "decision",
+          "reason",
+          "requirements"
+        ],
+        "title": "SourceIdDecision",
+        "type": "object"
+      },
+      "SourceIdRequirement": {
+        "additionalProperties": false,
+        "properties": {
+          "statement": {
+            "title": "Statement",
+            "type": "string"
+          },
+          "modality": {
+            "enum": [
+              "FACT",
+              "PLAN_OR_TARGET",
+              "PREDICTION_OR_ESTIMATE",
+              "OPINION_OR_EVALUATION"
+            ],
+            "title": "Modality",
+            "type": "string"
+          },
+          "critical_elements": {
+            "items": {
+              "$ref": "#/$defs/SelectionElement"
+            },
+            "title": "Critical Elements",
+            "type": "array"
+          },
+          "main_source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Main Source Ids",
+            "type": "array"
+          },
+          "context_source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Context Source Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "statement",
+          "modality",
+          "critical_elements",
+          "main_source_ids",
+          "context_source_ids"
+        ],
+        "title": "SourceIdRequirement",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "decisions": {
+        "items": {
+          "$ref": "#/$defs/SourceIdDecision"
+        },
+        "title": "Decisions",
+        "type": "array"
+      }
+    },
+    "required": [
+      "decisions"
+    ],
+    "title": "SourceIdSelectionOutput",
+    "type": "object"
+  }
+}

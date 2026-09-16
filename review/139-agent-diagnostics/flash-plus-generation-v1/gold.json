@@ -1,0 +1,201 @@
+{
+  "version": 1,
+  "purpose": "Flash와 Plus 생성 비교 전에 동결한 ontology-map POC 필수 사실",
+  "scope": "회사·인물·기술·제품·사건의 관계, 개발·협력·발표·투자·상용화 계획·발언 귀속·주요 제품 사양",
+  "modality_policy": {
+    "FACT": "완료된 사건, 측정값과 현재 상태. 발언이 있었다는 사실을 쓰면 발언자 귀속을 유지한다.",
+    "PLAN_OR_TARGET": "계획, 의지, 예정, 추진 목표와 도입 검토.",
+    "PREDICTION_OR_ESTIMATE": "수요, 실적과 환경에 대한 전망·예상.",
+    "OPINION_OR_EVALUATION": "발언자의 평가, 가치 판단과 해석. 발언자 귀속을 유지한다."
+  },
+  "articles": [
+    {
+      "article_id": "C01",
+      "facts": [
+        {
+          "fact_id": "C01-F01",
+          "required_semantics": ["SK하이닉스와 네이버클라우드는 기술 협력을 위한 MOU를 체결했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s6"]],
+          "atomicity": "두 회사의 공동 체결 사실을 어느 한 회사의 단독 행위로 바꾸지 않는다."
+        },
+        {
+          "fact_id": "C01-F02",
+          "required_semantics": ["SK하이닉스는 네이버클라우드와 협업해 실제 AI 서비스 환경에서 차세대 AI 메모리와 스토리지 제품의 성능 평가와 최적화를 추진한다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s4", "s6"]],
+          "atomicity": "협력 주체, 실제 AI 서비스 환경, 제품 범위와 추진 상태를 유지한다."
+        },
+        {
+          "fact_id": "C01-F03",
+          "required_semantics": ["SK하이닉스는 네이버클라우드의 대규모 데이터센터에서 CXL과 PIM을 다양한 워크로드 조건으로 실시간 검증하고 성능을 극대화할 방침이다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s11"]],
+          "atomicity": "CXL과 PIM의 대상 범위 및 계획 상태를 다른 일반 정의와 섞지 않는다."
+        },
+        {
+          "fact_id": "C01-F04",
+          "required_semantics": ["네이버클라우드는 검증된 고성능 메모리와 스토리지 설루션을 활용해 AI 서비스 응답 속도 향상과 운영비 절감 성과를 추진할 계획이다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s15"]],
+          "atomicity": "계획을 이미 달성된 성과로 바꾸지 않는다."
+        },
+        {
+          "fact_id": "C01-F05",
+          "required_semantics": ["네이버클라우드 김유원 대표이사 사장은 SK하이닉스와의 협업으로 인프라부터 서비스까지 경쟁력을 강화하고 고객에게 혁신적인 AI 경험을 제공하겠다고 밝혔다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s16"]],
+          "atomicity": "발언자, 협업 상대와 미래 의지를 유지한다."
+        },
+        {
+          "fact_id": "C01-F06",
+          "required_semantics": ["SK하이닉스 안현 개발총괄 사장은 상용 환경 검증을 거쳐 최고 수준의 메모리 설루션을 제공하고 글로벌 CSP 고객과의 기술 파트너십도 확대하겠다고 말했다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s17"]],
+          "atomicity": "발언자 귀속과 두 미래 계획을 현재 성과로 바꾸지 않는다."
+        }
+      ]
+    },
+    {
+      "article_id": "C02",
+      "facts": [
+        {
+          "fact_id": "C02-F01",
+          "required_semantics": ["삼성전자와 브로드컴은 차세대 AI 핵심 인프라 구축을 위한 전략적 MOU를 체결했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s1"]],
+          "atomicity": "두 회사의 공동 체결 사실을 유지한다."
+        },
+        {
+          "fact_id": "C02-F02",
+          "required_semantics": ["삼성전자와 브로드컴은 2030년까지 5년간 메모리·파운드리 분야에서 2,000억 달러 이상 규모의 전략적 협력을 추진할 계획이다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s4"]],
+          "atomicity": "기간, 금액, 분야, 공동 주체와 계획 상태를 유지한다."
+        },
+        {
+          "fact_id": "C02-F03",
+          "required_semantics": ["삼성전자는 1c D램과 4nm 베이스다이를 적용한 HBM4를 지난 2월 양산 출하했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s8"]],
+          "atomicity": "HBM4E 샘플 공급과 분리하고 제품·기술·시점을 유지한다."
+        },
+        {
+          "fact_id": "C02-F04",
+          "required_semantics": ["삼성전자는 HBM4E 샘플을 5월 고객사에 공급했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s8"]],
+          "atomicity": "HBM4 양산 출하와 분리하고 제품·행위·시점을 유지한다."
+        },
+        {
+          "fact_id": "C02-F05",
+          "required_semantics": ["삼성전자는 브로드컴의 차세대 고속 데이터 통신용 반도체 등 주요 제품에 2nm 이하 첨단 파운드리 공정을 적용할 계획이다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s11"]],
+          "atomicity": "브로드컴 제품이라는 대상과 2nm 이하라는 공정 범위를 유지한다."
+        },
+        {
+          "fact_id": "C02-F06",
+          "required_semantics": ["삼성전자 전영현 DS부문장은 브로드컴과의 협력을 확대해 미래 AI 인프라 발전을 가속하고 고객에게 더 큰 가치를 제공하겠다고 밝혔다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s17"]],
+          "atomicity": "발언자, 협업 상대와 미래 의지를 유지한다."
+        }
+      ]
+    },
+    {
+      "article_id": "C03",
+      "facts": [
+        {
+          "fact_id": "C03-F01",
+          "required_semantics": ["NVIDIA Vera는 본격 양산 단계에 진입했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s2"]],
+          "atomicity": "도입 계획이나 공급 예정 시점과 분리한다."
+        },
+        {
+          "fact_id": "C03-F02",
+          "required_semantics": ["뉴욕증권거래소, 앤트로픽, 오픈AI 등을 포함한 기업들이 NVIDIA Vera 도입을 검토하고 있다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s1", "s6"]],
+          "atomicity": "검토 중인 대상을 이미 도입한 것으로 바꾸지 않는다."
+        },
+        {
+          "fact_id": "C03-F03",
+          "required_semantics": ["NVIDIA 젠슨 황 CEO는 Vera가 에이전틱 AI를 하이퍼스케일 환경에서 구동하도록 설계됐다고 말했다."],
+          "accepted_modalities": ["OPINION_OR_EVALUATION"],
+          "sufficient_evidence_sets": [["s7", "s8"]],
+          "atomicity": "발언자 귀속과 발언 내용을 유지한다."
+        },
+        {
+          "fact_id": "C03-F04",
+          "required_semantics": ["뉴욕증권거래소 그룹 사장 Lynn Martin은 레드판다와 HPE와 협력해 NVIDIA Vera CPU를 활용하고 용량 확장·지연 최적화·AI 기반 시장 인프라 구축을 추진하겠다고 밝혔다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s9", "s11"]],
+          "atomicity": "발언자와 세 협력 주체 및 미래 계획을 유지한다."
+        },
+        {
+          "fact_id": "C03-F05",
+          "required_semantics": ["NVIDIA Vera는 88개 Olympus 코어, Spatial Multithreading 기술과 최대 1.2TB/s 대역폭의 LPDDR5X 메모리 서브시스템을 탑재했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s26"]],
+          "atomicity": "세 사양과 수치를 Vera에만 연결한다."
+        },
+        {
+          "fact_id": "C03-F06",
+          "required_semantics": ["NVIDIA Vera 시스템은 올해 가을부터 시스템 제조사와 클라우드 파트너를 통해 공급될 예정이다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s40"]],
+          "atomicity": "공급 주체와 예정 시점을 유지한다."
+        }
+      ]
+    },
+    {
+      "article_id": "C04",
+      "facts": [
+        {
+          "fact_id": "C04-F01",
+          "required_semantics": ["인텔은 2025년 4월 29일 파운드리 다이렉트 커넥트에서 핵심 공정·첨단 패키징 진전과 신규 생태계 프로그램·파트너십을 발표했다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s1", "s2"]],
+          "atomicity": "행사, 발표 주체와 발표 범위를 유지한다."
+        },
+        {
+          "fact_id": "C04-F02",
+          "required_semantics": ["인텔 CEO 립부 탄은 파운드리 생태계 파트너십 강화와 엔지니어링 우선 문화 추진이 장기적인 시장 주도권 회복에 도움이 될 것이라고 말했다."],
+          "accepted_modalities": ["OPINION_OR_EVALUATION"],
+          "sufficient_evidence_sets": [["s3", "s6", "s7"]],
+          "atomicity": "발언자 귀속과 평가·전망 성격을 유지한다."
+        },
+        {
+          "fact_id": "C04-F03",
+          "required_semantics": ["인텔 파운드리는 핵심 고객들과 14A 공정을 추진하며 14A PDK 조기 버전을 배포했고, 다수 고객이 해당 노드에서 테스트 칩을 제작하겠다는 의사를 밝혔다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s13"]],
+          "atomicity": "현재 추진·배포 사실과 고객의 의사를 이미 완료된 칩 제작으로 바꾸지 않는다."
+        },
+        {
+          "fact_id": "C04-F04",
+          "required_semantics": ["인텔 18A는 2025년 4월 30일 기준 리스크 프로덕션 단계에 있다."],
+          "accepted_modalities": ["FACT"],
+          "sufficient_evidence_sets": [["s1", "s15"]],
+          "atomicity": "현재 단계와 미래 양산 계획을 분리한다."
+        },
+        {
+          "fact_id": "C04-F05",
+          "required_semantics": ["인텔 18A는 2025년 안에 양산에 들어갈 예정이다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s1", "s15"]],
+          "atomicity": "리스크 프로덕션이라는 현재 상태와 분리하고 예정 상태를 유지한다."
+        },
+        {
+          "fact_id": "C04-F06",
+          "required_semantics": ["인텔 18A 웨이퍼 양산은 2025년 말 오리건에서 시작되고 2026년에는 애리조나로 전환될 계획이다."],
+          "accepted_modalities": ["PLAN_OR_TARGET"],
+          "sufficient_evidence_sets": [["s1", "s27"]],
+          "atomicity": "지역별 순서와 두 시점을 유지한다."
+        }
+      ]
+    }
+  ]
+}

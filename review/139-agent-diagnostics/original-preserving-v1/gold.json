@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "purpose": "원문 보존형 작성 지침이 필수 의미와 연결 근거를 더 잘 보존하는지 비교한다.",
+  "sample_definition": {
+    "articles": 8,
+    "event_families": 8,
+    "publishers": 3,
+    "focus_units_per_article": 4,
+    "selection": "새 공식 한국어 기사에서 계획, 발언 귀속, 공동성, 수치, 대상 범위와 선행 문맥이 포함된 원문 단위를 출력 확인 전에 목적 표집했다.",
+    "independence_limit": "32개 원문 단위와 반복 실행은 독립 기사 표본이 아니다. 결과는 기사·사건군 단위와 함께 보고한다."
+  },
+  "scoring": {
+    "PASS": "해당 원문 단위의 required_semantics가 하나 이상의 INCLUDE requirement에 모두 보존되고, 원문에 없는 의미가 없으며, 선택된 main/context 원문 ID만으로 그 의미를 확인할 수 있다.",
+    "PARTIAL": "필수 의미 일부가 빠지거나 약해졌지만 반대 의미나 원문 밖 의미를 추가하지 않았다.",
+    "FAIL": "필수 의미를 반대로 바꾸거나 현재 사실화·객관적 사실화·단독 행위화·대상 혼합·원문 밖 의미 추가가 발생했거나, 필요한 연결 근거가 없어 결과 의미를 확인할 수 없다.",
+    "UNRESOLVED": "모델이 UNRESOLVED를 반환했다. 통과로 세지 않고 별도 손실로 집계한다.",
+    "OMIT_ALLOWED": "필수 지식 단위를 OMIT_ALLOWED로 반환했다. 누락으로 집계한다.",
+    "mapping": "한 원문 단위가 여러 requirement로 나뉘거나 여러 원문 단위가 같은 requirement를 함께 뒷받침해도 의미가 훼손되지 않으면 허용한다. 실제 공동 행위를 거짓 단독 행위로 분해하면 실패다.",
+    "citation_scope": "문장 또는 표 행 전체 인용은 허용하며 과도한 인용은 주지표와 분리해 기록한다."
+  },
+  "cases": [
+    {
+      "article_id": "P01",
+      "event_family": "SK hynix HBM4 production readiness",
+      "units": [
+        {"source_id": "s4", "required_semantics": ["SK하이닉스가 HBM4 개발을 완료함", "SK하이닉스가 세계 최초로 HBM4 양산 체제를 구축함"]},
+        {"source_id": "s8", "required_semantics": ["HBM 개발 담당 조주환 부사장의 발언·평가라는 귀속", "고객 요구 성능·에너지 효율·신뢰성을 충족하는 제품을 적시에 공급하겠다는 미래 의지", "경쟁 우위 확보와 신속한 시장 진입이라는 목적"]},
+        {"source_id": "s13", "required_semantics": ["HBM4에 이전 세대의 두 배인 2,048개 I/O를 적용함", "대역폭을 두 배로 확대함", "전력 효율을 40% 이상 높임"]},
+        {"source_id": "s15", "required_semantics": ["HBM4를 고객 시스템에 도입하는 조건", "AI 서비스 성능을 최대 69% 높일 수 있다는 회사 전망", "데이터 병목 해소와 데이터센터 전력 비용 절감 전망"]}
+      ]
+    },
+    {
+      "article_id": "P02",
+      "event_family": "SK hynix 2025 financial results",
+      "units": [
+        {"source_id": "s6", "required_semantics": ["SK하이닉스의 2025년 매출 97조 1,467억 원", "영업이익 47조 2,063억 원과 영업이익률 49%", "순이익 42조 9,479억 원과 순이익률 44%"]},
+        {"source_id": "s17", "required_semantics": ["낸드 부문이 상반기 수요 부진을 겪음", "321단 QLC 제품 개발을 완료함", "하반기 기업용 SSD 수요에 대응해 연간 최대 매출을 기록함"]},
+        {"source_id": "s22", "required_semantics": ["HBM4 리더십을 유지하려는 방향", "고객·파트너와 협력체계를 강화할 계획", "커스텀 HBM에서도 최적 제품을 공급하도록 준비할 계획"]},
+        {"source_id": "s33", "required_semantics": ["SK하이닉스 송현종 Corporate Center 사장의 발언이라는 귀속", "지속 가능한 실적 성장과 미래 투자·재무 안정성·주주환원의 균형을 유지하겠다는 의지", "AI 인프라 파트너 역할을 강화하겠다는 의지"]}
+      ]
+    },
+    {
+      "article_id": "P03",
+      "event_family": "SK hynix GTC 2025 exhibition",
+      "units": [
+        {"source_id": "s1", "required_semantics": ["SK하이닉스가 3월 17일부터 21일까지 열린 GTC 2025에 참가함", "AI 시대 메모리 기술을 선보임"]},
+        {"source_id": "s12", "required_semantics": ["SOCAMM 시장이 개화하는 시기에 맞추는 조건", "양산을 시작해 AI 메모리 포트폴리오를 확대할 계획"]},
+        {"source_id": "s18", "required_semantics": ["이번 행사에서 처음 공개된 SK하이닉스 HBM4가 개발 중임", "베이스 다이 성능 개선과 전력 소모 감소 방향으로 개발 중임"]},
+        {"source_id": "s32", "required_semantics": ["SK하이닉스 박정수 TL이 HBM 주제로 발표함", "HBM 기술 발전과 SK하이닉스 리더십을 강조한 발표라는 귀속"]}
+      ]
+    },
+    {
+      "article_id": "P04",
+      "event_family": "NVIDIA and SK Group AI factory",
+      "units": [
+        {"source_id": "s1", "required_semantics": ["NVIDIA가 SK그룹과의 협력을 바탕으로 AI 팩토리를 구축할 예정임", "반도체 연구·개발·생산 가속과 디지털 트윈·AI 에이전트 개발 지원용 클라우드 인프라 마련이라는 목적"]},
+        {"source_id": "s2", "required_semantics": ["SK그룹이 NVIDIA GPU 5만 개 이상을 탑재한 AI 팩토리를 구축 중임", "1단계를 2027년 말까지 완공할 예정임"]},
+        {"source_id": "s6", "required_semantics": ["NVIDIA와 SK그룹이 파트너십 확대를 위해 협력함", "SK하이닉스 HBM과 차세대 첨단 메모리 솔루션 개발, 반도체 제조, 통신 인프라가 협력 범위임"]},
+        {"source_id": "s10", "required_semantics": ["SK그룹 최태원 회장의 발언이라는 귀속", "SK그룹이 NVIDIA와 협력해 AI를 국내 산업 혁신의 엔진으로 만들고 있다는 주장", "NVIDIA AI 팩토리를 기반으로 차세대 메모리·로보틱스·디지털 트윈·AI 에이전트용 인프라를 구축할 계획"]}
+      ]
+    },
+    {
+      "article_id": "P05",
+      "event_family": "NVIDIA NVHBM and Annapurna Labs",
+      "units": [
+        {"source_id": "s5", "required_semantics": ["주요 메모리 파트너들이 NVHBM을 검증하고 공급할 예정임", "그 결과 NVLink Fusion 고객이 NVHBM 역량을 활용할 수 있게 된다는 전망"]},
+        {"source_id": "s8", "required_semantics": ["NVHBM이 표준 HBM4E 대비 메모리 대역폭을 최대 30% 높임", "HBM 전력 소비를 15% 낮춤", "XPU 연산 다이 면적을 최대 25% 더 확보함", "메모리 컨트롤러를 3D HBM 스택에 통합하는 조건"]},
+        {"source_id": "s13", "required_semantics": ["Amazon Annapurna Labs와 NVIDIA가 함께 NVHBM 기술과 NVLink 스케일업 아키텍처를 개발하게 됨", "AI 워크로드 성능과 효율 향상이 목적임"]},
+        {"source_id": "s16", "required_semantics": ["Annapurna Labs 부사장 Nafea Bshara의 발언·평가라는 귀속", "NVHBM을 새로운 아키텍처 접근법으로 평가함", "협력이 향후 AWS 인프라 설계에 도움이 되기를 기대함"]}
+      ]
+    },
+    {
+      "article_id": "P06",
+      "event_family": "Intel Xeon 6 product launch",
+      "units": [
+        {"source_id": "s1", "required_semantics": ["인텔이 2025년 5월 23일 제온 6 시리즈에 프로세서 3종을 추가 출시한다고 발표함", "GPU 기반 AI 시스템 처리를 위해 설계된 제품임"]},
+        {"source_id": "s3", "required_semantics": ["신규 제품군을 발표일부터 즉시 공급함", "그중 한 모델이 NVIDIA DGX B300의 호스트 CPU로 채택됨"]},
+        {"source_id": "s11", "required_semantics": ["인텔 제온 6가 경쟁 제품 대비 대용량 구성에서 더 높은 메모리 성능을 제공한다는 비교 주장", "MRDIMM과 CXL을 통해 업계 최고 수준 메모리 대역폭을 지원한다는 주장"]},
+        {"source_id": "s12", "required_semantics": ["인텔 제온 6가 이전 세대보다 최대 20% 더 많은 PCIe 레인을 제공함", "I/O 집약적 워크로드에서 더 빠른 데이터 전송을 지원함"]}
+      ]
+    },
+    {
+      "article_id": "P07",
+      "event_family": "Intel second-generation SDV SoC",
+      "units": [
+        {"source_id": "s4", "required_semantics": ["인텔이 ModelBest·Black Sesame Technologies와의 전략적 협업을 통해 추진하는 계획", "AI 차량 콕핏·통합 ADAS·에너지 효율 차량 컴퓨팅 플랫폼의 혁신 가속이 계획 대상"]},
+        {"source_id": "s5", "required_semantics": ["인텔 오토모티브 총괄 Jack Weast의 발언이라는 귀속", "인텔과 파트너들이 함께 업계 과제를 해결하려는 의지", "2세대 SDV SoC와 칩렛 기술·총체적 차량 접근 방식에 관한 발언"]},
+        {"source_id": "s10", "required_semantics": ["2세대 인텔 SDV SoC의 GPU+NPU와 MBL i7-13800HAQ CPU+GPU 비교라는 대상 범위", "인텔 내부 예측을 바탕으로 생성형·멀티모달 AI 성능이 최대 10배 향상된다는 주장"]},
+        {"source_id": "s20", "required_semantics": ["Black Sesame Technologies의 ADAS 기술과 인텔 SDV SoC·차량용 Arc 그래픽을 결합함", "ADAS와 몰입형 콕핏을 에너지 효율 중앙 컴퓨팅 플랫폼으로 통합함", "고속·저지연 연결을 바탕으로 끊김 없는 차량 경험을 구현할 계획"]}
+      ]
+    },
+    {
+      "article_id": "P08",
+      "event_family": "Intel open edge AI ecosystem",
+      "units": [
+        {"source_id": "s3", "required_semantics": ["인텔 엣지 컴퓨팅 그룹 총괄 Dan Rodriguez 부사장의 발언이라는 귀속", "고객이 TCO·전력·성능 목표를 달성하며 기존 인프라와 워크플로우에서 AI 사용을 확대하려 한다는 고객 요구", "인텔 제품이 생태계의 AI 지원 솔루션 제공을 가속한다는 발언"]},
+        {"source_id": "s6", "required_semantics": ["Gartner의 예측이라는 귀속", "올해 말까지 기업 관리 데이터의 50%가 데이터센터·클라우드 밖에서 처리될 전망", "2026년까지 엣지 배포의 절반 이상이 머신러닝을 포함할 전망"]},
+        {"source_id": "s14", "required_semantics": ["주요 AI 경쟁 제품과 인텔 Core Ultra 프로세서 비교", "경쟁 제품이 TOPS에서 앞설 수 있다는 제한", "인텔의 엔드투엔드 성능 최대 2.3배와 달러당 성능 최대 5배 우수 주장"]},
+        {"source_id": "s27", "required_semantics": ["파트너가 현장 방문 없이 원격 엣지 장치에 컨테이너 워크로드를 배포할 수 있음", "Intel vPro·Active Management Technology로 시스템을 관리할 수 있음", "소프트웨어 생태계의 협업 강화와 혁신 가속이라는 효과"]}
+      ]
+    }
+  ]
+}

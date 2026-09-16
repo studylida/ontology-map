@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "issue": 139,
+  "scope": "Sanitized review packet; source bodies, model outputs, credentials and private settings excluded",
+  "files": {
+    "README.md": "426e422cfa9aea7f92e35bf41519bd503b86a0e76637ee77619e1179998502e7",
+    "REPORT.md": "1301e7a18f560053d612ad303009798c113b6974a237c6bc29c537141d278f53",
+    "REVIEW_PROMPT.md": "cb6862cdea7ff84aa27a02bf48197cc64a37c1ce8991e0033205b569dc83b63e",
+    "call-metadata-3k.json": "40f9ff06a4aba3fa5acfe9c785a927dbb869faf523015329b213ff0865ff7db7",
+    "call-metadata-6k.json": "08659a6b462a26d89a38e7bc436210e0821700dfc5c4126413196ec52b5295ef",
+    "gold.json": "ad79f082f044164d34154d78dc1046284d38e297cd4bc2a045dffbf14910c44b",
+    "input-contract.json": "40b3a58016eb8307694952c585bac1fa4653762dcb6fdc41f8bdd78ee4b6787e",
+    "ledger-3k.json": "e5759935df04db7a8339e681ac725b1e01c9391ffa59bae21848ac454f43b18a",
+    "ledger-6k.json": "160daa22c781b334fb6e8b3a47886c346187fd124d9315fa24f0b5b52bdc3052",
+    "manifest-3k.json": "375b3230088dc83460282a488cc6340a6cfce45a6ae2d2ce97476dc982f393d8",
+    "manifest-6k.json": "9b967c78fe5292a13a4b2310ebb9623b34ed9136efb78a7de425cd5a2a5dcdde",
+    "plan-3k.md": "10fea3eaae5ded2f5664c11854ac712495d0baf7978076fd35a0aaf7ea8598ed",
+    "plan-6k.md": "5c631b077bebe74343c321585712320d0e8eaaa0ab365a19a767474e57aba39e",
+    "review.json": "acfe7f342eb80d58463ba66d9082b3e20bccb984eafb34767edeade95fa1f85b",
+    "score.json": "defba547a265953059dd990ee386e4d14e0b937e4e2b52755b2def1bc9f043a9",
+    "snapshots/experiment-3k.py.txt": "31b8b580f607ed68249cfe83b45add025efd88e0471c8f1cfe86bae83a78f691",
+    "snapshots/experiment-6k.py.txt": "e39266ae970de33ec3fd8e389fb9de0045927c950acda322e601a830cefe74ab",
+    "snapshots/fetch-sources.py.txt": "0331b382ba88b1df8c206763ce66c9f0ccf9555cacd81e7f9adcdd6a269f5bbf",
+    "snapshots/test-experiment-3k.py.txt": "96c4decd16c1170ff795c829249576ddd952ae72888080d531baa0e808fc3228",
+    "snapshots/test-experiment-6k.py.txt": "595cc077c6e64c28585abbcc7851568763f7a4aa2c9bcbda210915531960a687",
+    "snapshots/write-review.py.txt": "1cc697fef2f6211c515f44cf083cabd34babebbf0f99a0381a7a94e745417ea7",
+    "source-index.json": "fc3a3927233637c3889f307088b0c980389b996c5f68c491269781e43be79d9c"
+  }
+}

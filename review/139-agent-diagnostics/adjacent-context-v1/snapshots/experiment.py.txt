@@ -1,0 +1,674 @@
+"""Local-only #139 adjacent-source-ID comparison and strict-output probe."""
+
+from __future__ import annotations
+
+import argparse
+from collections import Counter, defaultdict
+from decimal import Decimal
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import time
+from typing import Literal
+import urllib.error
+import urllib.request
+
+
+ROOT = Path(__file__).resolve().parent
+PIPELINE = ROOT.parent / "model-studio-agent-pipeline"
+PREVIOUS = ROOT.parent / "model-studio-preserving-extraction"
+LONG = ROOT.parent / "model-studio-long"
+sys.path.insert(0, str(PIPELINE))
+import trial_v7 as r7  # noqa: E402 - reuse the frozen R7 contract and transport
+
+
+base = r7.base
+r6 = r7.prior
+MODEL = base.FLASH
+MAX_TOKENS = 3000
+REPEATS = (1, 2)
+HISTORICAL_USD = Decimal("0.86442523")
+SEMANTIC_CAP_USD = Decimal("0.03")
+STRICT_CAP_USD = Decimal("0.005")
+SOURCES = ROOT / "sources-frozen.json"
+GOLD = ROOT / "gold.json"
+PRESERVE = PREVIOUS / "preserve-addendum.txt"
+MANIFEST = ROOT / "manifest.json"
+AUTHORIZATION = ROOT / "authorization.json"
+PROMPT_RULE = (
+    "입력의 adjacent_source_id_groups는 각 focus_source_id와 위치상 가까운 원문 ID를 보여주는 참고 범위다. "
+    "인접하다는 사실은 같은 발언, 같은 주체, 의미적 의존성이나 필수 근거라는 뜻이 아니다. 전체 article을 읽고 "
+    "실제로 필요한 원문 ID만 기존 main_source_ids와 context_source_ids 규칙에 따라 선택하며, 목록 전체를 근거로 복사하지 않는다."
+)
+ERROR_TYPES = {
+    "REQUIRED_MEANING_OMITTED",
+    "UNSUPPORTED_OR_CHANGED_MEANING",
+    "EVIDENCE_INSUFFICIENT",
+    "MODALITY_OR_ATTRIBUTION_MISMATCH",
+}
+MATERIAL_ERRORS = {
+    "UNSUPPORTED_OR_CHANGED_MEANING",
+    "EVIDENCE_INSUFFICIENT",
+    "MODALITY_OR_ATTRIBUTION_MISMATCH",
+}
+
+
+class TinyStrict(base.Strict):
+    verdict: Literal["PASS", "FAIL"]
+    count: int
+
+
+def read(path: Path) -> dict | list:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def save_once(path: Path, value: object) -> None:
+    encoded = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
+    if path.exists() and path.read_text(encoding="utf-8") != encoded:
+        raise ValueError(f"FROZEN_FILE_CHANGED:{path.name}")
+    if not path.exists():
+        path.write_text(encoded, encoding="utf-8")
+
+
+def source_docs() -> dict[str, dict]:
+    docs = read(SOURCES)
+    if not isinstance(docs, list) or len(docs) != 4:
+        raise ValueError("SOURCE_SET_CHANGED")
+    result = {doc["id"]: doc for doc in docs}
+    if len(result) != 4:
+        raise ValueError("DUPLICATE_SOURCE_ID")
+    for doc in docs:
+        if hashlib.sha256(doc["source"].encode()).hexdigest() != doc["sha256"]:
+            raise ValueError("SOURCE_HASH_CHANGED")
+        if not 1_200 <= len(doc["source"]) <= 20_000 or "AI 요약" in doc["source"]:
+            raise ValueError("SOURCE_BODY_INVALID")
+        for unit in doc["sentences"]:
+            if doc["source"][unit["start_char"]:unit["end_char"]] != unit["text"]:
+                raise ValueError("SOURCE_SLICE_CHANGED")
+    return result
+
+
+def cases() -> list[dict]:
+    docs = source_docs()
+    items = read(GOLD)["cases"]
+    if len(items) != 4 or len({item["article_id"] for item in items}) != 4:
+        raise ValueError("GOLD_CASE_SET_CHANGED")
+    for item in items:
+        lookup = {unit["block_id"] for unit in docs[item["article_id"]]["sentences"]}
+        units = item["units"]
+        if len(units) != 4 or len({unit["source_id"] for unit in units}) != 4:
+            raise ValueError("GOLD_FOCUS_SET_CHANGED")
+        if Counter(unit["sampling_role"] for unit in units) != {"SELF_CONTAINED": 2, "LOCAL_REQUIRED": 2}:
+            raise ValueError("GOLD_SAMPLING_BALANCE_CHANGED")
+        for unit in units:
+            if unit["source_id"] not in lookup or not unit["requirements"] or not unit["context_reason"]:
+                raise ValueError("INVALID_GOLD_UNIT")
+            for requirement in unit["requirements"]:
+                if (not requirement["required_semantics"] or not requirement["accepted_modalities"]
+                        or not requirement["sufficient_evidence_sets"]):
+                    raise ValueError("INVALID_GOLD_REQUIREMENT")
+                if any(not set(group) <= lookup for group in requirement["sufficient_evidence_sets"]):
+                    raise ValueError("UNKNOWN_GOLD_EVIDENCE")
+    return items
+
+
+def prompt() -> str:
+    baseline = r6.selection_prompt(r7.revised_round()["selection_addendum"])
+    return baseline + "\n\n" + PRESERVE.read_text(encoding="utf-8").strip() + "\n\n" + PROMPT_RULE
+
+
+def adjacent_ids(doc: dict, focus_id: str, arm: str) -> list[str]:
+    ids = [unit["block_id"] for unit in doc["sentences"]]
+    index = ids.index(focus_id)
+    return [focus_id] if arm == "control" else ids[max(0, index - 2):index + 3]
+
+
+def inputs(item: dict, docs: dict[str, dict], arm: str) -> dict:
+    doc = docs[item["article_id"]]
+    focus_ids = [unit["source_id"] for unit in item["units"]]
+    return {
+        "article": [{
+            "source_id": unit["block_id"],
+            "start_char": unit["start_char"],
+            "end_char": unit["end_char"],
+            "text": unit["text"],
+        } for unit in doc["sentences"]],
+        "focus_source_ids": focus_ids,
+        "adjacent_source_id_groups": [{
+            "focus_source_id": focus_id,
+            "source_ids": adjacent_ids(doc, focus_id, arm),
+        } for focus_id in focus_ids],
+    }
+
+
+def jobs() -> list[dict]:
+    docs = source_docs()
+    result = []
+    for index, item in enumerate(cases()):
+        for repeat in REPEATS:
+            order = ("control", "adjacent") if (index + repeat) % 2 else ("adjacent", "control")
+            for arm in order:
+                result.append({
+                    "identity": f"adjacent-context-v1-{item['article_id']}-r{repeat}-{arm}",
+                    "model": MODEL,
+                    "shape": r6.SourceIdSelectionOutput,
+                    "prompt": prompt(),
+                    "inputs": inputs(item, docs, arm),
+                    "maximum": MAX_TOKENS,
+                    "thinking": False,
+                    "validator": r6.validate_source_id_selection,
+                    "category": "heldout",
+                })
+    if len(result) != 16 or len({job["identity"] for job in result}) != 16:
+        raise ValueError("JOB_SET_CHANGED")
+    return result
+
+
+def request_record(job: dict) -> dict:
+    payload = base.build_payload(
+        job["model"], job["shape"], job["prompt"], job["inputs"], job["maximum"], job["thinking"]
+    )
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    return {
+        "identity": job["identity"],
+        "request_sha256": hashlib.sha256(data).hexdigest(),
+        "reservation_usd": float(base.reservation(data, job["model"], job["maximum"])),
+    }
+
+
+def prior_overlap() -> dict:
+    previous_docs = read(PREVIOUS / "sources-frozen.json") + read(LONG / "sources-frozen.json")
+    old_hashes = {doc["sha256"] for doc in previous_docs}
+    old_urls = {
+        doc.get("url") or (doc.get("metadata") or {}).get("url")
+        for doc in previous_docs
+    }
+    current = source_docs().values()
+    return {
+        "comparison_docs": len(previous_docs),
+        "exact_hash_matches": sorted(doc["id"] for doc in current if doc["sha256"] in old_hashes),
+        "exact_url_matches": sorted(doc["id"] for doc in current if doc["url"] in old_urls),
+        "event_family_review": "Four distinct official events; manually checked against the previous sixteen article families",
+        "event_family_matches": [],
+    }
+
+
+def manifest() -> dict:
+    planned = [request_record(job) for job in jobs()]
+    reservation = sum((Decimal(str(item["reservation_usd"])) for item in planned), Decimal(0))
+    overlap = prior_overlap()
+    if overlap["exact_hash_matches"] or overlap["exact_url_matches"] or overlap["event_family_matches"]:
+        raise ValueError("PREVIOUS_SOURCE_EXPOSURE")
+    return {
+        "version": 1,
+        "issue": 139,
+        "purpose": "Test whether deterministic positional source-ID groups improve evidence linking under the frozen preserve wording",
+        "model": MODEL,
+        "settings": {"temperature": 0, "enable_thinking": False, "stream": False, "max_tokens": MAX_TOKENS},
+        "arms": {
+            "control": "adjacent_source_id_groups contains only each focus source ID",
+            "adjacent": "the same field contains up to two preceding units, the focus, and two following units",
+        },
+        "articles": 4,
+        "focus_units": 16,
+        "repeats": list(REPEATS),
+        "planned_calls": len(planned),
+        "planned_reservation_usd": float(reservation),
+        "historical_reserved_or_estimated_usd": float(HISTORICAL_USD),
+        "semantic_cap_usd": float(SEMANTIC_CAP_USD),
+        "strict_probe_cap_usd": float(STRICT_CAP_USD),
+        "maximum_cumulative_usd": float(HISTORICAL_USD + SEMANTIC_CAP_USD + STRICT_CAP_USD),
+        "source_exposure_check": overlap,
+        "dependency_hashes": {
+            "sources-frozen.json": digest(SOURCES),
+            "gold.json": digest(GOLD),
+            "preserve-addendum.txt": digest(PRESERVE),
+            "experiment.py": digest(ROOT / "experiment.py"),
+            "trial_v6.py": digest(PIPELINE / "trial_v6.py"),
+            "trial_v7.py": digest(PIPELINE / "trial_v7.py"),
+            "selection-r7-addendum.txt": digest(PIPELINE / "selection-r7-addendum.txt"),
+        },
+        "requests": planned,
+        "stop_rules": [
+            "Never repair or retry a failed request",
+            "Continue only after an isolated output or validation contract error with known usage",
+            "Stop on authentication, transport, provider-shape, unknown-cost, budget, frozen-input, or source-integrity failure",
+            "Do not reuse these outputs as independent evaluation after tuning",
+            "Do not infer product adoption, automatic persistence, or operational quality",
+        ],
+    }
+
+
+def verify_manifest() -> dict:
+    frozen = read(MANIFEST)
+    if frozen != manifest():
+        raise ValueError("MANIFEST_CHANGED")
+    return frozen
+
+
+def configure_ledger() -> None:
+    base.ROOT = ROOT
+    base.HISTORICAL_USD = HISTORICAL_USD
+    base.DEVELOPMENT_CAP_USD = Decimal("0")
+    base.HELDOUT_CAP_USD = SEMANTIC_CAP_USD
+    if not (ROOT / "ledger.json").exists():
+        save_once(ROOT / "ledger.json", base.initial_ledger())
+
+
+def prepare() -> None:
+    frozen = manifest()
+    if Decimal(str(frozen["planned_reservation_usd"])) > SEMANTIC_CAP_USD:
+        raise ValueError("SEMANTIC_RESERVATION_EXCEEDS_CAP")
+    save_once(MANIFEST, frozen)
+    configure_ledger()
+    print(json.dumps({
+        "status": "OFFLINE_READY",
+        "manifest_sha256": digest(MANIFEST),
+        "planned_calls": frozen["planned_calls"],
+        "planned_reservation_usd": frozen["planned_reservation_usd"],
+        "maximum_cumulative_usd": frozen["maximum_cumulative_usd"],
+        "source_exposure_check": frozen["source_exposure_check"],
+    }, ensure_ascii=False, indent=2))
+
+
+def continuable_contract_failure(row: dict) -> bool:
+    if row.get("status") != "CONTRACT_ERROR":
+        return False
+    if row.get("error_type") == "ValidationError":
+        return True
+    return row.get("error_type") == "ValueError" and row.get("reason") not in {
+        "USAGE_UNKNOWN", "USAGE_BOUND_EXCEEDED", "RESPONSE_MODEL_MISMATCH", "UNEXPECTED_THINKING",
+    }
+
+
+def run(comment_id: int) -> None:
+    if comment_id <= 0:
+        raise ValueError("ISSUE_COMMENT_REQUIRED")
+    with (ROOT / "paid-run.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        verify_manifest()
+        save_once(AUTHORIZATION, {"issue": 139, "comment_id": comment_id, "manifest_sha256": digest(MANIFEST)})
+        configure_ledger()
+        base.reconcile_pending()
+        base.credentials.load_key()
+        try:
+            for job in jobs():
+                expected = request_record(job)
+                previous = {row["identity"]: row for row in base.results()}.get(job["identity"])
+                if previous:
+                    if previous.get("request_sha256") != expected["request_sha256"]:
+                        raise ValueError(f"PREVIOUS_REQUEST_CHANGED:{job['identity']}")
+                    continue
+                try:
+                    base.call(**job)
+                except ValueError as error:
+                    row = {item["identity"]: item for item in base.results()}[job["identity"]]
+                    if str(error) == "CALL_REQUIRES_REVIEW" and continuable_contract_failure(row):
+                        continue
+                    raise
+        finally:
+            os.environ.pop("DASHSCOPE_API_KEY", None)
+
+
+def candidate(row: dict) -> dict:
+    if row["status"] == "PASS":
+        return {"status": "PASS", "output": row["output"]}
+    return {
+        "status": row["status"],
+        "error_type": row.get("error_type"),
+        "finish_reason": row.get("finish_reason"),
+        "reason": row.get("reason"),
+    }
+
+
+def packet() -> None:
+    verify_manifest()
+    configure_ledger()
+    rows = {row["identity"]: row for row in base.results()}
+    expected = {job["identity"] for job in jobs()}
+    if set(rows) != expected:
+        raise ValueError("RESULT_SET_INCOMPLETE")
+    docs, attempts, mapping = source_docs(), [], {}
+    for item in cases():
+        article_id = item["article_id"]
+        for repeat in REPEATS:
+            arms = ["control", "adjacent"]
+            if int(hashlib.sha256(f"{article_id}:{repeat}:adjacent-v1".encode()).hexdigest(), 16) % 2:
+                arms.reverse()
+            mapping[f"{article_id}:r{repeat}"] = arms
+            attempts.append({
+                "article_id": article_id,
+                "repeat": repeat,
+                "candidate_1": candidate(rows[f"adjacent-context-v1-{article_id}-r{repeat}-{arms[0]}"]),
+                "candidate_2": candidate(rows[f"adjacent-context-v1-{article_id}-r{repeat}-{arms[1]}"]),
+            })
+    save_once(ROOT / "blind-packet.json", {
+        "instructions": "동결 gold로 두 candidate를 각각 평가한다. blind-map.json은 판정을 동결하기 전에 열지 않는다.",
+        "sources": {
+            item["article_id"]: {"article": inputs(item, docs, "control")["article"]}
+            for item in cases()
+        },
+        "gold": read(GOLD),
+        "attempts": attempts,
+    })
+    save_once(ROOT / "blind-map.json", mapping)
+    ratings = []
+    for attempt in attempts:
+        item = next(case for case in cases() if case["article_id"] == attempt["article_id"])
+        for number in (1, 2):
+            failed = attempt[f"candidate_{number}"]["status"] != "PASS"
+            for unit in item["units"]:
+                ratings.append({
+                    "article_id": attempt["article_id"],
+                    "repeat": attempt["repeat"],
+                    "candidate": number,
+                    "source_id": unit["source_id"],
+                    "verdict": "CONTRACT_ERROR" if failed else "PENDING",
+                    "error_types": [],
+                    "overcitation_source_ids": [],
+                    "reason": "호출 단위 출력 계약 실패" if failed else "",
+                })
+    save_once(ROOT / "review-template.json", {
+        "reviewer": "Codex manual semantic review against pre-frozen gold",
+        "conditions_revealed": False,
+        "ratings": ratings,
+    })
+    print(json.dumps({"status": "BLIND_PACKET_READY", "attempts": len(attempts), "ratings": len(ratings)}, ensure_ascii=False))
+
+
+def validate_rating(row: dict) -> None:
+    verdict = row["verdict"]
+    errors = set(row["error_types"])
+    if verdict not in {"PASS", "PARTIAL", "FAIL", "UNRESOLVED", "CONTRACT_ERROR"} or not errors <= ERROR_TYPES:
+        raise ValueError("INVALID_REVIEW_RATING")
+    if verdict == "PASS" and errors:
+        raise ValueError("PASS_WITH_ERROR")
+    if verdict == "PARTIAL" and (not errors or errors - {"REQUIRED_MEANING_OMITTED", "MODALITY_OR_ATTRIBUTION_MISMATCH"}):
+        raise ValueError("INVALID_PARTIAL")
+    if verdict == "FAIL" and not errors & MATERIAL_ERRORS:
+        raise ValueError("FAIL_WITHOUT_MATERIAL_ERROR")
+    if verdict in {"UNRESOLVED", "CONTRACT_ERROR"} and errors:
+        raise ValueError("NONSEMANTIC_WITH_ERROR")
+    if verdict != "PASS" and not row["reason"]:
+        raise ValueError("NONPASS_WITHOUT_REASON")
+
+
+def percent(numerator: int, denominator: int) -> float:
+    return round(100 * numerator / denominator, 1) if denominator else 0.0
+
+
+def score() -> None:
+    review, mapping = read(ROOT / "blind-review.json"), read(ROOT / "blind-map.json")
+    rows = [json.loads(line) for line in (ROOT / "results.jsonl").read_text(encoding="utf-8").splitlines()]
+    if review["conditions_revealed"] or len(review["ratings"]) != 64 or len(rows) != 16:
+        raise ValueError("REVIEW_SET_CHANGED")
+    for rating in review["ratings"]:
+        validate_rating(rating)
+    totals: dict[str, Counter] = defaultdict(Counter)
+    attempts: dict[str, dict[tuple[str, int], list[str]]] = defaultdict(lambda: defaultdict(list))
+    lookup = {}
+    for rating in review["ratings"]:
+        arm = mapping[f"{rating['article_id']}:r{rating['repeat']}"][rating["candidate"] - 1]
+        totals[arm][rating["verdict"]] += 1
+        attempts[arm][(rating["article_id"], rating["repeat"])].append(rating["verdict"])
+        lookup[(rating["article_id"], rating["repeat"], rating["source_id"], arm)] = rating
+    rank = {"FAIL": 0, "UNRESOLVED": 0, "PARTIAL": 1, "PASS": 2}
+    paired, new_material, evidence_resolutions = Counter(), [], defaultdict(list)
+    for key in sorted({item[:3] for item in lookup}):
+        control, adjacent = lookup[key + ("control",)], lookup[key + ("adjacent",)]
+        if "CONTRACT_ERROR" in (control["verdict"], adjacent["verdict"]):
+            paired["excluded_contract"] += 1
+            continue
+        if rank[adjacent["verdict"]] > rank[control["verdict"]]:
+            paired["adjacent_better"] += 1
+        elif rank[adjacent["verdict"]] < rank[control["verdict"]]:
+            paired["control_better"] += 1
+        else:
+            paired["tie"] += 1
+        if set(adjacent["error_types"]) & MATERIAL_ERRORS and not set(control["error_types"]) & MATERIAL_ERRORS:
+            new_material.append({"article_id": key[0], "repeat": key[1], "source_id": key[2]})
+        if ("EVIDENCE_INSUFFICIENT" in control["error_types"] and adjacent["verdict"] == "PASS"
+                and "EVIDENCE_INSUFFICIENT" not in adjacent["error_types"]):
+            evidence_resolutions[(key[0], key[2])].append(key[1])
+    resolved_articles = {
+        article_id for (article_id, _), repeats in evidence_resolutions.items() if set(repeats) == set(REPEATS)
+    }
+    row_status = {row["identity"]: row["status"] for row in rows}
+    comparable_articles = [
+        item["article_id"] for item in cases()
+        if all(row_status[f"adjacent-context-v1-{item['article_id']}-r{repeat}-{arm}"] == "PASS"
+               for repeat in REPEATS for arm in ("control", "adjacent"))
+    ]
+    net_pass = totals["adjacent"]["PASS"] - totals["control"]["PASS"]
+    if len(comparable_articles) < 3:
+        decision = "DEFERRED_INSUFFICIENT_COMPARABLE_ARTICLES"
+    elif len(resolved_articles) >= 2 and net_pass >= 4 and not new_material:
+        decision = "KEEP_ADJACENT_INPUT_CANDIDATE"
+    else:
+        decision = "REJECT_ADJACENT_INPUT_CANDIDATE"
+    ledger = read(ROOT / "ledger.json")
+    arm_results = {}
+    for arm in ("control", "adjacent"):
+        arm_rows = [row for row in rows if row["identity"].endswith("-" + arm)]
+        arm_results[arm] = {
+            "calls": len(arm_rows),
+            "contract_pass_calls": sum(row["status"] == "PASS" for row in arm_rows),
+            "ratings": dict(totals[arm]),
+            "strict_pass_rate_percent": percent(totals[arm]["PASS"], 32),
+            "complete_four_unit_attempts": sum(all(value == "PASS" for value in verdicts) for verdicts in attempts[arm].values()),
+            "overcitation_ratings": sum(bool(row["overcitation_source_ids"]) for row in lookup.values() if row is not None and mapping[f"{row['article_id']}:r{row['repeat']}"][row["candidate"] - 1] == arm),
+            "estimated_usd": round(sum(row.get("estimated_usd", row["reservation_usd"]) for row in arm_rows), 8),
+        }
+    result = {
+        "version": 1,
+        "issue": 139,
+        "method": "Single-reviewer manual semantic review against pre-frozen gold with condition names hidden until ratings were frozen",
+        "arms": arm_results,
+        "paired_noncontract": dict(paired),
+        "net_strict_pass": net_pass,
+        "resolved_evidence_articles_both_repeats": sorted(resolved_articles),
+        "new_material_regressions": new_material,
+        "comparable_articles": comparable_articles,
+        "decision": decision,
+        "contract_failures": [{
+            "identity": row["identity"],
+            "error_type": row.get("error_type"),
+            "finish_reason": row.get("finish_reason"),
+            "reason": row.get("reason"),
+        } for row in rows if row["status"] != "PASS"],
+        "cost": {
+            "experiment_usd": ledger["heldout_reserved_or_actual_usd"],
+            "historical_reserved_or_estimated_usd": ledger["historical_reserved_or_estimated_usd"],
+            "cumulative_usd": round(ledger["historical_reserved_or_estimated_usd"] + ledger["heldout_reserved_or_actual_usd"], 8),
+        },
+        "dependency_hashes": {
+            name: digest(ROOT / name)
+            for name in ("manifest.json", "gold.json", "blind-review.json", "blind-map.json", "results.jsonl", "ledger.json")
+        },
+        "interpretation_limit": "This purpose-sampled pilot compares one runtime input representation; it does not approve the product output contract, persistence, worker, or operational quality.",
+    }
+    save_once(ROOT / "score.json", result)
+    report = f"""# #139 인접 원문 ID 비교 결과
+
+## 결론
+
+판정은 `{decision}`이다. 원문 보존 prompt를 고정한 목적 표집 자료에서 대조군 PASS는 {totals['control']['PASS']}/32, 인접 ID 조건 PASS는 {totals['adjacent']['PASS']}/32였고 순증은 {net_pass}개다. 계약 실패를 제외한 짝에서는 인접 조건 우세 {paired['adjacent_better']}개, 대조군 우세 {paired['control_better']}개, 동률 {paired['tie']}개다.
+
+두 반복 모두 근거 연결 부족이 해소된 기사가 {len(resolved_articles)}개이고, 새 의미·근거 회귀는 {len(new_material)}개다. 네 단위를 모두 통과한 시도는 대조군 {arm_results['control']['complete_four_unit_attempts']}/8, 인접 조건 {arm_results['adjacent']['complete_four_unit_attempts']}/8이다. 이 묶음 지표는 보고하되 후속 평가를 영구적으로 막는 조건으로 사용하지 않는다.
+
+## 계약과 비용
+
+총 16회 중 대조군 {arm_results['control']['contract_pass_calls']}/8, 인접 조건 {arm_results['adjacent']['contract_pass_calls']}/8이 출력 계약을 통과했다. 이번 의미 비교 비용은 ${result['cost']['experiment_usd']:.8f}, 이전 기록을 포함한 누적값은 ${result['cost']['cumulative_usd']:.8f}다.
+
+## 해석 범위
+
+- 네 공식 한국어 기사에서 미리 정한 16개 원문 단위를 두 번 비교한 결과다. 64개 평가는 독립 자료 수가 아니다.
+- 위치상 인접한 ID는 runtime 정보이며 의미적 의존 관계나 새 Observation이 아니다.
+- 결과는 입력 후보의 유지·기각만 판단한다. 제품 worker, 자동 저장, 출력 계약과 운영 품질을 승인하지 않는다.
+"""
+    report_path = ROOT / "REPORT.md"
+    if report_path.exists() and report_path.read_text(encoding="utf-8") != report:
+        raise ValueError("REPORT_CHANGED")
+    report_path.write_text(report, encoding="utf-8")
+    print(json.dumps({"status": "SCORED", "decision": decision, "net_strict_pass": net_pass, "paired": dict(paired)}, ensure_ascii=False))
+
+
+def strict_payload(name: str, shape: type, system: str, user: dict, maximum: int) -> tuple[dict, bytes]:
+    payload = {
+        "model": MODEL,
+        "messages": [{"role": "system", "content": system}, {"role": "user", "content": json.dumps(user, ensure_ascii=False)}],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": name, "strict": True, "schema": shape.model_json_schema()},
+        },
+        "enable_thinking": False,
+        "stream": False,
+        "max_tokens": maximum,
+        "temperature": 0,
+    }
+    return payload, json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+
+def validate_tiny(output: dict, _: dict) -> dict:
+    if output != {"verdict": "PASS", "count": 1}:
+        raise ValueError("TINY_OUTPUT_MISMATCH")
+    return output
+
+
+def strict_jobs() -> list[dict]:
+    docs, item = source_docs(), cases()[0]
+    actual_input = inputs({**item, "units": [item["units"][0]]}, docs, "control")
+    return [
+        {
+            "identity": "strict-output-v1-tiny",
+            "shape": TinyStrict,
+            "system": "입력과 관계없이 verdict는 PASS, count는 1인 JSON 객체를 반환한다.",
+            "user": {"synthetic": True},
+            "maximum": 128,
+            "validator": validate_tiny,
+        },
+        {
+            "identity": "strict-output-v1-selection",
+            "shape": r6.SourceIdSelectionOutput,
+            "system": prompt(),
+            "user": actual_input,
+            "maximum": 1000,
+            "validator": r6.validate_source_id_selection,
+        },
+    ]
+
+
+def strict_probe(comment_id: int) -> None:
+    if comment_id <= 0 or not (ROOT / "score.json").exists():
+        raise ValueError("SEMANTIC_SCORE_AND_ISSUE_COMMENT_REQUIRED")
+    result_path, authorization = ROOT / "strict-results.jsonl", ROOT / "strict-authorization.json"
+    if result_path.exists():
+        raise ValueError("STRICT_PROBE_ALREADY_RECORDED")
+    jobs = strict_jobs()
+    planned = []
+    for job in jobs:
+        _, data = strict_payload(job["identity"], job["shape"], job["system"], job["user"], job["maximum"])
+        planned.append(base.reservation(data, MODEL, job["maximum"]))
+    if sum(planned, Decimal(0)) > STRICT_CAP_USD:
+        raise ValueError("STRICT_PROBE_RESERVATION_EXCEEDS_CAP")
+    save_once(authorization, {"issue": 139, "comment_id": comment_id, "cap_usd": float(STRICT_CAP_USD)})
+    base.credentials.load_key()
+    spent = Decimal(0)
+    try:
+        for index, job in enumerate(jobs):
+            payload, data = strict_payload(job["identity"], job["shape"], job["system"], job["user"], job["maximum"])
+            bound = planned[index]
+            record = {
+                "identity": job["identity"], "status": "RESERVED", "request_sha256": hashlib.sha256(data).hexdigest(),
+                "reservation_usd": float(bound), "model": MODEL,
+            }
+            started = time.monotonic()
+            try:
+                request = urllib.request.Request(
+                    base.BASE + "/chat/completions", data=data,
+                    headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ["DASHSCOPE_API_KEY"]},
+                )
+                with urllib.request.build_opener(base.legacy_transport.NoRedirect).open(request, timeout=180) as response:
+                    raw = json.loads(response.read(2_000_001))
+                usage, choice = raw["usage"], raw["choices"][0]
+                if raw.get("model") != MODEL or choice.get("finish_reason") != "stop" or choice["message"].get("refusal"):
+                    raise ValueError("STRICT_RESPONSE_CONTRACT")
+                prompt_tokens, completion_tokens = usage.get("prompt_tokens"), usage.get("completion_tokens")
+                if type(prompt_tokens) is not int or type(completion_tokens) is not int:
+                    raise ValueError("USAGE_UNKNOWN")
+                output = job["shape"].model_validate_json(choice["message"].get("content")).model_dump()
+                job["validator"](output, job["user"])
+                rate_in, rate_out = (Decimal("0.03"), Decimal("0.13")) if prompt_tokens <= 32_000 else (Decimal("0.10"), Decimal("0.40"))
+                actual = (Decimal(prompt_tokens) * rate_in + Decimal(completion_tokens) * rate_out) / Decimal(1_000_000)
+                spent += actual
+                record.update(status="PASS", usage=usage, estimated_usd=float(actual))
+            except urllib.error.HTTPError as error:
+                record.update(status="HTTP_ERROR", http_status=error.code, estimated_usd=float(bound))
+                spent += bound
+            except (urllib.error.URLError, TimeoutError, OSError) as error:
+                record.update(status="TRANSPORT_ERROR", error_type=type(error).__name__, estimated_usd=float(bound))
+                spent += bound
+            except Exception as error:  # noqa: BLE001 - never expose provider payload or credentials
+                record.update(status="CONTRACT_ERROR", error_type=type(error).__name__, estimated_usd=float(bound))
+                spent += bound
+            record["elapsed_seconds"] = round(time.monotonic() - started, 3)
+            with result_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+            print(json.dumps({"identity": job["identity"], "status": record["status"], "estimated_usd": record["estimated_usd"]}, ensure_ascii=False), flush=True)
+            if record["status"] != "PASS":
+                break
+    finally:
+        os.environ.pop("DASHSCOPE_API_KEY", None)
+    save_once(ROOT / "strict-score.json", {
+        "version": 1,
+        "issue": 139,
+        "model": MODEL,
+        "region": "Singapore",
+        "calls": len((ROOT / "strict-results.jsonl").read_text(encoding="utf-8").splitlines()),
+        "estimated_or_reserved_usd": float(spent),
+        "cap_usd": float(STRICT_CAP_USD),
+        "interpretation": "API and local schema compatibility only; not semantic or operational quality",
+    })
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", choices=("prepare", "run", "packet", "score", "strict-probe"))
+    parser.add_argument("--paid", action="store_true")
+    parser.add_argument("--comment-id", type=int)
+    args = parser.parse_args()
+    if args.command == "prepare":
+        prepare()
+    elif args.command == "run":
+        if not args.paid or args.comment_id is None:
+            raise ValueError("EXPLICIT_PAID_FLAG_AND_COMMENT_REQUIRED")
+        run(args.comment_id)
+    elif args.command == "packet":
+        packet()
+    elif args.command == "score":
+        score()
+    else:
+        if not args.paid or args.comment_id is None:
+            raise ValueError("EXPLICIT_PAID_FLAG_AND_COMMENT_REQUIRED")
+        strict_probe(args.comment_id)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as error:  # noqa: BLE001 - suppress credential-bearing tracebacks
+        print(json.dumps({
+            "status": "STOPPED",
+            "error_type": type(error).__name__,
+            "reason": str(error) if isinstance(error, ValueError) else "details suppressed",
+        }, ensure_ascii=False))
+        raise SystemExit(1) from None
+    finally:
+        os.environ.pop("DASHSCOPE_API_KEY", None)

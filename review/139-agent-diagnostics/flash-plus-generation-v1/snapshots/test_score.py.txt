@@ -1,0 +1,41 @@
+"""Small offline consistency check for the frozen #139 comparison."""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent
+
+
+def module(name: str):
+    spec = importlib.util.spec_from_file_location(name, ROOT / f"{name}.py")
+    if not spec or not spec.loader:
+        raise RuntimeError(f"IMPORT_FAILED:{name}")
+    value = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(value)
+    return value
+
+
+def main() -> None:
+    reviewer = module("review")
+    scorer = module("score")
+    review = json.loads((ROOT / "blind-review.json").read_text(encoding="utf-8"))
+    mapping = json.loads((ROOT / "blind-map.json").read_text(encoding="utf-8"))
+    frozen = json.loads((ROOT / "score.json").read_text(encoding="utf-8"))
+    reviewer.validate(review)
+    assert scorer.fact_summary(review["fact_ratings"], mapping) == frozen["facts"]
+    assert scorer.claim_summary(review["claim_ratings"], mapping) == frozen["claims"]
+    assert scorer.paired_summary(review["fact_ratings"], mapping) == frozen["paired"]
+    assert frozen["facts"]["flash"]["pass"] == 32
+    assert frozen["facts"]["plus"]["pass"] == 18
+    assert frozen["calls"]["total_calls"] == 16
+    assert frozen["calls"]["total_actual_estimated_cost_usd"] == 0.03756943
+    assert frozen["candidate_decision"]["decision"] == "NO_MODEL_CANDIDATE_MEETS_FROZEN_CRITERIA"
+    print("flash-plus score consistency: PASS")
+
+
+if __name__ == "__main__":
+    main()

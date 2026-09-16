@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "issue": 139,
+  "purpose": "Compare Flash and Plus generation with the frozen original-preserving minimal extraction contract",
+  "models": [
+    "qwen3.7-flash-2026-07-15",
+    "qwen3.7-plus-2026-05-26"
+  ],
+  "settings": {
+    "temperature": 0,
+    "enable_thinking": false,
+    "stream": false,
+    "max_tokens": 6000,
+    "strict_json_schema": true
+  },
+  "changed_axis": "Only the model snapshot changes between paired requests",
+  "articles": 4,
+  "pre_frozen_required_facts": 24,
+  "repeats": [
+    1,
+    2
+  ],
+  "planned_calls": 16,
+  "planned_reservation_usd": 0.144587,
+  "round_cap_usd": 0.3,
+  "historical_reserved_or_estimated_usd": 0.88211297,
+  "source_exposure_check": {
+    "comparison_rows": 24,
+    "comparison_unique_hashes": 24,
+    "exact_hash_matches": [],
+    "exact_url_matches": [],
+    "event_family_review": "Four official Korean articles from distinct events not used by prior #139 rounds",
+    "event_family_matches": []
+  },
+  "candidate_criteria": {
+    "comparable_articles_minimum": 3,
+    "strict_required_fact_pass_advantage_percentage_points": 10,
+    "repeatable_article_improvements_minimum": 2,
+    "new_repeated_critical_regressions": 0,
+    "unsupported_claim_rate_must_not_increase": true,
+    "valid_nonduplicate_yield_must_not_decrease": true
+  },
+  "pricing_usd_per_million_tokens": {
+    "qwen3.7-flash-2026-07-15": {
+      "input_under_32k": 0.03,
+      "output": 0.13
+    },
+    "qwen3.7-plus-2026-05-26": {
+      "input_under_256k": 0.4,
+      "output": 1.6
+    }
+  },
+  "dependency_hashes": {
+    "sources-frozen.json": "100db6daa4194264daaf62521b6b8323ca7f21cbda3693e16c91d85e74435785",
+    "gold.json": "5a1ff5ab1b8f727f772fcca268b1876817e35799e535e9401eeffaebf834abe0",
+    "preserve-addendum.txt": "71bfec1e6e1b6fa860e95b47fc039b35bf0a49a5e5cd6001818d64872adb7aae",
+    "experiment.py": "ad728dab7e75668b78e14123fa1527d7f62ee899124c0dde0eadf5137359d5cc",
+    "prior-minimal-experiment.py": "31b8b580f607ed68249cfe83b45add025efd88e0471c8f1cfe86bae83a78f691",
+    "transport.py": "585a62b9edefa368d3e43e691e4f415cb4b4f2b7398634492ba0f75ec665c9fc"
+  },
+  "requests": [
+    {
+      "identity": "flash-plus-v1-C01-r1-flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "request_sha256": "9c2a31ec38fc527a3039ad1aae1229746e76bac25c29cd5bc22da46da5a29af1",
+      "reservation_usd": 0.00117939
+    },
+    {
+      "identity": "flash-plus-v1-C01-r1-plus",
+      "model": "qwen3.7-plus-2026-05-26",
+      "request_sha256": "d916ca1f4b83eefb08db3de2057134bf1810c83ecf771c5d62127d0f60eefe71",
+      "reservation_usd": 0.0149248
+    },
+    {
+      "identity": "flash-plus-v1-C01-r2-plus",
+      "model": "qwen3.7-plus-2026-05-26",
+      "request_sha256": "d916ca1f4b83eefb08db3de2057134bf1810c83ecf771c5d62127d0f60eefe71",
+      "reservation_usd": 0.0149248
+    },
+    {
+      "identity": "flash-plus-v1-C01-r2-flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "request_sha256": "9c2a31ec38fc527a3039ad1aae1229746e76bac25c29cd5bc22da46da5a29af1",
+      "reservation_usd": 0.00117939
+    },
+    {
+      "identity": "flash-plus-v1-C02-r1-plus",
+      "model": "qwen3.7-plus-2026-05-26",
+      "request_sha256": "ecab1d899150ba537024fdfbf5701869544d4ce1205314560391673a1542a637",
+      "reservation_usd": 0.015252
+    },
+    {
+      "identity": "flash-plus-v1-C02-r1-flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "request_sha256": "9d34a913bf16c0d4951ef013a0b7e37da7912219223e68ff2802b7c94c9f91d0",
+      "reservation_usd": 0.00120393
+    },
+    {
+      "identity": "flash-plus-v1-C02-r2-flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "request_sha256": "9d34a913bf16c0d4951ef013a0b7e37da7912219223e68ff2802b7c94c9f91d0",
+      "reservation_usd": 0.00120393
+    },
+    {
+      "identity": "flash-plus-v1-C02-r2-plus",
+      "model": "qwen3.7-plus-2026-05-26",
+      "request_sha256": "ecab1d899150ba537024fdfbf5701869544d4ce1205314560391673a1542a637",
+      "reservation_usd": 0.015252
+    },
+    {
+      "identity": "flash-plus-v1-C03-r1-flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "request_sha256": "0513e3c2d879a86b4374b4e2e254ba9e4e0a16ad47801ccc7875b82c2505eb72",
+      "reservation_usd": 0.00134454
+    },
+    {
+      "identity": "flash-plus-v1-C03-r1-plus",
+      "model": "qwen3.7-plus-2026-05-26",
+      "request_sha256": "f5f85fb6fcd0f98f336bb6631897158f9d985718b6638e62fba8016ef60ed625",
+      "reservation_usd": 0.0171268
+    },
+    {
+      "identity": "flash-plus-v1-C03-r2-plus",
+      "model": "qwen3.7-plus-2026-05-26",
+      "request_sha256": "f5f85fb6fcd0f98f336bb6631897158f9d985718b6638e62fba8016ef60ed625",
+      "reservation_usd": 0.0171268
+    },
+    {
+      "identity": "flash-plus-v1-C03-r2-flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "request_sha256": "0513e3c2d879a86b4374b4e2e254ba9e4e0a16ad47801ccc7875b82c2505eb72",
+      "reservation_usd": 0.00134454
+    },
+    {
+      "identity": "flash-plus-v1-C04-r1-plus",
+      "model": "qwen3.7-plus-2026-05-26",
+      "request_sha256": "ce66f6c66bb54d5eed2f1c1c59d64ae72e639f9d98dcf2565c64c40c89454976",
+      "reservation_usd": 0.0197228
+    },
+    {
+      "identity": "flash-plus-v1-C04-r1-flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "request_sha256": "9ab3833003275950334f27dff8f20918a6539c2669cff3740124c908ba7ada69",
+      "reservation_usd": 0.00153924
+    },
+    {
+      "identity": "flash-plus-v1-C04-r2-flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "request_sha256": "9ab3833003275950334f27dff8f20918a6539c2669cff3740124c908ba7ada69",
+      "reservation_usd": 0.00153924
+    },
+    {
+      "identity": "flash-plus-v1-C04-r2-plus",
+      "model": "qwen3.7-plus-2026-05-26",
+      "request_sha256": "ce66f6c66bb54d5eed2f1c1c59d64ae72e639f9d98dcf2565c64c40c89454976",
+      "reservation_usd": 0.0197228
+    }
+  ],
+  "stop_rules": [
+    "Never repair or automatically retry a failed request",
+    "Record isolated contract or length failures and continue only when usage is known",
+    "Stop the round on authentication, transport, unknown usage or cost, budget, frozen input, or source integrity failure",
+    "Do not tune against these outputs and recount these sources as independent evaluation",
+    "Do not count omission or unresolved output as PASS",
+    "Do not infer a product contract, worker, automatic persistence, or operating quality"
+  ]
+}
