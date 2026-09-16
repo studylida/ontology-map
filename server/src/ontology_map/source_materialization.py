@@ -317,7 +317,9 @@ def _duplicate_test_item_ids(
     counts: dict[str, int] = {}
     for parsed in parsed_items:
         counts[parsed.test_item_id] = counts.get(parsed.test_item_id, 0) + 1
-    return frozenset(test_item_id for test_item_id, count in counts.items() if count > 1)
+    return frozenset(
+        test_item_id for test_item_id, count in counts.items() if count > 1
+    )
 
 
 def _prepare_item_result(
