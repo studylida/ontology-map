@@ -470,8 +470,7 @@ def test_reference_topic_downgrade_fails_without_data_loss() -> None:
                         ) VALUES ('NODE', 'PRODUCT_REFERENCE', NULL, NULL)
                         RETURNING knowledge_item_id
                         """
-                    ),
-                    {"batch_id": 0},
+                    )
                 ).scalar_one()
             )
             connection.execute(
