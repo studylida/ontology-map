@@ -8,6 +8,7 @@ on:
       - "server/src/ontology_map/db/source_materialization.py"
       - "server/tests/test_source_materialization.py"
       - "server/tests/test_source_materialization_postgres.py"
+      - "server/tests/test_source_materialization_manifest_postgres.py"
 
 permissions:
   contents: read
@@ -55,7 +56,8 @@ jobs:
             server/src/ontology_map/source_materialization.py \
             server/src/ontology_map/db/source_materialization.py \
             server/tests/test_source_materialization.py \
-            server/tests/test_source_materialization_postgres.py
+            server/tests/test_source_materialization_postgres.py \
+            server/tests/test_source_materialization_manifest_postgres.py
           uv run --project server --frozen mypy --config-file server/pyproject.toml server/src/ontology_map
       - name: Backend format and lint
         if: ${{ !cancelled() }}
@@ -88,7 +90,10 @@ jobs:
           uv run --frozen alembic current
       - name: Real PostgreSQL source materialization tests
         if: ${{ !cancelled() }}
-        run: uv run --project server --frozen pytest server/tests/test_source_materialization_postgres.py
+        run: |
+          uv run --project server --frozen pytest \
+            server/tests/test_source_materialization_postgres.py \
+            server/tests/test_source_materialization_manifest_postgres.py
       - name: Full backend regression
         if: ${{ !cancelled() }}
         run: uv run --project server --frozen pytest -q server/tests
