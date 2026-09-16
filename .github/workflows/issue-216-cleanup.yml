@@ -1,0 +1,40 @@
+name: Issue 216 Cleanup
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue-216-cleanup.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+      - name: Revert accidental unrelated test edit
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("server/tests/test_topic_reference_migration_postgres.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''                    ),\n                    {"batch_id": 0},\n                ).scalar_one()\n'''
+          new = '''                    )\n                ).scalar_one()\n'''
+          if text.count(old) != 1:
+              raise SystemExit("expected exactly one accidental bind-dict edit")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          git diff --check
+      - name: Commit cleanup
+        run: |
+          git add server/tests/test_topic_reference_migration_postgres.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix: preserve topic reference rehearsal body"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
