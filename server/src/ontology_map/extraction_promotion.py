@@ -1,10 +1,9 @@
 """B-3 product finalization for KNOWLEDGE_EXTRACTION (#127).
 
-Runtime extraction and #128 resolution stay in memory.  Only the final short
-promotion transaction writes canonical knowledge and the model_task terminal
-state.  #216 provenance is intentionally not reimplemented here: if an
-existing canonical object would need new durable attribution while #216 is not
-on main, finalization returns DEPENDENCY_BLOCKED_216 before that mutation.
+Runtime extraction and #128 resolution stay in memory. Only the final short
+caller-owned promotion transaction writes canonical knowledge, records the
+official #216 provenance for canonical associations, marks the promotion
+COMMITTED, and finishes the model_task. Provider/model IO never runs here.
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable, Literal, Mapping, Sequence
+from typing import Any, Callable, Literal, Mapping, Sequence
 
 import httpx
 import sqlalchemy as sa
@@ -30,6 +29,7 @@ from ontology_map.claim_duplicate import (
 from ontology_map.db import extraction_promotion as promotion_db
 from ontology_map.db import extraction_tasks as inputs
 from ontology_map.db import model_tasks as tasks
+from ontology_map.db import promotion_provenance as provenance
 from ontology_map.db import schema
 from ontology_map.entity_resolution_contracts import (
     EntityMention,
@@ -64,15 +64,10 @@ ClaimDuplicateProposer = Callable[["ClaimDuplicateInput"], object]
 ProductDisposition = Literal[
     "SUCCESS",
     "VALIDATION_BLOCKED",
-    "DEPENDENCY_BLOCKED_216",
     "RETRY_WAIT",
     "FINAL_FAILED",
     "LEASE_LOST",
 ]
-
-
-class DependencyBlocked216(RuntimeError):
-    """A real existing-canonical mutation needs #216 provenance first."""
 
 
 @dataclass(frozen=True)
@@ -466,38 +461,13 @@ def _validate_active_ontology(session: Session, runtime: RuntimeInput) -> None:
         _validate_attribute_snapshot(session, attribute_rule)
 
 
-def _assert_same_alias_noop(session: Session, resolution: Resolution) -> None:
-    if resolution.decision != "SAME" or resolution.mention.node_type == "TOPIC":
-        return
-    if resolution.node_id is None:
-        raise ValueError("SAME_RESOLUTION_WITHOUT_NODE")
-    contexts = tuple(
-        (
-            item.source.source_document_id,
-            item.source.start_char,
-            item.source.end_char,
-            item.source.quote_text,
-        )
-        for item in resolution.context
-    )
-    language = resolution.context[0].language
-    if not promotion_db.same_alias_materialization_is_noop(
-        session,
-        resolution.node_id,
-        resolution.mention.text,
-        language,
-        contexts,
-    ):
-        raise DependencyBlocked216("EXISTING_NODE_ALIAS_CHANGE_NEEDS_216")
-
-
 def _attribute_values(
     proposal: AttributeProposal,
     target_node_id: int,
     revision_id: int,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     value = proposal.value
-    result: dict[str, object] = {
+    result: dict[str, Any] = {
         "target_node_id": target_node_id,
         "attribute_revision_id": revision_id,
         "value_kind": value.kind,
@@ -563,7 +533,7 @@ def _claim_sources(
 @dataclass(frozen=True)
 class _ClaimBindings:
     relations: tuple[tuple[int, str], ...]
-    attributes: tuple[Mapping[str, object], ...]
+    attributes: tuple[dict[str, Any], ...]
     events: tuple[_ResolvedEvent, ...]
     relation_writes: int
     created_relations: frozenset[int]
@@ -591,7 +561,7 @@ def _resolve_attribute_binding(
     runtime: RuntimeInput,
     binding: AttributeProposal,
     node_bindings: Mapping[str, PromotionNodeBinding],
-) -> Mapping[str, object]:
+) -> dict[str, Any]:
     target = node_bindings[binding.target_mention].node_id
     runtime_rule = _runtime_attribute(runtime, binding.code)
     db_rule = promotion_db.attribute_rule(session, binding.code)
@@ -636,7 +606,7 @@ def _resolve_claim_bindings(
     resolutions: Mapping[str, Resolution],
 ) -> _ClaimBindings:
     relation_by_id: dict[int, str] = {}
-    attribute_by_key: dict[tuple[object, ...], Mapping[str, object]] = {}
+    attribute_by_key: dict[tuple[object, ...], dict[str, Any]] = {}
     event_by_node: dict[int, _ResolvedEvent] = {}
     relation_writes = 0
     created_relations: set[int] = set()
@@ -719,33 +689,30 @@ def _ensure_claim_observations(
     session: Session,
     *,
     claim_id: int,
-    claim_created: bool,
     batch_id: int,
     claim: ClaimProposal,
     runtime: RuntimeInput,
     document_id: int,
 ) -> int:
     writes = 0
-    current_batch_claim = (
-        claim_created or _claim_batch_id(session, claim_id) == batch_id
-    )
     for start, end, quote in _claim_sources(claim, runtime):
         observation_id, observation_created = promotion_db.ensure_observation(
             session, document_id, start, end, quote
         )
-        if observation_created:
-            writes += 1
-        if promotion_db.claim_observation_exists(session, claim_id, observation_id):
-            continue
-        if not current_batch_claim:
-            raise DependencyBlocked216("EXISTING_CLAIM_OBSERVATION_NEEDS_216")
-        promotion_db.add_claim_observation(session, claim_id, observation_id)
-        writes += 1
+        writes += int(observation_created)
+        writes += int(
+            provenance.add_claim_observation(
+                session, batch_id, claim_id, observation_id
+            )
+        )
     return writes
 
 
-def _apply_event_for_new_claim(
-    session: Session, event: _ResolvedEvent, claim_id: int
+def _apply_event_semantics(
+    session: Session,
+    batch_id: int,
+    event: _ResolvedEvent,
+    claim_id: int,
 ) -> int:
     expected = (
         event.start_at,
@@ -755,7 +722,7 @@ def _apply_event_for_new_claim(
     )
     existing = promotion_db.event_extent(session, event.event_node_id)
     if existing is None and not event.node_is_new:
-        raise DependencyBlocked216("EXISTING_EVENT_EXTENT_CHANGE_NEEDS_216")
+        raise ValueError("EXISTING_EVENT_EXTENT_PROVENANCE_UNSUPPORTED")
     if existing is not None and existing != expected:
         raise ValueError("EVENT_TEMPORAL_EXTENT_CONFLICT")
     writes = int(
@@ -768,25 +735,39 @@ def _apply_event_for_new_claim(
             end_precision=event.end_precision,
         )
     )
-    writes += int(promotion_db.add_event_basis(session, event.event_node_id, claim_id))
+    writes += int(
+        provenance.add_event_temporal_basis(
+            session, batch_id, event.event_node_id, claim_id
+        )
+    )
     return writes
 
 
-def _apply_new_claim_semantics(
+def _apply_claim_semantics(
     session: Session,
+    batch_id: int,
     claim_id: int,
     bindings: _ClaimBindings,
 ) -> int:
     writes = 0
     for relation_id, stance in bindings.relations:
         writes += int(
-            promotion_db.add_claim_relation(session, claim_id, relation_id, stance)
+            provenance.add_claim_relation(
+                session, batch_id, claim_id, relation_id, stance
+            )
         )
     for values in bindings.attributes:
-        promotion_db.insert_attribute_value(session, claim_id, values)
+        if promotion_db.claim_attribute_value_exists(session, claim_id, values):
+            continue
+        provenance.add_claim_attribute_value(
+            session,
+            batch_id,
+            claim_id=claim_id,
+            **values,
+        )
         writes += 1
     for event in bindings.events:
-        writes += _apply_event_for_new_claim(session, event, claim_id)
+        writes += _apply_event_semantics(session, batch_id, event, claim_id)
     return writes
 
 
@@ -814,9 +795,8 @@ def _write_claim(
     if duplicate.existing is not None:
         promotion_db.revalidate_claim_candidate(session, duplicate.existing)
         if duplicate.existing.semantic_targets != duplicate.semantic_targets:
-            raise DependencyBlocked216("EXISTING_CLAIM_SEMANTIC_CHANGE_NEEDS_216")
+            raise ValueError("CLAIM_DUPLICATE_SEMANTIC_TARGETS_CHANGED")
         claim_id = duplicate.existing.claim_id
-        claim_created = False
     else:
         existing_claim_id = promotion_db.find_exact_claim(
             session,
@@ -828,7 +808,6 @@ def _write_claim(
             events=_event_signature(bindings.events),
             current_batch_id=batch_id,
         )
-        claim_created = existing_claim_id is None
         if existing_claim_id is None:
             claim_id = promotion_db.insert_claim(
                 session,
@@ -843,14 +822,12 @@ def _write_claim(
     writes += _ensure_claim_observations(
         session,
         claim_id=claim_id,
-        claim_created=claim_created,
         batch_id=batch_id,
         claim=claim,
         runtime=runtime,
         document_id=document_id,
     )
-    if claim_created:
-        writes += _apply_new_claim_semantics(session, claim_id, bindings)
+    writes += _apply_claim_semantics(session, batch_id, claim_id, bindings)
     return claim_id, writes, set(bindings.created_relations)
 
 
@@ -924,13 +901,6 @@ def _record_execution_failure(
 def _fail_after_rollback(
     engine: Engine, lease: tasks.Lease, error: Exception
 ) -> ProductResult:
-    if isinstance(error, DependencyBlocked216):
-        failed = _record_execution_failure(engine, lease, transient=False)
-        return ProductResult(
-            failed.task_status,
-            "DEPENDENCY_BLOCKED_216",
-            error_code="DEPENDENCY_BLOCKED_216",
-        )
     if isinstance(error, tasks.LeaseLost):
         return ProductResult(
             _status(engine, lease.task_id), "LEASE_LOST", error_code="LEASE_LOST"
@@ -1176,8 +1146,6 @@ def _finalize_verified_transaction(
             if runtime.document.body != document["normalized_body"]:
                 raise inputs.InputChanged("RUNNER_SOURCE_MISMATCH")
             _validate_active_ontology(session, runtime)
-            for resolution in required:
-                _assert_same_alias_noop(session, resolution)
 
             batch_id = promotion_db.create_batch(session, execution.validator_version)
             writes = sum(item.decision == "NEW" for item in required)
@@ -1199,11 +1167,12 @@ def _finalize_verified_transaction(
                 writes += added
                 _validate_created_relations(session, created_relations)
 
-            if writes == 0:
+            has_provenance = bool(provenance.changes_for_batch(session, batch_id))
+            if writes == 0 and not has_provenance:
                 promotion_db.discard_pending_batch(session, batch_id)
                 committed_batch = None
             else:
-                promotion_db.commit_batch(session, batch_id)
+                provenance.mark_promotion_committed(session, batch_id)
                 committed_batch = batch_id
             state = tasks.finish_product(session, lease, valid=True)
         return ProductResult(

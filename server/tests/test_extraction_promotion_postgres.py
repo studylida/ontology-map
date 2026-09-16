@@ -3,6 +3,7 @@
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from hashlib import sha256
 
 import pytest
@@ -13,9 +14,9 @@ from test_extraction import limits
 from test_extraction_tasks_postgres import reference_data
 
 from ontology_map.claim_duplicate import ClaimDuplicateInput
-from ontology_map.db import extraction_promotion as promotion_db
 from ontology_map.db import extraction_tasks as inputs
 from ontology_map.db import model_tasks as tasks
+from ontology_map.db import promotion_provenance as provenance
 from ontology_map.db import schema
 from ontology_map.db.topic_references import (
     ensure_topic_reference,
@@ -213,13 +214,13 @@ def _claims(*, conflicting_event: bool = False) -> tuple[ClaimProposal, ...]:
             "binding_id": "a1",
             "code": "MAX_MEMORY_BANDWIDTH",
             "target_mention": "m-company-a",
-            "value": {"kind": "NUMBER", "value": "100", "unit": "GB_PER_S"},
+            "value": {"kind": "NUMBER", "value": Decimal("100"), "unit": "GB_PER_S"},
         },
         {
             "kind": "EVENT_TIME",
             "binding_id": "e1",
             "event_mention": "m-event",
-            "start": {"value": "2026-09-01T00:00:00Z", "precision": "DAY"},
+            "start": {"value": datetime(2026, 9, 1, tzinfo=UTC), "precision": "DAY"},
             "end": {"value": None, "precision": "UNKNOWN"},
         },
     ]
@@ -229,7 +230,10 @@ def _claims(*, conflicting_event: bool = False) -> tuple[ClaimProposal, ...]:
                 "kind": "EVENT_TIME",
                 "binding_id": "e2",
                 "event_mention": "m-event",
-                "start": {"value": "2026-09-02T00:00:00Z", "precision": "DAY"},
+                "start": {
+                    "value": datetime(2026, 9, 2, tzinfo=UTC),
+                    "precision": "DAY",
+                },
                 "end": {"value": None, "precision": "UNKNOWN"},
             }
         )
@@ -380,6 +384,13 @@ def _count(engine: Engine, table: sa.Table) -> int:
         )
 
 
+def _provenance_kinds(engine: Engine, batch_id: int) -> set[str]:
+    with Session(engine) as session:
+        return {
+            item.change_kind for item in provenance.changes_for_batch(session, batch_id)
+        }
+
+
 def test_new_multi_target_claim_promotes_atomically_and_reuses_relation(
     b3_case: B3Case,
 ) -> None:
@@ -422,6 +433,15 @@ def test_new_multi_target_claim_promotes_atomically_and_reuses_relation(
     assert batch["promotion_status"] == "COMMITTED"
     assert batch["publication_status"] == "NOT_STARTED"
     assert task["status"] == "SUCCESS" and task["finished_at"] is not None
+    kinds = _provenance_kinds(case.engine, result.promotion_batch_id)
+    assert {
+        "NODE_ALIAS_CHANGED",
+        "NODE_ALIAS_EVIDENCE_ADDED",
+        "CLAIM_OBSERVATION_ADDED",
+        "CLAIM_RELATION_ADDED",
+        "CLAIM_ATTRIBUTE_VALUE_ADDED",
+        "EVENT_TEMPORAL_BASIS_ADDED",
+    } <= kinds
 
 
 def test_exact_reprocess_is_canonical_noop_without_duplicate_rows(
@@ -445,6 +465,7 @@ def test_exact_reprocess_is_canonical_noop_without_duplicate_rows(
             schema.claim_relation,
             schema.claim_attribute_value,
             schema.event_temporal_basis,
+            provenance.promotion_canonical_change,
         )
     }
     execution = case.execution.model_copy(
@@ -494,6 +515,7 @@ def test_exact_reprocess_is_canonical_noop_without_duplicate_rows(
             schema.claim_relation,
             schema.claim_attribute_value,
             schema.event_temporal_basis,
+            provenance.promotion_canonical_change,
         )
     }
     assert after == before
@@ -573,13 +595,11 @@ def _existing_company(engine: Engine, text: str) -> int:
         return node_id
 
 
-def test_existing_node_alias_mutation_is_dependency_blocked_before_write(
+def test_existing_node_alias_mutation_uses_official_provenance(
     b3_case: B3Case,
 ) -> None:
     case = b3_case
     existing = _existing_company(case.engine, "한빛")
-    before_batch = _count(case.engine, schema.promotion_batch)
-    before_items = _count(case.engine, schema.knowledge_item)
 
     def propose(messages: list[tuple[str, str]]) -> object:
         payload = ResolutionInput.model_validate_json(messages[1][1])
@@ -596,10 +616,95 @@ def test_existing_node_alias_mutation_is_dependency_blocked_before_write(
         propose,
         _claim_new,
     )
-    assert result.disposition == "DEPENDENCY_BLOCKED_216"
-    assert result.task_status == "FINAL_FAILED"
-    assert _count(case.engine, schema.promotion_batch) == before_batch
+    assert result.disposition == result.task_status == "SUCCESS"
+    assert result.promotion_batch_id is not None
+    changes = _provenance_kinds(case.engine, result.promotion_batch_id)
+    assert "NODE_ALIAS_EVIDENCE_ADDED" in changes
+    assert "CLAIM_OBSERVATION_ADDED" in changes
+    assert "CLAIM_RELATION_ADDED" in changes
+
+
+def test_existing_event_without_extent_fails_closed_and_rolls_back_provenance(
+    b3_case: B3Case,
+) -> None:
+    case = b3_case
+    with Session(case.engine) as session, session.begin():
+        policy = session.scalar(
+            sa.select(schema.lint_policy_version.c.lint_policy_version_id).where(
+                schema.lint_policy_version.c.is_active
+            )
+        )
+        batch_id = int(
+            session.execute(
+                sa.insert(schema.promotion_batch)
+                .values(
+                    lint_policy_version_id=int(policy),
+                    promotion_status="COMMITTED",
+                    committed_at=datetime.now(UTC),
+                )
+                .returning(schema.promotion_batch.c.promotion_batch_id)
+            ).scalar_one()
+        )
+        event_type = int(
+            session.scalar(
+                sa.select(schema.node_type.c.node_type_id).where(
+                    schema.node_type.c.node_type_code == "EVENT"
+                )
+            )
+        )
+        event_node_id = int(
+            session.execute(
+                sa.insert(schema.knowledge_item)
+                .values(
+                    item_kind="NODE",
+                    current_state="EVIDENCE_VERIFIED",
+                    promotion_batch_id=batch_id,
+                )
+                .returning(schema.knowledge_item.c.knowledge_item_id)
+            ).scalar_one()
+        )
+        session.execute(
+            sa.insert(schema.node).values(
+                node_id=event_node_id, node_type_id=event_type
+            )
+        )
+        session.execute(
+            sa.insert(schema.node_alias).values(
+                node_id=event_node_id,
+                alias_text="한빛 발표회",
+                language="ko",
+                is_preferred=True,
+            )
+        )
+
+    before_batches = _count(case.engine, schema.promotion_batch)
+    before_items = _count(case.engine, schema.knowledge_item)
+    before_alias_evidence = _count(case.engine, schema.node_alias_evidence)
+    before_provenance = _count(case.engine, provenance.promotion_canonical_change)
+
+    def propose(messages: list[tuple[str, str]]) -> object:
+        payload = ResolutionInput.model_validate_json(messages[1][1])
+        if payload.mention_text == "한빛 발표회":
+            assert [item.node_id for item in payload.candidates] == [event_node_id]
+            return {"decision": "SAME", "node_id": event_node_id}
+        return {"decision": "NEW", "node_id": None}
+
+    result = finalize_extraction(
+        case.engine,
+        _runner(case, (case.claims[0],)),
+        case.execution,
+        case.runtime,
+        propose,
+        _claim_new,
+    )
+    assert result.disposition == result.task_status == "FINAL_FAILED"
+    assert _count(case.engine, schema.promotion_batch) == before_batches
     assert _count(case.engine, schema.knowledge_item) == before_items
+    assert _count(case.engine, schema.event_temporal_extent) == 0
+    assert _count(case.engine, schema.node_alias_evidence) == before_alias_evidence
+    assert (
+        _count(case.engine, provenance.promotion_canonical_change) == before_provenance
+    )
 
 
 def test_conflict_rolls_back_nodes_relation_claim_and_batch() -> None:
@@ -620,6 +725,7 @@ def test_conflict_rolls_back_nodes_relation_claim_and_batch() -> None:
         assert _count(engine, schema.promotion_batch) == 0
         assert _count(engine, schema.knowledge_item) == 0
         assert _count(engine, schema.observation) == 0
+        assert _count(engine, provenance.promotion_canonical_change) == 0
     finally:
         engine.dispose()
 
@@ -806,7 +912,7 @@ def test_transient_promotion_rollback_then_retry_has_no_canonical_duplicates(
     b3_case: B3Case, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     case = b3_case
-    original_commit = promotion_db.commit_batch
+    original_commit = provenance.mark_promotion_committed
 
     class SerializationFailure(Exception):
         sqlstate = "40001"
@@ -814,7 +920,7 @@ def test_transient_promotion_rollback_then_retry_has_no_canonical_duplicates(
     def fail_commit(_session: Session, _batch_id: int) -> None:
         raise sa.exc.OperationalError("commit batch", {}, SerializationFailure())
 
-    monkeypatch.setattr(promotion_db, "commit_batch", fail_commit)
+    monkeypatch.setattr(provenance, "mark_promotion_committed", fail_commit)
     first = finalize_extraction(
         case.engine,
         _runner(case),
@@ -827,8 +933,9 @@ def test_transient_promotion_rollback_then_retry_has_no_canonical_duplicates(
     assert _count(case.engine, schema.promotion_batch) == 0
     assert _count(case.engine, schema.knowledge_item) == 0
     assert _count(case.engine, schema.observation) == 0
+    assert _count(case.engine, provenance.promotion_canonical_change) == 0
 
-    monkeypatch.setattr(promotion_db, "commit_batch", original_commit)
+    monkeypatch.setattr(provenance, "mark_promotion_committed", original_commit)
     with Session(case.engine) as session, session.begin():
         session.execute(
             sa.update(schema.model_task)
@@ -868,6 +975,64 @@ def test_transient_promotion_rollback_then_retry_has_no_canonical_duplicates(
     assert _count(case.engine, schema.relation) == 1
     assert _count(case.engine, schema.claim) == 2
     assert _count(case.engine, schema.observation) == 2
+    assert _count(case.engine, provenance.promotion_canonical_change) > 0
+
+
+def test_relation_endpoint_change_is_revalidated_before_promotion(
+    b3_case: B3Case,
+) -> None:
+    case = b3_case
+    with Session(case.engine) as session, session.begin():
+        session.execute(sa.delete(schema.relation_endpoint_rule))
+    result = finalize_extraction(
+        case.engine,
+        _runner(case, (case.claims[1],)),
+        case.execution,
+        case.runtime,
+        _new,
+        _claim_new,
+    )
+    assert result.disposition == result.task_status == "FINAL_FAILED"
+    assert _count(case.engine, schema.promotion_batch) == 0
+    assert _count(case.engine, schema.knowledge_item) == 0
+
+
+def test_allowed_unit_change_is_revalidated_before_promotion(
+    b3_case: B3Case,
+) -> None:
+    case = b3_case
+    with Session(case.engine) as session, session.begin():
+        revision_id = int(
+            session.scalar(
+                sa.select(schema.attribute_revision.c.attribute_revision_id).where(
+                    schema.attribute_revision.c.is_active
+                )
+            )
+        )
+        session.execute(
+            sa.delete(schema.attribute_revision_allowed_unit).where(
+                schema.attribute_revision_allowed_unit.c.attribute_revision_id
+                == revision_id
+            )
+        )
+        session.execute(
+            sa.insert(schema.attribute_revision_allowed_unit).values(
+                attribute_revision_id=revision_id,
+                allowed_value_kind="NUMBER",
+                unit_code="TB_PER_S",
+            )
+        )
+    result = finalize_extraction(
+        case.engine,
+        _runner(case, (case.claims[0],)),
+        case.execution,
+        case.runtime,
+        _new,
+        _claim_new,
+    )
+    assert result.disposition == result.task_status == "FINAL_FAILED"
+    assert _count(case.engine, schema.promotion_batch) == 0
+    assert _count(case.engine, schema.knowledge_item) == 0
 
 
 def test_allowed_unit_is_effective_input(b3_case: B3Case) -> None:
