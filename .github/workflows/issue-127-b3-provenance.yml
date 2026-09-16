@@ -47,10 +47,29 @@ jobs:
           PY
       - name: Apply official #216 wiring
         run: python scripts/issue_127_b3_wire_provenance.py
+      - name: Clean staged source
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          promotion = Path("server/src/ontology_map/extraction_promotion.py")
+          text = promotion.read_text()
+          old = "        claim_created = existing_claim_id is None\n        if existing_claim_id is None:"
+          if old not in text:
+              raise SystemExit("claim_created cleanup anchor missing")
+          promotion.write_text(text.replace(old, "        if existing_claim_id is None:", 1))
+
+          test = Path("server/tests/test_extraction_promotion_postgres.py")
+          text = test.read_text()
+          old = "from ontology_map.db import extraction_promotion as promotion_db\n"
+          if old not in text:
+              raise SystemExit("obsolete promotion_db import anchor missing")
+          test.write_text(text.replace(old, "", 1))
+          PY
       - name: Format and static checks
         run: |
           uv sync --project server --frozen
           uv run --project server --frozen ruff format server/src/ontology_map/extraction_promotion.py server/src/ontology_map/db/extraction_promotion.py server/tests/test_extraction_promotion_postgres.py
+          uv run --project server --frozen ruff check --fix server/src/ontology_map/extraction_promotion.py server/src/ontology_map/db/extraction_promotion.py server/tests/test_extraction_promotion_postgres.py
           uv run --project server --frozen ruff check server
           uv run --project server --frozen ruff format --check server
           uv run --project server --frozen mypy --config-file server/pyproject.toml server/src/ontology_map
