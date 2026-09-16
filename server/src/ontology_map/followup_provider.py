@@ -6,12 +6,14 @@ reused here.
 """
 
 from collections.abc import Callable
-from typing import Any
+from datetime import datetime
 
 import httpx
+import sqlalchemy as sa
 from pydantic import SecretStr, ValidationError
 
 from ontology_map import followup_generation as product
+from ontology_map.exploration import TimeWindow
 from ontology_map.followup_generation_contracts import (
     FollowupQuestionsProposal,
     PreparedFollowup,
@@ -61,8 +63,11 @@ class ModelStudioFollowupAdapter:
         """Use the #129 model/messages/schema/parser as the only product contract."""
         messages: list[dict[str, str]] = []
         for role, content in product.build_messages(prepared):
-            mapped = "system" if role == "system" else "user" if role == "human" else None
-            if mapped is None:
+            if role == "system":
+                mapped = "system"
+            elif role == "human":
+                mapped = "user"
+            else:
                 raise CallFailed("INVALID_REQUEST", fatal=True)
             messages.append({"role": mapped, "content": content})
         raw_send = self._transport.prepare(
@@ -84,13 +89,13 @@ class ModelStudioFollowupAdapter:
 
 
 def run_model_studio_followup(
-    engine: Any,
+    engine: sa.Engine,
     task_id: int,
     worker_name: str,
     *,
     node_context_id: int,
-    window: Any,
-    as_of_at: Any,
+    window: TimeWindow,
+    as_of_at: datetime,
     adapter: ModelStudioFollowupAdapter,
 ) -> RunnerResult:
     """Compose the durable #129 runner with one production Model Studio send."""
