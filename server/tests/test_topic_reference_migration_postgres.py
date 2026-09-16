@@ -263,7 +263,7 @@ def test_clean_upgrade_reaches_current_head() -> None:
     engine = _engine()
     try:
         with engine.connect() as connection:
-            assert _version(connection) == "0005"
+            assert _version(connection) == "0006"
             assert _table_exists(connection, "topic_reference")
             assert _table_exists(connection, "promotion_canonical_change")
             assert _column_exists(

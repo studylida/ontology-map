@@ -1,8 +1,8 @@
 """Transaction-local canonical reconciliation for KNOWLEDGE_EXTRACTION (#127).
 
 No provider IO, publication work, hidden commit, or promotion provenance schema
-lives here.  Callers own the transaction and must record any #216 provenance
-required by mutations of pre-existing canonical objects before committing.
+lives here. Callers own the transaction. B-3 routes provenance-covered mutations
+through the official ontology_map.db.promotion_provenance API.
 """
 
 from __future__ import annotations
@@ -139,21 +139,6 @@ def discard_pending_batch(session: Session, batch_id: int) -> None:
     ).scalar_one_or_none()
     if deleted is None:
         raise ValueError("PROMOTION_BATCH_NOT_DISCARDABLE")
-
-
-def commit_batch(session: Session, batch_id: int) -> None:
-    updated = session.execute(
-        sa.update(schema.promotion_batch)
-        .where(
-            schema.promotion_batch.c.promotion_batch_id == batch_id,
-            schema.promotion_batch.c.promotion_status == "PENDING",
-            schema.promotion_batch.c.publication_status == "NOT_STARTED",
-        )
-        .values(promotion_status="COMMITTED", committed_at=_now(session))
-        .returning(schema.promotion_batch.c.promotion_batch_id)
-    ).scalar_one_or_none()
-    if updated is None:
-        raise ValueError("PROMOTION_BATCH_NOT_PENDING")
 
 
 def active_topic_identity(session: Session) -> tuple[tuple[int, str, str], ...]:
@@ -899,17 +884,6 @@ def claim_observation_exists(
     )
 
 
-def add_claim_observation(session: Session, claim_id: int, observation_id: int) -> bool:
-    if claim_observation_exists(session, claim_id, observation_id):
-        return False
-    session.execute(
-        sa.insert(schema.claim_observation).values(
-            claim_id=claim_id, observation_id=observation_id
-        )
-    )
-    return True
-
-
 def claim_relation_exists(
     session: Session, claim_id: int, relation_id: int
 ) -> str | None:
@@ -922,32 +896,16 @@ def claim_relation_exists(
     return None if value is None else str(value)
 
 
-def add_claim_relation(
-    session: Session, claim_id: int, relation_id: int, stance: str
-) -> bool:
-    existing = claim_relation_exists(session, claim_id, relation_id)
-    if existing is not None:
-        if existing != stance:
-            raise ValueError("CLAIM_RELATION_STANCE_CONFLICT")
-        return False
-    session.execute(
-        sa.insert(schema.claim_relation).values(
-            claim_id=claim_id, relation_id=relation_id, stance=stance
-        )
-    )
-    return True
-
-
-def insert_attribute_value(
+def claim_attribute_value_exists(
     session: Session, claim_id: int, values: Mapping[str, object]
-) -> int:
-    return int(
-        session.execute(
-            sa.insert(schema.claim_attribute_value)
-            .values(claim_id=claim_id, **dict(values))
-            .returning(schema.claim_attribute_value.c.claim_attribute_value_id)
-        ).scalar_one()
-    )
+) -> bool:
+    expected = canonical_attribute_tuple(values)
+    rows = session.execute(
+        sa.select(schema.claim_attribute_value).where(
+            schema.claim_attribute_value.c.claim_id == claim_id
+        )
+    ).mappings()
+    return any(_attribute_tuple(dict(row)) == expected for row in rows)
 
 
 def event_extent(
@@ -1012,17 +970,6 @@ def event_basis_exists(session: Session, event_node_id: int, claim_id: int) -> b
     )
 
 
-def add_event_basis(session: Session, event_node_id: int, claim_id: int) -> bool:
-    if event_basis_exists(session, event_node_id, claim_id):
-        return False
-    session.execute(
-        sa.insert(schema.event_temporal_basis).values(
-            event_node_id=event_node_id, claim_id=claim_id
-        )
-    )
-    return True
-
-
 def relation_is_used(session: Session, relation_id: int) -> bool:
     return bool(
         session.execute(
@@ -1031,63 +978,3 @@ def relation_is_used(session: Session, relation_id: int) -> bool:
             )
         ).scalar_one()
     )
-
-
-def same_alias_materialization_is_noop(
-    session: Session,
-    node_id: int,
-    text: str,
-    language: str,
-    contexts: Sequence[tuple[int, int, int, str]],
-) -> bool:
-    """Conservative #216 guard for the #128 SAME materialization path.
-
-    False may over-block a family-alias no-op, but True guarantees the current
-    #128 helper has no alias/alias-evidence mutation to attribute.
-    """
-    alias_id = session.execute(
-        sa.select(schema.node_alias.c.node_alias_id).where(
-            schema.node_alias.c.node_id == node_id,
-            schema.node_alias.c.alias_text == text,
-            schema.node_alias.c.language == language,
-        )
-    ).scalar_one_or_none()
-    if alias_id is None:
-        return False
-    for document_id, start, end, quote in contexts:
-        if text not in quote:
-            continue
-        observation = (
-            session.execute(
-                sa.select(
-                    schema.observation.c.observation_id,
-                    schema.observation.c.quote_text,
-                    schema.observation.c.quote_hash,
-                ).where(
-                    schema.observation.c.source_document_id == document_id,
-                    schema.observation.c.start_char == start,
-                    schema.observation.c.end_char == end,
-                )
-            )
-            .mappings()
-            .one_or_none()
-        )
-        if observation is None:
-            return False
-        if (
-            observation["quote_text"] != quote
-            or bytes(observation["quote_hash"]) != sha256(quote.encode()).digest()
-        ):
-            return False
-        exists = session.execute(
-            sa.select(
-                sa.exists().where(
-                    schema.node_alias_evidence.c.node_alias_id == int(alias_id),
-                    schema.node_alias_evidence.c.observation_id
-                    == int(observation["observation_id"]),
-                )
-            )
-        ).scalar_one()
-        if not exists:
-            return False
-    return True

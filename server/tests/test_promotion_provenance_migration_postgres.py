@@ -207,12 +207,12 @@ def _historical_alias_evidence(connection: Connection) -> tuple[int, int]:
     return alias_id, observation_id
 
 
-def test_clean_upgrade_reaches_0005() -> None:
+def test_clean_upgrade_reaches_current_head() -> None:
     _upgrade("head")
     engine = _engine()
     try:
         with engine.connect() as connection:
-            assert _version(connection) == "0005"
+            assert _version(connection) == "0006"
             assert _table_exists(connection, "promotion_canonical_change")
             assert (
                 connection.scalar(
