@@ -158,7 +158,9 @@ def classify_provider_error(error: Exception) -> ConfirmedProviderFailure | None
     if isinstance(error, ConfirmedProviderFailure):
         return error
     if isinstance(error, (httpx.TimeoutException, APITimeoutError)):
-        return ConfirmedProviderFailure("TIMEOUT", transient=True)
+        # A local timeout can follow a partial write or a lost reply. Only a
+        # provider HTTP 408/504 response is a confirmed timeout outcome.
+        return None
     # Broad network/SDK connection errors may follow a partial send or lost reply.
     # Only ConnectError identifies failure to establish the HTTP connection.
     if isinstance(error, httpx.ConnectError):

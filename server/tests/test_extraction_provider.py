@@ -192,7 +192,9 @@ def test_read_timeout_is_exposed_once_for_durable_unknown_fencing() -> None:
         '{"claims":[{"candidate_id":"bad"}]}',
     ],
 )
-def test_confirmed_malformed_structured_output_is_contract_failure(content: str) -> None:
+def test_confirmed_malformed_structured_output_is_contract_failure(
+    content: str,
+) -> None:
     adapter = ModelStudioGenerationAdapter(
         SecretStr("offline-key"),
         base_url=BASE_URL,

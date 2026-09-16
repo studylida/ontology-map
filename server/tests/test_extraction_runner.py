@@ -45,11 +45,6 @@ def test_typed_http_failure_uses_safe_status(status, outcome, transient):
 @pytest.mark.parametrize(
     "error,outcome",
     [
-        (httpx.ReadTimeout("private request"), "TIMEOUT"),
-        (
-            APITimeoutError(request=httpx.Request("POST", "https://example.invalid")),
-            "TIMEOUT",
-        ),
         (httpx.ConnectError("private address"), "PROVIDER_ERROR"),
         (CallFailed("OUTPUT_CONTRACT_ERROR", fatal=False), "OUTPUT_CONTRACT_ERROR"),
     ],
@@ -66,6 +61,8 @@ def test_unknown_exception_is_not_invented_provider_outcome():
 @pytest.mark.parametrize(
     "error",
     [
+        httpx.ReadTimeout("private lost reply timeout"),
+        APITimeoutError(request=httpx.Request("POST", "https://example.invalid")),
         httpx.NetworkError("private ambiguous transport state"),
         httpx.ReadError("private lost reply"),
         httpx.WriteError("private partial send"),
