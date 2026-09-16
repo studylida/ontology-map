@@ -3,7 +3,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from ontology_map.db.schema import metadata
+from ontology_map.db.metadata import metadata
 from ontology_map.settings import get_settings
 
 config = context.config
