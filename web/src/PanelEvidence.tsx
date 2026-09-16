@@ -192,6 +192,7 @@ export function ClaimCard({
                 </button>
                 <button
                   type="button"
+                  aria-label={`${relation.otherNode.name} ${relation.displayName} 관계 근거 보기`}
                   onClick={() =>
                     onEvidence({
                       id: relation.id,
