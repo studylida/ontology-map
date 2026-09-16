@@ -1,0 +1,44 @@
+name: Issue 216 Phase Two Patch
+
+on:
+  push:
+    branches:
+      - issue-216-promotion-provenance
+    paths:
+      - ".github/workflows/issue-216-phase2-patch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: issue-216-promotion-provenance
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.7"
+      - name: Apply phase-two patch
+        run: python .github/issue216_phase2_patch.py
+      - name: Format and regenerate docs
+        run: |
+          uv sync --project server --frozen
+          uv run --project server --frozen ruff format \
+            server/src/ontology_map/db/entity_resolution.py \
+            server/src/ontology_map/entity_resolution.py \
+            server/src/ontology_map/db/promotion_provenance.py \
+            server/tests/test_promotion_provenance_postgres.py \
+            server/tests/test_entity_resolution_postgres.py
+          uv run --project server --frozen python scripts/check_docs.py --write
+          git rm .github/issue216_phase2_patch.py .github/workflows/issue-216-phase2-patch.yml
+          git diff --check
+      - name: Commit phase-two integration
+        run: |
+          git add -A
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "feat: integrate issue 216 promotion provenance writers"
+          git push origin HEAD:issue-216-promotion-provenance
