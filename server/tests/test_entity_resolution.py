@@ -417,7 +417,9 @@ def test_new_is_materialized_only_for_surviving_knowledge_and_never_commits(stag
         assert nodes["m1"].observation_ids == (200,)
         usage.assert_not_called()  # The owning writer runs in this body.
     insert.assert_called_once_with(session, 7, 1)
-    alias.assert_called_once_with(session, 100, "한빛전자", "ko", 200, preferred=True)
+    alias.assert_called_once_with(
+        session, 7, 100, "한빛전자", "ko", 200, preferred=True
+    )
     usage.assert_called_once_with(session, 100, (200,))
     session.commit.assert_not_called()
     session.rollback.assert_not_called()
@@ -529,15 +531,19 @@ def test_generic_expression_resolved_by_identifier_is_not_added_as_alias(
     alias.assert_not_called()
 
 
-def test_alias_reuses_existing_identity_family_without_new_alias_row():
+def test_alias_reuses_existing_identity_family_without_new_alias_row(monkeypatch):
     session = Mock()
     session.execute.return_value.scalar_one_or_none.return_value = 90
-    db._ensure_alias(session, 10, "한빛전자", "ko", 200, preferred=False)
+    evidence = Mock(return_value=True)
+    monkeypatch.setattr(db.provenance, "add_node_alias_evidence", evidence)
+
+    db._ensure_alias(session, 7, 10, "한빛전자", "ko", 200, preferred=False)
+
     statements = [str(call.args[0]) for call in session.execute.call_args_list]
-    assert len(statements) == 2
+    assert len(statements) == 1
     assert "node_merge" in statements[0]
-    assert "INSERT INTO node_alias_evidence" in statements[1]
     assert all("INSERT INTO node_alias (" not in sql for sql in statements)
+    evidence.assert_called_once_with(session, 7, 90, 200)
     session.commit.assert_not_called()
 
 
