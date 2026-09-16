@@ -186,7 +186,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/issue-127-b3-provenance.yml scripts/issue_127_b3_wire_provenance.py
+          git rm -f .github/workflows/issue-127-b3-provenance.yml scripts/issue_127_b3_wire_provenance.py
           git add server/src/ontology_map/extraction_promotion.py server/src/ontology_map/db/extraction_promotion.py server/tests/test_extraction_promotion_postgres.py server/tests/test_promotion_provenance_migration_postgres.py server/tests/test_topic_reference_migration_postgres.py
           git diff --cached --check
           git commit -m "feat: wire #127 promotion through #216 provenance"
