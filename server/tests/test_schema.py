@@ -1,7 +1,7 @@
 import sqlalchemy as sa
 from sqlalchemy import Inspector
 
-from ontology_map.db.schema import metadata
+from ontology_map.db.metadata import metadata
 from ontology_map.db.session import get_engine
 
 DEFERRED_TABLES = {"knowledge_state_event", "conflict_state_event"}
@@ -64,7 +64,7 @@ def test_frozen_schema_inventory_and_named_objects() -> None:
     application_tables = set(inspector.get_table_names()) - {"alembic_version"}
 
     assert application_tables == set(metadata.tables)
-    assert len(application_tables) == 50
+    assert len(application_tables) == 51
     assert application_tables.isdisjoint(DEFERRED_TABLES)
     _assert_named_schema_objects(inspector)
 
