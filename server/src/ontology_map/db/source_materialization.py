@@ -49,9 +49,7 @@ def _source_lock_key(source_key: str) -> int:
     return int.from_bytes(raw, byteorder="big", signed=True)
 
 
-def _same_immutable_document(
-    row: RowMapping, document: SourceDocumentInput
-) -> bool:
+def _same_immutable_document(row: RowMapping, document: SourceDocumentInput) -> bool:
     return (
         str(row["canonical_url"]) == document.canonical_url
         and str(row["publisher_name"]) == document.publisher_name
