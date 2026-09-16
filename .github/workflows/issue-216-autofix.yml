@@ -1,0 +1,64 @@
+name: Issue 216 Autofix
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue-216-autofix.yml"
+      - "server/src/ontology_map/db/promotion_provenance.py"
+      - "server/tests/test_promotion_provenance_postgres.py"
+      - "server/tests/test_promotion_provenance_migration_postgres.py"
+      - "scripts/check_docs.py"
+      - "docs/data/schema-reference.md"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.7"
+      - name: Prepare exact fixes
+        run: |
+          uv sync --project server --frozen
+          python - <<'PY'
+          from pathlib import Path
+
+          test = Path("server/tests/test_promotion_provenance_postgres.py")
+          text = test.read_text(encoding="utf-8")
+          text = text.replace('"CONTRADICT"', '"DISPUTE"')
+          test.write_text(text, encoding="utf-8")
+
+          writer = Path("server/src/ontology_map/db/promotion_provenance.py")
+          text = writer.read_text(encoding="utf-8")
+          text = text.replace(
+              '"existing claim_relation stance mutation has no approved #216 change kind"',
+              '"existing claim_relation stance mutation has no approved "\n'
+              '                "#216 change kind"',
+          )
+          writer.write_text(text, encoding="utf-8")
+          PY
+          uv run --project server --frozen ruff format server/src/ontology_map/db/promotion_provenance.py server/tests/test_promotion_provenance_postgres.py server/tests/test_promotion_provenance_migration_postgres.py
+          uv run --project server --frozen python scripts/check_docs.py --write
+      - name: Commit generated and formatted files
+        run: |
+          git add server/src/ontology_map/db/promotion_provenance.py \
+                  server/tests/test_promotion_provenance_postgres.py \
+                  server/tests/test_promotion_provenance_migration_postgres.py \
+                  docs/data/schema-reference.md
+          if git diff --cached --quiet; then
+            echo "No autofix changes needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: apply issue 216 generated and formatting fixes"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
