@@ -46,12 +46,7 @@ jobs:
               helpers: harness.ExtractionModels,
               adapter: ModelStudioGenerationAdapter,
           ) -> RunnerResult:
-              """Run one durable extraction using the production Flash send boundary.
-
-              The caller owns adapter lifetime and helper policy. This function only
-              composes the approved durable generation adapter with the existing runner;
-              helper calls remain non-durable runtime calls.
-              """
+              """Compose the approved durable runner with one production Flash send."""
               return run_extraction(
                   engine,
                   task_id,
@@ -71,15 +66,15 @@ jobs:
           old = "import pytest\nimport sqlalchemy as sa\nfrom openai import APIConnectionError\n"
           new = "import pytest\nimport sqlalchemy as sa\nfrom openai import APIConnectionError\nfrom pydantic import SecretStr\n"
           if text.count(old) != 1:
-              raise SystemExit("pg pydantic import anchor count != 1")
+              raise SystemExit("pydantic import anchor count != 1")
           text = text.replace(old, new, 1)
           old = "from ontology_map.extraction_contracts import KnowledgeProposals\nfrom ontology_map.extraction_runner import RuntimeInput, run_extraction\n"
           new = "from ontology_map.extraction_contracts import KnowledgeProposals\nfrom ontology_map.extraction_provider import (\n    ModelStudioGenerationAdapter,\n    run_model_studio_extraction,\n)\nfrom ontology_map.extraction_runner import RuntimeInput, run_extraction\n"
           if text.count(old) != 1:
-              raise SystemExit("pg provider import anchor count != 1")
+              raise SystemExit("provider import anchor count != 1")
           text = text.replace(old, new, 1)
 
-          timeout_old = '''def test_generation_timeout_records_retry_and_runner_does_not_loop(runtime_task):
+          old_timeout = '''def test_generation_timeout_records_retry_and_runner_does_not_loop(runtime_task):
               engine, task_id, _, _ = runtime_task
               calls = OfflineCalls()
 
@@ -88,7 +83,7 @@ jobs:
 
               calls.on_send = timeout
           '''
-          timeout_new = '''def test_confirmed_provider_timeout_records_retry_and_runner_does_not_loop(runtime_task):
+          new_timeout = '''def test_confirmed_timeout_records_retry_without_runner_loop(runtime_task):
               engine, task_id, _, _ = runtime_task
               calls = OfflineCalls()
 
@@ -101,24 +96,23 @@ jobs:
 
               calls.on_send = timeout
           '''
-          if text.count(timeout_old) != 1:
-              raise SystemExit("pg timeout anchor count != 1")
-          text = text.replace(timeout_old, timeout_new, 1)
+          if text.count(old_timeout) != 1:
+              raise SystemExit("timeout test anchor count != 1")
+          text = text.replace(old_timeout, new_timeout, 1)
 
-          ambiguous_anchor = '''        RuntimeError("private ambiguous wire failure"),
+          old_ambiguous = '''        RuntimeError("private ambiguous wire failure"),
                   httpx.ReadError("private lost reply"),
           '''
-          ambiguous_new = '''        RuntimeError("private ambiguous wire failure"),
+          new_ambiguous = '''        RuntimeError("private ambiguous wire failure"),
                   httpx.ReadTimeout("private lost reply timeout"),
                   httpx.ReadError("private lost reply"),
           '''
-          if text.count(ambiguous_anchor) != 1:
-              raise SystemExit("pg ambiguous anchor count != 1")
-          text = text.replace(ambiguous_anchor, ambiguous_new, 1)
+          if text.count(old_ambiguous) != 1:
+              raise SystemExit("ambiguous test anchor count != 1")
+          text = text.replace(old_ambiguous, new_ambiguous, 1)
 
-          insert_anchor = '''def test_verified_result_uses_one_product_slot_and_writes_no_knowledge(runtime_task):
-          '''
-          integration_test = '''def test_model_studio_adapter_sends_only_after_reserved_slot_commit(runtime_task):
+          marker = "def test_verified_result_uses_one_product_slot_and_writes_no_knowledge(runtime_task):\n"
+          integration = '''def test_model_studio_send_happens_after_reserved_slot_commit(runtime_task):
               engine, task_id, execution, runtime = runtime_task
               helpers = OfflineCalls()
 
@@ -139,17 +133,11 @@ jobs:
                       200,
                       request=request,
                       json={
-                          "id": "offline",
-                          "object": "chat.completion",
-                          "created": 0,
                           "model": FLASH,
-                          "choices": [
-                              {
-                                  "index": 0,
-                                  "finish_reason": "stop",
-                                  "message": {"role": "assistant", "content": output},
-                              }
-                          ],
+                          "choices": [{
+                              "finish_reason": "stop",
+                              "message": {"role": "assistant", "content": output},
+                          }],
                           "usage": {
                               "prompt_tokens": 100,
                               "completion_tokens": 100,
@@ -185,13 +173,11 @@ jobs:
 
 
           '''
-          if text.count(insert_anchor) != 1:
-              raise SystemExit("pg integration insert anchor count != 1")
-          text = text.replace(insert_anchor, integration_test + insert_anchor, 1)
-          pg.write_text(text, encoding="utf-8")
+          if text.count(marker) != 1:
+              raise SystemExit("integration test marker count != 1")
+          pg.write_text(text.replace(marker, integration + marker, 1), encoding="utf-8")
           PY
 
-          rm .github/workflows/issue-127-b2-integration.yml
           uv sync --project server --frozen
           uv run --project server --frozen ruff check --fix \
             server/src/ontology_map/extraction_provider.py \
@@ -202,13 +188,12 @@ jobs:
           uv run --project server --frozen ruff check \
             server/src/ontology_map/extraction_provider.py \
             server/tests/test_extraction_runner_postgres.py
-          uv run --project server --frozen mypy \
-            server/src/ontology_map/extraction_provider.py
+          uv run --project server --frozen mypy server/src/ontology_map/extraction_provider.py
           uv run --project server --frozen pytest -q \
             server/tests/test_extraction_provider.py \
             server/tests/test_extraction_runner.py
           git diff --check
-          git add -A
+          git add server/src/ontology_map/extraction_provider.py server/tests/test_extraction_runner_postgres.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "test: connect Model Studio adapter to durable runner"
