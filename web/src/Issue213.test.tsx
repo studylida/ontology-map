@@ -201,7 +201,8 @@ describe("Issue #213 relation verification UX", () => {
     });
     expect(relationEvidenceButtons).toHaveLength(2);
     const secondEvidenceButton = relationEvidenceButtons.at(1);
-    if (!secondEvidenceButton) throw new Error("second relation evidence action missing");
+    if (!secondEvidenceButton)
+      throw new Error("second relation evidence action missing");
 
     fireEvent.click(secondEvidenceButton);
     expect(onEvidence).toHaveBeenCalledWith(
@@ -267,6 +268,37 @@ describe("Issue #213 relation verification UX", () => {
     );
     expect(screen.queryByText("현재 지도에 포함됨")).toBeNull();
     expect(screen.queryByText("지도 유형 필터로 숨김")).toBeNull();
+  });
+
+  it("preserves source-to-target direction in incoming Relation Evidence actions", async () => {
+    request.mockResolvedValue(
+      response({
+        items: [
+          {
+            ...relationRow,
+            source_node_id: "2",
+            target_node_id: "1",
+          },
+        ],
+        next_cursor: null,
+      }),
+    );
+    const onEvidence = vi.fn();
+    render(
+      <RelationList
+        nodeId="1"
+        nodeName={center.name}
+        onEvidence={onEvidence}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "HBF 관계 근거 보기" }),
+    );
+    expect(onEvidence).toHaveBeenCalledWith({
+      id: "100",
+      label: "HBF · 관련 · 중심 회사",
+    });
   });
 
   it("uses opaque Evidence item identity so same source and locator keeps separate Claim/stance items", async () => {
