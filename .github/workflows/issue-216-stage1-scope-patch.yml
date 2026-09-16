@@ -1,0 +1,391 @@
+name: Issue 216 Stage One Scope Patch
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue-216-stage1-scope-patch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+      - name: Apply stage-one scope patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              if text.count(old) != 1:
+                  raise SystemExit(f"{path}: anchor count for replacement is {text.count(old)}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          logical = "docs/data/logical-schema.md"
+          replace_once(
+              logical,
+              "> 변경 기준일: 2026-09-15\n>\n> 관련 변경: Issue #41, #64, #69, #91, #110, #200, #203",
+              "> 변경 기준일: 2026-09-16\n>\n> 관련 변경: Issue #41, #64, #69, #91, #110, #200, #203, #216",
+          )
+          replace_once(
+              logical,
+              "    PROMOTION_BATCH ||--o{ KNOWLEDGE_ITEM : creates\n",
+              "    PROMOTION_BATCH ||--o{ KNOWLEDGE_ITEM : creates\n    PROMOTION_BATCH ||--o{ PROMOTION_CANONICAL_CHANGE : records\n",
+          )
+          replace_once(
+              logical,
+              "| `promotion_failure_reason`, `publication_failure_reason` | 서로 분리된 실패 이유 |\n\n#### `knowledge_item`, `knowledge_state_event`",
+              """| `promotion_failure_reason`, `publication_failure_reason` | 서로 분리된 실패 이유 |
+
+#### `promotion_canonical_change`
+
+기존 canonical object를 재사용하면서 이번 promotion이 실제로 새 association/change를 만들었지만 기존 schema만으로 batch attribution을 복원할 수 없는 경우만 기록하는 immutable provenance다. 새 Node·Relation·Claim 자체는 계속 `knowledge_item.promotion_batch_id`를 사용하며 이 테이블에 중복 기록하지 않는다.
+
+허용 `change_kind`는 `NODE_ALIAS_CHANGED`, `NODE_ALIAS_EVIDENCE_ADDED`, `CLAIM_OBSERVATION_ADDED`, `CLAIM_RELATION_ADDED`, `CLAIM_ATTRIBUTE_VALUE_ADDED`, `EVENT_TEMPORAL_BASIS_ADDED` 여섯 종류로 닫혀 있다. exact target은 각각 `node_alias_id`, `(node_alias_id, observation_id)`, `(claim_id, observation_id)`, `(claim_id, relation_id)`, `claim_attribute_value_id`, `(event_node_id, claim_id)`다. association target은 가능한 경우 원본 association의 복합 키를 FK로 직접 참조한다.
+
+이 provenance는 publication job/state, affected Node, retry attempt, staging/result payload 또는 generic event log가 아니다. 실제 canonical mutation과 같은 promotion transaction에서만 기록하고 실제 no-op/retry에는 새 provenance를 만들지 않는다. migration 이전 historical association은 timestamp나 row 순서로 추정 backfill하지 않는다.
+
+#### `knowledge_item`, `knowledge_state_event`""",
+          )
+          replace_once(
+              logical,
+              "승격 실패는 지식 쓰기를 모두 롤백한다. 공개 실패는 기준 지식을 유지하고 이전 `READY` 결과를 제공한다.",
+              "승격 실패는 지식 쓰기를 모두 롤백한다. `promotion_canonical_change`는 실제 canonical mutation과 같은 promotion transaction에서 함께 commit 또는 rollback되는 불변 이력이며 publication 상태 전이로 소비·삭제하지 않는다. 공개 실패는 기준 지식을 유지하고 이전 `READY` 결과를 제공한다.",
+          )
+          replace_once(
+              logical,
+              "- 충돌 대상 형태와 상태·시각 조합의 행 내부 CHECK\n",
+              "- 충돌 대상 형태와 상태·시각 조합의 행 내부 CHECK\n- `promotion_canonical_change`의 닫힌 6종 kind, kind별 exact target shape, canonical association FK와 batch+kind+target partial unique idempotency\n",
+          )
+          replace_once(
+              logical,
+              "- 상태 이벤트와 현재 상태의 동시 갱신\n",
+              "- 상태 이벤트와 현재 상태의 동시 갱신\n- 실제 canonical mutation 성공 여부를 PostgreSQL write 결과로 판별하고 같은 promotion transaction에서만 해당 `promotion_canonical_change`를 기록하며 no-op에는 기록하지 않음\n",
+          )
+
+          physical = "docs/data/physical-schema.md"
+          replace_once(
+              physical,
+              "- 확인일: 2026-09-15\n- 관련 Issue: [#40 Define PostgreSQL physical schema conventions](https://github.com/studylida/ontology-map/issues/40), [#200 NUMBER attribute 복수 허용 단위 지원](https://github.com/studylida/ontology-map/issues/200), [#203 Topic reference lifecycle 지원](https://github.com/studylida/ontology-map/issues/203)",
+              "- 확인일: 2026-09-16\n- 관련 Issue: [#40 Define PostgreSQL physical schema conventions](https://github.com/studylida/ontology-map/issues/40), [#200 NUMBER attribute 복수 허용 단위 지원](https://github.com/studylida/ontology-map/issues/200), [#203 Topic reference lifecycle 지원](https://github.com/studylida/ontology-map/issues/203), [#216 promotion canonical change provenance](https://github.com/studylida/ontology-map/issues/216)",
+          )
+          replace_once(
+              physical,
+              "- 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`; #200, `server/migrations/versions/0003_support_multiple_number_attribute_units.py`; #203, `server/migrations/versions/0004_support_topic_reference_lifecycle.py`",
+              "- 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`; #200, `server/migrations/versions/0003_support_multiple_number_attribute_units.py`; #203, `server/migrations/versions/0004_support_topic_reference_lifecycle.py`; #216 1/2, `server/migrations/versions/0005_add_promotion_canonical_change.py`",
+          )
+          replace_once(
+              physical,
+              "- SQLAlchemy metadata: `server/src/ontology_map/db/schema.py`\n- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_support_multiple_number_attribute_units.py` → `0004_support_topic_reference_lifecycle.py`",
+              "- SQLAlchemy complete metadata: `server/src/ontology_map/db/metadata.py` (`schema.py`의 기존 metadata에 #216 provenance table을 등록)\n- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_support_multiple_number_attribute_units.py` → `0004_support_topic_reference_lifecycle.py` → `0005_add_promotion_canonical_change.py`",
+          )
+          replace_once(
+              physical,
+              "Relation의 stance는 `claim_relation`, 구조화 속성값은 `claim_attribute_value`, 사건 시간 근거는 `event_temporal_basis`가 Claim에 연결한다. node 인사이트도 `node_insight_claim`에서 기존 Claim으로 이어져 같은 Evidence Trace를 재사용한다.\n\n`publication_affected_node`는",
+              """Relation의 stance는 `claim_relation`, 구조화 속성값은 `claim_attribute_value`, 사건 시간 근거는 `event_temporal_basis`가 Claim에 연결한다. node 인사이트도 `node_insight_claim`에서 기존 Claim으로 이어져 같은 Evidence Trace를 재사용한다.
+
+### Promotion canonical-change provenance
+
+#216의 `promotion_canonical_change`는 identity PK, NOT NULL `promotion_batch_id`, closed `change_kind`, 그리고 `node_alias_id`, `observation_id`, `claim_id`, `relation_id`, `claim_attribute_value_id`, `event_node_id` 전용 nullable target column만 가진다. JSON payload, `affected_node_id`, workflow/publication 상태 column은 두지 않는다.
+
+`NODE_ALIAS_EVIDENCE_ADDED`, `CLAIM_OBSERVATION_ADDED`, `CLAIM_RELATION_ADDED`, `EVENT_TEMPORAL_BASIS_ADDED`는 각각 원본 association의 composite PK를 composite FK로 직접 참조한다. `NODE_ALIAS_CHANGED`와 `CLAIM_ATTRIBUTE_VALUE_ADDED`는 exact target row를 단일 FK로 참조한다. 하나의 CHECK가 kind별 필요한 target만 non-NULL이고 관계없는 target은 NULL임을 강제하며, 별도 closed-kind CHECK가 여섯 종류 밖의 값을 거부한다.
+
+Idempotency는 nullable 전체 UNIQUE에 의존하지 않고 kind별 partial unique index 여섯 개로 `promotion_batch + change_kind + exact target`을 고정한다. `(promotion_batch_id, promotion_canonical_change_id)` index는 향후 coordinator가 batch 기준으로 provenance를 읽을 최소 access path다.
+
+migration `0005`는 historical association을 backfill하지 않는다. transaction-local primitive는 caller가 연 promotion transaction 안에서만 동작하고 association insert는 `INSERT ... ON CONFLICT DO NOTHING RETURNING ...` 결과로 실제 mutation 여부를 판별할 수 있게 한다. 이번 #216 1/2 단계는 이 persistence/primitive/guard까지 구현하며 repository 전체 production promotion writer의 최종 6종 wiring은 2/2 단계에 남긴다.
+
+`publication_affected_node`는""",
+          )
+
+          provenance_doc = "docs/data/promotion-canonical-provenance.md"
+          replace_once(
+              provenance_doc,
+              "> 상태: Issue #216 구현 계약",
+              "> 상태: Issue #216 구현 1/2 — schema/persistence checkpoint",
+          )
+          p = Path(provenance_doc)
+          text = p.read_text(encoding="utf-8")
+          start = text.index("## 5. production write boundary")
+          end = text.index("## 6. restart-safe read와 #215 경계", start)
+          stage5 = """## 5. transaction-local persistence primitive
+
+`ontology_map.db.promotion_provenance`는 caller-owned promotion transaction에서 사용할 명시적 primitive를 제공한다. helper 내부에서는 commit하지 않으며 provenance insert가 실패하면 caller transaction 전체가 실패할 수 있다.
+
+association 생성 helper는 `INSERT ... ON CONFLICT ... DO NOTHING RETURNING ...`으로 실제 insert 획득 여부를 판별한다. 따라서 object 재사용과 association creation을 구분할 수 있고, 실제 no-op/retry에는 provenance를 만들지 않는다. `NODE_ALIAS_CHANGED`는 alias writer가 실제 INSERT/승인된 의미 변경을 확인한 뒤 호출할 `record_node_alias_changed` primitive로 분리돼 있다.
+
+이 1/2 단계에서는 repository 전체 production promotion writer를 이 primitive로 최종 rewiring하지 않는다. 현재 Entity Resolution production alias path도 main 상태를 유지한다. 2/2 Worker는 실제 mutation surface를 다시 감사하고, 승인된 여섯 kind 각각에서 mutation winner만 같은 transaction의 provenance를 남기도록 wiring해야 한다.
+
+"""
+          text = text[:start] + stage5 + text[end:]
+          text = text.replace(
+              "## 6. restart-safe read와 #215 경계",
+              "## 6. read helper와 #215 경계",
+              1,
+          )
+          text = text.replace(
+              "`changes_for_batch(session, promotion_batch_id)`는 process-local memory 없이 DB의 exact change-set을 다시 읽는다. 이 read helper는 publication state를 변경하지 않는다.",
+              "`changes_for_batch(session, promotion_batch_id)`는 DB의 exact provenance row를 읽는 순수 read helper다. 이 단계에서는 이 helper를 이용한 restart→affected Node projection 전체 회귀나 2-hop 전파 회귀를 완료했다고 주장하지 않는다. read helper 자체는 publication state를 변경하지 않는다.",
+              1,
+          )
+          verify_start = text.index("## 8. 검증")
+          stage8 = """## 8. 1/2 단계 검증과 남은 범위
+
+이 단계의 PostgreSQL regression은 다음을 고정한다.
+
+- closed kind CHECK와 kind별 exact target shape
+- exact simple/composite FK와 여섯 partial unique index, batch lookup index
+- migration `0004 → 0005`, historical no-backfill, `0005 → 0004 → 0005` round-trip
+- primitive same-batch retry dedupe와 association no-op 무기록
+- canonical mutation과 provenance의 같은 transaction commit/rollback
+- 잘못된 association FK와 관계없는 target column 차단
+- legacy `COMMITTED + NOT_STARTED` guard의 safe/unsafe 검출과 무변경 동작
+- `alembic check`와 generated schema-reference/metadata 일치
+
+다음은 의도적으로 2/2에 남긴다.
+
+- repository 전체 production promotion writer의 6종 최종 wiring
+- concurrent promotion winner attribution 최종 E2E
+- process restart 후 affected Node projection 전체 regression
+- Relation endpoint/attribute/Event/evidence-only/multi-target Claim projection과 no-2-hop regression
+- #215 coordinator, `publication_affected_node`, PREPARING/READY orchestration
+- #180 recovery와 #127 provider lifecycle
+
+따라서 이 문서는 #216 전체 완료나 #215 재개 승인을 의미하지 않는다.
+"""
+          p.write_text(text[:verify_start] + stage8, encoding="utf-8")
+
+          test_path = Path("server/tests/test_promotion_provenance_postgres.py")
+          text = test_path.read_text(encoding="utf-8")
+          text = text.replace("from concurrent.futures import ThreadPoolExecutor\n", "")
+          text = text.replace("from threading import Barrier\n", "")
+          text = text.replace(
+              "from ontology_map.db import entity_resolution as entity_db\n", ""
+          )
+
+          alias_start = text.index(
+              "def test_alias_new_reuse_evidence_and_retry_record_only_real_mutations"
+          )
+          alias_end = text.index("\ndef test_claim_association_attribute_and_event_surfaces", alias_start)
+          alias_test = '''def test_alias_primitives_are_exact_and_same_batch_retry_dedupes(
+    database: Session,
+) -> None:
+    values = _base_objects(database)
+    batch_id = _batch(database)
+    alias_id = returning(
+        database,
+        """
+        INSERT INTO node_alias (node_id, alias_text, language, is_preferred)
+        VALUES (:node_id, :text, 'ko', false)
+        RETURNING node_alias_id
+        """,
+        node_id=values["left"],
+        text=f"stage-one-alias-{uuid4()}",
+    )
+
+    provenance.record_node_alias_changed(database, batch_id, alias_id)
+    provenance.record_node_alias_changed(database, batch_id, alias_id)
+    assert provenance.add_node_alias_evidence(
+        database, batch_id, alias_id, values["observation"]
+    )
+    assert not provenance.add_node_alias_evidence(
+        database, batch_id, alias_id, values["observation"]
+    )
+
+    changes = provenance.changes_for_batch(database, batch_id)
+    assert [change.change_kind for change in changes] == [
+        "NODE_ALIAS_CHANGED",
+        "NODE_ALIAS_EVIDENCE_ADDED",
+    ]
+
+'''
+          text = text[:alias_start] + alias_test + text[alias_end + 1:]
+
+          schema_anchor = '''    assert all(
+        "UNIQUE INDEX" in row.indexdef and " WHERE " in row.indexdef for row in indexes
+    )
+'''
+          schema_extra = schema_anchor + '''
+    definitions = {
+        row.conname: row.definition
+        for row in execute(
+            database,
+            """
+            SELECT conname, pg_get_constraintdef(oid) AS definition
+            FROM pg_constraint
+            WHERE conrelid = 'promotion_canonical_change'::regclass
+            """,
+        ).all()
+    }
+    expected_foreign_targets = {
+        "fk_promotion_canonical_change__promotion_batch": "REFERENCES promotion_batch(promotion_batch_id)",
+        "fk_promotion_canonical_change__node_alias": "REFERENCES node_alias(node_alias_id)",
+        "fk_promotion_canonical_change__node_alias_evidence": "REFERENCES node_alias_evidence(node_alias_id, observation_id)",
+        "fk_promotion_canonical_change__claim_observation": "REFERENCES claim_observation(claim_id, observation_id)",
+        "fk_promotion_canonical_change__claim_relation": "REFERENCES claim_relation(claim_id, relation_id)",
+        "fk_promotion_canonical_change__attribute_value": "REFERENCES claim_attribute_value(claim_attribute_value_id)",
+        "fk_promotion_canonical_change__event_temporal_basis": "REFERENCES event_temporal_basis(event_node_id, claim_id)",
+    }
+    for name, target in expected_foreign_targets.items():
+        assert name in definitions
+        assert target.replace(" ", "") in definitions[name].replace(" ", "")
+
+    batch_index = execute(
+        database,
+        """
+        SELECT indexdef FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'promotion_canonical_change'
+          AND indexname = 'ix_promotion_canonical_change__batch'
+        """,
+    ).scalar_one()
+    assert "(promotion_batch_id, promotion_canonical_change_id)" in batch_index
+'''
+          if text.count(schema_anchor) != 1:
+              raise SystemExit("schema assertion anchor not found exactly once")
+          text = text.replace(schema_anchor, schema_extra, 1)
+
+          restart_start = text.index(
+              "def test_restart_reload_projection_inputs_and_publication_lifecycle_preserve_history"
+          )
+          legacy_start = text.index(
+              "def test_legacy_committed_not_started_batches_block_cutover_without_mutation",
+              restart_start,
+          )
+          text = text[:restart_start] + text[legacy_start:]
+
+          concurrent_start = text.index(
+              "def test_concurrent_claim_observation_insert_attributes_only_the_winner"
+          )
+          text = text[:concurrent_start].rstrip() + "\n"
+
+          legacy_anchor = '''def test_legacy_committed_not_started_batches_block_cutover_without_mutation(
+    database: Session,
+) -> None:
+    legacy_batch = _batch(database, committed=True)
+'''
+          legacy_replacement = '''def test_legacy_committed_not_started_batches_block_cutover_without_mutation(
+    database: Session,
+) -> None:
+    assert provenance.legacy_committed_not_started_batch_ids(database) == ()
+    provenance.assert_initial_publication_cutover_safe(database)
+
+    legacy_batch = _batch(database, committed=True)
+'''
+          if text.count(legacy_anchor) != 1:
+              raise SystemExit("legacy guard anchor not found exactly once")
+          text = text.replace(legacy_anchor, legacy_replacement, 1)
+
+          commit_test = '''
+
+def test_canonical_mutation_and_provenance_commit_together() -> None:
+    engine = sa.create_engine(_checked_url())
+    try:
+        with Session(engine) as writer, writer.begin():
+            values = _base_objects(writer)
+            batch_id = _batch(writer)
+            observation_id = _observation(writer, f"stage-one-commit-{uuid4()}")
+            assert provenance.add_claim_observation(
+                writer, batch_id, values["claim"], observation_id
+            )
+            claim_id = values["claim"]
+
+        with Session(engine) as verify:
+            assert (
+                execute(
+                    verify,
+                    """
+                    SELECT count(*) FROM claim_observation
+                    WHERE claim_id = :claim_id AND observation_id = :observation_id
+                    """,
+                    claim_id=claim_id,
+                    observation_id=observation_id,
+                ).scalar_one()
+                == 1
+            )
+            assert (
+                execute(
+                    verify,
+                    """
+                    SELECT count(*) FROM promotion_canonical_change
+                    WHERE promotion_batch_id = :batch_id
+                      AND change_kind = 'CLAIM_OBSERVATION_ADDED'
+                      AND claim_id = :claim_id AND observation_id = :observation_id
+                    """,
+                    batch_id=batch_id,
+                    claim_id=claim_id,
+                    observation_id=observation_id,
+                ).scalar_one()
+                == 1
+            )
+    finally:
+        engine.dispose()
+'''
+          legacy_pos = text.index(
+              "def test_legacy_committed_not_started_batches_block_cutover_without_mutation"
+          )
+          text = text[:legacy_pos] + commit_test + "\n" + text[legacy_pos:]
+          test_path.write_text(text, encoding="utf-8")
+
+          migration_path = Path(
+              "server/tests/test_promotion_provenance_migration_postgres.py"
+          )
+          text = migration_path.read_text(encoding="utf-8")
+          roundtrip_anchor = '''    finally:
+        engine.dispose()
+'''
+          second_test = text.index(
+              "def test_0004_history_is_not_attributed_and_survives_round_trip"
+          )
+          final_pos = text.index(roundtrip_anchor, second_test)
+          reupgrade = '''        _upgrade("0005")
+        with engine.connect() as connection:
+            assert _version(connection) == "0005"
+            assert _table_exists(connection, "promotion_canonical_change")
+            assert (
+                connection.scalar(
+                    sa.text("SELECT count(*) FROM promotion_canonical_change")
+                )
+                == 0
+            )
+            assert (
+                connection.scalar(
+                    sa.text("""
+                        SELECT count(*) FROM node_alias_evidence
+                        WHERE node_alias_id = :alias_id
+                          AND observation_id = :observation_id
+                    """),
+                    {"alias_id": alias_id, "observation_id": observation_id},
+                )
+                == 1
+            )
+
+'''
+          text = text[:final_pos] + reupgrade + text[final_pos:]
+          migration_path.write_text(text, encoding="utf-8")
+          PY
+
+          uvx ruff@0.16.5 format \
+            server/tests/test_promotion_provenance_postgres.py \
+            server/tests/test_promotion_provenance_migration_postgres.py
+          git rm .github/workflows/issue-216-stage1-scope-patch.yml
+          git diff --check
+      - name: Commit stage-one scope patch
+        run: |
+          git add \
+            docs/data/logical-schema.md \
+            docs/data/physical-schema.md \
+            docs/data/promotion-canonical-provenance.md \
+            server/tests/test_promotion_provenance_postgres.py \
+            server/tests/test_promotion_provenance_migration_postgres.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test: focus issue 216 stage-one persistence checkpoint"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
