@@ -1,0 +1,88 @@
+name: Issue 127 B3 provenance wiring
+
+on:
+  push:
+    branches:
+      - feat/127-role-harness
+    paths:
+      - .github/workflows/issue-127-b3-provenance.yml
+      - scripts/issue_127_b3_wire_provenance.py
+
+permissions:
+  contents: write
+
+jobs:
+  wire-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: ke127-b3-${{ github.run_id }}-${{ github.run_attempt }}
+      POSTGRES_DB: ontology_map_ke127_test
+      POSTGRES_USER: ke127_test
+      POSTGRES_PORT: "127.0.0.1:55433"
+      ONTOLOGY_MAP_ENVIRONMENT: development
+      PYTHONPATH: ${{ github.workspace }}/server/src
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Setup pinned uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          version: "0.12.7"
+          enable-cache: true
+      - name: Apply official #216 wiring
+        run: python scripts/issue_127_b3_wire_provenance.py
+      - name: Format and static checks
+        run: |
+          uv sync --project server --frozen
+          uv run --project server --frozen ruff format server/src/ontology_map/extraction_promotion.py server/src/ontology_map/db/extraction_promotion.py server/tests/test_extraction_promotion_postgres.py
+          uv run --project server --frozen ruff check server
+          uv run --project server --frozen ruff format --check server
+          uv run --project server --frozen mypy --config-file server/pyproject.toml server/src/ontology_map
+          (cd server && uv run --frozen mypy src)
+          (cd server && uv run --frozen alembic heads) | tee /tmp/alembic-heads.txt
+          grep -qx '0006 (head)' /tmp/alembic-heads.txt
+      - name: Prepare isolated PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          url="postgresql+psycopg://${POSTGRES_USER}:${password}@127.0.0.1:55433/${POSTGRES_DB}"
+          echo "::add-mask::$url"
+          {
+            echo "POSTGRES_PASSWORD=$password"
+            echo "ONTOLOGY_MAP_DATABASE_URL=$url"
+            echo "ONTOLOGY_MAP_KE_TEST_DATABASE_URL=$url"
+          } >> "$GITHUB_ENV"
+      - name: Migrate isolated PostgreSQL
+        run: |
+          docker compose up --wait --wait-timeout 120 db
+          docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 'SELECT version(), current_database();'
+          (cd server && uv run --frozen alembic upgrade head && uv run --frozen alembic current)
+      - name: B3 PostgreSQL regression
+        run: uv run --project server --frozen pytest -q -ra server/tests/test_extraction_promotion.py server/tests/test_extraction_promotion_postgres.py
+      - name: Metadata and migration consistency
+        run: |
+          (cd server && uv run --frozen alembic check)
+          uv run --project server --frozen python scripts/check_docs.py --check
+          git diff --check
+          ! git grep -n 'DEPENDENCY_BLOCKED_216' -- server/src server/tests
+          ! git grep -n 'promotion_db\.commit_batch' -- server/src server/tests
+      - name: Commit clean B3 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/issue-127-b3-provenance.yml scripts/issue_127_b3_wire_provenance.py
+          git add server/src/ontology_map/extraction_promotion.py server/src/ontology_map/db/extraction_promotion.py server/tests/test_extraction_promotion_postgres.py
+          git diff --cached --check
+          git commit -m "feat: wire #127 promotion through #216 provenance"
+          git push origin HEAD:feat/127-role-harness
+      - name: Cleanup isolated PostgreSQL
+        if: ${{ always() }}
+        run: docker compose down --volumes
