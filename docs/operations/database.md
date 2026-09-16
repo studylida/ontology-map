@@ -55,13 +55,15 @@ uv run --env-file ../.env alembic upgrade head
 uv run --env-file ../.env alembic current
 ```
 
-현재 기준 revision은 `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_support_multiple_number_attribute_units.py` → `0004_support_topic_reference_lifecycle.py`다. PostgreSQL 객체는 `public` schema에 만들며 migration과 SQLAlchemy metadata는 같은 schema를 표현한다. #121 이후 `0001`에는 `vector` extension, `node_embedding` table과 `EMBEDDING` task 허용 계약이 없다.
+현재 기준 revision은 `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_support_multiple_number_attribute_units.py` → `0004_support_topic_reference_lifecycle.py` → `0005_add_promotion_canonical_change.py`다. PostgreSQL 객체는 `public` schema에 만들며 migration과 SQLAlchemy metadata는 같은 schema를 표현한다. #121 이후 `0001`에는 `vector` extension, `node_embedding` table과 `EMBEDDING` task 허용 계약이 없다.
 
 `0003`은 기존 NUMBER `attribute_revision.unit_rule`을 `attribute_revision_allowed_unit`의 허용 단위 행으로 옮긴 뒤 `claim_attribute_value(attribute_revision_id, unit_code)`를 그 허용 집합에 FK로 연결한다. 기존 단일 단위 revision은 한 행으로 그대로 이관한다. 기존 Claim의 unit이 legacy `unit_rule`과 다르면 값을 환산하거나 수정하지 않고 migration을 실패시킨다. 복수 허용 단위가 생성된 뒤 `0002`로 downgrade하면 의미를 한 문자열로 되돌릴 수 없으므로 downgrade도 중단한다.
 
 `0004`는 `knowledge_item.lifecycle_kind`와 `topic_reference`를 추가한다. 기존 행은 모두 `EVIDENCE_BACKED`로 해석되어 state/promotion 값을 그대로 유지하며 기존 evidence-backed TOPIC도 자동 변환하지 않는다. 새 `PRODUCT_REFERENCE` Topic만 일반 state/promotion 없이 저장할 수 있고 DB 무결성이 TOPIC node + reference definition 조합으로 제한한다. Reference Topic row가 존재하면 `0003` downgrade는 의미 손실을 막기 위해 실패한다.
 
 `0004` 자체는 제품 Topic row를 seed하지 않고 startup도 누락 Topic을 자동 생성하지 않는다. 승인 Topic 9개의 실제 활성화는 migration과 분리된 #201 명시적 reference activation transaction이 담당한다. 개발 fixture의 evidence-backed TOPIC과 제품 Reference Topic을 같은 데이터로 간주하지 않는다.
+
+`0005`는 #216의 immutable `promotion_canonical_change` provenance만 추가하며 historical association을 추정 backfill하지 않는다. initial publication coordinator를 enable하기 전 `COMMITTED + NOT_STARTED` legacy batch가 있으면 `assert_initial_publication_cutover_safe()`가 차단하며 timestamp attribution, 자동 skip, provenance fabrication이나 publication 상태 변경을 수행하지 않는다. 실제 one-time remediation은 별도 운영 판단 없이 이 migration이 자동 수행하지 않는다.
 
 ### 제품 ontology reference data 활성화
 

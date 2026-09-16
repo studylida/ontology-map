@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from ontology_map import entity_resolution as service
 from ontology_map.db import entity_resolution as db
+from ontology_map.db import promotion_provenance as provenance
 from ontology_map.entity_resolution_contracts import (
     EntityMention,
     ExternalIdentifier,
@@ -401,6 +402,11 @@ def test_new_node_alias_and_evidenced_claim_share_pending_transaction(database):
             other,
             f"{name}는 기존회사와 협력한다.",
         )
+    changes = provenance.changes_for_batch(database, promotion_id)
+    assert [change.change_kind for change in changes] == [
+        "NODE_ALIAS_CHANGED",
+        "NODE_ALIAS_EVIDENCE_ADDED",
+    ]
     assert (
         execute(
             database,
@@ -423,6 +429,28 @@ def test_new_node_alias_and_evidenced_claim_share_pending_transaction(database):
         ).scalar_one()
         == "PENDING"
     )  # Owner still decides commit.
+
+
+def test_existing_alias_reuse_records_only_new_evidence(database):
+    name = f"Existing{uuid4().hex}"
+    canonical = node(database, name)
+    target = source_mention(database, name)
+    result = service.resolve_mention(database, target, propose("SAME", canonical))
+    assert (result.decision, result.node_id) == ("SAME", canonical)
+    promotion_id = batch(database)
+
+    with service.resolved_nodes_for_promotion(
+        database, promotion_id, (result,), frozenset({"m1"})
+    ):
+        pass
+    first = provenance.changes_for_batch(database, promotion_id)
+    assert [change.change_kind for change in first] == ["NODE_ALIAS_EVIDENCE_ADDED"]
+
+    with service.resolved_nodes_for_promotion(
+        database, promotion_id, (result,), frozenset({"m1"})
+    ):
+        pass
+    assert provenance.changes_for_batch(database, promotion_id) == first
 
 
 @pytest.mark.parametrize("failure", ["orphan", "writer"])
