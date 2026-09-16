@@ -11,7 +11,6 @@ from unicodedata import normalize
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from ontology_map.db import promotion_provenance as provenance
 from ontology_map.entity_resolution_contracts import (
     CANDIDATE_LIMIT,
     CandidateSet,
@@ -276,7 +275,22 @@ def active_type_id(session: Session, code: str) -> int | None:
 
 
 def require_pending_batch(session: Session, batch_id: int) -> None:
-    provenance.require_pending_batch(session, batch_id)
+    row = (
+        session.execute(
+            sa.text("""
+        SELECT promotion_status, publication_status FROM promotion_batch
+        WHERE promotion_batch_id = :batch_id FOR UPDATE
+    """),
+            {"batch_id": batch_id},
+        )
+        .mappings()
+        .one()
+    )
+    if (row["promotion_status"], row["publication_status"]) != (
+        "PENDING",
+        "NOT_STARTED",
+    ):
+        raise ValueError("entity writes require a pending promotion batch")
 
 
 def _insert_node(session: Session, batch_id: int, type_id: int) -> int:
@@ -335,7 +349,6 @@ def _ensure_observation(session: Session, context: VerifiedContext) -> int:
 
 def _ensure_alias(
     session: Session,
-    batch_id: int,
     node_id: int,
     text: str,
     language: str,
@@ -365,32 +378,29 @@ def _ensure_alias(
         {**values, "ids": [node_id]},
     ).scalar_one_or_none()
     if existing is None:
-        inserted = session.execute(
+        session.execute(
             sa.text("""
             INSERT INTO node_alias (node_id, alias_text, language, is_preferred)
             VALUES (:node_id, :text, :language, :preferred)
             ON CONFLICT (node_id, alias_text, language) DO NOTHING
-            RETURNING node_alias_id
         """),
             values,
-        ).scalar_one_or_none()
-        if inserted is not None:
-            existing = int(inserted)
-            provenance.record_node_alias_changed(session, batch_id, existing)
-        else:
-            existing = session.execute(
-                sa.text("""
-                SELECT node_alias_id FROM node_alias
-                WHERE node_id = :node_id AND alias_text = :text
-                  AND language = :language
-            """),
-                values,
-            ).scalar_one()
-    provenance.add_node_alias_evidence(
-        session,
-        batch_id,
-        int(existing),
-        observation_id,
+        )
+        existing = session.execute(
+            sa.text("""
+            SELECT node_alias_id FROM node_alias
+            WHERE node_id = :node_id AND alias_text = :text
+              AND language = :language
+        """),
+            values,
+        ).scalar_one()
+    session.execute(
+        sa.text("""
+        INSERT INTO node_alias_evidence (node_alias_id, observation_id)
+        VALUES (:alias_id, :observation_id)
+        ON CONFLICT (node_alias_id, observation_id) DO NOTHING
+    """),
+        {"alias_id": int(existing), "observation_id": observation_id},
     )
 
 

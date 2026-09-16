@@ -290,7 +290,6 @@ def _materialize(
         ):
             queries._ensure_alias(
                 session,
-                batch_id,
                 node_id,
                 result.mention.text,
                 item.language,
