@@ -137,7 +137,7 @@ class ModelStudioGenerationAdapter:
     ) -> KnowledgeProposals:
         try:
             payload = response.json()
-        except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
+        except json.JSONDecodeError, UnicodeDecodeError, ValueError:
             raise CallFailed("RESPONSE_UNKNOWN", fatal=True) from None
         if not isinstance(payload, dict) or payload.get("model") != FLASH:
             raise CallFailed("RESPONSE_UNKNOWN", fatal=True)
