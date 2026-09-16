@@ -108,7 +108,7 @@ runtime helper `legacy_committed_not_started_batch_ids()`와 `assert_initial_pub
 
 - closed kind CHECK와 kind별 exact target shape
 - exact simple/composite FK와 여섯 partial unique index, batch lookup index
-- migration `0004 → 0005`, historical no-backfill, `0005 → 0004 → 0005` round-trip
+- migration `0004 → 0005`, historical no-backfill, `0005 → 0004` downgrade와 이후 clean `upgrade head`
 - primitive same-batch retry dedupe와 association no-op 무기록
 - canonical mutation과 provenance의 같은 transaction commit/rollback
 - 잘못된 association FK와 관계없는 target column 차단
