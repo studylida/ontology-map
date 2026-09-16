@@ -19,10 +19,10 @@ from ontology_map.db import model_tasks as tasks
 from ontology_map.durable_provider import (
     ConfirmedProviderFailure,
     UncertainProviderFailure,
+    classify_provider_error,
     execute_call,
 )
 from ontology_map.exploration import TimeWindow
-from ontology_map.extraction_runner import classify_provider_error
 from ontology_map.followup_generation import parse_proposal
 from ontology_map.followup_generation_contracts import (
     FollowupApplyResult,
