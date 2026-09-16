@@ -43,10 +43,7 @@ def database():
             )
             if group_ids:
                 connection.execute(
-                    sa.text(
-                        "DELETE FROM evidence_group "
-                        "WHERE evidence_group_id = ANY(:ids)"
-                    ),
+                    sa.text("DELETE FROM evidence_group WHERE evidence_group_id = ANY(:ids)"),
                     {"ids": group_ids},
                 )
         current.dispose()
@@ -132,9 +129,7 @@ def test_duplicate_item_preflight_blocks_all_duplicate_rows_only(
     database, tmp_path: Path
 ) -> None:
     current, prefix, group_ids = database
-    groups = {
-        name: create_group(current, group_ids) for name in ("a", "b", "c")
-    }
+    groups = {name: create_group(current, group_ids) for name in ("a", "b", "c")}
     records = [
         manifest_item(
             prefix=prefix,
@@ -169,9 +164,7 @@ def test_duplicate_item_preflight_blocks_all_duplicate_rows_only(
         write_artifact(tmp_path, str(record["artifact_key"]), body)
     manifest = tmp_path / "manifest.jsonl"
     write_manifest(manifest, records)
-    approvals = {
-        name: approval(name, group_id) for name, group_id in groups.items()
-    }
+    approvals = {name: approval(name, group_id) for name, group_id in groups.items()}
 
     first = materialize_selection_manifest(
         current,
@@ -182,8 +175,7 @@ def test_duplicate_item_preflight_blocks_all_duplicate_rows_only(
     )
 
     assert [
-        (result.test_item_id, result.status, result.failure_code)
-        for result in first
+        (result.test_item_id, result.status, result.failure_code) for result in first
     ] == [
         ("a", "CREATED", None),
         ("b", "FAILED", "MANIFEST_DUPLICATE_ITEM"),
