@@ -75,7 +75,7 @@ class ModelStudioStructuredTransport:
         schema: dict[str, Any],
         limits: CallLimits,
     ) -> Callable[[], str]:
-        """Return one send operation; no SDK retry, stream, thinking or raw retention."""
+        """Return a one-send operation with no retry, stream, or raw retention."""
         _safe_logging()
         if not model.strip() or not schema_name.strip() or not messages:
             raise CallFailed("INVALID_REQUEST", fatal=True)
