@@ -451,13 +451,27 @@ def test_schema_rejects_unknown_kind_bad_shape_and_nonexistent_association(
         ).all()
     }
     expected_foreign_targets = {
-        "fk_promotion_canonical_change__promotion_batch": "REFERENCES promotion_batch(promotion_batch_id)",
-        "fk_promotion_canonical_change__node_alias": "REFERENCES node_alias(node_alias_id)",
-        "fk_promotion_canonical_change__node_alias_evidence": "REFERENCES node_alias_evidence(node_alias_id, observation_id)",
-        "fk_promotion_canonical_change__claim_observation": "REFERENCES claim_observation(claim_id, observation_id)",
-        "fk_promotion_canonical_change__claim_relation": "REFERENCES claim_relation(claim_id, relation_id)",
-        "fk_promotion_canonical_change__attribute_value": "REFERENCES claim_attribute_value(claim_attribute_value_id)",
-        "fk_promotion_canonical_change__event_temporal_basis": "REFERENCES event_temporal_basis(event_node_id, claim_id)",
+        "fk_promotion_canonical_change__promotion_batch": (
+            "REFERENCES promotion_batch(promotion_batch_id)"
+        ),
+        "fk_promotion_canonical_change__node_alias": (
+            "REFERENCES node_alias(node_alias_id)"
+        ),
+        "fk_promotion_canonical_change__node_alias_evidence": (
+            "REFERENCES node_alias_evidence(node_alias_id, observation_id)"
+        ),
+        "fk_promotion_canonical_change__claim_observation": (
+            "REFERENCES claim_observation(claim_id, observation_id)"
+        ),
+        "fk_promotion_canonical_change__claim_relation": (
+            "REFERENCES claim_relation(claim_id, relation_id)"
+        ),
+        "fk_promotion_canonical_change__attribute_value": (
+            "REFERENCES claim_attribute_value(claim_attribute_value_id)"
+        ),
+        "fk_promotion_canonical_change__event_temporal_basis": (
+            "REFERENCES event_temporal_basis(event_node_id, claim_id)"
+        ),
     }
     for name, target in expected_foreign_targets.items():
         assert name in definitions
