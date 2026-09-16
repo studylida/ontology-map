@@ -33,6 +33,7 @@ class EvidenceCounts:
 class EvidenceTraceRow:
     claim_id: int
     claim_text: str
+    modality: str
     stance: str
     source_document_id: int
     source_title: str
@@ -45,6 +46,39 @@ class EvidenceTraceRow:
     paragraph_number: int | None
     start_char: int
     end_char: int
+
+
+_PUBLIC_RELATION_ENDPOINTS_CTE = (
+    _PUBLIC_NODES_CTE
+    + """
+,
+public_relation_endpoints AS (
+    SELECT
+        node_id,
+        node_search_document_id,
+        name,
+        node_type_code,
+        node_type_display_name
+    FROM public_nodes
+    UNION ALL
+    SELECT
+        n.node_id,
+        NULL::bigint AS node_search_document_id,
+        tr.canonical_display_name AS name,
+        nt.node_type_code,
+        nt.display_name AS node_type_display_name
+    FROM topic_reference AS tr
+    JOIN node AS n ON n.node_id = tr.node_id
+    JOIN node_type AS nt ON nt.node_type_id = n.node_type_id
+    JOIN knowledge_item AS ki ON ki.knowledge_item_id = n.node_id
+    WHERE nt.node_type_code = 'TOPIC'
+      AND ki.item_kind = 'NODE'
+      AND ki.lifecycle_kind = 'PRODUCT_REFERENCE'
+      AND ki.current_state IS NULL
+      AND ki.promotion_batch_id IS NULL
+)
+"""
+)
 
 
 def get_public_search_document_id(session: Session, node_id: int) -> int | None:
@@ -70,7 +104,7 @@ def list_node_relations(
     limit: int,
 ) -> list[NodeRelationRow]:
     statement = sa.text(
-        _PUBLIC_NODES_CTE
+        _PUBLIC_RELATION_ENDPOINTS_CTE
         + """
         SELECT
             r.relation_id,
@@ -99,7 +133,9 @@ def list_node_relations(
                         ON mki.knowledge_item_id = cm.claim_id
                       WHERE cm.conflict_set_id = cs.conflict_set_id
                         AND (
-                            mki.current_state NOT IN (
+                            mki.item_kind <> 'CLAIM'
+                            OR mki.lifecycle_kind <> 'EVIDENCE_BACKED'
+                            OR mki.current_state NOT IN (
                                 'EVIDENCE_VERIFIED', 'HUMAN_VERIFIED'
                             )
                             OR NOT EXISTS (
@@ -127,7 +163,7 @@ def list_node_relations(
         JOIN knowledge_item AS rki ON rki.knowledge_item_id = r.relation_id
         JOIN relation_type_revision AS rtr
           ON rtr.relation_type_revision_id = r.relation_type_revision_id
-        JOIN public_nodes AS other
+        JOIN public_relation_endpoints AS other
           ON other.node_id = CASE
               WHEN r.source_node_id = :node_id THEN r.target_node_id
               ELSE r.source_node_id
@@ -145,8 +181,10 @@ def list_node_relations(
         WHERE rb.node_search_document_id = :search_document_id
           AND :node_id IN (r.source_node_id, r.target_node_id)
           AND rki.item_kind = 'RELATION'
+          AND rki.lifecycle_kind = 'EVIDENCE_BACKED'
           AND rki.current_state IN ('EVIDENCE_VERIFIED', 'HUMAN_VERIFIED')
           AND cki.item_kind = 'CLAIM'
+          AND cki.lifecycle_kind = 'EVIDENCE_BACKED'
           AND cki.current_state IN ('EVIDENCE_VERIFIED', 'HUMAN_VERIFIED')
           AND NOT EXISTS (
               SELECT 1
@@ -208,15 +246,15 @@ def list_node_relations(
 
 
 _RELATION_TRACES_CTE = (
-    _PUBLIC_NODES_CTE
+    _PUBLIC_RELATION_ENDPOINTS_CTE
     + """
 ,
 relation_publications AS (
     SELECT DISTINCT owner.node_search_document_id
     FROM relation AS r
     JOIN knowledge_item AS rki ON rki.knowledge_item_id = r.relation_id
-    JOIN public_nodes AS source ON source.node_id = r.source_node_id
-    JOIN public_nodes AS target ON target.node_id = r.target_node_id
+    JOIN public_relation_endpoints AS source ON source.node_id = r.source_node_id
+    JOIN public_relation_endpoints AS target ON target.node_id = r.target_node_id
     JOIN public_nodes AS owner
       ON owner.node_id IN (r.source_node_id, r.target_node_id)
     JOIN search_document_basis AS rb
@@ -224,6 +262,7 @@ relation_publications AS (
      AND rb.knowledge_item_id = r.relation_id
     WHERE r.relation_id = :relation_id
       AND rki.item_kind = 'RELATION'
+      AND rki.lifecycle_kind = 'EVIDENCE_BACKED'
       AND rki.current_state IN ('EVIDENCE_VERIFIED', 'HUMAN_VERIFIED')
       AND NOT EXISTS (
           SELECT 1
@@ -239,6 +278,7 @@ eligible_traces AS (
     SELECT DISTINCT
         c.claim_id,
         c.statement_text AS claim_text,
+        c.modality,
         cr.stance,
         sd.source_document_id,
         sd.title AS source_title,
@@ -263,6 +303,7 @@ eligible_traces AS (
     JOIN source_document AS sd
       ON sd.source_document_id = o.source_document_id
     WHERE cki.item_kind = 'CLAIM'
+      AND cki.lifecycle_kind = 'EVIDENCE_BACKED'
       AND cki.current_state IN ('EVIDENCE_VERIFIED', 'HUMAN_VERIFIED')
       AND NOT EXISTS (
           SELECT 1
@@ -381,6 +422,7 @@ def list_relation_evidence(
         EvidenceTraceRow(
             claim_id=int(row["claim_id"]),
             claim_text=str(row["claim_text"]),
+            modality=str(row["modality"]),
             stance=str(row["stance"]),
             source_document_id=int(row["source_document_id"]),
             source_title=str(row["source_title"]),

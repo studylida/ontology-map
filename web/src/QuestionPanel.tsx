@@ -1,27 +1,32 @@
 import { useCallback, useId, useState } from "react";
 import styles from "./App.module.css";
-import {
-  fetchPanelAnswer,
-  fetchPanelQuestions,
-  type PanelQuestion,
-  type TimeRange,
-} from "./data";
+import type { TimeRange } from "./data";
 import { ClaimCard, PeriodNote } from "./PanelEvidence";
+import type { EvidenceSelection } from "./RelationPanel";
 import { PageNotice } from "./RelationPanel";
+import {
+  fetchPanelAnswer213,
+  fetchPanelQuestions213,
+  type PanelQuestion213,
+} from "./read213";
 import { useCursorPage } from "./useCursorPage";
 
 type Props = {
   nodeId: string;
   range: TimeRange;
   onReport: (sectionId: string) => void;
+  onEvidence: (selection: EvidenceSelection) => void;
+  onSelect: (nodeId: string) => void;
 };
 function Answer({
   questionId,
   nodeId,
   range,
   onReport,
+  onEvidence,
+  onSelect,
 }: Props & { questionId: string }) {
-  const page = useCursorPage(questionId, fetchPanelAnswer);
+  const page = useCursorPage(questionId, fetchPanelAnswer213);
   const answer = page.items[0];
   return (
     <div className={styles.questionAnswer}>
@@ -39,6 +44,8 @@ function Answer({
               nodeId={nodeId}
               claim={claim}
               range={range}
+              onEvidence={onEvidence}
+              onSelect={onSelect}
             />
           ))}
           {answer.sectionId && (
@@ -54,7 +61,10 @@ function Answer({
     </div>
   );
 }
-function Question({ question, ...props }: Props & { question: PanelQuestion }) {
+function Question({
+  question,
+  ...props
+}: Props & { question: PanelQuestion213 }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   return (
@@ -79,7 +89,7 @@ export function QuestionPanel(props: Props) {
   const { nodeId, range } = props;
   const fetchPage = useCallback(
     (id: string, cursor: string | null, signal: AbortSignal) =>
-      fetchPanelQuestions(id, range, cursor, signal),
+      fetchPanelQuestions213(id, range, cursor, signal),
     [range],
   );
   const page = useCursorPage(nodeId, fetchPage);

@@ -10,6 +10,7 @@ from ontology_map import panel
 from ontology_map.api import (
     EvidenceLocatorResponse,
     EvidenceSourceResponse,
+    NodeTypeResponse,
     _resource_id,
 )
 from ontology_map.db.session import open_read_session
@@ -23,17 +24,39 @@ Window = Annotated[TimeWindow, Query()]
 Cursor = Annotated[str | None, Query(min_length=1, max_length=2048)]
 
 
+class ClaimConnectionNode(BaseModel):
+    node_id: str
+    name: str
+    node_type: NodeTypeResponse
+
+
+class ClaimRelationConnection(BaseModel):
+    relation_id: str
+    display_name: str
+    directionality: Literal["DIRECTED", "SYMMETRIC"]
+    source_node: ClaimConnectionNode
+    target_node: ClaimConnectionNode
+    other_node: ClaimConnectionNode
+    stance: Literal["SUPPORT", "DISPUTE"]
+
+
 class ClaimConnection(BaseModel):
     kind: Literal["RELATION", "ATTRIBUTE", "EVENT_TIME", "CONFLICT"]
     target_id: str
     position: str | None
     label: str
+    relation: ClaimRelationConnection | None = None
 
 
 class PanelClaim(BaseModel):
     claim_id: str
     claim_text: str
-    modality: str
+    modality: Literal[
+        "FACT",
+        "PLAN_OR_TARGET",
+        "PREDICTION_OR_ESTIMATE",
+        "OPINION_OR_EVALUATION",
+    ]
     knowledge_state: str
     evidence_group_count: int = Field(ge=0)
     as_of_at: datetime
