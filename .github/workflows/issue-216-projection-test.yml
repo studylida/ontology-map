@@ -1,0 +1,92 @@
+name: Issue 216 Projection Test Patch
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue-216-projection-test.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+      - name: Strengthen evidence-only Claim projection regression
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("server/tests/test_promotion_provenance_postgres.py")
+          text = path.read_text(encoding="utf-8")
+          old_setup = '''    _relation(database, values["base_batch"], values["right"], values["third"])
+    evidence_only_claim = _claim(database, values["base_batch"], "evidence-only")
+    evidence_only_observation = _observation(database, "evidence-only source")
+'''
+          new_setup = '''    evidence_only_relation = _relation(
+        database, values["base_batch"], values["right"], values["third"]
+    )
+    evidence_only_claim = _claim(database, values["base_batch"], "evidence-only")
+    execute(
+        database,
+        """
+        INSERT INTO claim_relation (claim_id, relation_id, stance)
+        VALUES (:claim_id, :relation_id, 'SUPPORT')
+        """,
+        claim_id=evidence_only_claim,
+        relation_id=evidence_only_relation,
+    )
+    evidence_only_observation = _observation(database, "evidence-only source")
+'''
+          if text.count(old_setup) != 1:
+              raise SystemExit("evidence-only setup anchor not found exactly once")
+          text = text.replace(old_setup, new_setup, 1)
+
+          old_assert = '''    assert [change.change_kind for change in evidence_only_changes] == [
+        "CLAIM_OBSERVATION_ADDED"
+    ]
+
+    direct_relation_nodes = set(
+'''
+          new_assert = '''    assert [change.change_kind for change in evidence_only_changes] == [
+        "CLAIM_OBSERVATION_ADDED"
+    ]
+    evidence_only_direct_nodes = set(
+        execute(
+            database,
+            """
+            SELECT r.source_node_id
+            FROM claim_relation cr
+            JOIN relation r ON r.relation_id = cr.relation_id
+            WHERE cr.claim_id = :claim_id
+            UNION
+            SELECT r.target_node_id
+            FROM claim_relation cr
+            JOIN relation r ON r.relation_id = cr.relation_id
+            WHERE cr.claim_id = :claim_id
+            """,
+            claim_id=evidence_only_changes[0].claim_id,
+        ).scalars()
+    )
+    assert evidence_only_direct_nodes == {values["right"], values["third"]}
+
+    direct_relation_nodes = set(
+'''
+          if text.count(old_assert) != 1:
+              raise SystemExit("evidence-only assertion anchor not found exactly once")
+          path.write_text(text.replace(old_assert, new_assert, 1), encoding="utf-8")
+          PY
+          git diff --check
+      - name: Format and commit
+        run: |
+          uvx ruff@0.16.5 format server/tests/test_promotion_provenance_postgres.py
+          git add server/tests/test_promotion_provenance_postgres.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test: cover evidence-only Claim projection provenance"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
