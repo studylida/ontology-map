@@ -85,7 +85,20 @@ jobs:
         if: ${{ !cancelled() }}
         working-directory: server
         run: uv run --frozen alembic check
-      - name: 문서 생성 일치 검사
+      - name: generated schema-reference 재생성
+        if: ${{ !cancelled() }}
+        run: uv run --project server --frozen python scripts/check_docs.py --write
+      - name: generated schema-reference artifact
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: issue-216-schema-reference
+          path: docs/data/schema-reference.md
+          if-no-files-found: error
+      - name: generated schema-reference commit 확인
+        if: ${{ !cancelled() }}
+        run: git diff --exit-code -- docs/data/schema-reference.md
+      - name: 문서 계약 검사
         if: ${{ !cancelled() }}
         run: uv run --project server --frozen python scripts/check_docs.py --check
       - name: diff 검사
