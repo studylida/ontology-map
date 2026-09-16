@@ -15,8 +15,15 @@ import httpx
 from langchain_core.globals import get_debug, get_verbose
 from pydantic import SecretStr, ValidationError
 
+from ontology_map import extraction as harness
+from ontology_map.db import extraction_tasks as inputs
 from ontology_map.extraction_contracts import KnowledgeProposals
-from ontology_map.extraction_runner import GenerationRequest
+from ontology_map.extraction_runner import (
+    GenerationRequest,
+    RunnerResult,
+    RuntimeInput,
+    run_extraction,
+)
 from ontology_map.model_studio import FLASH, CallFailed, validate_base_url
 
 DEFAULT_TIMEOUT_SECONDS = 60.0
@@ -174,3 +181,24 @@ class ModelStudioGenerationAdapter:
             return KnowledgeProposals.model_validate_json(content, strict=True)
         except ValidationError:
             raise CallFailed("OUTPUT_CONTRACT_ERROR", fatal=False) from None
+
+
+def run_model_studio_extraction(
+    engine: Any,
+    task_id: int,
+    worker_name: str,
+    execution: inputs.ExecutionInput,
+    runtime: RuntimeInput,
+    helpers: harness.ExtractionModels,
+    adapter: ModelStudioGenerationAdapter,
+) -> RunnerResult:
+    """Compose the approved durable runner with one production Flash send."""
+    return run_extraction(
+        engine,
+        task_id,
+        worker_name,
+        execution,
+        runtime,
+        helpers,
+        adapter.prepare,
+    )

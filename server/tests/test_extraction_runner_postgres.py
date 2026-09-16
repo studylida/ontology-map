@@ -13,6 +13,7 @@ import httpx
 import pytest
 import sqlalchemy as sa
 from openai import APIConnectionError
+from pydantic import SecretStr
 from sqlalchemy.orm import Session
 from test_extraction import candidate, limits, ontology, source_document
 from test_extraction_tasks_postgres import reference_data
@@ -21,6 +22,10 @@ from ontology_map.db import extraction_tasks as inputs
 from ontology_map.db import model_tasks as tasks
 from ontology_map.db import schema
 from ontology_map.extraction_contracts import KnowledgeProposals
+from ontology_map.extraction_provider import (
+    ModelStudioGenerationAdapter,
+    run_model_studio_extraction,
+)
 from ontology_map.extraction_runner import RuntimeInput, run_extraction
 from ontology_map.model_studio import FLASH
 
@@ -245,6 +250,68 @@ def knowledge_counts(engine):
         return [c.scalar(sa.select(sa.func.count()).select_from(t)) for t in tables]
 
 
+def test_model_studio_send_happens_after_reserved_slot_commit(runtime_task):
+    engine, task_id, execution, runtime = runtime_task
+    helpers = OfflineCalls()
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        assert count(engine, schema.provider_call_slot, task_id) == 1
+        assert count(engine, schema.agent_attempt, task_id) == 0
+        with engine.connect() as connection:
+            state = connection.scalar(
+                sa.select(schema.provider_call_slot.c.state).where(
+                    schema.provider_call_slot.c.model_task_id == task_id
+                )
+            )
+        assert state == "RESERVED"
+        output = KnowledgeProposals.model_validate(
+            {"claims": helpers.claims}
+        ).model_dump_json()
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "model": FLASH,
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": output},
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 100,
+                    "total_tokens": 200,
+                },
+            },
+        )
+
+    adapter = ModelStudioGenerationAdapter(
+        SecretStr("offline-key"),
+        base_url=(
+            "https://ws-product-test.ap-southeast-1.maas.aliyuncs.com/"
+            "compatible-mode/v1"
+        ),
+        transport=httpx.MockTransport(handle),
+    )
+    try:
+        result = run_model_studio_extraction(
+            engine,
+            task_id,
+            "runner-test",
+            execution,
+            runtime,
+            helpers,
+            adapter,
+        )
+    finally:
+        adapter.close()
+    assert result.disposition == "VERIFIED_RUNTIME"
+    assert result.task_status == "RUNNING"
+    assert count(engine, schema.provider_call_slot, task_id) == 1
+    assert count(engine, schema.agent_attempt, task_id) == 1
+
+
 def test_verified_result_uses_one_product_slot_and_writes_no_knowledge(runtime_task):
     engine, task_id, execution, runtime = runtime_task
     calls = OfflineCalls()
@@ -324,12 +391,16 @@ def test_preflight_error_is_terminal_without_product_slot(runtime_task):
     assert "private" not in repr(result)
 
 
-def test_generation_timeout_records_retry_and_runner_does_not_loop(runtime_task):
+def test_confirmed_timeout_records_retry_without_runner_loop(runtime_task):
     engine, task_id, _, _ = runtime_task
     calls = OfflineCalls()
 
     def timeout():
-        raise httpx.ReadTimeout("private request data")
+        request = httpx.Request("POST", "https://example.invalid")
+        response = httpx.Response(504, request=request)
+        raise httpx.HTTPStatusError(
+            "confirmed provider timeout", request=request, response=response
+        )
 
     calls.on_send = timeout
     first = run(runtime_task, calls)
@@ -353,6 +424,7 @@ def test_generation_timeout_records_retry_and_runner_does_not_loop(runtime_task)
     "error",
     [
         RuntimeError("private ambiguous wire failure"),
+        httpx.ReadTimeout("private lost reply timeout"),
         httpx.ReadError("private lost reply"),
         APIConnectionError(
             request=httpx.Request("POST", "https://example.invalid"),
