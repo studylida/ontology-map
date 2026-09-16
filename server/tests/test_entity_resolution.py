@@ -189,7 +189,7 @@ def test_complete_zero_candidates_still_requires_specificity_judgment(prepared):
     result = service.resolve_mention(session, mention(), agent)
     assert result.decision == "NEW" and result.node_id is None
     agent.assert_called_once()
-    session.execute.assert_not_called()  # queries above are isolated mocks
+    session.execute.assert_not_called()
 
 
 def test_inactive_type_cannot_create_new(prepared):
@@ -197,12 +197,7 @@ def test_inactive_type_cannot_create_new(prepared):
     result = service.resolve_mention(
         Mock(),
         mention(),
-        Mock(
-            return_value={
-                "decision": "NEW",
-                "node_id": None,
-            }
-        ),
+        Mock(return_value={"decision": "NEW", "node_id": None}),
     )
     assert result.decision == "UNRESOLVED"
 
@@ -223,9 +218,7 @@ def test_topic_reuses_only_active_reference_and_does_not_call_agent(
     monkeypatch.setattr(service, "find_topic_reference_by_name", reference_lookup)
     target = mention(text="AI", node_type="TOPIC", approved_topic_name="인공지능")
     agent = Mock(side_effect=AssertionError("Topic resolution must be deterministic"))
-
     same = service.resolve_mention(Mock(), target, agent)
-
     assert same.decision == "SAME"
     assert same.node_id == 10
     assert same.candidates.nodes[0].candidate.preferred_alias == "인공지능"
@@ -280,20 +273,12 @@ def test_dependency_filter_preserves_whole_claim_and_independent_results(prepare
     valid = service.resolve_mention(
         Mock(),
         mention(),
-        Mock(
-            return_value={
-                "decision": "NEW",
-                "node_id": None,
-            }
-        ),
+        Mock(return_value={"decision": "NEW", "node_id": None}),
     )
     missing = replace(valid, mention=mention(mention_id="m2"), decision="UNRESOLVED")
     selection = service.select_resolvable_knowledge(
         (valid, missing),
-        {
-            "joint-claim": ("m1", "m2"),
-            "independent-claim": ("m1",),
-        },
+        {"joint-claim": ("m1", "m2"), "independent-claim": ("m1",)},
     )
     assert selection.accepted == ("independent-claim",)
     assert selection.excluded == ("joint-claim",)
@@ -386,12 +371,7 @@ def staged(prepared, monkeypatch):
     result = service.resolve_mention(
         Mock(),
         mention(),
-        Mock(
-            return_value={
-                "decision": "NEW",
-                "node_id": None,
-            }
-        ),
+        Mock(return_value={"decision": "NEW", "node_id": None}),
     )
     pending = Mock()
     insert = Mock(return_value=100)
@@ -415,9 +395,11 @@ def test_new_is_materialized_only_for_surviving_knowledge_and_never_commits(stag
     ) as nodes:
         assert nodes["m1"].node_id == 100
         assert nodes["m1"].observation_ids == (200,)
-        usage.assert_not_called()  # The owning writer runs in this body.
+        usage.assert_not_called()
     insert.assert_called_once_with(session, 7, 1)
-    alias.assert_called_once_with(session, 100, "한빛전자", "ko", 200, preferred=True)
+    alias.assert_called_once_with(
+        session, 7, 100, "한빛전자", "ko", 200, preferred=True
+    )
     usage.assert_called_once_with(session, 100, (200,))
     session.commit.assert_not_called()
     session.rollback.assert_not_called()
@@ -501,12 +483,7 @@ def test_same_does_not_create_node_or_change_preferred_alias(prepared, staged):
     result = service.resolve_mention(
         session,
         mention(),
-        Mock(
-            return_value={
-                "decision": "SAME",
-                "node_id": 10,
-            }
-        ),
+        Mock(return_value={"decision": "SAME", "node_id": 10}),
     )
     with service.resolved_nodes_for_promotion(
         session, 7, (result,), frozenset({"m1"})
@@ -529,15 +506,17 @@ def test_generic_expression_resolved_by_identifier_is_not_added_as_alias(
     alias.assert_not_called()
 
 
-def test_alias_reuses_existing_identity_family_without_new_alias_row():
+def test_alias_reuses_existing_identity_family_without_new_alias_row(monkeypatch):
     session = Mock()
     session.execute.return_value.scalar_one_or_none.return_value = 90
-    db._ensure_alias(session, 10, "한빛전자", "ko", 200, preferred=False)
+    evidence = Mock()
+    monkeypatch.setattr(db.provenance, "add_node_alias_evidence", evidence)
+    db._ensure_alias(session, 7, 10, "한빛전자", "ko", 200, preferred=False)
     statements = [str(call.args[0]) for call in session.execute.call_args_list]
-    assert len(statements) == 2
+    assert len(statements) == 1
     assert "node_merge" in statements[0]
-    assert "INSERT INTO node_alias_evidence" in statements[1]
     assert all("INSERT INTO node_alias (" not in sql for sql in statements)
+    evidence.assert_called_once_with(session, 7, 90, 200)
     session.commit.assert_not_called()
 
 
