@@ -484,7 +484,7 @@ def test_invalid_generated_report_blocks_whole_bundle_without_partial_artifact(
         insight_case,
         enqueued.task_id,
         now,
-        lambda _prepared: (lambda: proposal),
+        lambda _prepared: lambda: proposal,
     )
     assert result.task_status == "VALIDATION_BLOCKED"
     assert result.disposition == "VALIDATION_BLOCKED"
@@ -540,7 +540,7 @@ def test_confirmed_transient_provider_failure_retries_then_applies(
         insight_case,
         enqueued.task_id,
         now,
-        lambda _prepared: (lambda: _bundle(None, None)),
+        lambda _prepared: lambda: _bundle(None, None),
         worker="insight-rate-retry-worker",
     )
     assert second.task_status == "SUCCESS"
@@ -625,7 +625,7 @@ def test_ambiguous_reply_reclaims_unknown_then_applies(
         insight_case,
         enqueued.task_id,
         now,
-        lambda _prepared: (lambda: _bundle(None, None)),
+        lambda _prepared: lambda: _bundle(None, None),
         worker="insight-reclaim-worker",
     )
     assert second.task_status == "SUCCESS"
