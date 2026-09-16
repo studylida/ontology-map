@@ -141,7 +141,7 @@ class ModelStudioStructuredTransport:
     def _parse(response: httpx.Response, *, model: str, limits: CallLimits) -> str:
         try:
             payload = response.json()
-        except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
+        except json.JSONDecodeError, UnicodeDecodeError, ValueError:
             raise CallFailed("RESPONSE_UNKNOWN", fatal=True) from None
         if not isinstance(payload, dict) or payload.get("model") != model:
             raise CallFailed("RESPONSE_UNKNOWN", fatal=True)
