@@ -9,7 +9,7 @@
 - 생성 목록: [스키마 참고 문서](schema-reference.md)
 - 구현 스택: [구현 스택](../development/implementation-stack.md)
 - 코드·migration 규칙: [코드 규칙](../development/code-conventions.md)
-- 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`; #200, `server/migrations/versions/0003_support_multiple_number_attribute_units.py`; #203, `server/migrations/versions/0004_support_topic_reference_lifecycle.py`; #216 1/2, `server/migrations/versions/0005_add_promotion_canonical_change.py`
+- 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`; #200, `server/migrations/versions/0003_support_multiple_number_attribute_units.py`; #203, `server/migrations/versions/0004_support_topic_reference_lifecycle.py`; #216, `server/migrations/versions/0005_add_promotion_canonical_change.py`
 
 이 문서는 Logical Schema v1.2의 의미를 PostgreSQL로 옮기는 공통 표현 규칙을 정의한다. 실제 table, column, constraint와 index 목록은 SQLAlchemy metadata에서 생성한 [스키마 참고 문서](schema-reference.md)가 소유한다.
 
@@ -44,7 +44,7 @@ Relation의 stance는 `claim_relation`, 구조화 속성값은 `claim_attribute_
 
 Idempotency는 nullable 전체 UNIQUE에 의존하지 않고 kind별 partial unique index 여섯 개로 `promotion_batch + change_kind + exact target`을 고정한다. `(promotion_batch_id, promotion_canonical_change_id)` index는 향후 coordinator가 batch 기준으로 provenance를 읽을 최소 access path다.
 
-migration `0005`는 historical association을 backfill하지 않는다. transaction-local primitive는 caller가 연 promotion transaction 안에서만 동작하고 association insert는 `INSERT ... ON CONFLICT DO NOTHING RETURNING ...` 결과로 실제 mutation 여부를 판별할 수 있게 한다. 이번 #216 1/2 단계는 이 persistence/primitive/guard까지 구현하며 repository 전체 production promotion writer의 최종 6종 wiring은 2/2 단계에 남긴다.
+migration `0005`는 historical association을 backfill하지 않는다. `ontology_map.db.promotion_provenance`의 production write boundary는 caller가 연 promotion transaction 안에서만 동작하고 association insert는 `INSERT ... ON CONFLICT DO NOTHING RETURNING ...` 결과로 실제 mutation 여부를 판별한다. `claim_attribute_value` exact retry는 owning Claim row를 잠근 뒤 exact stored tuple을 재조회해 기존 행을 재사용한다. merged #128 Entity Resolution의 alias/alias-evidence path는 이 boundary에 직접 연결되어 실제 INSERT winner만 provenance를 남긴다. Claim/Relation/attribute/event canonical service도 같은 transaction-local boundary를 제공하며, 최종 KNOWLEDGE_EXTRACTION orchestration은 별도 #127 책임이다. `mark_promotion_committed`는 canonical writes와 provenance 뒤 같은 caller transaction에서 `COMMITTED`를 확정하지만 commit 자체는 호출하지 않는다. #215 initial publication coordinator와 #180 recovery는 별도 책임으로 남는다.
 
 `publication_affected_node`는 한 batch가 영향을 준 node와 선택한 검색 문서, context와 `NODE_INSIGHT` 작업을 가리킨다. 이 행은 지도 구성원, 좌표나 전체 graph snapshot이 아니다.
 

@@ -399,8 +399,54 @@ def add_claim_attribute_value(
     date_to_precision: str = "UNKNOWN",
     boolean_value: bool | None = None,
 ) -> int:
-    """Insert one new structured Claim value and its immutable provenance."""
+    """Reuse an exact stored value or insert it with immutable provenance.
+
+    The schema intentionally has no semantic-value UNIQUE constraint. Locking the
+    owning Claim makes the exact stored tuple check deterministic for callers of
+    this production write boundary, including concurrent retry transactions.
+    """
     require_pending_batch(session, batch_id)
+    values = {
+        "claim_id": claim_id,
+        "target_node_id": target_node_id,
+        "attribute_revision_id": attribute_revision_id,
+        "value_kind": value_kind,
+        "string_value": string_value,
+        "number_value": number_value,
+        "unit_code": unit_code,
+        "date_from": date_from,
+        "date_to": date_to,
+        "date_from_precision": date_from_precision,
+        "date_to_precision": date_to_precision,
+        "boolean_value": boolean_value,
+    }
+    session.execute(
+        sa.text("SELECT claim_id FROM claim WHERE claim_id = :claim_id FOR UPDATE"),
+        {"claim_id": claim_id},
+    ).scalar_one()
+    existing = session.execute(
+        sa.text("""
+            SELECT claim_attribute_value_id
+            FROM claim_attribute_value
+            WHERE claim_id = :claim_id
+              AND target_node_id = :target_node_id
+              AND attribute_revision_id = :attribute_revision_id
+              AND value_kind = :value_kind
+              AND string_value IS NOT DISTINCT FROM :string_value
+              AND number_value IS NOT DISTINCT FROM :number_value
+              AND unit_code IS NOT DISTINCT FROM :unit_code
+              AND date_from IS NOT DISTINCT FROM :date_from
+              AND date_to IS NOT DISTINCT FROM :date_to
+              AND date_from_precision = :date_from_precision
+              AND date_to_precision = :date_to_precision
+              AND boolean_value IS NOT DISTINCT FROM :boolean_value
+            ORDER BY claim_attribute_value_id
+            LIMIT 1
+        """),
+        values,
+    ).scalar_one_or_none()
+    if existing is not None:
+        return int(existing)
     value_id = int(
         session.execute(
             sa.text("""
@@ -415,20 +461,7 @@ def add_claim_attribute_value(
                 )
                 RETURNING claim_attribute_value_id
             """),
-            {
-                "claim_id": claim_id,
-                "target_node_id": target_node_id,
-                "attribute_revision_id": attribute_revision_id,
-                "value_kind": value_kind,
-                "string_value": string_value,
-                "number_value": number_value,
-                "unit_code": unit_code,
-                "date_from": date_from,
-                "date_to": date_to,
-                "date_from_precision": date_from_precision,
-                "date_to_precision": date_to_precision,
-                "boolean_value": boolean_value,
-            },
+            values,
         ).scalar_one()
     )
     _record_change(
@@ -467,6 +500,20 @@ def add_event_temporal_basis(
         claim_id=claim_id,
     )
     return True
+
+
+def mark_promotion_committed(session: Session, batch_id: int) -> None:
+    """Finish the caller-owned promotion transaction without committing it."""
+    require_pending_batch(session, batch_id)
+    session.execute(
+        sa.text("""
+            UPDATE promotion_batch
+            SET promotion_status = 'COMMITTED', committed_at = CURRENT_TIMESTAMP
+            WHERE promotion_batch_id = :batch_id
+            RETURNING promotion_batch_id
+        """),
+        {"batch_id": batch_id},
+    ).scalar_one()
 
 
 def changes_for_batch(

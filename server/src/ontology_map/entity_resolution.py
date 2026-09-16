@@ -290,6 +290,7 @@ def _materialize(
         ):
             queries._ensure_alias(
                 session,
+                batch_id,
                 node_id,
                 result.mention.text,
                 item.language,
@@ -311,7 +312,8 @@ def resolved_nodes_for_promotion(
     Pass only mentions needed by surviving, independently validated knowledge.
     The body must write that knowledge with these bindings, not call a model.
     Any exception must escape to the transaction owner for full rollback.
-    The owner marks COMMITTED only after this context exits successfully.
+    The owner marks COMMITTED only after this context exits successfully;
+    #216 exposes promotion_provenance.mark_promotion_committed for that boundary.
     """
     if not session.in_transaction():
         raise ValueError("an explicit caller-owned promotion transaction is required")
