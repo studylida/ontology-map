@@ -18,6 +18,22 @@ from pydantic import SecretStr
 from ontology_map.model_studio import CallFailed, CallLimits, validate_base_url
 
 DEFAULT_TIMEOUT_SECONDS = 60.0
+REQUEST_TEMPERATURE = 0
+REQUEST_STREAM = False
+REQUEST_ENABLE_THINKING = False
+REQUEST_RESPONSE_FORMAT = "json_schema"
+REQUEST_SCHEMA_STRICT = True
+
+
+def request_identity_settings() -> dict[str, object]:
+    """Return request knobs shared by transport construction and task identity."""
+    return {
+        "temperature": REQUEST_TEMPERATURE,
+        "stream": REQUEST_STREAM,
+        "enable_thinking": REQUEST_ENABLE_THINKING,
+        "response_format": REQUEST_RESPONSE_FORMAT,
+        "schema_strict": REQUEST_SCHEMA_STRICT,
+    }
 
 
 def _safe_logging() -> None:
@@ -87,19 +103,19 @@ class ModelStudioStructuredTransport:
             raise CallFailed("INVALID_REQUEST", fatal=True)
 
         response_format: dict[str, Any] = {
-            "type": "json_schema",
+            "type": REQUEST_RESPONSE_FORMAT,
             "json_schema": {
                 "name": schema_name,
-                "strict": True,
+                "strict": REQUEST_SCHEMA_STRICT,
                 "schema": schema,
             },
         }
         body = {
             "model": model,
             "messages": list(messages),
-            "temperature": 0,
-            "stream": False,
-            "enable_thinking": False,
+            "temperature": REQUEST_TEMPERATURE,
+            "stream": REQUEST_STREAM,
+            "enable_thinking": REQUEST_ENABLE_THINKING,
             "max_tokens": limits.max_output_tokens,
             "response_format": response_format,
         }
