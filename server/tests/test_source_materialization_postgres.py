@@ -59,10 +59,7 @@ def engine():
                 ).scalars()
             )
             connection.execute(
-                sa.text(
-                    "DELETE FROM source_document "
-                    "WHERE source_key LIKE :pattern"
-                ),
+                sa.text("DELETE FROM source_document WHERE source_key LIKE :pattern"),
                 {"pattern": f"{prefix}%"},
             )
             if group_ids:
@@ -140,9 +137,10 @@ def source_rows(current: sa.Engine, source_key: str) -> list[dict[str, object]]:
             dict(row)
             for row in connection.execute(
                 sa.text(
-                    "SELECT source_document_id, evidence_group_id, source_key, version_no, "
-                    "canonical_url, title, normalized_body, body_hash, last_checked_at, "
-                    "last_check_status, created_at FROM source_document "
+                    "SELECT source_document_id, evidence_group_id, source_key, "
+                    "version_no, canonical_url, title, normalized_body, body_hash, "
+                    "last_checked_at, last_check_status, created_at "
+                    "FROM source_document "
                     "WHERE source_key = :source_key ORDER BY version_no"
                 ),
                 {"source_key": source_key},
