@@ -123,7 +123,6 @@ jobs:
               helpers = OfflineCalls()
 
               def handle(request: httpx.Request) -> httpx.Response:
-                  # A separate connection must see the durable reservation before send.
                   assert count(engine, schema.provider_call_slot, task_id) == 1
                   assert count(engine, schema.agent_attempt, task_id) == 0
                   with engine.connect() as connection:
@@ -148,10 +147,7 @@ jobs:
                               {
                                   "index": 0,
                                   "finish_reason": "stop",
-                                  "message": {
-                                      "role": "assistant",
-                                      "content": output,
-                                  },
+                                  "message": {"role": "assistant", "content": output},
                               }
                           ],
                           "usage": {
@@ -197,6 +193,9 @@ jobs:
 
           rm .github/workflows/issue-127-b2-integration.yml
           uv sync --project server --frozen
+          uv run --project server --frozen ruff check --fix \
+            server/src/ontology_map/extraction_provider.py \
+            server/tests/test_extraction_runner_postgres.py
           uv run --project server --frozen ruff format \
             server/src/ontology_map/extraction_provider.py \
             server/tests/test_extraction_runner_postgres.py
