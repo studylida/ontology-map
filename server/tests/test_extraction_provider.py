@@ -123,7 +123,7 @@ def test_prepare_builds_exact_model_studio_request_before_send() -> None:
     assert len(calls) == 1
 
 
-def test_corrective_input_changes_serialized_request_before_send() -> None:
+def test_corrective_input_changes_prepared_request_before_send() -> None:
     serialized: list[bytes] = []
 
     def handle(req: httpx.Request) -> httpx.Response:
