@@ -15,6 +15,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.orm import Session
 
+from ontology_map import followup_execution
 from ontology_map import followup_generation as product
 from ontology_map.db import followup_generation as followup_db
 from ontology_map.db import schema
@@ -106,6 +107,7 @@ def _effective_input(prepared: PreparedFollowup) -> dict[str, object]:
         "node_search_document_id": prepared.node_search_document_id,
         "basis_ids": list(prepared.basis_ids),
         "agent_input": prepared.agent_input.model_dump(mode="json"),
+        "execution_settings": followup_execution.identity_settings(),
     }
 
 
