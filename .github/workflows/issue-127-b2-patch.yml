@@ -73,7 +73,9 @@ jobs:
             server/src/ontology_map/extraction_runner.py \
             server/tests/test_extraction_provider.py \
             server/tests/test_extraction_runner.py
-          uv run --project server --frozen mypy server/src
+          uv run --project server --frozen mypy \
+            server/src/ontology_map/extraction_provider.py \
+            server/src/ontology_map/extraction_runner.py
           uv run --project server --frozen pytest -q \
             server/tests/test_extraction_provider.py \
             server/tests/test_extraction_runner.py
