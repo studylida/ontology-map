@@ -11,6 +11,7 @@ import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ontology_map.db import entity_resolution as entity_db
 from ontology_map.db import promotion_provenance as provenance
 
 DATABASE_URL = os.environ.get("ONTOLOGY_MAP_PROMOTION_PROVENANCE_TEST_DATABASE_URL")
@@ -26,6 +27,96 @@ def execute(session: Session, sql: str, **values: object) -> sa.Result[object]:
 
 def returning(session: Session, sql: str, **values: object) -> int:
     return int(execute(session, sql, **values).scalar_one())
+
+
+def _direct_affected_nodes(session: Session, batch_id: int) -> set[int]:
+    """Read-only #215 projection oracle over the two approved provenance sources."""
+    return set(
+        int(value)
+        for value in execute(
+            session,
+            """
+            WITH batch_items AS (
+                SELECT knowledge_item_id, item_kind
+                FROM knowledge_item
+                WHERE promotion_batch_id = :batch_id
+            ), projection_claims AS (
+                SELECT knowledge_item_id AS claim_id
+                FROM batch_items WHERE item_kind = 'CLAIM'
+                UNION
+                SELECT claim_id FROM promotion_canonical_change
+                WHERE promotion_batch_id = :batch_id
+                  AND change_kind = 'CLAIM_OBSERVATION_ADDED'
+            ), affected(node_id) AS (
+                SELECT n.node_id
+                FROM batch_items b JOIN node n ON n.node_id = b.knowledge_item_id
+                WHERE b.item_kind = 'NODE'
+                UNION
+                SELECT r.source_node_id
+                FROM batch_items b JOIN relation r
+                  ON r.relation_id = b.knowledge_item_id
+                WHERE b.item_kind = 'RELATION'
+                UNION
+                SELECT r.target_node_id
+                FROM batch_items b JOIN relation r
+                  ON r.relation_id = b.knowledge_item_id
+                WHERE b.item_kind = 'RELATION'
+                UNION
+                SELECT a.node_id
+                FROM promotion_canonical_change p
+                JOIN node_alias a ON a.node_alias_id = p.node_alias_id
+                WHERE p.promotion_batch_id = :batch_id
+                  AND p.change_kind IN (
+                    'NODE_ALIAS_CHANGED', 'NODE_ALIAS_EVIDENCE_ADDED'
+                  )
+                UNION
+                SELECT r.source_node_id
+                FROM promotion_canonical_change p
+                JOIN relation r ON r.relation_id = p.relation_id
+                WHERE p.promotion_batch_id = :batch_id
+                  AND p.change_kind = 'CLAIM_RELATION_ADDED'
+                UNION
+                SELECT r.target_node_id
+                FROM promotion_canonical_change p
+                JOIN relation r ON r.relation_id = p.relation_id
+                WHERE p.promotion_batch_id = :batch_id
+                  AND p.change_kind = 'CLAIM_RELATION_ADDED'
+                UNION
+                SELECT v.target_node_id
+                FROM promotion_canonical_change p
+                JOIN claim_attribute_value v
+                  ON v.claim_attribute_value_id = p.claim_attribute_value_id
+                WHERE p.promotion_batch_id = :batch_id
+                  AND p.change_kind = 'CLAIM_ATTRIBUTE_VALUE_ADDED'
+                UNION
+                SELECT p.event_node_id
+                FROM promotion_canonical_change p
+                WHERE p.promotion_batch_id = :batch_id
+                  AND p.change_kind = 'EVENT_TEMPORAL_BASIS_ADDED'
+                UNION
+                SELECT r.source_node_id
+                FROM projection_claims c
+                JOIN claim_relation cr ON cr.claim_id = c.claim_id
+                JOIN relation r ON r.relation_id = cr.relation_id
+                UNION
+                SELECT r.target_node_id
+                FROM projection_claims c
+                JOIN claim_relation cr ON cr.claim_id = c.claim_id
+                JOIN relation r ON r.relation_id = cr.relation_id
+                UNION
+                SELECT v.target_node_id
+                FROM projection_claims c
+                JOIN claim_attribute_value v ON v.claim_id = c.claim_id
+                UNION
+                SELECT e.event_node_id
+                FROM projection_claims c
+                JOIN event_temporal_basis e ON e.claim_id = c.claim_id
+            )
+            SELECT node_id FROM affected WHERE node_id IS NOT NULL ORDER BY node_id
+            """,
+            batch_id=batch_id,
+        ).scalars()
+    )
 
 
 def _checked_url() -> sa.URL:
@@ -489,34 +580,46 @@ def test_schema_rejects_unknown_kind_bad_shape_and_nonexistent_association(
     assert "(promotion_batch_id, promotion_canonical_change_id)" in batch_index
 
 
-def test_alias_primitives_are_exact_and_same_batch_retry_dedupes(
+def test_alias_production_primitive_tracks_only_actual_mutations(
     database: Session,
 ) -> None:
     values = _base_objects(database)
     batch_id = _batch(database)
-    alias_id = returning(
-        database,
-        """
-        INSERT INTO node_alias (node_id, alias_text, language, is_preferred)
-        VALUES (:node_id, :text, 'ko', false)
-        RETURNING node_alias_id
-        """,
-        node_id=values["left"],
-        text=f"stage-one-alias-{uuid4()}",
-    )
+    alias_text = f"phase-two-alias-{uuid4()}"
 
-    provenance.record_node_alias_changed(database, batch_id, alias_id)
-    provenance.record_node_alias_changed(database, batch_id, alias_id)
-    assert provenance.add_node_alias_evidence(
-        database, batch_id, alias_id, values["observation"]
+    entity_db._ensure_alias(
+        database,
+        batch_id,
+        values["left"],
+        alias_text,
+        "ko",
+        values["observation"],
+        preferred=False,
     )
-    assert not provenance.add_node_alias_evidence(
-        database, batch_id, alias_id, values["observation"]
+    entity_db._ensure_alias(
+        database,
+        batch_id,
+        values["left"],
+        alias_text,
+        "ko",
+        values["observation"],
+        preferred=False,
+    )
+    second_observation = _observation(database, "second alias evidence")
+    entity_db._ensure_alias(
+        database,
+        batch_id,
+        values["left"],
+        alias_text,
+        "ko",
+        second_observation,
+        preferred=False,
     )
 
     changes = provenance.changes_for_batch(database, batch_id)
     assert [change.change_kind for change in changes] == [
         "NODE_ALIAS_CHANGED",
+        "NODE_ALIAS_EVIDENCE_ADDED",
         "NODE_ALIAS_EVIDENCE_ADDED",
     ]
 
@@ -559,6 +662,16 @@ def test_claim_association_attribute_and_event_surfaces_are_exact_and_idempotent
         value_kind="STRING",
         string_value="issue 216 value",
     )
+    retry_attribute_value_id = provenance.add_claim_attribute_value(
+        database,
+        batch_id,
+        claim_id=values["claim"],
+        target_node_id=values["left"],
+        attribute_revision_id=values["attribute_revision"],
+        value_kind="STRING",
+        string_value="issue 216 value",
+    )
+    assert retry_attribute_value_id == attribute_value_id
 
     assert provenance.add_event_temporal_basis(
         database, batch_id, values["event"], values["claim"]
@@ -683,15 +796,7 @@ def test_concurrent_claim_observation_insert_attributes_only_the_winner() -> Non
             inserted = provenance.add_claim_observation(
                 session, batch_id, claim_id, observation_id
             )
-            execute(
-                session,
-                """
-                UPDATE promotion_batch
-                SET promotion_status = 'COMMITTED', committed_at = CURRENT_TIMESTAMP
-                WHERE promotion_batch_id = :batch
-                """,
-                batch=batch_id,
-            )
+            provenance.mark_promotion_committed(session, batch_id)
             return batch_id, inserted
 
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -728,3 +833,316 @@ def test_concurrent_claim_observation_insert_attributes_only_the_winner() -> Non
             second_batch=second_batch,
         )
     engine.dispose()
+
+
+def test_all_six_mutation_kinds_roll_back_together(database: Session) -> None:
+    values = _base_objects(database)
+    batch_id = _batch(database)
+    alias_text = f"rollback-alias-{uuid4()}"
+
+    with pytest.raises(RuntimeError, match="rollback all six"):
+        with database.begin_nested():
+            entity_db._ensure_alias(
+                database,
+                batch_id,
+                values["left"],
+                alias_text,
+                "ko",
+                values["observation"],
+                preferred=False,
+            )
+            assert provenance.add_claim_observation(
+                database, batch_id, values["claim"], values["observation"]
+            )
+            assert provenance.add_claim_relation(
+                database, batch_id, values["claim"], values["relation"], "SUPPORT"
+            )
+            provenance.add_claim_attribute_value(
+                database,
+                batch_id,
+                claim_id=values["claim"],
+                target_node_id=values["left"],
+                attribute_revision_id=values["attribute_revision"],
+                value_kind="STRING",
+                string_value="rollback value",
+            )
+            assert provenance.add_event_temporal_basis(
+                database, batch_id, values["event"], values["claim"]
+            )
+            raise RuntimeError("rollback all six")
+
+    assert provenance.changes_for_batch(database, batch_id) == ()
+    assert (
+        execute(
+            database,
+            "SELECT count(*) FROM node_alias WHERE alias_text = :text",
+            text=alias_text,
+        ).scalar_one()
+        == 0
+    )
+    assert (
+        execute(
+            database,
+            """
+            SELECT count(*) FROM claim_observation
+            WHERE claim_id = :claim AND observation_id = :observation
+            """,
+            claim=values["claim"],
+            observation=values["observation"],
+        ).scalar_one()
+        == 0
+    )
+    assert (
+        execute(
+            database,
+            "SELECT count(*) FROM claim_relation WHERE claim_id = :claim",
+            claim=values["claim"],
+        ).scalar_one()
+        == 0
+    )
+    assert (
+        execute(
+            database,
+            "SELECT count(*) FROM claim_attribute_value WHERE claim_id = :claim",
+            claim=values["claim"],
+        ).scalar_one()
+        == 0
+    )
+    assert (
+        execute(
+            database,
+            "SELECT count(*) FROM event_temporal_basis WHERE claim_id = :claim",
+            claim=values["claim"],
+        ).scalar_one()
+        == 0
+    )
+
+
+def test_provenance_failure_rolls_back_canonical_mutation(
+    database: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    values = _base_objects(database)
+    observation = _observation(database, "injected provenance failure")
+    batch_id = _batch(database)
+
+    def fail_record(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("synthetic provenance failure")
+
+    monkeypatch.setattr(provenance, "_record_change", fail_record)
+    with pytest.raises(RuntimeError, match="synthetic provenance failure"):
+        with database.begin_nested():
+            provenance.add_claim_observation(
+                database, batch_id, values["claim"], observation
+            )
+    assert (
+        execute(
+            database,
+            """
+            SELECT count(*) FROM claim_observation
+            WHERE claim_id = :claim AND observation_id = :observation
+            """,
+            claim=values["claim"],
+            observation=observation,
+        ).scalar_one()
+        == 0
+    )
+
+
+def test_publication_lifecycle_never_consumes_provenance(database: Session) -> None:
+    values = _base_objects(database)
+    batch_id = _batch(database)
+    assert provenance.add_claim_observation(
+        database, batch_id, values["claim"], values["observation"]
+    )
+    provenance.mark_promotion_committed(database, batch_id)
+    ids = tuple(
+        change.promotion_canonical_change_id
+        for change in provenance.changes_for_batch(database, batch_id)
+    )
+    updates = (
+        """
+        UPDATE promotion_batch SET publication_status = 'PREPARING'
+        WHERE promotion_batch_id = :batch
+        """,
+        """
+        UPDATE promotion_batch
+        SET publication_status = 'FAILED',
+            publication_failure_reason = 'synthetic publication failure'
+        WHERE promotion_batch_id = :batch
+        """,
+        """
+        UPDATE promotion_batch
+        SET publication_status = 'PREPARING', publication_failure_reason = NULL
+        WHERE promotion_batch_id = :batch
+        """,
+        """
+        UPDATE promotion_batch
+        SET publication_status = 'READY', ready_at = CURRENT_TIMESTAMP
+        WHERE promotion_batch_id = :batch
+        """,
+    )
+    for sql in updates:
+        execute(database, sql, batch=batch_id)
+        assert (
+            tuple(
+                change.promotion_canonical_change_id
+                for change in provenance.changes_for_batch(database, batch_id)
+            )
+            == ids
+        )
+
+
+def test_restart_reconstructs_sources_and_direct_projection_without_two_hop() -> None:
+    engine = sa.create_engine(_checked_url())
+    try:
+        with Session(engine) as writer, writer.begin():
+            values = _base_objects(writer)
+            unrelated_relation = _relation(
+                writer,
+                values["base_batch"],
+                values["right"],
+                values["third"],
+            )
+            assert unrelated_relation
+            attribute_target = _node(writer, values["base_batch"])
+            batch_id = _batch(writer)
+
+            new_node = _node(writer, batch_id)
+            new_relation = _relation(writer, batch_id, new_node, values["left"])
+            new_claim = _claim(writer, batch_id, "new multi-target claim")
+            execute(
+                writer,
+                """
+                INSERT INTO claim_relation (claim_id, relation_id, stance)
+                VALUES (:claim, :relation, 'SUPPORT')
+                """,
+                claim=new_claim,
+                relation=new_relation,
+            )
+            execute(
+                writer,
+                """
+                INSERT INTO claim_attribute_value (
+                    claim_id, target_node_id, attribute_revision_id, value_kind,
+                    string_value, date_from_precision, date_to_precision
+                ) VALUES (
+                    :claim, :target, :revision, 'STRING',
+                    'new claim value', 'UNKNOWN', 'UNKNOWN'
+                )
+                """,
+                claim=new_claim,
+                target=attribute_target,
+                revision=values["attribute_revision"],
+            )
+            execute(
+                writer,
+                """
+                INSERT INTO event_temporal_basis (event_node_id, claim_id)
+                VALUES (:event, :claim)
+                """,
+                event=values["event"],
+                claim=new_claim,
+            )
+
+            alias_observation = _observation(writer, "phase two alias evidence")
+            alias_text = f"restart-alias-{uuid4()}"
+            entity_db._ensure_alias(
+                writer,
+                batch_id,
+                values["left"],
+                alias_text,
+                "ko",
+                alias_observation,
+                preferred=False,
+            )
+            second_alias_observation = _observation(
+                writer, "phase two second alias evidence"
+            )
+            entity_db._ensure_alias(
+                writer,
+                batch_id,
+                values["left"],
+                alias_text,
+                "ko",
+                second_alias_observation,
+                preferred=False,
+            )
+
+            added_observation = _observation(writer, "existing claim new evidence")
+            assert provenance.add_claim_observation(
+                writer, batch_id, values["claim"], added_observation
+            )
+            assert provenance.add_claim_relation(
+                writer, batch_id, values["claim"], values["relation"], "SUPPORT"
+            )
+            provenance.add_claim_attribute_value(
+                writer,
+                batch_id,
+                claim_id=values["claim"],
+                target_node_id=attribute_target,
+                attribute_revision_id=values["attribute_revision"],
+                value_kind="STRING",
+                string_value="existing claim new value",
+            )
+            assert provenance.add_event_temporal_basis(
+                writer, batch_id, values["event"], values["claim"]
+            )
+            provenance.mark_promotion_committed(writer, batch_id)
+
+        with Session(engine) as restarted:
+            item_kinds = set(
+                execute(
+                    restarted,
+                    """
+                    SELECT item_kind FROM knowledge_item
+                    WHERE promotion_batch_id = :batch
+                    """,
+                    batch=batch_id,
+                ).scalars()
+            )
+            assert item_kinds == {"NODE", "RELATION", "CLAIM"}
+            changes = provenance.changes_for_batch(restarted, batch_id)
+            assert {change.change_kind for change in changes} == set(
+                provenance.CHANGE_KINDS
+            )
+            assert _direct_affected_nodes(restarted, batch_id) == {
+                new_node,
+                values["left"],
+                values["right"],
+                attribute_target,
+                values["event"],
+            }
+            assert values["third"] not in _direct_affected_nodes(restarted, batch_id)
+            assert (
+                execute(
+                    restarted,
+                    """
+                    SELECT count(*) FROM publication_affected_node
+                    WHERE promotion_batch_id = :batch
+                    """,
+                    batch=batch_id,
+                ).scalar_one()
+                == 0
+            )
+            assert execute(
+                restarted,
+                """
+                SELECT promotion_status, publication_status
+                FROM promotion_batch WHERE promotion_batch_id = :batch
+                """,
+                batch=batch_id,
+            ).one() == ("COMMITTED", "NOT_STARTED")
+
+        with Session(engine) as cleanup, cleanup.begin():
+            execute(
+                cleanup,
+                """
+                UPDATE promotion_batch
+                SET publication_status = 'READY', ready_at = CURRENT_TIMESTAMP
+                WHERE promotion_batch_id = :batch
+                """,
+                batch=batch_id,
+            )
+    finally:
+        engine.dispose()
