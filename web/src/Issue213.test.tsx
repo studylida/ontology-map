@@ -196,15 +196,14 @@ describe("Issue #213 relation verification UX", () => {
     expect(disclosure.textContent).not.toContain("충돌");
     expect(screen.getByText("지지")).toBeTruthy();
     expect(screen.getByText("반박")).toBeTruthy();
-    const relationEvidenceButtons = screen.getAllByRole("button", {
-      name: "관계 근거",
+    expect(
+      screen.getByRole("button", { name: "HBF 관련 관계 근거 보기" }),
+    ).toBeTruthy();
+    const personEvidenceButton = screen.getByRole("button", {
+      name: "연결 인물 관련 관계 근거 보기",
     });
-    expect(relationEvidenceButtons).toHaveLength(2);
-    const secondEvidenceButton = relationEvidenceButtons.at(1);
-    if (!secondEvidenceButton)
-      throw new Error("second relation evidence action missing");
 
-    fireEvent.click(secondEvidenceButton);
+    fireEvent.click(personEvidenceButton);
     expect(onEvidence).toHaveBeenCalledWith(
       expect.objectContaining({ id: "101" }),
     );
