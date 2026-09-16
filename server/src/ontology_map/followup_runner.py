@@ -14,9 +14,8 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from ontology_map.db import followup_generation as product_db
-from ontology_map.db import followup_tasks
+from ontology_map.db import followup_tasks, schema
 from ontology_map.db import model_tasks as tasks
-from ontology_map.db import schema
 from ontology_map.durable_provider import (
     ConfirmedProviderFailure,
     UncertainProviderFailure,
@@ -144,6 +143,74 @@ def _finalize(
     return RunnerResult(applied.status, disposition, applied)
 
 
+def _run_claimed(
+    engine: sa.Engine,
+    lease: tasks.Lease,
+    *,
+    node_context_id: int,
+    window: TimeWindow,
+    as_of_at: datetime,
+    prepare_provider: ProviderPreflight,
+) -> RunnerResult:
+    prepared = _current_prepared(
+        engine,
+        lease,
+        node_context_id=node_context_id,
+        window=window,
+        as_of_at=as_of_at,
+    )
+
+    def preflight() -> Callable[[], FollowupQuestionsProposal]:
+        send = prepare_provider(prepared)
+        if not callable(send):
+            raise ValueError("FOLLOWUP_OPERATION_MISSING")
+        return lambda: _checked_operation(send)
+
+    call = execute_call(engine, lease, preflight)
+    if call.value is None:
+        return RunnerResult(call.status, "FAILED", error_code="PROVIDER_FAILED")
+    return _finalize(engine, lease, prepared, call.value)
+
+
+def _handle_error(
+    engine: sa.Engine,
+    lease: tasks.Lease,
+    error: Exception,
+) -> RunnerResult:
+    if isinstance(error, UncertainProviderFailure):
+        return RunnerResult(
+            _status(engine, lease.task_id),
+            "AWAITING_RECLAIM",
+            error_code="RESULT_UNKNOWN",
+        )
+    if isinstance(error, tasks.LeaseLost):
+        return RunnerResult(
+            _status(engine, lease.task_id), "LEASE_LOST", error_code="LEASE_LOST"
+        )
+    if isinstance(
+        error,
+        (
+            followup_tasks.InputChanged,
+            followup_tasks.ReferenceNotReady,
+            product_db.FollowupPreparationError,
+        ),
+    ):
+        return _fail(engine, lease, transient=False)
+    if isinstance(error, sa.exc.DBAPIError):
+        state = getattr(error.orig, "sqlstate", "") or ""
+        transient = (
+            error.connection_invalidated
+            or state.startswith("08")
+            or state in ("40001", "40P01")
+        )
+        return _fail(engine, lease, transient=transient)
+    # execute_call already records deterministic preflight failure. Preserve
+    # that terminal state instead of trying to write through a cleared lease.
+    if _status(engine, lease.task_id) == "FINAL_FAILED":
+        return RunnerResult("FINAL_FAILED", "FAILED", error_code="PREFLIGHT_FAILED")
+    return _fail(engine, lease, transient=False)
+
+
 def run_followup(
     engine: sa.Engine,
     task_id: int,
@@ -166,51 +233,13 @@ def run_followup(
         return RunnerResult(_status(engine, task_id), "NOT_CLAIMED")
 
     try:
-        prepared = _current_prepared(
+        return _run_claimed(
             engine,
             lease,
             node_context_id=node_context_id,
             window=window,
             as_of_at=as_of_at,
+            prepare_provider=prepare_provider,
         )
-
-        def preflight() -> Callable[[], FollowupQuestionsProposal]:
-            send = prepare_provider(prepared)
-            if not callable(send):
-                raise ValueError("FOLLOWUP_OPERATION_MISSING")
-            return lambda: _checked_operation(send)
-
-        call = execute_call(engine, lease, preflight)
-        if call.value is None:
-            return RunnerResult(call.status, "FAILED", error_code="PROVIDER_FAILED")
-        return _finalize(engine, lease, prepared, call.value)
-    except UncertainProviderFailure:
-        return RunnerResult(
-            _status(engine, task_id),
-            "AWAITING_RECLAIM",
-            error_code="RESULT_UNKNOWN",
-        )
-    except tasks.LeaseLost:
-        return RunnerResult(
-            _status(engine, task_id), "LEASE_LOST", error_code="LEASE_LOST"
-        )
-    except (followup_tasks.InputChanged, followup_tasks.ReferenceNotReady):
-        return _fail(engine, lease, transient=False)
-    except product_db.FollowupPreparationError:
-        return _fail(engine, lease, transient=False)
-    except sa.exc.DBAPIError as error:
-        state = getattr(error.orig, "sqlstate", "") or ""
-        transient = (
-            error.connection_invalidated
-            or state.startswith("08")
-            or state in ("40001", "40P01")
-        )
-        return _fail(engine, lease, transient=transient)
-    except Exception:
-        # execute_call already records deterministic preflight failure. Preserve
-        # that terminal state instead of trying to write through a cleared lease.
-        if _status(engine, task_id) == "FINAL_FAILED":
-            return RunnerResult(
-                "FINAL_FAILED", "FAILED", error_code="PREFLIGHT_FAILED"
-            )
-        return _fail(engine, lease, transient=False)
+    except Exception as error:
+        return _handle_error(engine, lease, error)
