@@ -276,7 +276,9 @@ def followup_case() -> FollowupCase:
                 )
 
             connection.execute(
-                s.node_context.delete().where(s.node_context.c.node_context_id == context_id)
+                s.node_context.delete().where(
+                    s.node_context.c.node_context_id == context_id
+                )
             )
             connection.execute(
                 s.agent_attempt.delete().where(
@@ -381,7 +383,9 @@ def _make_retry_due(case: FollowupCase, task_id: int) -> None:
         )
 
 
-def test_ensure_is_idempotent_and_windows_are_distinct(followup_case: FollowupCase) -> None:
+def test_ensure_is_idempotent_and_windows_are_distinct(
+    followup_case: FollowupCase,
+) -> None:
     now = datetime.now(UTC)
     first = followup_case.ensure(TimeWindow.RECENT_90_DAYS, now)
     same = followup_case.ensure(TimeWindow.RECENT_90_DAYS, now)
