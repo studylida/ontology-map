@@ -4,7 +4,7 @@
 
 이 문서는 [완성 SQLAlchemy metadata](../../server/src/ontology_map/db/metadata.py)의 실제 table, column, constraint와 index를 이름순으로 보여 주는 생성 결과다. 데이터 의미와 수명주기는 [논리 스키마](logical-schema.md), PostgreSQL 공통 표현 규칙은 [물리 스키마](physical-schema.md)가 소유한다.
 
-- table 수: 51
+- table 수: 52
 - 생성 명령: `uv run --project server --frozen python scripts/check_docs.py --write`
 - 검사 명령: `uv run --project server --frozen python scripts/check_docs.py --check`
 
@@ -53,6 +53,7 @@
 - [`output_schema_definition`](#output_schema_definition)
 - [`promotion_batch`](#promotion_batch)
 - [`promotion_canonical_change`](#promotion_canonical_change)
+- [`provider_call_slot`](#provider_call_slot)
 - [`publication_affected_node`](#publication_affected_node)
 - [`relation`](#relation)
 - [`relation_endpoint_rule`](#relation_endpoint_rule)
@@ -64,7 +65,7 @@
 
 ## `agent_attempt`
 
-한 논리 모델 작업의 실제 provider 호출 한 번을 기록하는 append-only 이력.
+확정된 provider terminal 결과의 append-only 이력. attempt_no는 slot_no이며 UNKNOWN slot 때문에 번호에 gap이 생길 수 있다.
 
 ### Columns
 
@@ -814,7 +815,7 @@ node·relation·claim의 공유 ID와 수명주기를 관리하는 상위 엔터
 
 ## `model_task`
 
-재시도 전체를 묶는 논리 모델 작업. 실제 호출 누계와 현재 실행 상태를 소유하며 모델 응답 payload를 저장하지 않는다.
+재시도 전체를 묶는 논리 모델 작업. terminal attempt 수와 현재 실행 상태를 소유하며 모델 응답 payload를 저장하지 않는다.
 
 ### Columns
 
@@ -829,7 +830,7 @@ node·relation·claim의 공유 ID와 수명주기를 관리하는 상위 엔터
 | `prompt_version` | `TEXT` | 예 | — | — | — |
 | `cache_key` | `BYTEA` | 아니요 | — | — | — |
 | `status` | `TEXT` | 아니요 | `'PENDING'` | — | — |
-| `attempt_count` | `INTEGER` | 아니요 | `0` | — | 이 논리 작업에서 실제 provider를 호출한 누계. cache 적중은 증가시키지 않으며 agent_attempt 행과 같은 트랜잭션에서 유지한다. |
+| `attempt_count` | `INTEGER` | 아니요 | `0` | — | durable terminal agent_attempt 행 수. append와 같은 transaction에서 유지하며 실제 호출 hard budget은 provider_call_slot 소비 수로 판단한다. |
 | `next_attempt_at` | `TIMESTAMP WITH TIME ZONE` | 예 | — | — | — |
 | `lease_owner` | `TEXT` | 예 | — | — | — |
 | `lease_expires_at` | `TIMESTAMP WITH TIME ZONE` | 예 | — | — | — |
@@ -1502,6 +1503,37 @@ promotion transaction이 기존 canonical object를 재사용하면서 실제로
 | `uq_promotion_canonical_change__event_temporal_basis_added` | 예 | `promotion_batch_id, event_node_id, claim_id` | `change_kind = 'EVENT_TEMPORAL_BASIS_ADDED'` |
 | `uq_promotion_canonical_change__node_alias_changed` | 예 | `promotion_batch_id, node_alias_id` | `change_kind = 'NODE_ALIAS_CHANGED'` |
 | `uq_promotion_canonical_change__node_alias_evidence_added` | 예 | `promotion_batch_id, node_alias_id, observation_id` | `change_kind = 'NODE_ALIAS_EVIDENCE_ADDED'` |
+
+## `provider_call_slot`
+
+전송 전 durable하게 소비하는 제품 provider 호출 슬롯. UNKNOWN도 예산을 소비하며 재사용하지 않는다. 모델 입력·응답·결과 payload는 저장하지 않는다.
+
+### Columns
+
+| 이름 | PostgreSQL type | nullable | default | identity | 설명 |
+| --- | --- | --- | --- | --- | --- |
+| `model_task_id` | `BIGINT` | 아니요 | — | — | — |
+| `slot_no` | `INTEGER` | 아니요 | — | — | — |
+| `state` | `TEXT` | 아니요 | — | — | — |
+| `reserved_at` | `TIMESTAMP WITH TIME ZONE` | 아니요 | — | — | — |
+| `resolved_at` | `TIMESTAMP WITH TIME ZONE` | 예 | — | — | — |
+
+### Constraints
+
+| 종류 | 이름 | 정의 |
+| --- | --- | --- |
+| CHECK | `ck_provider_call_slot__number` | `CHECK (slot_no BETWEEN 1 AND 3)` |
+| CHECK | `ck_provider_call_slot__state` | `CHECK (state IN ('RESERVED', 'COMPLETED', 'UNKNOWN'))` |
+| CHECK | `ck_provider_call_slot__state_shape` | `CHECK ((state = 'RESERVED' AND resolved_at IS NULL) OR (state IN ('COMPLETED', 'UNKNOWN') AND resolved_at IS NOT NULL))` |
+| CHECK | `ck_provider_call_slot__timestamps` | `CHECK (isfinite(reserved_at) AND (resolved_at IS NULL OR (isfinite(resolved_at) AND resolved_at >= reserved_at)))` |
+| FOREIGN KEY | `fk_provider_call_slot__model_task` | `FOREIGN KEY (model_task_id) REFERENCES model_task (model_task_id) ON DELETE RESTRICT ON UPDATE RESTRICT` |
+| PRIMARY KEY | `pk_provider_call_slot` | `PRIMARY KEY (model_task_id, slot_no)` |
+
+### Indexes
+
+| 이름 | unique | column 또는 expression | 조건 |
+| --- | --- | --- | --- |
+| — | — | — | — |
 
 ## `publication_affected_node`
 

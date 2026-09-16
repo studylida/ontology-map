@@ -20,7 +20,7 @@ ontology-map은 공개 자료에서 확인한 근거와 시간축을 지식그�
 | `scripts/check_docs.py` | 메타데이터 기반 스키마 참고 문서 생성과 문서 계약 검사 |
 | `compose.yaml` | 개발용 PostgreSQL과 FastAPI 컨테이너 |
 
-PostgreSQL, migration, 개발용 HBF·100-node fixture, FastAPI, web과 종료·초기화 절차는 [DB 운영 문서](docs/operations/database.md)에 모아 두었다. 제품 Agent와 worker는 아직 실행 가능한 구현과 명령이 없다. 승인된 역할·모델 선택과 제한된 시험 구성은 [구현 스택](docs/development/implementation-stack.md#에이전트-역할과-모델)에서 확인한다.
+PostgreSQL, migration, 개발용 HBF·100-node fixture, FastAPI, web과 종료·초기화 절차는 [DB 운영 문서](docs/operations/database.md)에 모아 두었다. 제품에서 재사용할 원문 추출·지식 생성·판정 함수와 [DB 없는 검사 방법](docs/operations/database.md#추출-실행-코드의-로컬-검사)은 제공하지만, DB 저장·publication worker와 사이트의 자료 입력 기능은 아직 연결되지 않았다. 역할별 고정 모델과 실행 경계는 [구현 스택](docs/development/implementation-stack.md#제품-재사용용-추출-실행-코드)에서 확인한다.
 
 web 실행 후 `/?center=<node ID>&range=90d`에서 지식맵을 연다. 사용자 검토를 거친 디자인을 기본 화면으로 사용하며, 기존 `/design-preview` 주소도 같은 화면으로 열린다. 현재 화면 규칙은 [제품 설계](docs/product/design.md#가독성-디자인-미리보기)에서 확인한다.
 
