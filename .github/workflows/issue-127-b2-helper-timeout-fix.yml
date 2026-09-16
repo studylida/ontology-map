@@ -71,7 +71,7 @@ jobs:
             server/tests/test_extraction_runner.py \
             server/tests/test_extraction_provider.py \
             server/tests/test_extraction_runner_postgres.py::test_helper_transport_failure_is_not_a_product_attempt \
-            server/tests/test_extraction_runner_postgres.py::test_ambiguous_generation_result_waits_for_reclaim
+            server/tests/test_extraction_runner_postgres.py::test_unconfirmed_generation_leaves_reservation_for_reclaim
           git diff --check
           git add server/src/ontology_map/extraction_runner.py
           git config user.name "github-actions[bot]"
