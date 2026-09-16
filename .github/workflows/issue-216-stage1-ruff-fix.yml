@@ -1,0 +1,74 @@
+name: Issue 216 Stage One Ruff Fix
+
+on:
+  push:
+    branches:
+      - issue-216-promotion-provenance
+    paths:
+      - ".github/workflows/issue-216-stage1-ruff-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: issue-216-promotion-provenance
+          persist-credentials: true
+      - name: Wrap exact FK expectations
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('server/tests/test_promotion_provenance_postgres.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''    expected_foreign_targets = {
+        "fk_promotion_canonical_change__promotion_batch": "REFERENCES promotion_batch(promotion_batch_id)",
+        "fk_promotion_canonical_change__node_alias": "REFERENCES node_alias(node_alias_id)",
+        "fk_promotion_canonical_change__node_alias_evidence": "REFERENCES node_alias_evidence(node_alias_id, observation_id)",
+        "fk_promotion_canonical_change__claim_observation": "REFERENCES claim_observation(claim_id, observation_id)",
+        "fk_promotion_canonical_change__claim_relation": "REFERENCES claim_relation(claim_id, relation_id)",
+        "fk_promotion_canonical_change__attribute_value": "REFERENCES claim_attribute_value(claim_attribute_value_id)",
+        "fk_promotion_canonical_change__event_temporal_basis": "REFERENCES event_temporal_basis(event_node_id, claim_id)",
+    }
+'''
+          new = '''    expected_foreign_targets = {
+        "fk_promotion_canonical_change__promotion_batch": (
+            "REFERENCES promotion_batch(promotion_batch_id)"
+        ),
+        "fk_promotion_canonical_change__node_alias": (
+            "REFERENCES node_alias(node_alias_id)"
+        ),
+        "fk_promotion_canonical_change__node_alias_evidence": (
+            "REFERENCES node_alias_evidence(node_alias_id, observation_id)"
+        ),
+        "fk_promotion_canonical_change__claim_observation": (
+            "REFERENCES claim_observation(claim_id, observation_id)"
+        ),
+        "fk_promotion_canonical_change__claim_relation": (
+            "REFERENCES claim_relation(claim_id, relation_id)"
+        ),
+        "fk_promotion_canonical_change__attribute_value": (
+            "REFERENCES claim_attribute_value(claim_attribute_value_id)"
+        ),
+        "fk_promotion_canonical_change__event_temporal_basis": (
+            "REFERENCES event_temporal_basis(event_node_id, claim_id)"
+        ),
+    }
+'''
+          if text.count(old) != 1:
+              raise SystemExit('expected FK block not found exactly once')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          git rm .github/workflows/issue-216-stage1-ruff-fix.yml
+          git diff --check
+      - name: Commit fix
+        run: |
+          git add server/tests/test_promotion_provenance_postgres.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test: wrap promotion provenance FK assertions"
+          git push origin HEAD:issue-216-promotion-provenance
