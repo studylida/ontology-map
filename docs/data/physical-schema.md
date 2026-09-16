@@ -3,13 +3,13 @@
 ## 문서 상태
 
 - 상태: Physical Schema v2 — 동결 및 migration 구현 완료
-- 확인일: 2026-09-15
-- 관련 Issue: [#40 Define PostgreSQL physical schema conventions](https://github.com/studylida/ontology-map/issues/40), [#200 NUMBER attribute 복수 허용 단위 지원](https://github.com/studylida/ontology-map/issues/200), [#203 Topic reference lifecycle 지원](https://github.com/studylida/ontology-map/issues/203)
+- 확인일: 2026-09-16
+- 관련 Issue: [#40 Define PostgreSQL physical schema conventions](https://github.com/studylida/ontology-map/issues/40), [#200 NUMBER attribute 복수 허용 단위 지원](https://github.com/studylida/ontology-map/issues/200), [#203 Topic reference lifecycle 지원](https://github.com/studylida/ontology-map/issues/203), [#216 promotion canonical change provenance](https://github.com/studylida/ontology-map/issues/216)
 - 논리 모델: [논리 스키마](logical-schema.md)
 - 생성 목록: [스키마 참고 문서](schema-reference.md)
 - 구현 스택: [구현 스택](../development/implementation-stack.md)
 - 코드·migration 규칙: [코드 규칙](../development/code-conventions.md)
-- 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`; #200, `server/migrations/versions/0003_support_multiple_number_attribute_units.py`; #203, `server/migrations/versions/0004_support_topic_reference_lifecycle.py`
+- 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`; #200, `server/migrations/versions/0003_support_multiple_number_attribute_units.py`; #203, `server/migrations/versions/0004_support_topic_reference_lifecycle.py`; #216 1/2, `server/migrations/versions/0005_add_promotion_canonical_change.py`
 
 이 문서는 Logical Schema v1.2의 의미를 PostgreSQL로 옮기는 공통 표현 규칙을 정의한다. 실제 table, column, constraint와 index 목록은 SQLAlchemy metadata에서 생성한 [스키마 참고 문서](schema-reference.md)가 소유한다.
 
@@ -17,8 +17,8 @@
 
 ## 현재 구현 기준
 
-- SQLAlchemy metadata: `server/src/ontology_map/db/schema.py`
-- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_support_multiple_number_attribute_units.py` → `0004_support_topic_reference_lifecycle.py`
+- SQLAlchemy complete metadata: `server/src/ontology_map/db/metadata.py` (`schema.py`의 기존 metadata에 #216 provenance table을 등록)
+- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_support_multiple_number_attribute_units.py` → `0004_support_topic_reference_lifecycle.py` → `0005_add_promotion_canonical_change.py`
 - 개발 fixture: `server/src/ontology_map/db/fixture.py`
 - PostgreSQL namespace: `public`
 - 현재 metadata에 구현된 table 수와 각 객체의 세부 정의는 [스키마 참고 문서](schema-reference.md)에서 확인한다.
@@ -35,6 +35,16 @@ claim
 ```
 
 Relation의 stance는 `claim_relation`, 구조화 속성값은 `claim_attribute_value`, 사건 시간 근거는 `event_temporal_basis`가 Claim에 연결한다. node 인사이트도 `node_insight_claim`에서 기존 Claim으로 이어져 같은 Evidence Trace를 재사용한다.
+
+### Promotion canonical-change provenance
+
+#216의 `promotion_canonical_change`는 identity PK, NOT NULL `promotion_batch_id`, closed `change_kind`, 그리고 `node_alias_id`, `observation_id`, `claim_id`, `relation_id`, `claim_attribute_value_id`, `event_node_id` 전용 nullable target column만 가진다. JSON payload, `affected_node_id`, workflow/publication 상태 column은 두지 않는다.
+
+`NODE_ALIAS_EVIDENCE_ADDED`, `CLAIM_OBSERVATION_ADDED`, `CLAIM_RELATION_ADDED`, `EVENT_TEMPORAL_BASIS_ADDED`는 각각 원본 association의 composite PK를 composite FK로 직접 참조한다. `NODE_ALIAS_CHANGED`와 `CLAIM_ATTRIBUTE_VALUE_ADDED`는 exact target row를 단일 FK로 참조한다. 하나의 CHECK가 kind별 필요한 target만 non-NULL이고 관계없는 target은 NULL임을 강제하며, 별도 closed-kind CHECK가 여섯 종류 밖의 값을 거부한다.
+
+Idempotency는 nullable 전체 UNIQUE에 의존하지 않고 kind별 partial unique index 여섯 개로 `promotion_batch + change_kind + exact target`을 고정한다. `(promotion_batch_id, promotion_canonical_change_id)` index는 향후 coordinator가 batch 기준으로 provenance를 읽을 최소 access path다.
+
+migration `0005`는 historical association을 backfill하지 않는다. transaction-local primitive는 caller가 연 promotion transaction 안에서만 동작하고 association insert는 `INSERT ... ON CONFLICT DO NOTHING RETURNING ...` 결과로 실제 mutation 여부를 판별할 수 있게 한다. 이번 #216 1/2 단계는 이 persistence/primitive/guard까지 구현하며 repository 전체 production promotion writer의 최종 6종 wiring은 2/2 단계에 남긴다.
 
 `publication_affected_node`는 한 batch가 영향을 준 node와 선택한 검색 문서, context와 `NODE_INSIGHT` 작업을 가리킨다. 이 행은 지도 구성원, 좌표나 전체 graph snapshot이 아니다.
 

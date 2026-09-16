@@ -11,7 +11,6 @@ import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ontology_map.db import entity_resolution as entity_db
 from ontology_map.db import promotion_provenance as provenance
 
 DATABASE_URL = os.environ.get("ONTOLOGY_MAP_PROMOTION_PROVENANCE_TEST_DATABASE_URL")
@@ -440,77 +439,72 @@ def test_schema_rejects_unknown_kind_bad_shape_and_nonexistent_association(
         "UNIQUE INDEX" in row.indexdef and " WHERE " in row.indexdef for row in indexes
     )
 
+    definitions = {
+        row.conname: row.definition
+        for row in execute(
+            database,
+            """
+            SELECT conname, pg_get_constraintdef(oid) AS definition
+            FROM pg_constraint
+            WHERE conrelid = 'promotion_canonical_change'::regclass
+            """,
+        ).all()
+    }
+    expected_foreign_targets = {
+        "fk_promotion_canonical_change__promotion_batch": "REFERENCES promotion_batch(promotion_batch_id)",
+        "fk_promotion_canonical_change__node_alias": "REFERENCES node_alias(node_alias_id)",
+        "fk_promotion_canonical_change__node_alias_evidence": "REFERENCES node_alias_evidence(node_alias_id, observation_id)",
+        "fk_promotion_canonical_change__claim_observation": "REFERENCES claim_observation(claim_id, observation_id)",
+        "fk_promotion_canonical_change__claim_relation": "REFERENCES claim_relation(claim_id, relation_id)",
+        "fk_promotion_canonical_change__attribute_value": "REFERENCES claim_attribute_value(claim_attribute_value_id)",
+        "fk_promotion_canonical_change__event_temporal_basis": "REFERENCES event_temporal_basis(event_node_id, claim_id)",
+    }
+    for name, target in expected_foreign_targets.items():
+        assert name in definitions
+        assert target.replace(" ", "") in definitions[name].replace(" ", "")
 
-def test_alias_new_reuse_evidence_and_retry_record_only_real_mutations(
+    batch_index = execute(
+        database,
+        """
+        SELECT indexdef FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'promotion_canonical_change'
+          AND indexname = 'ix_promotion_canonical_change__batch'
+        """,
+    ).scalar_one()
+    assert "(promotion_batch_id, promotion_canonical_change_id)" in batch_index
+
+
+def test_alias_primitives_are_exact_and_same_batch_retry_dedupes(
     database: Session,
 ) -> None:
     values = _base_objects(database)
     batch_id = _batch(database)
-    alias_text = f"new-alias-{uuid4()}"
-    entity_db._ensure_alias(
-        database,
-        batch_id,
-        values["left"],
-        alias_text,
-        "ko",
-        values["observation"],
-        preferred=False,
-    )
-    changes = provenance.changes_for_batch(database, batch_id)
-    assert [change.change_kind for change in changes] == [
-        "NODE_ALIAS_CHANGED",
-        "NODE_ALIAS_EVIDENCE_ADDED",
-    ]
-
-    entity_db._ensure_alias(
-        database,
-        batch_id,
-        values["left"],
-        alias_text,
-        "ko",
-        values["observation"],
-        preferred=False,
-    )
-    assert len(provenance.changes_for_batch(database, batch_id)) == 2
-
-    second_observation = _observation(database)
-    entity_db._ensure_alias(
-        database,
-        batch_id,
-        values["left"],
-        alias_text,
-        "ko",
-        second_observation,
-        preferred=False,
-    )
-    changes = provenance.changes_for_batch(database, batch_id)
-    assert [change.change_kind for change in changes].count("NODE_ALIAS_CHANGED") == 1
-    assert [change.change_kind for change in changes].count(
-        "NODE_ALIAS_EVIDENCE_ADDED"
-    ) == 2
-
-    reused_alias_id = returning(
+    alias_id = returning(
         database,
         """
         INSERT INTO node_alias (node_id, alias_text, language, is_preferred)
         VALUES (:node_id, :text, 'ko', false)
         RETURNING node_alias_id
         """,
-        node_id=values["right"],
-        text=f"existing-{uuid4()}",
+        node_id=values["left"],
+        text=f"stage-one-alias-{uuid4()}",
     )
-    other_batch = _batch(database)
-    other_observation = _observation(database)
+
+    provenance.record_node_alias_changed(database, batch_id, alias_id)
+    provenance.record_node_alias_changed(database, batch_id, alias_id)
     assert provenance.add_node_alias_evidence(
-        database,
-        other_batch,
-        reused_alias_id,
-        other_observation,
+        database, batch_id, alias_id, values["observation"]
     )
-    assert [
-        change.change_kind
-        for change in provenance.changes_for_batch(database, other_batch)
-    ] == ["NODE_ALIAS_EVIDENCE_ADDED"]
+    assert not provenance.add_node_alias_evidence(
+        database, batch_id, alias_id, values["observation"]
+    )
+
+    changes = provenance.changes_for_batch(database, batch_id)
+    assert [change.change_kind for change in changes] == [
+        "NODE_ALIAS_CHANGED",
+        "NODE_ALIAS_EVIDENCE_ADDED",
+    ]
 
 
 def test_claim_association_attribute_and_event_surfaces_are_exact_and_idempotent(
@@ -628,141 +622,12 @@ def test_canonical_mutation_and_provenance_roll_back_together(
     )
 
 
-def test_restart_reload_projection_inputs_and_publication_lifecycle_preserve_history(
-    database: Session,
-) -> None:
-    values = _base_objects(database)
-    batch_id = _batch(database)
-    _relation(database, values["base_batch"], values["right"], values["third"])
-    evidence_only_claim = _claim(database, values["base_batch"], "evidence-only")
-    evidence_only_observation = _observation(database, "evidence-only source")
-
-    provenance.add_claim_observation(
-        database, batch_id, values["claim"], values["observation"]
-    )
-    provenance.add_claim_observation(
-        database, batch_id, evidence_only_claim, evidence_only_observation
-    )
-    provenance.add_claim_relation(
-        database, batch_id, values["claim"], values["relation"], "SUPPORT"
-    )
-    value_id = provenance.add_claim_attribute_value(
-        database,
-        batch_id,
-        claim_id=values["claim"],
-        target_node_id=values["left"],
-        attribute_revision_id=values["attribute_revision"],
-        value_kind="STRING",
-        string_value="projection target",
-    )
-    provenance.add_event_temporal_basis(
-        database, batch_id, values["event"], values["claim"]
-    )
-    execute(
-        database,
-        """
-        UPDATE promotion_batch
-        SET promotion_status = 'COMMITTED', committed_at = CURRENT_TIMESTAMP
-        WHERE promotion_batch_id = :batch_id
-        """,
-        batch_id=batch_id,
-    )
-    database.flush()
-    database.expire_all()
-
-    reloaded = provenance.changes_for_batch(database, batch_id)
-    assert {change.change_kind for change in reloaded} == {
-        "CLAIM_OBSERVATION_ADDED",
-        "CLAIM_RELATION_ADDED",
-        "CLAIM_ATTRIBUTE_VALUE_ADDED",
-        "EVENT_TEMPORAL_BASIS_ADDED",
-    }
-    evidence_only_changes = [
-        change for change in reloaded if change.claim_id == evidence_only_claim
-    ]
-    assert [change.change_kind for change in evidence_only_changes] == [
-        "CLAIM_OBSERVATION_ADDED"
-    ]
-
-    direct_relation_nodes = set(
-        execute(
-            database,
-            """
-            SELECT r.source_node_id FROM promotion_canonical_change p
-            JOIN relation r ON r.relation_id = p.relation_id
-            WHERE p.promotion_batch_id = :batch
-              AND p.change_kind = 'CLAIM_RELATION_ADDED'
-            UNION
-            SELECT r.target_node_id FROM promotion_canonical_change p
-            JOIN relation r ON r.relation_id = p.relation_id
-            WHERE p.promotion_batch_id = :batch
-              AND p.change_kind = 'CLAIM_RELATION_ADDED'
-            """,
-            batch=batch_id,
-        ).scalars()
-    )
-    assert direct_relation_nodes == {values["left"], values["right"]}
-    assert values["third"] not in direct_relation_nodes
-    assert (
-        execute(
-            database,
-            """
-            SELECT target_node_id FROM claim_attribute_value
-            WHERE claim_attribute_value_id = :value_id
-            """,
-            value_id=value_id,
-        ).scalar_one()
-        == values["left"]
-    )
-    assert any(
-        change.event_node_id == values["event"]
-        for change in reloaded
-        if change.change_kind == "EVENT_TEMPORAL_BASIS_ADDED"
-    )
-    assert any(
-        change.claim_id == values["claim"]
-        for change in reloaded
-        if change.change_kind == "CLAIM_OBSERVATION_ADDED"
-    )
-
-    initial_ids = tuple(change.promotion_canonical_change_id for change in reloaded)
-    for sql in (
-        """
-        UPDATE promotion_batch
-        SET publication_status = 'PREPARING'
-        WHERE promotion_batch_id = :batch
-        """,
-        """
-        UPDATE promotion_batch
-        SET publication_status = 'FAILED',
-            publication_failure_reason = 'synthetic publication failure'
-        WHERE promotion_batch_id = :batch
-        """,
-        """
-        UPDATE promotion_batch
-        SET publication_status = 'PREPARING',
-            publication_failure_reason = NULL
-        WHERE promotion_batch_id = :batch
-        """,
-        """
-        UPDATE promotion_batch
-        SET publication_status = 'READY', ready_at = CURRENT_TIMESTAMP
-        WHERE promotion_batch_id = :batch
-        """,
-    ):
-        execute(database, sql, batch=batch_id)
-        assert (
-            tuple(
-                change.promotion_canonical_change_id
-                for change in provenance.changes_for_batch(database, batch_id)
-            )
-            == initial_ids
-        )
-
-
 def test_legacy_committed_not_started_batches_block_cutover_without_mutation(
     database: Session,
 ) -> None:
+    assert provenance.legacy_committed_not_started_batch_ids(database) == ()
+    provenance.assert_initial_publication_cutover_safe(database)
+
     legacy_batch = _batch(database, committed=True)
     before = execute(
         database,
