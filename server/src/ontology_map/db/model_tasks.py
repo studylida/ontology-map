@@ -178,6 +178,16 @@ def _set_state(
     )
 
 
+def _require_task_kind(task: RowMapping, expected_task_kind: DurableTaskKind) -> None:
+    if expected_task_kind not in DURABLE_TASK_KINDS:
+        raise ValueError("UNSUPPORTED_DURABLE_TASK_KIND")
+    if task["task_kind"] == expected_task_kind:
+        return
+    if expected_task_kind == "KNOWLEDGE_EXTRACTION":
+        raise ValueError("NOT_AN_EXTRACTION_TASK")
+    raise ValueError("UNEXPECTED_TASK_KIND")
+
+
 def claim_task(
     session: Session,
     task_id: int,
@@ -188,13 +198,8 @@ def claim_task(
     """Claim one approved durable provider task without changing ledger semantics."""
     if not worker_name.strip():
         raise ValueError("EMPTY_WORKER_NAME")
-    if expected_task_kind not in DURABLE_TASK_KINDS:
-        raise ValueError("UNSUPPORTED_DURABLE_TASK_KIND")
     task = _locked(session, task_id)
-    if task["task_kind"] != expected_task_kind:
-        if expected_task_kind == "KNOWLEDGE_EXTRACTION":
-            raise ValueError("NOT_AN_EXTRACTION_TASK")
-        raise ValueError("UNEXPECTED_TASK_KIND")
+    _require_task_kind(task, expected_task_kind)
     now = _now(session)
     state = task["status"]
     if state in TERMINAL:
