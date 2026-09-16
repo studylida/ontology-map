@@ -399,11 +399,11 @@ def add_claim_attribute_value(
     date_to_precision: str = "UNKNOWN",
     boolean_value: bool | None = None,
 ) -> int:
-    """Reuse an exact stored value or insert it with immutable provenance.
+    """Insert one canonical attribute-value row and record its exact row provenance.
 
-    The schema intentionally has no semantic-value UNIQUE constraint. Locking the
-    owning Claim makes the exact stored tuple check deterministic for callers of
-    this production write boundary, including concurrent retry transactions.
+    This #216 boundary deliberately does not define semantic equality or reuse
+    between separate claim_attribute_value rows. Reprocess/canonicalization
+    decisions belong to their owning caller before this mutation is requested.
     """
     require_pending_batch(session, batch_id)
     values = {
@@ -420,33 +420,6 @@ def add_claim_attribute_value(
         "date_to_precision": date_to_precision,
         "boolean_value": boolean_value,
     }
-    session.execute(
-        sa.text("SELECT claim_id FROM claim WHERE claim_id = :claim_id FOR UPDATE"),
-        {"claim_id": claim_id},
-    ).scalar_one()
-    existing = session.execute(
-        sa.text("""
-            SELECT claim_attribute_value_id
-            FROM claim_attribute_value
-            WHERE claim_id = :claim_id
-              AND target_node_id = :target_node_id
-              AND attribute_revision_id = :attribute_revision_id
-              AND value_kind = :value_kind
-              AND string_value IS NOT DISTINCT FROM :string_value
-              AND number_value IS NOT DISTINCT FROM :number_value
-              AND unit_code IS NOT DISTINCT FROM :unit_code
-              AND date_from IS NOT DISTINCT FROM :date_from
-              AND date_to IS NOT DISTINCT FROM :date_to
-              AND date_from_precision = :date_from_precision
-              AND date_to_precision = :date_to_precision
-              AND boolean_value IS NOT DISTINCT FROM :boolean_value
-            ORDER BY claim_attribute_value_id
-            LIMIT 1
-        """),
-        values,
-    ).scalar_one_or_none()
-    if existing is not None:
-        return int(existing)
     value_id = int(
         session.execute(
             sa.text("""

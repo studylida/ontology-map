@@ -624,7 +624,7 @@ def test_alias_production_primitive_tracks_only_actual_mutations(
     ]
 
 
-def test_claim_association_attribute_and_event_surfaces_are_exact_and_idempotent(
+def test_claim_associations_are_idempotent_and_attribute_uses_exact_row_target(
     database: Session,
 ) -> None:
     values = _base_objects(database)
@@ -662,16 +662,6 @@ def test_claim_association_attribute_and_event_surfaces_are_exact_and_idempotent
         value_kind="STRING",
         string_value="issue 216 value",
     )
-    retry_attribute_value_id = provenance.add_claim_attribute_value(
-        database,
-        batch_id,
-        claim_id=values["claim"],
-        target_node_id=values["left"],
-        attribute_revision_id=values["attribute_revision"],
-        value_kind="STRING",
-        string_value="issue 216 value",
-    )
-    assert retry_attribute_value_id == attribute_value_id
 
     assert provenance.add_event_temporal_basis(
         database, batch_id, values["event"], values["claim"]
