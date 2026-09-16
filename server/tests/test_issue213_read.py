@@ -228,33 +228,6 @@ def _setup_has_topic_fixture(session: Session, node_ids: dict[str, int]) -> dict
         modality="PREDICTION_OR_ESTIMATE",
         key="private-dispute",
     )
-    conflict_id = int(
-        session.execute(
-            conflict_set.insert()
-            .values(
-                relation_id=relation_id,
-                modality="PREDICTION_OR_ESTIMATE",
-                current_state="AGENT_PROPOSED",
-                created_at=NOW,
-            )
-            .returning(conflict_set.c.conflict_set_id)
-        ).scalar_one()
-    )
-    session.execute(
-        conflict_member.insert(),
-        [
-            {
-                "conflict_set_id": conflict_id,
-                "claim_id": support_claim_id,
-                "position_key": "support",
-            },
-            {
-                "conflict_set_id": conflict_id,
-                "claim_id": private_dispute_claim_id,
-                "position_key": "dispute",
-            },
-        ],
-    )
     session.flush()
     return {
         "source_id": source_id,
@@ -406,6 +379,35 @@ def test_claim_connections_project_relation_and_hide_non_public_conflict() -> No
                 topic_id = fixture["topic_id"]
                 relation_id = fixture["relation_id"]
                 support_claim_id = fixture["support_claim_id"]
+                private_dispute_claim_id = fixture["private_dispute_claim_id"]
+                conflict_id = int(
+                    session.execute(
+                        conflict_set.insert()
+                        .values(
+                            relation_id=relation_id,
+                            modality="PREDICTION_OR_ESTIMATE",
+                            current_state="AGENT_PROPOSED",
+                            created_at=NOW,
+                        )
+                        .returning(conflict_set.c.conflict_set_id)
+                    ).scalar_one()
+                )
+                session.execute(
+                    conflict_member.insert(),
+                    [
+                        {
+                            "conflict_set_id": conflict_id,
+                            "claim_id": support_claim_id,
+                            "position_key": "support",
+                        },
+                        {
+                            "conflict_set_id": conflict_id,
+                            "claim_id": private_dispute_claim_id,
+                            "position_key": "dispute",
+                        },
+                    ],
+                )
+                session.flush()
 
                 claims_page = panel.list_claims(
                     session,
