@@ -3,6 +3,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -57,6 +58,26 @@ function emptyReportResponse() {
   });
 }
 
+function reportResponse(title: string) {
+  return new Response(
+    JSON.stringify({
+      items: [
+        {
+          report_id: "501",
+          title,
+          summary: "요약",
+          as_of_at: "2026-09-15T00:00:00Z",
+          evidence_group_count: 3,
+          conclusion: null,
+          caveat: null,
+          sections: [],
+        },
+      ],
+    }),
+    { status: 200, headers: { "content-type": "application/json" } },
+  );
+}
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -64,12 +85,10 @@ afterEach(() => {
 
 describe("TopicPanel", () => {
   it("shows only the top three recent-evidence members as rich cards without evidence counts", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn<typeof fetch>()
-        .mockImplementation(async () => emptyReportResponse()),
-    );
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => emptyReportResponse());
+    vi.stubGlobal("fetch", fetchMock);
     const view = topicView([
       node("1", "가 회사", "회사", "COMPANY", 8),
       node("2", "나 기술", "기술", "TECHNOLOGY", 6),
@@ -115,6 +134,10 @@ describe("TopicPanel", () => {
     expect(
       within(otherSection as HTMLElement).getByText("마 기술"),
     ).toBeTruthy();
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: "다시 조회" })).toBeNull();
   });
 
   it("distinguishes no membership from no selected-period evidence", () => {
@@ -128,6 +151,13 @@ describe("TopicPanel", () => {
       />,
     );
     expect(screen.getByText("아직 공개된 연결 대상이 없습니다.")).toBeTruthy();
+    expect(screen.queryByRole("tab")).toBeNull();
+    expect(
+      screen.queryByText("이 기간에는 공개된 후속 질문이 없습니다."),
+    ).toBeNull();
+    expect(
+      screen.queryByText("이 기간에는 공개된 인사이트가 없습니다."),
+    ).toBeNull();
 
     rerender(
       <TopicPanel
@@ -145,25 +175,9 @@ describe("TopicPanel", () => {
   });
 
   it("uses an available public report title to enter the member Insight tab", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          items: [
-            {
-              report_id: "501",
-              title: "반도체 공급망 변화",
-              summary: "요약",
-              as_of_at: "2026-09-15T00:00:00Z",
-              evidence_group_count: 3,
-              conclusion: null,
-              caveat: null,
-              sections: [],
-            },
-          ],
-        }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      ),
-    );
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(reportResponse("반도체 공급망 변화"));
     vi.stubGlobal("fetch", fetchMock);
     const onSelectInsight = vi.fn();
 
@@ -186,5 +200,49 @@ describe("TopicPanel", () => {
       "/api/v1/nodes/1/insight-report?time_window=RECENT_90_DAYS&detail=false",
       expect.any(Object),
     );
+  });
+
+  it("keeps report-title read failure distinct from normal empty and retries only that read", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: { code: "PANEL_NOT_READY", retryable: true },
+          }),
+          { status: 503, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(reportResponse("재조회된 인사이트"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <TopicPanel
+        view={topicView([node("1", "가 회사", "회사", "COMPANY", 8)])}
+        timeRange="90d"
+        onClose={() => undefined}
+        onSelect={() => undefined}
+        onSelectInsight={() => undefined}
+      />,
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain(
+      "현재 이 영역의 공개 자료를 불러올 수 없습니다.",
+    );
+    expect(alert.textContent).not.toMatch(/준비 중|생성 중|복구 중/);
+    fireEvent.click(within(alert).getByRole("button", { name: "다시 조회" }));
+
+    expect(
+      await screen.findByRole("button", { name: /재조회된 인사이트/ }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("최신 공개 상태로 다시 불러왔습니다."),
+    ).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/v1/nodes/1/insight-report?time_window=RECENT_90_DAYS&detail=false",
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(fetchMock.mock.calls[0]?.[0]);
   });
 });

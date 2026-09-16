@@ -23,6 +23,7 @@ export function usePeripheral(
   const [displayed, setDisplayed] = useState<Accumulated | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<APIRequestError | null>(null);
+  const [retrySuccess, setRetrySuccess] = useState(false);
   const nextRef = useRef<string | null | undefined>(undefined);
   const seenRef = useRef(new Set<string | null>());
   const pendingRef = useRef(false);
@@ -34,6 +35,7 @@ export function usePeripheral(
     setResult(null);
     setDisplayed(null);
     setError(null);
+    setRetrySuccess(false);
     setLoading(false);
     nextRef.current = undefined;
     seenRef.current.clear();
@@ -61,6 +63,7 @@ export function usePeripheral(
       pendingRef.current = true;
       setLoading(true);
       setError(null);
+      setRetrySuccess(false);
       errorRef.current = null;
       const controller = new AbortController();
       controllerRef.current = controller;
@@ -82,6 +85,7 @@ export function usePeripheral(
         if (controller.signal.aborted) return;
         seenRef.current.add(cursor);
         nextRef.current = page.nextCursor;
+        if (retry) setRetrySuccess(true);
         setResult((current) => ({
           ...page,
           view,
@@ -127,6 +131,7 @@ export function usePeripheral(
     graphView,
     loading,
     error,
+    retrySuccess,
     exhausted:
       result?.view === view &&
       result?.range === range &&

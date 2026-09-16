@@ -42,6 +42,7 @@ interface ExplorationRequest {
   range: TimeRange;
   navigation: Navigation | null;
   panelTab?: 0 | 1 | 2;
+  retry?: boolean;
 }
 
 interface PendingTransition {
@@ -49,7 +50,7 @@ interface PendingTransition {
   request: ExplorationRequest;
 }
 
-type LoadStatus = "idle" | "loading" | "empty" | "error";
+type LoadStatus = "idle" | "loading" | "start" | "empty" | "error";
 
 const maxTrailLength = 4;
 
@@ -58,11 +59,14 @@ function appendTrail(trail: string[], nodeId: string): string[] {
   return [...trail, nodeId].slice(-maxTrailLength);
 }
 
+function readConfiguredCenter(): string | null {
+  return import.meta.env.VITE_DEFAULT_CENTER_NODE_ID?.trim() || null;
+}
+
 function readLocation(): LocationState {
   const params = new URLSearchParams(window.location.search);
-  const configuredCenter = import.meta.env.VITE_DEFAULT_CENTER_NODE_ID?.trim();
   return {
-    centerId: params.get("center") || configuredCenter || null,
+    centerId: params.get("center") || readConfiguredCenter(),
     range: params.get("range") === "1y" ? "1y" : "90d",
   };
 }
@@ -90,27 +94,27 @@ function errorCopy(error: APIRequestError | null): {
     error?.status === 404
   ) {
     return {
-      title: "요청한 node를 찾을 수 없습니다.",
-      detail: "중심 node ID를 확인한 뒤 다시 열어 주세요.",
+      title: "요청한 Node를 찾을 수 없습니다.",
+      detail: "다른 Node를 검색하거나 주제를 선택해 주세요.",
+    };
+  }
+  if (error?.code === "INVALID_REQUEST" || error?.status === 422) {
+    return {
+      title:
+        "요청을 확인할 수 없습니다. 다른 Node를 검색하거나 주제를 선택해 주세요.",
+      detail: "",
     };
   }
   if (error?.code === "PUBLICATION_NOT_READY" || error?.status === 503) {
     return {
-      title: "공개 데이터를 준비하고 있습니다.",
-      detail:
-        "이전에 공개된 탐색 결과가 아직 없습니다. 잠시 후 다시 시도해 주세요.",
-    };
-  }
-  if (error?.code === "MISSING_DEFAULT_CENTER") {
-    return {
-      title: "기본 중심 node가 설정되지 않았습니다.",
-      detail:
-        "VITE_DEFAULT_CENTER_NODE_ID에 HBF fixture가 출력한 node ID를 설정해 주세요.",
+      title: "현재 이 Node의 공개 탐색 자료를 불러올 수 없습니다.",
+      detail: "다른 Node를 검색하거나 주제를 선택할 수 있습니다.",
     };
   }
   return {
-    title: "탐색 데이터를 불러오지 못했습니다.",
-    detail: "네트워크 연결을 확인한 뒤 다시 시도해 주세요.",
+    title:
+      "탐색 데이터를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 다시 시도해 주세요.",
+    detail: "",
   };
 }
 
@@ -270,14 +274,59 @@ function LoadNotice({
   status,
   hasView,
   error,
+  failedRequest,
+  currentCenterId,
+  currentName,
+  currentRange,
+  failedTargetName,
+  defaultCenterId,
   onRetry,
+  onDefault,
 }: {
   status: LoadStatus;
   hasView: boolean;
   error: APIRequestError | null;
+  failedRequest: ExplorationRequest | null;
+  currentCenterId: string | null;
+  currentName: string | null;
+  currentRange: TimeRange;
+  failedTargetName: string | null;
+  defaultCenterId: string | null;
   onRetry: () => void;
+  onDefault: () => void;
 }) {
   const copy = errorCopy(error);
+  const canOpenDefault =
+    status === "error" &&
+    defaultCenterId !== null &&
+    failedRequest !== null &&
+    failedRequest.centerId !== defaultCenterId;
+  const moving =
+    hasView &&
+    failedRequest !== null &&
+    currentCenterId !== null &&
+    failedRequest.centerId !== currentCenterId;
+  const changingRange =
+    hasView &&
+    failedRequest !== null &&
+    currentCenterId !== null &&
+    failedRequest.centerId === currentCenterId &&
+    failedRequest.range !== currentRange;
+  const actions = (
+    <>
+      {error?.retryable && (
+        <button type="button" onClick={onRetry}>
+          다시 조회
+        </button>
+      )}
+      {canOpenDefault && (
+        <button type="button" onClick={onDefault}>
+          기본 탐색으로 이동
+        </button>
+      )}
+    </>
+  );
+
   if (status === "loading" && hasView) {
     return (
       <div className={styles.requestStatus} role="status">
@@ -285,16 +334,34 @@ function LoadNotice({
       </div>
     );
   }
+  if (status === "start" && !hasView) {
+    return (
+      <div className={styles.fullStatus} role="status">
+        <strong>탐색할 Node를 검색하거나 주제를 선택해 주세요.</strong>
+      </div>
+    );
+  }
   if (status === "error" && hasView) {
     return (
       <div className={styles.requestStatus} role="alert">
-        <strong>{copy.title}</strong>
-        <span>{copy.detail}</span>
-        {error?.retryable && (
-          <button type="button" onClick={onRetry}>
-            다시 시도
-          </button>
+        <strong>
+          {moving
+            ? `${failedTargetName ?? "선택한 Node"}를 열 수 없습니다.`
+            : copy.title}
+        </strong>
+        {moving ? (
+          <>
+            <span>{`현재 ${currentName ?? "열려 있던 Node"} 화면을 계속 표시합니다.`}</span>
+            <span>{copy.title}</span>
+          </>
+        ) : changingRange ? (
+          <span>{`현재 ${currentName ?? "열려 있던 Node"}의 ${
+            currentRange === "90d" ? "최근 90일" : "최근 1년"
+          } 화면을 계속 표시합니다.`}</span>
+        ) : (
+          copy.detail && <span>{copy.detail}</span>
         )}
+        {actions}
       </div>
     );
   }
@@ -303,12 +370,10 @@ function LoadNotice({
     return (
       <div className={styles.fullStatus} role={empty ? "status" : "alert"}>
         <strong>{empty ? "표시할 탐색 데이터가 없습니다." : copy.title}</strong>
-        <span>{empty ? "다른 중심 node를 선택해 주세요." : copy.detail}</span>
-        {!empty && error?.retryable && (
-          <button type="button" onClick={onRetry}>
-            다시 시도
-          </button>
-        )}
+        <span>
+          {empty ? "다른 Node를 검색하거나 주제를 선택해 주세요." : copy.detail}
+        </span>
+        {!empty && actions}
       </div>
     );
   }
@@ -317,6 +382,7 @@ function LoadNotice({
 
 export function App({ designPreview = true }: { designPreview?: boolean }) {
   const initial = useMemo(readLocation, []);
+  const defaultCenterId = useMemo(readConfiguredCenter, []);
   const [hiddenKinds, setHiddenKinds] = useState<string[]>([]);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [loadingTip] = useState(() => {
@@ -339,9 +405,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
   const [currentView, setCurrentView] = useState<ExplorationView | null>(null);
   const [graphView, setGraphView] = useState<ExplorationView | null>(null);
   const [timeRange, setTimeRange] = useState(initial.range);
-  const [trail, setTrail] = useState<string[]>(
-    initial.centerId ? [initial.centerId] : [],
-  );
+  const [trail, setTrail] = useState<string[]>([]);
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelTab, setPanelTab] = useState<0 | 1 | 2>(0);
   const [evidence, setEvidence] = useState<EvidenceSelection | null>(null);
@@ -376,6 +440,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
       setTimeRange(request.range);
       setPanelTab(request.panelTab ?? 0);
       setPanelOpen(true);
+      setEvidence(null);
       const navigation = request.navigation;
       if (navigation) {
         setTrail((current) =>
@@ -386,12 +451,17 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
         if (navigation.historyMode === "push") {
           writeLocation(view.centerId, request.range, "push");
         }
-        setAnnouncement(
-          `${nodeCacheRef.current.get(view.centerId)?.name ?? "선택한 node"} 중심으로 이동했습니다.`,
-        );
       } else {
         writeLocation(view.centerId, request.range, "replace");
         setTrail((current) => (current.length ? current : [view.centerId]));
+      }
+      if (request.retry) {
+        setAnnouncement("최신 공개 상태로 다시 불러왔습니다.");
+      } else if (navigation) {
+        setAnnouncement(
+          `${nodeCacheRef.current.get(view.centerId)?.name ?? "선택한 Node"} 중심으로 이동했습니다.`,
+        );
+      } else {
         setAnnouncement(
           request.range === "90d"
             ? "최근 90일 탐색 데이터를 표시합니다."
@@ -404,7 +474,6 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
 
   const loadExploration = useCallback(
     async (request: ExplorationRequest) => {
-      setEvidence(null);
       abortRef.current?.abort();
       pendingTransitionRef.current = null;
       if (currentViewRef.current) setGraphView(currentViewRef.current);
@@ -435,7 +504,6 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
         ) {
           pendingTransitionRef.current = { view, request };
           setGraphView(view);
-          setTimeRange(request.range);
           return;
         }
         commitView(view, request);
@@ -460,13 +528,29 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
         navigation: null,
       });
     } else {
-      setRequestError(new APIRequestError("MISSING_DEFAULT_CENTER", 0, false));
-      setStatus("error");
+      setRequestError(null);
+      setStatus("start");
+      setAnnouncement("탐색할 Node를 검색하거나 주제를 선택해 주세요.");
     }
 
     const onPopState = () => {
       const location = readLocation();
-      if (!location.centerId) return;
+      if (!location.centerId) {
+        abortRef.current?.abort();
+        abortRef.current = null;
+        pendingTransitionRef.current = null;
+        currentViewRef.current = null;
+        lastRequestRef.current = null;
+        setCurrentView(null);
+        setGraphView(null);
+        setTimeRange(location.range);
+        setTrail([]);
+        setEvidence(null);
+        setRequestError(null);
+        setStatus("start");
+        setAnnouncement("탐색할 Node를 검색하거나 주제를 선택해 주세요.");
+        return;
+      }
       void loadExploration({
         centerId: location.centerId,
         range: location.range,
@@ -518,7 +602,23 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
 
   const retry = () => {
     const request = lastRequestRef.current;
-    if (request) void loadExploration(request);
+    if (request) void loadExploration({ ...request, retry: true });
+  };
+
+  const openDefault = () => {
+    if (!defaultCenterId) return;
+    const current = currentViewRef.current;
+    if (current?.centerId === defaultCenterId) {
+      setRequestError(null);
+      setStatus("idle");
+      setAnnouncement("기본 탐색 화면을 계속 표시합니다.");
+      return;
+    }
+    void loadExploration({
+      centerId: defaultCenterId,
+      range: timeRange,
+      navigation: current ? { trailIndex: null, historyMode: "push" } : null,
+    });
   };
 
   const currentNode = currentView?.nodes.find(
@@ -526,7 +626,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
   );
   const loading = useInitialLoading(
     graphReady,
-    status === "error" || status === "empty",
+    status === "error" || status === "empty" || status === "start",
   );
   const initialLoading = loading.phase !== "hidden";
   const peripheral = usePeripheral(
@@ -552,6 +652,10 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
   for (const node of peripheral.graphView?.nodes ?? []) {
     nodeTypes.set(node.kindCode, node.kind);
   }
+  const failedRequest = status === "error" ? lastRequestRef.current : null;
+  const failedTargetName = failedRequest
+    ? (nodeCacheRef.current.get(failedRequest.centerId)?.name ?? null)
+    : null;
 
   return (
     <>
@@ -607,6 +711,16 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
               onEvidence={setEvidence}
               onTransitionComplete={finishNodeTransition}
             />
+          )}
+
+          {!currentView && status !== "loading" && (
+            <div className={styles.controls}>
+              <label htmlFor="node-search">Node 검색</label>
+              <div className={styles.searchWithTopics}>
+                <NodeSearch onSelect={selectNode} />
+                <TopicPicker onSelect={selectNode} />
+              </div>
+            </div>
           )}
 
           {currentView && currentNode && (
@@ -707,6 +821,8 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                   loading={peripheral.loading}
                   error={peripheral.error}
                   empty={false}
+                  additional={Boolean(peripheral.graphView)}
+                  retrySuccess={peripheral.retrySuccess}
                   onRetry={peripheral.retry}
                 />
                 {peripheral.exhausted && !peripheral.error && (
@@ -718,7 +834,14 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
             status={status}
             hasView={Boolean(currentView)}
             error={requestError}
+            failedRequest={failedRequest}
+            currentCenterId={currentView?.centerId ?? null}
+            currentName={currentNode?.name ?? null}
+            currentRange={timeRange}
+            failedTargetName={failedTargetName}
+            defaultCenterId={defaultCenterId}
             onRetry={retry}
+            onDefault={openDefault}
           />
         </section>
         <div className={styles.liveRegion} aria-live="polite">
