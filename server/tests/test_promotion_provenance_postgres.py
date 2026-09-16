@@ -436,7 +436,9 @@ def test_schema_rejects_unknown_kind_bad_shape_and_nonexistent_association(
         """,
     ).all()
     assert len(indexes) == 6
-    assert all("UNIQUE INDEX" in row.indexdef and " WHERE " in row.indexdef for row in indexes)
+    assert all(
+        "UNIQUE INDEX" in row.indexdef and " WHERE " in row.indexdef for row in indexes
+    )
 
 
 def test_alias_new_reuse_evidence_and_retry_record_only_real_mutations(
@@ -537,7 +539,7 @@ def test_claim_association_attribute_and_event_surfaces_are_exact_and_idempotent
     )
     with pytest.raises(ValueError, match="no approved #216 change kind"):
         provenance.add_claim_relation(
-            database, batch_id, values["claim"], values["relation"], "CONTRADICT"
+            database, batch_id, values["claim"], values["relation"], "DISPUTE"
         )
 
     attribute_value_id = provenance.add_claim_attribute_value(
@@ -575,7 +577,9 @@ def test_claim_association_attribute_and_event_surfaces_are_exact_and_idempotent
     assert attribute_change.event_node_id is None
 
 
-def test_canonical_mutation_and_provenance_roll_back_together(database: Session) -> None:
+def test_canonical_mutation_and_provenance_roll_back_together(
+    database: Session,
+) -> None:
     values = _base_objects(database)
     observation = _observation(database)
     before_association = execute(
@@ -674,9 +678,7 @@ def test_restart_reload_projection_inputs_and_publication_lifecycle_preserve_his
         "EVENT_TEMPORAL_BASIS_ADDED",
     }
     evidence_only_changes = [
-        change
-        for change in reloaded
-        if change.claim_id == evidence_only_claim
+        change for change in reloaded if change.claim_id == evidence_only_claim
     ]
     assert [change.change_kind for change in evidence_only_changes] == [
         "CLAIM_OBSERVATION_ADDED"
@@ -749,10 +751,13 @@ def test_restart_reload_projection_inputs_and_publication_lifecycle_preserve_his
         """,
     ):
         execute(database, sql, batch=batch_id)
-        assert tuple(
-            change.promotion_canonical_change_id
-            for change in provenance.changes_for_batch(database, batch_id)
-        ) == initial_ids
+        assert (
+            tuple(
+                change.promotion_canonical_change_id
+                for change in provenance.changes_for_batch(database, batch_id)
+            )
+            == initial_ids
+        )
 
 
 def test_legacy_committed_not_started_batches_block_cutover_without_mutation(
@@ -816,18 +821,22 @@ def test_concurrent_claim_observation_insert_attributes_only_the_winner() -> Non
     winners = [batch_id for batch_id, inserted in results if inserted]
     assert len(winners) == 1
     with Session(engine) as verify, verify.begin():
-        rows = execute(
-            verify,
-            """
+        rows = (
+            execute(
+                verify,
+                """
             SELECT promotion_batch_id
             FROM promotion_canonical_change
             WHERE change_kind = 'CLAIM_OBSERVATION_ADDED'
               AND claim_id = :claim_id
               AND observation_id = :observation_id
             """,
-            claim_id=claim_id,
-            observation_id=observation_id,
-        ).scalars().all()
+                claim_id=claim_id,
+                observation_id=observation_id,
+            )
+            .scalars()
+            .all()
+        )
         assert rows == winners
         execute(
             verify,

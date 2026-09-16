@@ -368,7 +368,8 @@ def add_claim_relation(
         ).scalar_one()
         if existing_stance != stance:
             raise ValueError(
-                "existing claim_relation stance mutation has no approved #216 change kind"
+                "existing claim_relation stance mutation has no approved "
+                "#216 change kind"
             )
         return False
     _record_change(

@@ -130,9 +130,7 @@ def _historical_alias_evidence(connection: Connection) -> tuple[int, int]:
         ).scalar_one()
     )
     connection.execute(
-        sa.text(
-            "INSERT INTO node (node_id, node_type_id) VALUES (:node_id, :type_id)"
-        ),
+        sa.text("INSERT INTO node (node_id, node_type_id) VALUES (:node_id, :type_id)"),
         {"node_id": node_id, "type_id": type_id},
     )
     alias_id = int(
@@ -150,8 +148,7 @@ def _historical_alias_evidence(connection: Connection) -> tuple[int, int]:
     group_id = int(
         connection.execute(
             sa.text(
-                "INSERT INTO evidence_group DEFAULT VALUES "
-                "RETURNING evidence_group_id"
+                "INSERT INTO evidence_group DEFAULT VALUES RETURNING evidence_group_id"
             )
         ).scalar_one()
     )
