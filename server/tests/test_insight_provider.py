@@ -44,8 +44,7 @@ def prepared() -> PreparedInsightBundle:
 def response(
     req: httpx.Request,
     content: str = (
-        '{"recent_90_days":{"report":null},'
-        '"recent_1_year":{"report":null}}'
+        '{"recent_90_days":{"report":null},"recent_1_year":{"report":null}}'
     ),
 ) -> httpx.Response:
     return httpx.Response(
