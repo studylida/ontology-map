@@ -163,7 +163,9 @@ def _relation_claim(
     return claim_id
 
 
-def _setup_has_topic_fixture(session: Session, node_ids: dict[str, int]) -> dict[str, int]:
+def _setup_has_topic_fixture(
+    session: Session, node_ids: dict[str, int]
+) -> dict[str, int]:
     activation = activate_approved_ontology_reference_data(session)
     source_id = node_ids["sk_hynix"]
     topic_id = activation.topic_node_ids["SEMICONDUCTOR"]
@@ -266,11 +268,14 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
                 assert topic_item.lifecycle_kind == "PRODUCT_REFERENCE"
                 assert topic_item.current_state is None
                 assert topic_item.promotion_batch_id is None
-                assert session.execute(
-                    sa.select(topic_reference.c.is_active).where(
-                        topic_reference.c.node_id == topic_id
-                    )
-                ).scalar_one() is True
+                assert (
+                    session.execute(
+                        sa.select(topic_reference.c.is_active).where(
+                            topic_reference.c.node_id == topic_id
+                        )
+                    ).scalar_one()
+                    is True
+                )
                 ready_publication_count = int(
                     session.execute(
                         sa.select(sa.func.count())
@@ -325,11 +330,14 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
                     .values(is_active=False)
                 )
                 session.flush()
-                assert session.execute(
-                    sa.select(topic_reference.c.is_active).where(
-                        topic_reference.c.node_id == topic_id
-                    )
-                ).scalar_one() is False
+                assert (
+                    session.execute(
+                        sa.select(topic_reference.c.is_active).where(
+                            topic_reference.c.node_id == topic_id
+                        )
+                    ).scalar_one()
+                    is False
+                )
 
                 relations_page = list_node_relations(
                     session, source_id, cursor=None, limit=50
@@ -347,7 +355,9 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
                     session, relation_id, cursor=None, limit=20
                 )
                 assert len(evidence_page.items) == 2
-                assert {item.item_key for item in evidence_page.items} == active_item_keys
+                assert {
+                    item.item_key for item in evidence_page.items
+                } == active_item_keys
                 assert {item.stance for item in evidence_page.items} == {
                     "SUPPORT",
                     "DISPUTE",
@@ -434,8 +444,7 @@ def test_claim_connections_project_relation_and_hide_non_public_conflict() -> No
                 assert relation_projection["directionality"] == "DIRECTED"
                 assert relation_projection["source_node"]["node_id"] == str(source_id)
                 assert (
-                    relation_projection["source_node"]["node_type"]["code"]
-                    == "COMPANY"
+                    relation_projection["source_node"]["node_type"]["code"] == "COMPANY"
                 )
                 assert relation_projection["target_node"] == {
                     "node_id": str(topic_id),
