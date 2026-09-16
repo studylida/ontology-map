@@ -1,0 +1,43 @@
+name: Issue 216 Stage One Runner
+
+on:
+  push:
+    branches:
+      - issue-216-promotion-provenance
+    paths:
+      - ".github/workflows/issue-216-stage1-runner.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: issue-216-promotion-provenance
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.7"
+      - name: Apply stage-one checkpoint patch
+        run: python scripts/issue216_stage1_patch.py
+      - name: Format and commit checkpoint
+        run: |
+          uvx ruff@0.16.5 format server/tests/test_promotion_provenance_postgres.py
+          git rm \
+            .github/workflows/issue-216-stage1-scope-patch.yml \
+            .github/workflows/issue-216-stage1-fix.yml \
+            .github/workflows/issue-216-stage1-runner.yml \
+            scripts/issue216_stage1_patch.py
+          git diff --check
+          git add \
+            docs/data/logical-schema.md \
+            docs/data/physical-schema.md \
+            docs/data/promotion-canonical-provenance.md \
+            server/tests/test_promotion_provenance_postgres.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test: focus issue 216 stage-one persistence checkpoint"
+          git push origin HEAD:issue-216-promotion-provenance
