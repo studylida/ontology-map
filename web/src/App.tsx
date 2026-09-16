@@ -535,7 +535,22 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
 
     const onPopState = () => {
       const location = readLocation();
-      if (!location.centerId) return;
+      if (!location.centerId) {
+        abortRef.current?.abort();
+        abortRef.current = null;
+        pendingTransitionRef.current = null;
+        currentViewRef.current = null;
+        lastRequestRef.current = null;
+        setCurrentView(null);
+        setGraphView(null);
+        setTimeRange(location.range);
+        setTrail([]);
+        setEvidence(null);
+        setRequestError(null);
+        setStatus("start");
+        setAnnouncement("탐색할 Node를 검색하거나 주제를 선택해 주세요.");
+        return;
+      }
       void loadExploration({
         centerId: location.centerId,
         range: location.range,
