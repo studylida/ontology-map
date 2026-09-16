@@ -30,14 +30,8 @@ jobs:
 
           runner = Path("server/src/ontology_map/extraction_runner.py")
           text = runner.read_text(encoding="utf-8")
-          old = '''    if isinstance(error, (httpx.TimeoutException, APITimeoutError)):
-              return ConfirmedProviderFailure("TIMEOUT", transient=True)
-          '''
-          new = '''    if isinstance(error, (httpx.TimeoutException, APITimeoutError)):
-              # A local timeout can follow a partial write or a lost reply. Only a
-              # provider HTTP 408/504 response is a confirmed timeout outcome.
-              return None
-          '''
+          old = '    if isinstance(error, (httpx.TimeoutException, APITimeoutError)):\n        return ConfirmedProviderFailure("TIMEOUT", transient=True)\n'
+          new = '    if isinstance(error, (httpx.TimeoutException, APITimeoutError)):\n        # A local timeout can follow a partial write or a lost reply. Only a\n        # provider HTTP 408/504 response is a confirmed timeout outcome.\n        return None\n'
           if text.count(old) != 1:
               raise SystemExit("runner timeout anchor count != 1")
           runner.write_text(text.replace(old, new, 1), encoding="utf-8")
@@ -45,18 +39,17 @@ jobs:
           tests = Path("server/tests/test_extraction_runner.py")
           text = tests.read_text(encoding="utf-8")
           old_known = '''        (httpx.ReadTimeout("private request"), "TIMEOUT"),
-              (
-                  APITimeoutError(request=httpx.Request("POST", "https://example.invalid")),
-                  "TIMEOUT",
-              ),
+                  (
+                      APITimeoutError(request=httpx.Request("POST", "https://example.invalid")),
+                      "TIMEOUT",
+                  ),
           '''
           if text.count(old_known) != 1:
               raise SystemExit("known timeout test anchor count != 1")
           text = text.replace(old_known, "", 1)
-          ambiguous_anchor = '''        httpx.NetworkError("private ambiguous transport state"),
-          '''
+          ambiguous_anchor = '        httpx.NetworkError("private ambiguous transport state"),\n'
           ambiguous_timeouts = '''        httpx.ReadTimeout("private lost reply timeout"),
-              APITimeoutError(request=httpx.Request("POST", "https://example.invalid")),
+                  APITimeoutError(request=httpx.Request("POST", "https://example.invalid")),
           '''
           if text.count(ambiguous_anchor) != 1:
               raise SystemExit("ambiguous test anchor count != 1")
