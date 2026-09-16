@@ -7,17 +7,14 @@ in a reservation. No raw payload is persisted, and no product success is written
 """
 
 import json
-import math
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime, timedelta
-from email.utils import parsedate_to_datetime
 from typing import Literal
 
 import httpx
 import sqlalchemy as sa
-from openai import APIStatusError, APITimeoutError
-from pydantic import BaseModel, JsonValue, ValidationError
+from openai import APITimeoutError
+from pydantic import BaseModel, JsonValue
 from sqlalchemy.orm import Session
 
 from ontology_map import extraction as harness
@@ -27,6 +24,7 @@ from ontology_map.db import schema as db_schema
 from ontology_map.durable_provider import (
     ConfirmedProviderFailure,
     UncertainProviderFailure,
+    classify_provider_error,
     execute_call,
 )
 from ontology_map.extraction_contracts import (
@@ -110,70 +108,6 @@ class _Stopped(Exception):
 class _HelperFailed(Exception):
     def __init__(self, *, transient: bool) -> None:
         self.transient = transient
-
-
-def _retry_after(value: str | None) -> timedelta | None:
-    if value is None:
-        return None
-    try:
-        seconds = float(value)
-        if math.isfinite(seconds) and seconds >= 0:
-            return timedelta(seconds=seconds)
-        return None
-    except ValueError, OverflowError:
-        try:
-            at = parsedate_to_datetime(value)
-            if at.utcoffset() is None:
-                return None
-            return max(at - datetime.now(UTC), timedelta(0))
-        except ValueError, TypeError, OverflowError:
-            return None
-
-
-def _http_failure(
-    status: int, retry_after: str | None
-) -> ConfirmedProviderFailure | None:
-    if status in (401, 403):
-        return ConfirmedProviderFailure("AUTHENTICATION_ERROR")
-    if status == 429:
-        return ConfirmedProviderFailure(
-            "RATE_LIMITED",
-            transient=True,
-            retry_after=_retry_after(retry_after),
-        )
-    if status in (408, 504):
-        return ConfirmedProviderFailure("TIMEOUT", transient=True)
-    if 500 <= status < 600:
-        return ConfirmedProviderFailure("PROVIDER_ERROR", transient=True)
-    if 400 <= status < 500:
-        return ConfirmedProviderFailure("INVALID_REQUEST")
-    return None
-
-
-def classify_provider_error(error: Exception) -> ConfirmedProviderFailure | None:
-    """Only typed/allowlisted signals; never inspect or store exception bodies.
-
-    None means an unconfirmed transmission/result, NOT a made-up provider error.
-    """
-    if isinstance(error, ConfirmedProviderFailure):
-        return error
-    if isinstance(error, (httpx.TimeoutException, APITimeoutError)):
-        # A local timeout can follow a partial write or a lost reply. Only a
-        # provider HTTP 408/504 response is a confirmed timeout outcome.
-        return None
-    # Broad network/SDK connection errors may follow a partial send or lost reply.
-    # Only ConnectError identifies failure to establish the HTTP connection.
-    if isinstance(error, httpx.ConnectError):
-        return ConfirmedProviderFailure("PROVIDER_ERROR", transient=True)
-    if isinstance(error, (httpx.HTTPStatusError, APIStatusError)):
-        return _http_failure(
-            error.response.status_code, error.response.headers.get("Retry-After")
-        )
-    if isinstance(error, ValidationError):
-        return ConfirmedProviderFailure("OUTPUT_CONTRACT_ERROR")
-    if isinstance(error, CallFailed) and error.code == "OUTPUT_CONTRACT_ERROR":
-        return ConfirmedProviderFailure("OUTPUT_CONTRACT_ERROR")
-    return None
 
 
 def _checked_operation(send: Callable[[], KnowledgeProposals]) -> KnowledgeProposals:
