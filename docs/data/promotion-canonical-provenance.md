@@ -1,6 +1,6 @@
 # promotion canonical-change provenance
 
-> 상태: Issue #216 구현 계약
+> 상태: Issue #216 구현 1/2 — schema/persistence checkpoint
 >
 > 기준일: 2026-09-16
 >
@@ -73,26 +73,17 @@ canonical insert가 `ON CONFLICT ... DO NOTHING`으로 no-op이면 provenance도
 
 동시 promotion이 같은 canonical association을 경쟁하면 canonical insert에 실제 성공한 transaction만 provenance를 기록한다. transaction rollback이면 canonical mutation과 provenance가 함께 사라진다.
 
-## 5. production write boundary
+## 5. transaction-local persistence primitive
 
-현재 Entity Resolution promotion 경로의 alias 저장은 batch ID를 명시적으로 전달한다.
+`ontology_map.db.promotion_provenance`는 caller-owned promotion transaction에서 사용할 명시적 primitive를 제공한다. helper 내부에서는 commit하지 않으며 provenance insert가 실패하면 caller transaction 전체가 실패할 수 있다.
 
-- 새 `node_alias` row를 실제 insert한 경우에만 `NODE_ALIAS_CHANGED`
-- 기존 alias를 재사용해도 새 `(node_alias_id, observation_id)`를 만든 경우 `NODE_ALIAS_EVIDENCE_ADDED`
-- 같은 evidence association retry는 no-op이며 새 provenance 없음
+association 생성 helper는 `INSERT ... ON CONFLICT ... DO NOTHING RETURNING ...`으로 실제 insert 획득 여부를 판별한다. 따라서 object 재사용과 association creation을 구분할 수 있고, 실제 no-op/retry에는 provenance를 만들지 않는다. `NODE_ALIAS_CHANGED`는 alias writer가 실제 INSERT/승인된 의미 변경을 확인한 뒤 호출할 `record_node_alias_changed` primitive로 분리돼 있다.
 
-Claim/Relation/attribute/event temporal basis를 promotion transaction에서 쓰는 caller는 `ontology_map.db.promotion_provenance`의 provenance-aware canonical writer를 사용한다.
+이 1/2 단계에서는 repository 전체 production promotion writer를 이 primitive로 최종 rewiring하지 않는다. 현재 Entity Resolution production alias path도 main 상태를 유지한다. 2/2 Worker는 실제 mutation surface를 다시 감사하고, 승인된 여섯 kind 각각에서 mutation winner만 같은 transaction의 provenance를 남기도록 wiring해야 한다.
 
-- `add_claim_observation`
-- `add_claim_relation`
-- `add_claim_attribute_value`
-- `add_event_temporal_basis`
+## 6. read helper와 #215 경계
 
-`claim_relation`의 기존 association을 다른 `stance`로 바꾸는 요청처럼 승인된 여섯 kind로 표현할 수 없는 mutation은 조용히 덮어쓰지 않고 실패시킨다. 별도 제품 계약 없이 새 provenance kind를 추가하지 않는다.
-
-## 6. restart-safe read와 #215 경계
-
-`changes_for_batch(session, promotion_batch_id)`는 process-local memory 없이 DB의 exact change-set을 다시 읽는다. 이 read helper는 publication state를 변경하지 않는다.
+`changes_for_batch(session, promotion_batch_id)`는 DB의 exact provenance row를 읽는 순수 read helper다. 이 단계에서는 이 helper를 이용한 restart→affected Node projection 전체 회귀나 2-hop 전파 회귀를 완료했다고 주장하지 않는다. read helper 자체는 publication state를 변경하지 않는다.
 
 #216은 "promotion이 실제로 무엇을 바꿨는가"까지만 소유한다. 어떤 Node가 affected인지의 projection과 `publication_affected_node`, `PREPARING`, 검색 문서, `NODE_CONTEXT`, 질문, 인사이트, `READY` 전환은 #215의 책임이다.
 
@@ -111,21 +102,26 @@ AND publication_status = 'NOT_STARTED'
 
 runtime helper `legacy_committed_not_started_batch_ids()`와 `assert_initial_publication_cutover_safe()`는 이 상태를 읽고 차단만 한다. 자동 attribution, 자동 skip, remediation, publication mutation은 하지 않는다. 실제 product/shared DB 상태를 확인한 뒤 one-time remediation은 별도 운영 판단으로 수행한다.
 
-## 8. 검증
+## 8. 1/2 단계 검증과 남은 범위
 
-#216 전용 PostgreSQL regression은 다음을 고정한다.
+이 단계의 PostgreSQL regression은 다음을 고정한다.
 
 - closed kind CHECK와 kind별 exact target shape
-- exact association FK
-- 여섯 partial unique index
-- migration의 historical no-backfill
-- canonical mutation + provenance의 같은 transaction commit/rollback
-- no-op/retry와 existing object reuse 구분
-- concurrent promotion에서 mutation winner만 provenance 보유
-- process restart를 가정한 DB-only change-set reload
-- legacy `COMMITTED + NOT_STARTED` enable guard
-- publication `PREPARING | FAILED | READY` 이후에도 provenance 보존
-- Relation endpoint, attribute target, Event Node, evidence-only existing Claim, multi-target Claim의 projection 입력 복원
-- provenance 자체가 2-hop propagation을 저장하지 않음
+- exact simple/composite FK와 여섯 partial unique index, batch lookup index
+- migration `0004 → 0005`, historical no-backfill, `0005 → 0004 → 0005` round-trip
+- primitive same-batch retry dedupe와 association no-op 무기록
+- canonical mutation과 provenance의 같은 transaction commit/rollback
+- 잘못된 association FK와 관계없는 target column 차단
+- legacy `COMMITTED + NOT_STARTED` guard의 safe/unsafe 검출과 무변경 동작
+- `alembic check`와 generated schema-reference/metadata 일치
 
-PostgreSQL 기준 버전은 [물리 스키마](physical-schema.md)의 18.6이며, CI는 격리 DB에서 migration rehearsal과 regression을 실행한다.
+다음은 의도적으로 2/2에 남긴다.
+
+- repository 전체 production promotion writer의 6종 최종 wiring
+- concurrent promotion winner attribution 최종 E2E
+- process restart 후 affected Node projection 전체 regression
+- Relation endpoint/attribute/Event/evidence-only/multi-target Claim projection과 no-2-hop regression
+- #215 coordinator, `publication_affected_node`, PREPARING/READY orchestration
+- #180 recovery와 #127 provider lifecycle
+
+따라서 이 문서는 #216 전체 완료나 #215 재개 승인을 의미하지 않는다.
