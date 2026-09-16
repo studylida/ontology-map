@@ -43,7 +43,9 @@ def database():
             )
             if group_ids:
                 connection.execute(
-                    sa.text("DELETE FROM evidence_group WHERE evidence_group_id = ANY(:ids)"),
+                    sa.text(
+                        "DELETE FROM evidence_group WHERE evidence_group_id = ANY(:ids)"
+                    ),
                     {"ids": group_ids},
                 )
         current.dispose()
