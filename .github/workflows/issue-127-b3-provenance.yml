@@ -53,10 +53,14 @@ jobs:
           from pathlib import Path
           promotion = Path("server/src/ontology_map/extraction_promotion.py")
           text = promotion.read_text()
-          old = "        claim_created = existing_claim_id is None\n        if existing_claim_id is None:"
-          if old not in text:
+          first = "        claim_created = existing_claim_id is None\n        if existing_claim_id is None:"
+          if first not in text:
               raise SystemExit("claim_created cleanup anchor missing")
-          promotion.write_text(text.replace(old, "        if existing_claim_id is None:", 1))
+          text = text.replace(first, "        if existing_claim_id is None:", 1)
+          second = "        claim_created = False\n"
+          if text.count(second) != 1:
+              raise SystemExit(f"unexpected remaining claim_created count: {text.count(second)}")
+          promotion.write_text(text.replace(second, "", 1))
 
           test = Path("server/tests/test_extraction_promotion_postgres.py")
           text = test.read_text()
