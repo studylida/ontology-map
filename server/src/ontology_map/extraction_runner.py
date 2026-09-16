@@ -255,8 +255,17 @@ class _RunModels:
                 # Preserve candidate-level malformed-validator exclusion, without
                 # inventing a durable provider attempt for the helper.
                 raise CallFailed("OUTPUT_CONTRACT_ERROR", fatal=False) from None
-            transient = confirmed is not None and (
-                confirmed.outcome in ("TIMEOUT", "RATE_LIMITED") or confirmed.transient
+            # Helper calls are runtime-only and have no durable provider slot.
+            # A local timeout therefore remains a task-level transient failure;
+            # only the durable generation send uses UNKNOWN/reclaim fencing.
+            transient = isinstance(
+                error, (httpx.TimeoutException, APITimeoutError)
+            ) or (
+                confirmed is not None
+                and (
+                    confirmed.outcome in ("TIMEOUT", "RATE_LIMITED")
+                    or confirmed.transient
+                )
             )
             raise _HelperFailed(transient=transient) from None
 
