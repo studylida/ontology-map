@@ -12,6 +12,7 @@ import httpx
 import sqlalchemy as sa
 from pydantic import SecretStr, ValidationError
 
+from ontology_map import followup_execution
 from ontology_map import followup_generation as product
 from ontology_map.exploration import TimeWindow
 from ontology_map.followup_generation_contracts import (
@@ -19,16 +20,10 @@ from ontology_map.followup_generation_contracts import (
     PreparedFollowup,
 )
 from ontology_map.followup_runner import RunnerResult, run_followup
-from ontology_map.model_studio import MAX_INPUT_TOKENS, CallFailed, CallLimits
+from ontology_map.model_studio import CallFailed
 from ontology_map.structured_provider import (
     DEFAULT_TIMEOUT_SECONDS,
     ModelStudioStructuredTransport,
-)
-
-FOLLOWUP_LIMITS = CallLimits(
-    max_input_tokens=MAX_INPUT_TOKENS,
-    max_output_tokens=32_768,
-    max_request_bytes=8 * 1024 * 1024,
 )
 
 
@@ -75,7 +70,7 @@ class ModelStudioFollowupAdapter:
             messages=messages,
             schema_name=FollowupQuestionsProposal.__name__,
             schema=product.output_schema(),
-            limits=FOLLOWUP_LIMITS,
+            limits=followup_execution.FOLLOWUP_LIMITS,
         )
 
         def send() -> FollowupQuestionsProposal:
