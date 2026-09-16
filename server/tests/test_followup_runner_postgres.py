@@ -103,17 +103,20 @@ def followup_case() -> FollowupCase:
             .mappings()
             .one()
         )
-        old_followup_contract_id = int(
-            active_followup["output_schema_definition_id"]
-        )
-        next_followup_version = int(
-            connection.scalar(
-                sa.select(sa.func.max(s.output_schema_definition.c.version_no)).where(
-                    s.output_schema_definition.c.task_kind == "FOLLOWUP_QUESTIONS"
+        old_followup_contract_id = int(active_followup["output_schema_definition_id"])
+        next_followup_version = (
+            int(
+                connection.scalar(
+                    sa.select(
+                        sa.func.max(s.output_schema_definition.c.version_no)
+                    ).where(
+                        s.output_schema_definition.c.task_kind == "FOLLOWUP_QUESTIONS"
+                    )
                 )
+                or 0
             )
-            or 0
-        ) + 1
+            + 1
+        )
         connection.execute(
             s.output_schema_definition.update()
             .where(
@@ -413,11 +416,14 @@ def test_runner_applies_valid_result_after_durable_reservation_once(
             nonlocal calls
             calls += 1
             with followup_case.engine.connect() as connection:
-                assert connection.scalar(
-                    sa.select(s.provider_call_slot.c.state).where(
-                        s.provider_call_slot.c.model_task_id == enqueued.task_id
+                assert (
+                    connection.scalar(
+                        sa.select(s.provider_call_slot.c.state).where(
+                            s.provider_call_slot.c.model_task_id == enqueued.task_id
+                        )
                     )
-                ) == "RESERVED"
+                    == "RESERVED"
+                )
             return proposal
 
         return send
@@ -442,16 +448,22 @@ def test_runner_applies_valid_result_after_durable_reservation_once(
     assert task["lease_owner"] is None
     assert task["lease_expires_at"] is None
     with followup_case.engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(s.provider_call_slot.c.state).where(
-                s.provider_call_slot.c.model_task_id == enqueued.task_id
+        assert (
+            connection.scalar(
+                sa.select(s.provider_call_slot.c.state).where(
+                    s.provider_call_slot.c.model_task_id == enqueued.task_id
+                )
             )
-        ) == "COMPLETED"
-        assert connection.scalar(
-            sa.select(sa.func.count())
-            .select_from(s.node_question_set)
-            .where(s.node_question_set.c.model_task_id == enqueued.task_id)
-        ) == 1
+            == "COMPLETED"
+        )
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(s.node_question_set)
+                .where(s.node_question_set.c.model_task_id == enqueued.task_id)
+            )
+            == 1
+        )
 
     again = followup_case.ensure(TimeWindow.RECENT_90_DAYS, now)
     assert again.task_id == enqueued.task_id
@@ -488,8 +500,8 @@ def test_runner_persists_normal_empty_for_each_window(
         node_context_id=followup_case.context_id,
         window=window,
         as_of_at=now,
-        prepare_provider=lambda _prepared: lambda: FollowupQuestionsProposal(
-            questions=()
+        prepare_provider=lambda _prepared: (
+            lambda: FollowupQuestionsProposal(questions=())
         ),
     )
     assert result.task_status == "SUCCESS"
@@ -502,11 +514,14 @@ def test_runner_persists_normal_empty_for_each_window(
             )
         )
         assert set_id is not None
-        assert connection.scalar(
-            sa.select(sa.func.count())
-            .select_from(s.node_question)
-            .where(s.node_question.c.question_set_id == set_id)
-        ) == 0
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(s.node_question)
+                .where(s.node_question.c.question_set_id == set_id)
+            )
+            == 0
+        )
 
 
 def test_ambiguous_reply_stays_reserved_then_reclaims_unknown(
@@ -533,16 +548,22 @@ def test_ambiguous_reply_stays_reserved_then_reclaims_unknown(
     )
     assert first.disposition == "AWAITING_RECLAIM"
     with followup_case.engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(s.provider_call_slot.c.state).where(
-                s.provider_call_slot.c.model_task_id == enqueued.task_id
+        assert (
+            connection.scalar(
+                sa.select(s.provider_call_slot.c.state).where(
+                    s.provider_call_slot.c.model_task_id == enqueued.task_id
+                )
             )
-        ) == "RESERVED"
-        assert connection.scalar(
-            sa.select(sa.func.count())
-            .select_from(s.agent_attempt)
-            .where(s.agent_attempt.c.model_task_id == enqueued.task_id)
-        ) == 0
+            == "RESERVED"
+        )
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(s.agent_attempt)
+                .where(s.agent_attempt.c.model_task_id == enqueued.task_id)
+            )
+            == 0
+        )
 
     _expire_lease(followup_case, enqueued.task_id)
     second = run_followup(
@@ -552,8 +573,8 @@ def test_ambiguous_reply_stays_reserved_then_reclaims_unknown(
         node_context_id=followup_case.context_id,
         window=TimeWindow.RECENT_90_DAYS,
         as_of_at=now,
-        prepare_provider=lambda _prepared: lambda: FollowupQuestionsProposal(
-            questions=()
+        prepare_provider=lambda _prepared: (
+            lambda: FollowupQuestionsProposal(questions=())
         ),
     )
     assert second.task_status == "SUCCESS"
@@ -607,8 +628,8 @@ def test_confirmed_transient_provider_failure_retries_then_applies(
         node_context_id=followup_case.context_id,
         window=TimeWindow.RECENT_90_DAYS,
         as_of_at=now,
-        prepare_provider=lambda _prepared: lambda: FollowupQuestionsProposal(
-            questions=()
+        prepare_provider=lambda _prepared: (
+            lambda: FollowupQuestionsProposal(questions=())
         ),
     )
     assert second.task_status == "SUCCESS"
@@ -690,16 +711,22 @@ def test_lease_loss_discards_runtime_proposal_without_product_apply(
     )
     assert result.disposition == "LEASE_LOST"
     with followup_case.engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(sa.func.count())
-            .select_from(s.node_question_set)
-            .where(s.node_question_set.c.model_task_id == enqueued.task_id)
-        ) == 0
-        assert connection.scalar(
-            sa.select(s.provider_call_slot.c.state).where(
-                s.provider_call_slot.c.model_task_id == enqueued.task_id
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(s.node_question_set)
+                .where(s.node_question_set.c.model_task_id == enqueued.task_id)
             )
-        ) == "RESERVED"
+            == 0
+        )
+        assert (
+            connection.scalar(
+                sa.select(s.provider_call_slot.c.state).where(
+                    s.provider_call_slot.c.model_task_id == enqueued.task_id
+                )
+            )
+            == "RESERVED"
+        )
 
 
 def test_context_pointer_change_after_provider_success_blocks_apply(
@@ -738,9 +765,12 @@ def test_context_pointer_change_after_provider_success_blocks_apply(
     assert result.apply_result is not None
     assert result.apply_result.reason == "STALE_PUBLICATION"
     with followup_case.engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(sa.func.count())
-            .select_from(s.node_question_set)
-            .where(s.node_question_set.c.model_task_id == enqueued.task_id)
-        ) == 0
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(s.node_question_set)
+                .where(s.node_question_set.c.model_task_id == enqueued.task_id)
+            )
+            == 0
+        )
     assert _old_sets(followup_case) == followup_case.old_question_set_ids
