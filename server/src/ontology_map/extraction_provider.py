@@ -27,6 +27,7 @@ from ontology_map.extraction_runner import (
 from ontology_map.model_studio import FLASH, CallFailed, validate_base_url
 
 DEFAULT_TIMEOUT_SECONDS = 60.0
+CORRECTIVE_INPUT_SEPARATOR = "\n\n명시적 corrective input:\n"
 
 
 def _safe_logging() -> None:
@@ -83,6 +84,12 @@ class ModelStudioGenerationAdapter:
         if not request.prompt.strip():
             raise CallFailed("INVALID_REQUEST", fatal=True)
 
+        system_content = request.prompt
+        if request.execution.corrective_input is not None:
+            system_content += (
+                CORRECTIVE_INPUT_SEPARATOR + request.execution.corrective_input
+            )
+
         schema = KnowledgeProposals.model_json_schema()
         response_format: dict[str, Any] = {
             "type": "json_schema",
@@ -95,7 +102,7 @@ class ModelStudioGenerationAdapter:
         body = {
             "model": FLASH,
             "messages": [
-                {"role": "system", "content": request.prompt},
+                {"role": "system", "content": system_content},
                 {"role": "user", "content": request.payload.model_dump_json()},
             ],
             "temperature": 0,
