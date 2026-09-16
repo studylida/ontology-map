@@ -3,13 +3,13 @@ from dataclasses import replace
 
 import httpx
 from pydantic import SecretStr
+from test_extraction_provider import BASE_URL, request, response
 
 from ontology_map.extraction import GENERATION_PROMPT
 from ontology_map.extraction_provider import (
     CORRECTIVE_INPUT_SEPARATOR,
     ModelStudioGenerationAdapter,
 )
-from test_extraction_provider import BASE_URL, request, response
 
 
 def test_corrective_input_changes_serialized_request_before_send() -> None:
