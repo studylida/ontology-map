@@ -1,0 +1,83 @@
+name: Issue 127 B2 helper timeout fix
+
+on:
+  push:
+    paths:
+      - ".github/workflows/issue-127-b2-helper-timeout-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      COMPOSE_PROJECT_NAME: ke127-helper-${{ github.run_id }}
+      POSTGRES_DB: ontology_map_ke127_test
+      POSTGRES_USER: ke127_test
+      POSTGRES_PORT: "127.0.0.1:55433"
+      ONTOLOGY_MAP_ENVIRONMENT: development
+      PYTHONPATH: ${{ github.workspace }}/server/src
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/127-role-harness
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.7"
+          enable-cache: true
+      - name: Preserve helper retry semantics while fencing generation timeout
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("server/src/ontology_map/extraction_runner.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''            transient = confirmed is not None and (
+                          confirmed.outcome in ("TIMEOUT", "RATE_LIMITED") or confirmed.transient
+                      )
+          '''
+          new = '''            # Helper calls are runtime-only and have no durable provider slot.
+                      # A local timeout therefore remains a task-level transient failure;
+                      # only the durable generation send uses UNKNOWN/reclaim fencing.
+                      transient = isinstance(
+                          error, (httpx.TimeoutException, APITimeoutError)
+                      ) or (
+                          confirmed is not None
+                          and (
+                              confirmed.outcome in ("TIMEOUT", "RATE_LIMITED")
+                              or confirmed.transient
+                          )
+                      )
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("helper transient anchor count != 1")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          uv sync --project server --frozen
+          uv run --project server --frozen ruff format server/src/ontology_map/extraction_runner.py
+          uv run --project server --frozen ruff check server/src/ontology_map/extraction_runner.py
+          uv run --project server --frozen mypy server/src/ontology_map/extraction_runner.py
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          export POSTGRES_PASSWORD="$password"
+          export ONTOLOGY_MAP_DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${password}@127.0.0.1:55433/${POSTGRES_DB}"
+          export ONTOLOGY_MAP_KE_TEST_DATABASE_URL="$ONTOLOGY_MAP_DATABASE_URL"
+          docker compose up --wait --wait-timeout 120 db
+          (cd server && uv run --frozen alembic upgrade head)
+          uv run --project server --frozen pytest -q \
+            server/tests/test_extraction_runner.py \
+            server/tests/test_extraction_provider.py \
+            server/tests/test_extraction_runner_postgres.py::test_helper_transport_failure_is_not_a_product_attempt \
+            server/tests/test_extraction_runner_postgres.py::test_ambiguous_generation_result_waits_for_reclaim
+          git diff --check
+          git add server/src/ontology_map/extraction_runner.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix: keep helper timeouts retryable outside durable send"
+          git push origin HEAD:feat/127-role-harness
+      - name: cleanup
+        if: ${{ always() }}
+        run: docker compose down --volumes
