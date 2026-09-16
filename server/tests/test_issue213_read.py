@@ -163,6 +163,111 @@ def _relation_claim(
     return claim_id
 
 
+def _setup_has_topic_fixture(session: Session, node_ids: dict[str, int]) -> dict[str, int]:
+    activation = activate_approved_ontology_reference_data(session)
+    source_id = node_ids["sk_hynix"]
+    topic_id = activation.topic_node_ids["SEMICONDUCTOR"]
+    document_id, batch_id = _public_document_and_batch(session, source_id)
+    relation_id = int(
+        session.execute(
+            knowledge_item.insert()
+            .values(
+                item_kind="RELATION",
+                current_state="EVIDENCE_VERIFIED",
+                promotion_batch_id=batch_id,
+            )
+            .returning(knowledge_item.c.knowledge_item_id)
+        ).scalar_one()
+    )
+    session.execute(
+        relation.insert().values(
+            relation_id=relation_id,
+            source_node_id=source_id,
+            target_node_id=topic_id,
+            relation_type_revision_id=activation.relation_revision_ids["HAS_TOPIC"],
+            relation_identity_key=sha256(
+                f"issue213:{source_id}:{topic_id}".encode()
+            ).digest(),
+        )
+    )
+    session.execute(
+        search_document_basis.insert().values(
+            node_search_document_id=document_id,
+            knowledge_item_id=relation_id,
+        )
+    )
+    shared_observation_id = _observation(
+        session, "shared", "Issue 213 shared relation observation"
+    )
+    support_claim_id = _relation_claim(
+        session,
+        relation_id=relation_id,
+        batch_id=batch_id,
+        document_id=document_id,
+        stance="SUPPORT",
+        modality="PREDICTION_OR_ESTIMATE",
+        key="support",
+        observation_id=shared_observation_id,
+    )
+    public_dispute_claim_id = _relation_claim(
+        session,
+        relation_id=relation_id,
+        batch_id=batch_id,
+        document_id=document_id,
+        stance="DISPUTE",
+        modality="OPINION_OR_EVALUATION",
+        key="public-dispute",
+        observation_id=shared_observation_id,
+    )
+    private_dispute_claim_id = _relation_claim(
+        session,
+        relation_id=relation_id,
+        batch_id=batch_id,
+        document_id=None,
+        stance="DISPUTE",
+        modality="PREDICTION_OR_ESTIMATE",
+        key="private-dispute",
+    )
+    conflict_id = int(
+        session.execute(
+            conflict_set.insert()
+            .values(
+                relation_id=relation_id,
+                modality="PREDICTION_OR_ESTIMATE",
+                current_state="AGENT_PROPOSED",
+                created_at=NOW,
+            )
+            .returning(conflict_set.c.conflict_set_id)
+        ).scalar_one()
+    )
+    session.execute(
+        conflict_member.insert(),
+        [
+            {
+                "conflict_set_id": conflict_id,
+                "claim_id": support_claim_id,
+                "position_key": "support",
+            },
+            {
+                "conflict_set_id": conflict_id,
+                "claim_id": private_dispute_claim_id,
+                "position_key": "dispute",
+            },
+        ],
+    )
+    session.flush()
+    return {
+        "source_id": source_id,
+        "topic_id": topic_id,
+        "document_id": document_id,
+        "batch_id": batch_id,
+        "relation_id": relation_id,
+        "support_claim_id": support_claim_id,
+        "public_dispute_claim_id": public_dispute_claim_id,
+        "private_dispute_claim_id": private_dispute_claim_id,
+    }
+
+
 def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() -> None:
     _created, node_ids = load_hbf_fixture()
     engine = get_engine()
@@ -171,100 +276,45 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
         try:
             with Session(bind=connection) as session:
                 session.execute(sa.select(sa.literal(1)))
-                activation = activate_approved_ontology_reference_data(session)
-                source_id = node_ids["sk_hynix"]
-                topic_id = activation.topic_node_ids["SEMICONDUCTOR"]
-                document_id, batch_id = _public_document_and_batch(session, source_id)
-                relation_id = int(
+                fixture = _setup_has_topic_fixture(session, node_ids)
+                source_id = fixture["source_id"]
+                topic_id = fixture["topic_id"]
+                relation_id = fixture["relation_id"]
+
+                topic_item = session.execute(
+                    sa.select(
+                        knowledge_item.c.item_kind,
+                        knowledge_item.c.lifecycle_kind,
+                        knowledge_item.c.current_state,
+                        knowledge_item.c.promotion_batch_id,
+                    ).where(knowledge_item.c.knowledge_item_id == topic_id)
+                ).one()
+                assert topic_item.item_kind == "NODE"
+                assert topic_item.lifecycle_kind == "PRODUCT_REFERENCE"
+                assert topic_item.current_state is None
+                assert topic_item.promotion_batch_id is None
+                assert session.execute(
+                    sa.select(topic_reference.c.is_active).where(
+                        topic_reference.c.node_id == topic_id
+                    )
+                ).scalar_one() is True
+                ready_publication_count = int(
                     session.execute(
-                        knowledge_item.insert()
-                        .values(
-                            item_kind="RELATION",
-                            current_state="EVIDENCE_VERIFIED",
-                            promotion_batch_id=batch_id,
+                        sa.select(sa.func.count())
+                        .select_from(publication_affected_node)
+                        .join(
+                            promotion_batch,
+                            promotion_batch.c.promotion_batch_id
+                            == publication_affected_node.c.promotion_batch_id,
                         )
-                        .returning(knowledge_item.c.knowledge_item_id)
+                        .where(
+                            publication_affected_node.c.node_id == topic_id,
+                            promotion_batch.c.promotion_status == "COMMITTED",
+                            promotion_batch.c.publication_status == "READY",
+                        )
                     ).scalar_one()
                 )
-                session.execute(
-                    relation.insert().values(
-                        relation_id=relation_id,
-                        source_node_id=source_id,
-                        target_node_id=topic_id,
-                        relation_type_revision_id=activation.relation_revision_ids[
-                            "HAS_TOPIC"
-                        ],
-                        relation_identity_key=sha256(
-                            f"issue213:{source_id}:{topic_id}".encode()
-                        ).digest(),
-                    )
-                )
-                session.execute(
-                    search_document_basis.insert().values(
-                        node_search_document_id=document_id,
-                        knowledge_item_id=relation_id,
-                    )
-                )
-                shared_observation_id = _observation(
-                    session, "shared", "Issue 213 shared relation observation"
-                )
-                support_claim_id = _relation_claim(
-                    session,
-                    relation_id=relation_id,
-                    batch_id=batch_id,
-                    document_id=document_id,
-                    stance="SUPPORT",
-                    modality="PREDICTION_OR_ESTIMATE",
-                    key="support",
-                    observation_id=shared_observation_id,
-                )
-                _relation_claim(
-                    session,
-                    relation_id=relation_id,
-                    batch_id=batch_id,
-                    document_id=document_id,
-                    stance="DISPUTE",
-                    modality="OPINION_OR_EVALUATION",
-                    key="public-dispute",
-                    observation_id=shared_observation_id,
-                )
-                dispute_claim_id = _relation_claim(
-                    session,
-                    relation_id=relation_id,
-                    batch_id=batch_id,
-                    document_id=None,
-                    stance="DISPUTE",
-                    modality="PREDICTION_OR_ESTIMATE",
-                    key="private-dispute",
-                )
-                conflict_id = int(
-                    session.execute(
-                        conflict_set.insert()
-                        .values(
-                            relation_id=relation_id,
-                            modality="PREDICTION_OR_ESTIMATE",
-                            current_state="AGENT_PROPOSED",
-                            created_at=NOW,
-                        )
-                        .returning(conflict_set.c.conflict_set_id)
-                    ).scalar_one()
-                )
-                session.execute(
-                    conflict_member.insert(),
-                    [
-                        {
-                            "conflict_set_id": conflict_id,
-                            "claim_id": support_claim_id,
-                            "position_key": "support",
-                        },
-                        {
-                            "conflict_set_id": conflict_id,
-                            "claim_id": dispute_claim_id,
-                            "position_key": "dispute",
-                        },
-                    ],
-                )
-                session.flush()
+                assert ready_publication_count == 0
 
                 active_relations_page = list_node_relations(
                     session, source_id, cursor=None, limit=50
@@ -302,6 +352,11 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
                     .values(is_active=False)
                 )
                 session.flush()
+                assert session.execute(
+                    sa.select(topic_reference.c.is_active).where(
+                        topic_reference.c.node_id == topic_id
+                    )
+                ).scalar_one() is False
 
                 relations_page = list_node_relations(
                     session, source_id, cursor=None, limit=50
@@ -314,7 +369,6 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
                 assert membership.other_node.node_id == topic_id
                 assert membership.other_node.name == "반도체"
                 assert membership.other_node.node_type.code == "TOPIC"
-                assert membership.has_conflict is False
 
                 evidence_page = list_relation_evidence(
                     session, relation_id, cursor=None, limit=20
@@ -335,6 +389,23 @@ def test_has_topic_generic_reads_use_product_reference_endpoint_without_ready() 
                         session, relation_id, cursor=None, limit=20
                     ).items
                 } == active_item_keys
+        finally:
+            outer.rollback()
+
+
+def test_claim_connections_project_relation_and_hide_non_public_conflict() -> None:
+    _created, node_ids = load_hbf_fixture()
+    engine = get_engine()
+    with engine.connect() as connection:
+        outer = connection.begin()
+        try:
+            with Session(bind=connection) as session:
+                session.execute(sa.select(sa.literal(1)))
+                fixture = _setup_has_topic_fixture(session, node_ids)
+                source_id = fixture["source_id"]
+                topic_id = fixture["topic_id"]
+                relation_id = fixture["relation_id"]
+                support_claim_id = fixture["support_claim_id"]
 
                 claims_page = panel.list_claims(
                     session,
