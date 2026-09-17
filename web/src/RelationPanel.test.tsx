@@ -291,6 +291,37 @@ it("Trace page1 성공 뒤 next page 404에서도 page1과 dialog를 유지한�
   expect(screen.getByRole("dialog").getAttribute("open")).toBe("");
 });
 
+it("Trace 추가 조회 503은 기존 근거를 유지하고 같은 cursor로 재시도한다", async () => {
+  request
+    .mockResolvedValueOnce(
+      response({ items: [trace], next_cursor: "opaque +/?", trace_count: 2 }),
+    )
+    .mockResolvedValueOnce(
+      response({ error: { code: "PANEL_NOT_READY", retryable: true } }, 503),
+    )
+    .mockResolvedValueOnce(
+      response({
+        items: [{ ...trace, item_key: "second", quote_text: "추가 원문" }],
+        next_cursor: null,
+        trace_count: 2,
+      }),
+    );
+  render(
+    <EvidenceDialog
+      selection={{ id: "1", label: "검토 관계" }}
+      onClose={vi.fn()}
+    />,
+  );
+  await screen.findByText("원문 인용");
+  fireEvent.click(screen.getByRole("button", { name: "근거 더 보기" }));
+  await screen.findByRole("alert");
+  expect(screen.getByText("원문 인용")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "다시 조회" }));
+  await screen.findByText("추가 원문");
+  expect(request.mock.calls[2]?.[0]).toBe(request.mock.calls[1]?.[0]);
+  expect(screen.getByRole("dialog").getAttribute("open")).toBe("");
+});
+
 it("근거 URL의 실행 가능한 scheme을 거부하고 날짜 정밀도를 확대하지 않는다", async () => {
   request.mockResolvedValue(
     response({
