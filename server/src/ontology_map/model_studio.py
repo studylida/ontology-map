@@ -7,7 +7,7 @@ from contextvars import Context
 from dataclasses import dataclass, field
 from decimal import Decimal
 from time import monotonic
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import httpx
 from langchain_core.globals import get_debug, get_verbose
@@ -17,6 +17,9 @@ from langsmith import tracing_context
 from pydantic import BaseModel, SecretStr, ValidationError
 
 from ontology_map.extraction_contracts import digest
+
+if TYPE_CHECKING:
+    from ontology_map.pilot_budget import PilotBudget
 
 FLASH = "qwen3.7-flash-2026-07-15"
 PLUS = "qwen3.7-plus-2026-05-26"
@@ -132,6 +135,15 @@ def _usage(raw: AIMessage, limits: CallLimits) -> tuple[int, int]:
     return input_tokens, output_tokens
 
 
+def _checked_raw(response: dict[str, object], model: str) -> AIMessage:
+    raw = response.get("raw")
+    if not isinstance(raw, AIMessage):
+        raise CallFailed("RESPONSE_UNKNOWN", fatal=True)
+    if raw.response_metadata.get("model_name") != model:
+        raise CallFailed("MODEL_MISMATCH", fatal=True)
+    return raw
+
+
 class ModelStudio:
     """One sequential execution's clients and budget. Not shared across workers."""
 
@@ -149,6 +161,9 @@ class ModelStudio:
         self._request_sent = False
         self._request_hash = ""
         self._request_error: str | None = None
+        self._pilot_required = not isinstance(transport, httpx.MockTransport)
+        self._pilot_for_request: PilotBudget | None = None
+        self._pilot_reservation: int | None = None
         self._http = httpx.Client(
             transport=transport,
             trust_env=False,
@@ -181,13 +196,23 @@ class ModelStudio:
     def _check_request(self, request: httpx.Request) -> None:
         if str(request.url) != self._base_url + "/chat/completions":
             self._request_error = "ENDPOINT_CONTRACT_ERROR"
+            if self._pilot_for_request is not None:
+                self._pilot_for_request.stop()
             raise CallFailed("ENDPOINT_CONTRACT_ERROR", fatal=True)
         if len(request.content) > self._request_limit:
             self._request_error = "REQUEST_SIZE_LIMIT"
+            if self._pilot_for_request is not None:
+                self._pilot_for_request.stop()
             raise CallFailed("REQUEST_SIZE_LIMIT", fatal=True)
         if self._request_sent:
             self._request_error = "UNEXPECTED_RETRY"
+            if self._pilot_for_request is not None:
+                self._pilot_for_request.stop()
             raise CallFailed("UNEXPECTED_RETRY", fatal=True)
+        if self._pilot_for_request is not None:
+            self._pilot_reservation = self._pilot_for_request.reserve(
+                self._request_model, self._request_limits
+            )
         self._request_sent = True
         self._request_hash = digest(request.content.decode("utf-8"))
 
@@ -210,8 +235,29 @@ class ModelStudio:
         ):
             raise CallFailed("UNKNOWN_ROLE", fatal=True)
         _check_logging()
+        from ontology_map.pilot_budget import current_pilot
+
+        pilot = current_pilot(required=self._pilot_required)
         # A clean context also excludes callbacks inherited from an outer LC chain.
-        return Context().run(self._call, role, prompt, payload, schema, limits)
+        return Context().run(self._call, role, prompt, payload, schema, limits, pilot)
+
+    def _confirm_pilot_usage(
+        self,
+        pilot: PilotBudget | None,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+    ) -> bool:
+        if pilot is None or self._pilot_reservation is None:
+            return False
+        pilot.confirm(self._pilot_reservation, model, input_tokens, output_tokens)
+        return True
+
+    def _stop_unconfirmed_pilot(
+        self, pilot: PilotBudget | None, confirmed: bool
+    ) -> None:
+        if pilot is not None and self._pilot_reservation is not None and not confirmed:
+            pilot.stop()
 
     def _call[T: BaseModel](
         self,
@@ -220,7 +266,10 @@ class ModelStudio:
         payload: BaseModel,
         schema: type[T],
         limits: CallLimits,
+        pilot: PilotBudget | None,
     ) -> T:
+        from ontology_map.pilot_budget import PilotBudgetError
+
         model = FLASH if role in ("body", "generation") else PLUS
         messages = [("system", prompt), ("human", payload.model_dump_json())]
         # Binding kwargs to the outer RunnableParallel drops provider options.
@@ -246,6 +295,10 @@ class ModelStudio:
             raise CallFailed("REQUEST_SIZE_LIMIT", fatal=True)
         reservation = token_cost(model, MAX_INPUT_TOKENS, limits.max_output_tokens)
         self.budget.reserve(reservation)
+        self._pilot_for_request = pilot
+        self._pilot_reservation = None
+        self._request_model = model
+        self._request_limits = limits
         self._request_sent = False
         self._request_error = None
         self._request_limit = limits.max_request_bytes
@@ -253,15 +306,15 @@ class ModelStudio:
         input_tokens = output_tokens = None
         charged = reservation
         status = "RESPONSE_UNKNOWN"
+        pilot_confirmed = False
         try:
             with tracing_context(enabled=False, parent=False):
                 response = runnable.invoke(messages, config={"callbacks": []})
-            raw = response.get("raw")
-            if not isinstance(raw, AIMessage):
-                raise CallFailed("RESPONSE_UNKNOWN", fatal=True)
-            if raw.response_metadata.get("model_name") != model:
-                raise CallFailed("MODEL_MISMATCH", fatal=True)
+            raw = _checked_raw(response, model)
             input_tokens, output_tokens = _usage(raw, limits)
+            pilot_confirmed = self._confirm_pilot_usage(
+                pilot, model, input_tokens, output_tokens
+            )
             charged = token_cost(model, input_tokens, output_tokens)
             if raw.response_metadata.get("finish_reason") != "stop":
                 raise CallFailed("OUTPUT_CONTRACT_ERROR", fatal=False)
@@ -279,12 +332,16 @@ class ModelStudio:
             status = error.code
             self.budget.stopped = error.fatal
             raise
+        except PilotBudgetError:
+            self.budget.stopped = True
+            raise
         except Exception:
             # Provider errors may contain request/response bodies and credentials.
             self.budget.stopped = True
             status = self._request_error or status
             raise CallFailed(status, fatal=True) from None
         finally:
+            self._stop_unconfirmed_pilot(pilot, pilot_confirmed)
             if self._request_sent:
                 self.budget.charged_upper_usd += charged - reservation
                 self.budget.records.append(

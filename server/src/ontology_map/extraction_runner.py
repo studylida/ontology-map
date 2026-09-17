@@ -33,6 +33,7 @@ from ontology_map.extraction_contracts import (
     SourceDocument,
 )
 from ontology_map.model_studio import FLASH, CallFailed, CallLimits, Role
+from ontology_map.pilot_budget import PilotBudgetError, current_pilot
 
 Disposition = Literal[
     "NOT_CLAIMED",
@@ -118,6 +119,8 @@ def _checked_operation(send: Callable[[], KnowledgeProposals]) -> KnowledgePropo
         if not isinstance(value, KnowledgeProposals):
             raise ConfirmedProviderFailure("OUTPUT_CONTRACT_ERROR")
         return KnowledgeProposals.model_validate_json(value.model_dump_json())
+    except PilotBudgetError:
+        raise
     except Exception as error:
         confirmed = classify_provider_error(error)
         if confirmed is not None:
@@ -184,6 +187,18 @@ class _RunModels:
         try:
             return self.helpers.call(role, prompt, payload, schema, limits)
         except Exception as error:
+            pilot = current_pilot(required=False)
+            if isinstance(error, PilotBudgetError) or (
+                pilot is not None
+                and (
+                    pilot.stopped
+                    or (
+                        isinstance(error, CallFailed)
+                        and error.code in {"CALL_LIMIT", "COST_LIMIT"}
+                    )
+                )
+            ):
+                raise PilotBudgetError("PILOT_STOPPED") from None
             confirmed = classify_provider_error(error)
             if confirmed is not None and confirmed.outcome == "OUTPUT_CONTRACT_ERROR":
                 # Preserve candidate-level malformed-validator exclusion, without
@@ -332,6 +347,8 @@ def run_extraction(
         )
     except _Stopped as stopped:
         return RunnerResult(stopped.status, "FAILED", error_code="GENERATION_FAILED")
+    except PilotBudgetError:
+        raise
     except UncertainProviderFailure:
         return RunnerResult(
             _status(engine, task_id), "AWAITING_RECLAIM", error_code="RESULT_UNKNOWN"

@@ -1,6 +1,7 @@
 """D0 guards: the offline plan cannot touch product state or send a call."""
 
 import json
+from decimal import Decimal
 from hashlib import sha256
 from types import SimpleNamespace
 
@@ -8,6 +9,7 @@ import pytest
 
 from ontology_map import application_execution as app
 from ontology_map.db import runtime_bootstrap as bootstrap
+from ontology_map.pilot_budget import PilotBudget, PilotBudgetError
 
 
 def _unexpected(*_args, **_kwargs):
@@ -90,19 +92,20 @@ def test_schema_bootstrap_refuses_active_placeholder_without_writes(monkeypatch)
 
 
 @pytest.mark.parametrize(
-    ("disposition", "finalizable"),
+    ("disposition", "finalizable", "pilot_stopped"),
     [
-        ("NOT_CLAIMED", False),
-        ("AWAITING_RECLAIM", False),
-        ("LEASE_LOST", False),
-        ("FAILED", False),
-        ("ZERO_RESULT", True),
-        ("ALL_BLOCKED", True),
-        ("VERIFIED_RUNTIME", True),
+        ("NOT_CLAIMED", False, False),
+        ("AWAITING_RECLAIM", False, False),
+        ("LEASE_LOST", False, False),
+        ("FAILED", False, False),
+        ("ZERO_RESULT", True, False),
+        ("ALL_BLOCKED", True, False),
+        ("VERIFIED_RUNTIME", True, False),
+        ("VERIFIED_RUNTIME", False, True),
     ],
 )
 def test_application_only_finalizes_claimed_runtime_results(
-    monkeypatch, disposition, finalizable
+    monkeypatch, tmp_path, disposition, finalizable, pilot_stopped
 ):
     class FakeSession:
         def __init__(self, _engine):
@@ -134,26 +137,45 @@ def test_application_only_finalizes_claimed_runtime_results(
         "enqueue_extraction",
         lambda *_args: SimpleNamespace(task_id=11),
     )
-    monkeypatch.setattr(app, "run_extraction", lambda *_args: runner)
+    pilot = PilotBudget("offline", 1, Decimal("1"), tmp_path / "pilot.jsonl")
+
+    def fake_run(*_args):
+        if pilot_stopped:
+            pilot.stop()
+        return runner
+
+    monkeypatch.setattr(app, "run_extraction", fake_run)
 
     def finalize(*_args, **_kwargs):
         calls.append("finalize")
         return "product"
 
     monkeypatch.setattr(app, "finalize_extraction_with_initial_publication", finalize)
-    result = app.run_document(
-        object(),
-        7,
-        "worker",
-        execution,
-        runtime,
-        object(),
-        _unexpected,
-        _unexpected,
-        _unexpected,
-        _unexpected,
-        _unexpected,
-        _unexpected,
-    )
-    assert result == ("product" if finalizable else runner)
+    try:
+
+        def run():
+            return app.run_document(
+                object(),
+                7,
+                "worker",
+                execution,
+                runtime,
+                object(),
+                _unexpected,
+                _unexpected,
+                _unexpected,
+                _unexpected,
+                _unexpected,
+                _unexpected,
+                pilot=pilot,
+            )
+
+        if pilot_stopped:
+            with pytest.raises(PilotBudgetError, match="PILOT_STOPPED"):
+                run()
+        else:
+            result = run()
+            assert result == ("product" if finalizable else runner)
+    finally:
+        pilot.close()
     assert calls == (["finalize"] if finalizable else [])

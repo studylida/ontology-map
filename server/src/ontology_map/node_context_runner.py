@@ -33,6 +33,7 @@ from ontology_map.node_context_generation_contracts import (
     NodeContextProposal,
     PreparedNodeContext,
 )
+from ontology_map.pilot_budget import PilotBudgetError
 
 Disposition = Literal[
     "NOT_CLAIMED",
@@ -138,6 +139,8 @@ def _checked_operation(
         if not isinstance(value, NodeContextProposal):
             raise ConfirmedProviderFailure("OUTPUT_CONTRACT_ERROR")
         return product.parse_proposal(value.model_dump_json())
+    except PilotBudgetError:
+        raise
     except Exception as error:
         confirmed = classify_provider_error(error)
         if confirmed is not None:
@@ -251,5 +254,7 @@ def run_node_context(
             node_id=node_id,
             prepare_provider=prepare_provider,
         )
+    except PilotBudgetError:
+        raise
     except Exception as error:
         return _handle_error(engine, lease, error)

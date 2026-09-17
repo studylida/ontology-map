@@ -103,6 +103,8 @@ LangChain/OpenAI-compatible provider integration은 #127에서 main에 병합됐
 
 `KNOWLEDGE_EXTRACTION`의 role-specific prompt·Structured Output과 Model Studio adapter는 #127에서 main에 병합되어 있으며, 공통 durable claim/lease/call-slot lifecycle과 canonical promotion 경로에 연결된다. 모델 생성 품질·실제 자료 적합성은 별도 평가이며 durable 실행 성공과 동일시하지 않는다.
 
+파일럿 유료 실행은 호출자가 승인받은 `pilot_id`, 최대 호출 수, 최대 USD, 저장소·제품 DB 밖의 절대 파일 경로로 `PilotBudget`을 새로 만든 뒤 같은 객체를 각 `run_document(..., pilot=pilot)` 또는 `resume_publication(..., pilot=pilot)` 호출에 전달한다. 원장은 `0600`으로 배타 생성하고 호출 전 보수적 최대 비용을 `fsync`한 뒤, 확인된 provider token 사용량과 그에 따른 비용 상한만 별도 기록한다. 기존 파일을 자동 재개하지 않으며 UNKNOWN·기록 실패·중단 뒤 같은 파일럿의 추가 전송을 막는다. 이 계산은 현재 고정된 Model Studio 요금표와 입력 1,000,000 token·요청 출력 상한이 실제 과금 상한이라는 운영 전제에 의존하며, 새 파일럿 승인과 요금 확인 없이 유료 실행을 열지 않는다. `--dry-run`은 파일을 만들지 않는다.
+
 ### 현재 제품 구현 상태
 
 | 역할·작업 | 현재 구현 상태 | 소유 경계 |

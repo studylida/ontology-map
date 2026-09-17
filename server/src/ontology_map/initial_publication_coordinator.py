@@ -24,6 +24,7 @@ from ontology_map.node_context_runner import (
     ProviderPreflight as NodeContextProviderPreflight,
 )
 from ontology_map.node_context_runner import run_node_context
+from ontology_map.pilot_budget import current_pilot
 
 
 @dataclass(frozen=True)
@@ -104,6 +105,7 @@ def run_initial_publication(
     affected = started.affected_node_ids
     if started.publication_status == "READY":
         return InitialPublicationRunResult(batch_id, "READY", affected, True, ())
+    pilot = current_pilot(required=False)
 
     for node_id in affected:
         with Session(engine) as session, session.begin():
@@ -130,6 +132,8 @@ def run_initial_publication(
             node_id=node_id,
             prepare_provider=prepare_node_context_provider,
         )
+        if pilot is not None:
+            pilot.require_active()
 
         with Session(engine) as session:
             context_id, as_of_at = _publication_node(session, batch_id, node_id)
@@ -165,6 +169,8 @@ def run_initial_publication(
             as_of_at=as_of_at,
             prepare_provider=prepare_followup_provider,
         )
+        if pilot is not None:
+            pilot.require_active()
         run_followup(
             engine,
             followup_1y.task_id,
@@ -174,6 +180,8 @@ def run_initial_publication(
             as_of_at=as_of_at,
             prepare_provider=prepare_followup_provider,
         )
+        if pilot is not None:
+            pilot.require_active()
         run_insight(
             engine,
             insight.task_id,
@@ -183,6 +191,8 @@ def run_initial_publication(
             as_of_at=as_of_at,
             prepare_provider=prepare_insight_provider,
         )
+        if pilot is not None:
+            pilot.require_active()
 
     with Session(engine) as session, session.begin():
         readiness = publication.publication_readiness(session, batch_id)

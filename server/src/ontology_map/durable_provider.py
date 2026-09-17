@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from ontology_map.db import model_tasks as tasks
 from ontology_map.model_studio import CallFailed
+from ontology_map.pilot_budget import PilotBudgetError, current_pilot
 
 
 class ConfirmedProviderFailure(Exception):
@@ -113,7 +114,7 @@ class CallResult[T]:
     value: T | None = None
 
 
-def execute_call[T](
+def _execute_call[T](
     engine: Engine,
     lease: tasks.Lease,
     preflight: Callable[[], Callable[[], T]],
@@ -126,6 +127,8 @@ def execute_call[T](
     """
     try:
         send = preflight()
+    except PilotBudgetError:
+        raise
     except Exception:
         with Session(engine) as session, session.begin():
             tasks.fail_execution(session, lease, transient=False)
@@ -137,6 +140,8 @@ def execute_call[T](
     attempted_at = datetime.now(UTC)
     try:
         value = send()
+    except PilotBudgetError:
+        raise
     except ConfirmedProviderFailure as error:
         result = tasks.TerminalResult(
             error.outcome,
@@ -156,3 +161,18 @@ def execute_call[T](
             session, slot, tasks.TerminalResult("SUCCESS", attempted_at)
         )
     return CallResult("RUNNING", value)
+
+
+def execute_call[T](
+    engine: Engine,
+    lease: tasks.Lease,
+    preflight: Callable[[], Callable[[], T]],
+) -> CallResult[T]:
+    """Stop the active pilot on any interrupted durable call boundary."""
+    pilot = current_pilot(required=False)
+    try:
+        return _execute_call(engine, lease, preflight)
+    except BaseException:
+        if pilot is not None:
+            pilot.stop()
+        raise

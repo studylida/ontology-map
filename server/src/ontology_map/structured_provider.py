@@ -16,6 +16,7 @@ from langchain_core.globals import get_debug, get_verbose
 from pydantic import SecretStr
 
 from ontology_map.model_studio import CallFailed, CallLimits, validate_base_url
+from ontology_map.pilot_budget import PilotBudget, current_pilot
 
 DEFAULT_TIMEOUT_SECONDS = 60.0
 REQUEST_TEMPERATURE = 0
@@ -67,6 +68,7 @@ class ModelStudioStructuredTransport:
         self._base_url = validate_base_url(base_url)
         self._endpoint = self._base_url + "/chat/completions"
         self._authorization = "Bearer " + key
+        self._pilot_required = not isinstance(transport, httpx.MockTransport)
         selected_transport = transport or httpx.HTTPTransport(retries=0)
         self._client = httpx.Client(
             transport=selected_transport,
@@ -140,6 +142,8 @@ class ModelStudioStructuredTransport:
             },
             content=content,
         )
+        pilot = current_pilot(required=self._pilot_required)
+        reservation = pilot.reserve(model, limits) if pilot else None
         sent = False
 
         def send() -> str:
@@ -147,14 +151,45 @@ class ModelStudioStructuredTransport:
             if sent:
                 raise CallFailed("UNEXPECTED_RETRY", fatal=True)
             sent = True
-            response = self._client.send(prepared)
-            response.raise_for_status()
-            return self._parse(response, model=model, limits=limits)
+            return self._send(prepared, model, limits, pilot, reservation)
 
         return send
 
+    def _send(
+        self,
+        prepared: httpx.Request,
+        model: str,
+        limits: CallLimits,
+        pilot: PilotBudget | None,
+        reservation: int | None,
+    ) -> str:
+        confirmed = False
+
+        def confirm(input_tokens: int, output_tokens: int) -> None:
+            nonlocal confirmed
+            if pilot is not None and reservation is not None:
+                pilot.confirm(reservation, model, input_tokens, output_tokens)
+                confirmed = True
+
+        try:
+            if pilot is not None:
+                pilot.require_active()
+            response = self._client.send(prepared)
+            response.raise_for_status()
+            return self._parse(response, model=model, limits=limits, on_usage=confirm)
+        except BaseException:
+            if pilot is not None and not confirmed:
+                pilot.stop()
+            raise
+
     @staticmethod
-    def _parse(response: httpx.Response, *, model: str, limits: CallLimits) -> str:
+    def _parse(
+        response: httpx.Response,
+        *,
+        model: str,
+        limits: CallLimits,
+        on_usage: Callable[[int, int], None],
+    ) -> str:
         try:
             payload = response.json()
         except json.JSONDecodeError, UnicodeDecodeError, ValueError:
@@ -177,6 +212,7 @@ class ModelStudioStructuredTransport:
             or not 0 <= output_tokens <= limits.max_output_tokens
         ):
             raise CallFailed("RESPONSE_UNKNOWN", fatal=True)
+        on_usage(input_tokens, output_tokens)
 
         choices = payload.get("choices")
         if not isinstance(choices, list) or len(choices) != 1:
