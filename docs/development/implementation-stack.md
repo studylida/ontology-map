@@ -97,7 +97,13 @@ LangChain/OpenAI-compatible provider integration은 #127에서 main에 병합됐
 
 제품별 runner는 이 lifecycle을 재구현하지 않는다.
 
-## 에이전트 역할과 현재 구현 상태
+## 에이전트 역할과 모델
+
+### 제품 재사용용 추출 실행 코드
+
+`KNOWLEDGE_EXTRACTION`의 role-specific prompt·Structured Output과 Model Studio adapter는 #127에서 main에 병합되어 있으며, 공통 durable claim/lease/call-slot lifecycle과 canonical promotion 경로에 연결된다. 모델 생성 품질·실제 자료 적합성은 별도 평가이며 durable 실행 성공과 동일시하지 않는다.
+
+### 현재 제품 구현 상태
 
 | 역할·작업 | 현재 구현 상태 | 소유 경계 |
 | --- | --- | --- |
