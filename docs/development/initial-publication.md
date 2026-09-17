@@ -70,6 +70,7 @@ search document와 NODE_CONTEXT grounding은 해당 publication generation에서
 member Node의 publication grounding에서는 다음 경계를 함께 지킨다.
 
 - `HAS_TOPIC` Relation과 이를 지지하는 Claim/Observation은 다른 evidence-backed knowledge와 같은 current-state, promotion/publication, lint, Evidence Trace 검증을 거친다.
+- member의 검색 문서는 공개 가능한 `SUPPORT` Claim에 Observation 근거가 있는 `HAS_TOPIC` Relation만 선택한다. 이 조건을 잃으면 기존 검색 문서의 근거가 stale로 판정된다.
 - Relation의 Topic endpoint는 `PRODUCT_REFERENCE` lifecycle, `TOPIC` node type, 승인된 stable `topic_code`와 `canonical_display_name`, null `current_state`/`promotion_batch_id`를 확인한 뒤 identity dependency로만 허용한다.
 - Topic 표시 이름은 `topic_reference.canonical_display_name`을 사용하며 `node_alias`를 요구하거나 생성하지 않는다.
 - member의 `search_document_basis`에는 검증된 `HAS_TOPIC` Relation과 support Claim을 유지하지만 Reference Topic의 `knowledge_item_id` 자체는 넣지 않는다. 따라서 Topic을 일반 evidence-backed public basis로 가장하지 않는다.

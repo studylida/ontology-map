@@ -92,6 +92,7 @@ def reference_topic_identities(
             raise ReferenceTopicIntegrityError(
                 f"node {int(row['node_id'])} violates PRODUCT_REFERENCE Topic integrity"
             )
+        assert canonical_name is not None
         node_id = int(row["node_id"])
         result[node_id] = ReferenceTopicIdentity(
             node_id=node_id,

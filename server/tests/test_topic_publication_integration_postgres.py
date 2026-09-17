@@ -15,15 +15,17 @@ from ontology_map import followup_generation as followup_product
 from ontology_map import insight_generation as insight_product
 from ontology_map import node_context_generation as context_product
 from ontology_map import topic_api
+from ontology_map.db import initial_publication as publication
 from ontology_map.db import promotion_provenance as provenance
 from ontology_map.db import schema as s
 from ontology_map.db.fixture import load_hbf_fixture
+from ontology_map.db.initial_publication_search import build_search_document_snapshot
 from ontology_map.db.ontology_reference_data import (
     activate_approved_ontology_reference_data,
 )
 from ontology_map.db.session import get_engine
 from ontology_map.db.topic_references import set_topic_reference_active
-from ontology_map.exploration import TimeWindow, get_exploration
+from ontology_map.exploration import TimeWindow
 from ontology_map.followup_generation_contracts import FollowupQuestionsProposal
 from ontology_map.initial_publication_coordinator import run_initial_publication
 from ontology_map.insight_generation_contracts import (
@@ -242,6 +244,42 @@ def _membership_knowledge(
     return relation_id, claim_id
 
 
+def _new_member_node(session: Session, batch_id: int) -> int:
+    node_type_id = session.scalar(
+        sa.select(s.node_type.c.node_type_id).where(
+            s.node_type.c.node_type_code == "COMPANY"
+        )
+    )
+    assert node_type_id is not None
+    node_id = session.scalar(
+        s.knowledge_item.insert()
+        .values(
+            item_kind="NODE",
+            lifecycle_kind="EVIDENCE_BACKED",
+            current_state="EVIDENCE_VERIFIED",
+            promotion_batch_id=batch_id,
+        )
+        .returning(s.knowledge_item.c.knowledge_item_id)
+    )
+    assert node_id is not None
+    session.execute(s.node.insert().values(node_id=node_id, node_type_id=node_type_id))
+    alias_id = session.scalar(
+        s.node_alias.insert()
+        .values(
+            node_id=node_id, alias_text="새 발행 대상", language="ko", is_preferred=True
+        )
+        .returning(s.node_alias.c.node_alias_id)
+    )
+    assert alias_id is not None
+    assert provenance.add_node_alias_evidence(
+        session,
+        batch_id,
+        int(alias_id),
+        _observation(session, key="새 발행 대상", days_ago=10),
+    )
+    return int(node_id)
+
+
 def _providers(captured: dict[str, list[object]]):
     def context(prepared):
         captured["context"].append(prepared)
@@ -292,7 +330,7 @@ def _topic_connections(claims: object, topic_node_id: int) -> list[object]:
     return result
 
 
-def test_reference_topic_survives_real_initial_publication_without_topic_artifacts() -> None:
+def test_reference_topic_publication_has_no_topic_artifacts() -> None:
     engine = _engine()
     with Session(engine) as session, session.begin():
         activation = activate_approved_ontology_reference_data(session)
@@ -370,36 +408,54 @@ def test_reference_topic_survives_real_initial_publication_without_topic_artifac
             ).where(s.knowledge_item.c.knowledge_item_id == topic_node_id)
         ).one()
         assert reference_state == ("PRODUCT_REFERENCE", None, None)
-        assert _count(
-            session,
-            s.publication_affected_node,
-            s.publication_affected_node.c.node_id == topic_node_id,
-        ) == 0
-        assert _count(
-            session,
-            s.node_search_document,
-            s.node_search_document.c.node_id == topic_node_id,
-        ) == 0
-        assert _count(
-            session,
-            s.node_context,
-            s.node_context.c.node_id == topic_node_id,
-        ) == 0
-        assert _count(
-            session,
-            s.node_insight,
-            s.node_insight.c.node_id == topic_node_id,
-        ) == 0
-        assert _count(
-            session,
-            s.node_insight_window,
-            s.node_insight_window.c.node_id == topic_node_id,
-        ) == 0
-        assert _count(
-            session,
-            s.node_alias,
-            s.node_alias.c.node_id == topic_node_id,
-        ) == 0
+        assert (
+            _count(
+                session,
+                s.publication_affected_node,
+                s.publication_affected_node.c.node_id == topic_node_id,
+            )
+            == 0
+        )
+        assert (
+            _count(
+                session,
+                s.node_search_document,
+                s.node_search_document.c.node_id == topic_node_id,
+            )
+            == 0
+        )
+        assert (
+            _count(
+                session,
+                s.node_context,
+                s.node_context.c.node_id == topic_node_id,
+            )
+            == 0
+        )
+        assert (
+            _count(
+                session,
+                s.node_insight,
+                s.node_insight.c.node_id == topic_node_id,
+            )
+            == 0
+        )
+        assert (
+            _count(
+                session,
+                s.node_insight_window,
+                s.node_insight_window.c.node_id == topic_node_id,
+            )
+            == 0
+        )
+        assert (
+            _count(
+                session,
+                s.node_alias,
+                s.node_alias.c.node_id == topic_node_id,
+            )
+            == 0
+        )
 
         for member_node_id, (relation_id, claim_id) in relation_claims.items():
             document_id = session.scalar(
@@ -413,8 +469,7 @@ def test_reference_topic_survives_real_initial_publication_without_topic_artifac
                 int(value)
                 for value in session.scalars(
                     sa.select(s.search_document_basis.c.knowledge_item_id).where(
-                        s.search_document_basis.c.node_search_document_id
-                        == document_id
+                        s.search_document_basis.c.node_search_document_id == document_id
                     )
                 )
             )
@@ -449,19 +504,19 @@ def test_reference_topic_survives_real_initial_publication_without_topic_artifac
             if node.node_type.code != "TOPIC"
         } == set(member_ids)
 
-        general = get_exploration(
-            session,
-            member_ids[0],
-            TimeWindow.RECENT_90_DAYS,
-        )
-        topic_node = next(
-            node for node in general.graph.nodes if node.node_id == topic_node_id
-        )
-        assert topic_node.name == "반도체"
-        assert topic_node.node_type.code == "TOPIC"
-
     for prepared in captured["followup"]:
         assert _topic_connections(prepared.agent_input.claims, topic_node_id)
+        if prepared.agent_input.node_id == member_ids[1]:
+            topic_claim = next(
+                claim
+                for claim in prepared.agent_input.claims
+                if claim.claim_id == second_claim
+            )
+            assert topic_claim.period_role == (
+                "BACKGROUND"
+                if prepared.agent_input.time_window == "RECENT_90_DAYS"
+                else "IN_WINDOW"
+            )
     for prepared in captured["insight"]:
         assert _topic_connections(
             prepared.agent_input.recent_90_days.claims,
@@ -528,3 +583,120 @@ def test_reference_topic_survives_real_initial_publication_without_topic_artifac
         )
         assert inactive.topic.is_active is False
         assert inactive.total_public_membership_count == 2
+        assert (
+            first_relation
+            in build_search_document_snapshot(
+                session, promotion_batch_id=batch_id, node_id=member_ids[0]
+            ).basis_ids
+        )
+
+
+def test_new_member_first_publication_keeps_topic_as_identity_only() -> None:
+    engine = _engine()
+    with Session(engine) as session, session.begin():
+        activation = activate_approved_ontology_reference_data(session)
+    load_hbf_fixture()
+    topic_node_id = activation.topic_node_ids["SEMICONDUCTOR"]
+
+    with Session(engine) as session, session.begin():
+        _activate_generation_contracts(session)
+        batch_id = _batch(session)
+        member_node_id = _new_member_node(session, batch_id)
+        relation_id, claim_id = _membership_knowledge(
+            session,
+            batch_id=batch_id,
+            revision_id=activation.relation_revision_ids["HAS_TOPIC"],
+            member_node_id=member_node_id,
+            topic_node_id=topic_node_id,
+            key="새 발행 대상",
+            days_ago=20,
+        )
+        provenance.mark_promotion_committed(session, batch_id)
+
+    captured: dict[str, list[object]] = {"context": [], "followup": [], "insight": []}
+    context_provider, followup_provider, insight_provider = _providers(captured)
+    result = run_initial_publication(
+        engine,
+        batch_id,
+        "topic-publication-track-a-new",
+        prepare_node_context_provider=context_provider,
+        prepare_followup_provider=followup_provider,
+        prepare_insight_provider=insight_provider,
+    )
+    assert result.ready
+    assert result.affected_node_ids == (member_node_id,)
+    assert len(captured["context"]) == 1
+    assert len(captured["followup"]) == 2
+    assert len(captured["insight"]) == 1
+    assert all(
+        _topic_connections(prepared.agent_input.claims, topic_node_id)
+        for prepared in captured["followup"]
+    )
+    assert all(
+        _topic_connections(prepared.agent_input.recent_90_days.claims, topic_node_id)
+        and _topic_connections(prepared.agent_input.recent_1_year.claims, topic_node_id)
+        for prepared in captured["insight"]
+    )
+    with Session(engine) as session:
+        basis = set(
+            build_search_document_snapshot(
+                session, promotion_batch_id=batch_id, node_id=member_node_id
+            ).basis_ids
+        )
+        assert {relation_id, claim_id} <= basis
+        assert topic_node_id not in basis
+        assert (
+            _count(
+                session,
+                s.publication_affected_node,
+                s.publication_affected_node.c.node_id == topic_node_id,
+            )
+            == 0
+        )
+
+
+def test_has_topic_without_usable_support_claim_is_not_publication_basis() -> None:
+    engine = _engine()
+    with Session(engine) as session, session.begin():
+        activation = activate_approved_ontology_reference_data(session)
+    load_hbf_fixture()
+    with Session(engine) as session, session.begin():
+        batch_id = _batch(session)
+        member_node_id = _new_member_node(session, batch_id)
+        relation_id, claim_id = _membership_knowledge(
+            session,
+            batch_id=batch_id,
+            revision_id=activation.relation_revision_ids["HAS_TOPIC"],
+            member_node_id=member_node_id,
+            topic_node_id=activation.topic_node_ids["SEMICONDUCTOR"],
+            key="근거 없음",
+            days_ago=10,
+        )
+        provenance.mark_promotion_committed(session, batch_id)
+    with Session(engine) as session, session.begin():
+        started = publication.start_initial_publication(session, batch_id)
+        assert started.affected_node_ids == (member_node_id,)
+        publication.ensure_search_document(
+            session, promotion_batch_id=batch_id, node_id=member_node_id
+        )
+    with Session(engine) as session, session.begin():
+        session.execute(
+            s.claim_relation.update()
+            .where(
+                s.claim_relation.c.claim_id == claim_id,
+                s.claim_relation.c.relation_id == relation_id,
+            )
+            .values(stance="DISPUTE")
+        )
+    with Session(engine) as session:
+        basis = set(
+            build_search_document_snapshot(
+                session, promotion_batch_id=batch_id, node_id=member_node_id
+            ).basis_ids
+        )
+        assert relation_id not in basis
+        assert claim_id not in basis
+        with pytest.raises(publication.NodeContextTaskError, match="stale"):
+            publication.prepare_node_context(
+                session, promotion_batch_id=batch_id, node_id=member_node_id
+            )
