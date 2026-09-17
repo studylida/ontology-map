@@ -63,9 +63,12 @@ def _isolate_database() -> None:
     engine = _engine()
     try:
         _truncate(engine)
+        yield
     finally:
-        engine.dispose()
-    yield
+        try:
+            _truncate(engine)
+        finally:
+            engine.dispose()
 
 
 def _context_failure(_prepared: object):
