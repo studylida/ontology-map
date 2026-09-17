@@ -8,10 +8,7 @@ import {
 import { useState } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ReportDialog } from "./InsightPanel";
-import {
-  EvidenceDialog,
-  type EvidenceSelection,
-} from "./RelationPanel";
+import { EvidenceDialog, type EvidenceSelection } from "./RelationPanel";
 
 const request = vi.fn();
 const response = (body: unknown, status = 200) => ({
