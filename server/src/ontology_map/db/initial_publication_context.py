@@ -1,5 +1,6 @@
 """Generation-scoped NODE_CONTEXT persistence boundary for issue #215."""
 
+import json
 from datetime import datetime
 from hashlib import sha256
 from struct import pack
@@ -7,6 +8,7 @@ from struct import pack
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
+from ontology_map import node_context_execution
 from ontology_map import node_context_generation as context_product
 from ontology_map.db import schema as s
 from ontology_map.db.initial_publication_contracts import (
@@ -51,18 +53,53 @@ def _task_cache_key(
     return sha256(payload).digest()
 
 
+def _canonical_hash(value: object) -> bytes:
+    text = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+    return sha256(text.encode("utf-8")).digest()
+
+
+def _node_context_effective_input(
+    *,
+    promotion_batch_id: int,
+    node_search_document_id: int,
+    search_document_input_hash: bytes,
+    agent_input: NodeContextAgentInput,
+) -> dict[str, object]:
+    """Return the exact result-affecting input for one publication generation."""
+    return {
+        "promotion_batch_id": promotion_batch_id,
+        "node_id": agent_input.node_id,
+        "search_document": {
+            "node_search_document_id": node_search_document_id,
+            "input_hash": search_document_input_hash.hex(),
+            "generator_version": SEARCH_DOCUMENT_GENERATOR_VERSION,
+        },
+        "agent_input": agent_input.model_dump(mode="json"),
+        "execution_settings": node_context_execution.identity_settings(),
+    }
+
+
 def _node_context_input_hash(
     *,
     promotion_batch_id: int,
-    node_id: int,
     node_search_document_id: int,
     search_document_input_hash: bytes,
+    agent_input: NodeContextAgentInput,
 ) -> bytes:
-    return sha256(
-        b"NODECTX2151"
-        + pack(">qqq", promotion_batch_id, node_id, node_search_document_id)
-        + search_document_input_hash
-    ).digest()
+    return _canonical_hash(
+        _node_context_effective_input(
+            promotion_batch_id=promotion_batch_id,
+            node_search_document_id=node_search_document_id,
+            search_document_input_hash=search_document_input_hash,
+            agent_input=agent_input,
+        )
+    )
 
 
 def prepare_node_context(
@@ -166,24 +203,25 @@ def prepare_node_context(
         node_id=node_id,
     )
     search_hash = bytes(document["input_hash"])
+    agent_input = NodeContextAgentInput(
+        node_id=node_id,
+        node_type=str(node_type),
+        preferred_alias=preferred_alias,
+        identity_text=current.identity_text,
+        knowledge_text=current.knowledge_text,
+        basis_ids=current.basis_ids,
+    )
     return PreparedNodeContext(
         promotion_batch_id=promotion_batch_id,
         node_search_document_id=document_id,
         search_document_input_hash=search_hash,
         input_hash=_node_context_input_hash(
             promotion_batch_id=promotion_batch_id,
-            node_id=node_id,
             node_search_document_id=document_id,
             search_document_input_hash=search_hash,
+            agent_input=agent_input,
         ),
-        agent_input=NodeContextAgentInput(
-            node_id=node_id,
-            node_type=str(node_type),
-            preferred_alias=preferred_alias,
-            identity_text=current.identity_text,
-            knowledge_text=current.knowledge_text,
-            basis_ids=current.basis_ids,
-        ),
+        agent_input=agent_input,
     )
 
 
