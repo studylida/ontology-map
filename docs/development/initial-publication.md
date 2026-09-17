@@ -63,6 +63,21 @@ search document와 NODE_CONTEXT grounding은 해당 publication generation에서
 
 현재 구현의 전제도 함께 보존한다. #215 Reviewer 확인 시점의 production alias write path에는 기존 `node_alias` row를 in-place `UPDATE`하는 경로가 없고, 새 alias mutation은 provenance로 추적되는 insert 경계를 사용한다. 향후 기존 alias row의 text/preferred 상태를 in-place 수정하는 production 경로를 도입하면 이 publication-visible alias/provenance 판정을 함께 재검토해야 한다.
 
+## Reference Topic endpoint grounding
+
+#203의 `PRODUCT_REFERENCE` Topic은 Node identity를 갖지만 ordinary evidence-backed publication 대상은 아니다. 따라서 #216 provenance projection이 `HAS_TOPIC` Relation의 양 endpoint를 복원하더라도 `publication_affected_node`에는 `EVIDENCE_BACKED` Node만 들어간다. Reference Topic 자체에는 PAN, search document, NODE_CONTEXT, FOLLOWUP, NODE_INSIGHT를 만들지 않는다.
+
+member Node의 publication grounding에서는 다음 경계를 함께 지킨다.
+
+- `HAS_TOPIC` Relation과 이를 지지하는 Claim/Observation은 다른 evidence-backed knowledge와 같은 current-state, promotion/publication, lint, Evidence Trace 검증을 거친다.
+- Relation의 Topic endpoint는 `PRODUCT_REFERENCE` lifecycle, `TOPIC` node type, 승인된 stable `topic_code`와 `canonical_display_name`, null `current_state`/`promotion_batch_id`를 확인한 뒤 identity dependency로만 허용한다.
+- Topic 표시 이름은 `topic_reference.canonical_display_name`을 사용하며 `node_alias`를 요구하거나 생성하지 않는다.
+- member의 `search_document_basis`에는 검증된 `HAS_TOPIC` Relation과 support Claim을 유지하지만 Reference Topic의 `knowledge_item_id` 자체는 넣지 않는다. 따라서 Topic을 일반 evidence-backed public basis로 가장하지 않는다.
+- FOLLOWUP과 NODE_INSIGHT의 direct-connection grounding도 같은 검증된 Reference Topic identity를 허용하되, Topic을 basis item으로 추가하지 않는다.
+- `topic_reference.is_active`는 새 membership 생성 경계다. 이미 생성된 evidence-backed `HAS_TOPIC` membership의 읽기/grounding에서는 inactive 전환만으로 과거 의미를 숨기지 않는다.
+
+이 경계는 `node_type == 'TOPIC'` 전체를 skip하는 특례가 아니다. legacy evidence-backed Topic과 승인된 PRODUCT_REFERENCE Topic은 lifecycle로 구분하고, Reference Topic identity가 #203 계약과 다르면 publication preparation을 fail-closed 한다.
+
 ## Durable ownership
 
 `NODE_CONTEXT`는 #215 제품이므로 #215가 task-specific provider adapter와 runner를 소유한다. 다만 claim/lease, retry/backoff, provider call slot, `agent_attempt`, provider outcome 기록은 모두 #127 공통 `db.model_tasks`와 `durable_provider`를 사용한다. 기존 `prepare_node_context()`, `ensure_node_context_task()`, `apply_node_context()`가 generation identity, stale 검증, immutable artifact와 product terminal 의미의 source of truth다.
