@@ -25,6 +25,7 @@ from ontology_map.extraction_runner import (
     run_extraction,
 )
 from ontology_map.model_studio import FLASH, CallFailed, validate_base_url
+from ontology_map.pilot_budget import PilotBudget, current_pilot, request_digest
 
 DEFAULT_TIMEOUT_SECONDS = 60.0
 CORRECTIVE_INPUT_SEPARATOR = "\n\n명시적 corrective input:\n"
@@ -61,6 +62,7 @@ class ModelStudioGenerationAdapter:
         self._base_url = validate_base_url(base_url)
         self._endpoint = self._base_url + "/chat/completions"
         self._authorization = "Bearer " + key
+        self._pilot_required = not isinstance(transport, httpx.MockTransport)
         selected_transport = transport or httpx.HTTPTransport(retries=0)
         self._client = httpx.Client(
             transport=selected_transport,
@@ -132,6 +134,12 @@ class ModelStudioGenerationAdapter:
             },
             content=content,
         )
+        pilot = current_pilot(required=self._pilot_required)
+        reservation = (
+            pilot.reserve(FLASH, request.limits, request_digest(prepared))
+            if pilot
+            else None
+        )
         sent = False
 
         def send() -> KnowledgeProposals:
@@ -139,15 +147,42 @@ class ModelStudioGenerationAdapter:
             if sent:
                 raise CallFailed("UNEXPECTED_RETRY", fatal=True)
             sent = True
-            response = self._client.send(prepared)
-            response.raise_for_status()
-            return self._parse(response, request)
+            return self._send(prepared, request, pilot, reservation)
 
         return send
 
+    def _send(
+        self,
+        prepared: httpx.Request,
+        request: GenerationRequest,
+        pilot: PilotBudget | None,
+        reservation: int | None,
+    ) -> KnowledgeProposals:
+        confirmed = False
+
+        def confirm(input_tokens: int, output_tokens: int) -> None:
+            nonlocal confirmed
+            if pilot is not None and reservation is not None:
+                pilot.confirm(reservation, FLASH, input_tokens, output_tokens)
+                confirmed = True
+
+        try:
+            if pilot is not None:
+                pilot.require_active()
+            response = self._client.send(prepared)
+            response.raise_for_status()
+            return self._parse(response, request, on_usage=confirm)
+        except BaseException:
+            if pilot is not None and not confirmed:
+                pilot.stop()
+            raise
+
     @staticmethod
     def _parse(
-        response: httpx.Response, request: GenerationRequest
+        response: httpx.Response,
+        request: GenerationRequest,
+        *,
+        on_usage: Callable[[int, int], None],
     ) -> KnowledgeProposals:
         try:
             payload = response.json()
@@ -171,6 +206,7 @@ class ModelStudioGenerationAdapter:
             or not 0 <= output_tokens <= request.limits.max_output_tokens
         ):
             raise CallFailed("RESPONSE_UNKNOWN", fatal=True)
+        on_usage(input_tokens, output_tokens)
 
         choices = payload.get("choices")
         if not isinstance(choices, list) or len(choices) != 1:

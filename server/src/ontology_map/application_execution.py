@@ -37,6 +37,7 @@ from ontology_map.initial_publication_handoff import (
 )
 from ontology_map.insight_runner import ProviderPreflight as InsightPreflight
 from ontology_map.node_context_runner import ProviderPreflight as ContextPreflight
+from ontology_map.pilot_budget import PilotBudget
 
 
 def _require_ready(engine: Engine, ontology: Ontology | None = None) -> None:
@@ -62,41 +63,47 @@ def run_document(
     prepare_node_context_provider: ContextPreflight,
     prepare_followup_provider: FollowupPreflight,
     prepare_insight_provider: InsightPreflight,
+    *,
+    pilot: PilotBudget,
 ) -> RunnerResult | ExtractionPublicationResult:
     """One claim only; durable status/slot owners decide retries and terminal state."""
-    _require_ready(engine, runtime.ontology)
-    if runtime.document.document_id != str(document_id):
-        raise ValueError("RUNNER_SOURCE_MISMATCH")
-    if (
-        execution.runtime_settings.get("extraction_runner")
-        != runtime.identity_settings()
-    ):
-        raise ValueError("RUNNER_SETTINGS_MISMATCH")
-    with Session(engine) as session, session.begin():
-        task = extraction_tasks.enqueue_extraction(session, document_id, execution)
-    runner = run_extraction(
-        engine,
-        task.task_id,
-        worker_name,
-        execution,
-        runtime,
-        helpers,
-        prepare_generation,
-    )
-    if runner.disposition not in {"VERIFIED_RUNTIME", "ZERO_RESULT", "ALL_BLOCKED"}:
-        return runner
-    return finalize_extraction_with_initial_publication(
-        engine,
-        runner,
-        execution,
-        runtime,
-        propose_resolution,
-        propose_claim_duplicate,
-        worker_name,
-        prepare_node_context_provider=prepare_node_context_provider,
-        prepare_followup_provider=prepare_followup_provider,
-        prepare_insight_provider=prepare_insight_provider,
-    )
+    with pilot.activate():
+        _require_ready(engine, runtime.ontology)
+        if runtime.document.document_id != str(document_id):
+            raise ValueError("RUNNER_SOURCE_MISMATCH")
+        if (
+            execution.runtime_settings.get("extraction_runner")
+            != runtime.identity_settings()
+        ):
+            raise ValueError("RUNNER_SETTINGS_MISMATCH")
+        with Session(engine) as session, session.begin():
+            task = extraction_tasks.enqueue_extraction(session, document_id, execution)
+        runner = run_extraction(
+            engine,
+            task.task_id,
+            worker_name,
+            execution,
+            runtime,
+            helpers,
+            prepare_generation,
+        )
+        pilot.require_active()
+        if runner.disposition not in {"VERIFIED_RUNTIME", "ZERO_RESULT", "ALL_BLOCKED"}:
+            return runner
+        result = finalize_extraction_with_initial_publication(
+            engine,
+            runner,
+            execution,
+            runtime,
+            propose_resolution,
+            propose_claim_duplicate,
+            worker_name,
+            prepare_node_context_provider=prepare_node_context_provider,
+            prepare_followup_provider=prepare_followup_provider,
+            prepare_insight_provider=prepare_insight_provider,
+        )
+        pilot.require_active()
+        return result
 
 
 def resume_publication(
@@ -107,17 +114,21 @@ def resume_publication(
     prepare_node_context_provider: ContextPreflight,
     prepare_followup_provider: FollowupPreflight,
     prepare_insight_provider: InsightPreflight,
+    pilot: PilotBudget,
 ) -> InitialPublicationRunResult:
     """Resume an existing committed batch without repeating extraction."""
-    _require_ready(engine)
-    return run_initial_publication(
-        engine,
-        batch_id,
-        worker_name,
-        prepare_node_context_provider=prepare_node_context_provider,
-        prepare_followup_provider=prepare_followup_provider,
-        prepare_insight_provider=prepare_insight_provider,
-    )
+    with pilot.activate():
+        _require_ready(engine)
+        result = run_initial_publication(
+            engine,
+            batch_id,
+            worker_name,
+            prepare_node_context_provider=prepare_node_context_provider,
+            prepare_followup_provider=prepare_followup_provider,
+            prepare_insight_provider=prepare_insight_provider,
+        )
+        pilot.require_active()
+        return result
 
 
 def dry_run() -> dict[str, object]:

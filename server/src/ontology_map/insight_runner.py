@@ -28,6 +28,7 @@ from ontology_map.insight_generation_contracts import (
     InsightBundleProposal,
     PreparedInsightBundle,
 )
+from ontology_map.pilot_budget import PilotBudgetError
 
 Disposition = Literal[
     "NOT_CLAIMED",
@@ -111,6 +112,8 @@ def _checked_operation(
         if not isinstance(value, InsightBundleProposal):
             raise ConfirmedProviderFailure("OUTPUT_CONTRACT_ERROR")
         return parse_proposal(value.model_dump_json())
+    except PilotBudgetError:
+        raise
     except Exception as error:
         confirmed = classify_provider_error(error)
         if confirmed is not None:
@@ -238,5 +241,7 @@ def run_insight(
             as_of_at=as_of_at,
             prepare_provider=prepare_provider,
         )
+    except PilotBudgetError:
+        raise
     except Exception as error:
         return _handle_error(engine, lease, error)

@@ -1,5 +1,6 @@
 import json
 from dataclasses import replace
+from decimal import Decimal
 
 import httpx
 import pytest
@@ -19,6 +20,7 @@ from ontology_map.extraction_provider import (
 )
 from ontology_map.extraction_runner import GenerationRequest
 from ontology_map.model_studio import FLASH, CallFailed, CallLimits
+from ontology_map.pilot_budget import PilotBudget, request_digest
 
 BASE_URL = "https://ws-product-test.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
 
@@ -80,10 +82,15 @@ def response(req: httpx.Request, content: str = '{"claims":[]}') -> httpx.Respon
     )
 
 
-def test_prepare_builds_exact_model_studio_request_before_send() -> None:
+def test_prepare_builds_exact_model_studio_request_before_send(tmp_path) -> None:
     calls: list[dict[str, object]] = []
+    path = tmp_path / "generation.jsonl"
+    pilot = PilotBudget("generation-request", 1, Decimal("1"), path)
 
     def handle(req: httpx.Request) -> httpx.Response:
+        reserved = json.loads(path.read_text().splitlines()[-1])
+        assert reserved["kind"] == "reserved"
+        assert reserved["request_sha256"] == request_digest(req)
         assert str(req.url) == BASE_URL + "/chat/completions"
         payload = json.loads(req.content)
         calls.append(payload)
@@ -113,11 +120,13 @@ def test_prepare_builds_exact_model_studio_request_before_send() -> None:
         transport=httpx.MockTransport(handle),
     )
     try:
-        send = adapter.prepare(request())
-        assert calls == []
-        result = send()
+        with pilot.activate():
+            send = adapter.prepare(request())
+            assert calls == []
+            result = send()
     finally:
         adapter.close()
+        pilot.close()
     assert isinstance(result, KnowledgeProposals)
     assert result.claims == []
     assert len(calls) == 1
