@@ -25,7 +25,7 @@ from ontology_map.extraction_runner import (
     run_extraction,
 )
 from ontology_map.model_studio import FLASH, CallFailed, validate_base_url
-from ontology_map.pilot_budget import PilotBudget, current_pilot
+from ontology_map.pilot_budget import PilotBudget, current_pilot, request_digest
 
 DEFAULT_TIMEOUT_SECONDS = 60.0
 CORRECTIVE_INPUT_SEPARATOR = "\n\n명시적 corrective input:\n"
@@ -135,7 +135,11 @@ class ModelStudioGenerationAdapter:
             content=content,
         )
         pilot = current_pilot(required=self._pilot_required)
-        reservation = pilot.reserve(FLASH, request.limits) if pilot else None
+        reservation = (
+            pilot.reserve(FLASH, request.limits, request_digest(prepared))
+            if pilot
+            else None
+        )
         sent = False
 
         def send() -> KnowledgeProposals:

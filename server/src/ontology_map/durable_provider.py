@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from ontology_map.db import model_tasks as tasks
 from ontology_map.model_studio import CallFailed
-from ontology_map.pilot_budget import PilotBudgetError, current_pilot
+from ontology_map.pilot_budget import PilotBudget, PilotBudgetError, current_pilot
 
 
 class ConfirmedProviderFailure(Exception):
@@ -114,25 +114,11 @@ class CallResult[T]:
     value: T | None = None
 
 
-def _execute_call[T](
+def _execute_prepared_call[T](
     engine: Engine,
     lease: tasks.Lease,
-    preflight: Callable[[], Callable[[], T]],
+    send: Callable[[], T],
 ) -> CallResult[T]:
-    """preflight returns the fully prepared single-send operation.
-
-    SDK/HTTP automatic retries must be disabled by the adapter. A preflight
-    exception propagates after deterministic failure is recorded, with no slot.
-    Runtime payload is returned to the caller only and is never persisted here.
-    """
-    try:
-        send = preflight()
-    except PilotBudgetError:
-        raise
-    except Exception:
-        with Session(engine) as session, session.begin():
-            tasks.fail_execution(session, lease, transient=False)
-        raise
     with Session(engine) as session, session.begin():
         slot = tasks.reserve_slot(session, lease)
     if slot is None:
@@ -163,15 +149,60 @@ def _execute_call[T](
     return CallResult("RUNNING", value)
 
 
+def _safe_document_preflight_failure(
+    pilot: PilotBudget, calls_before: int, error: Exception
+) -> bool:
+    return (
+        not pilot.stopped
+        and pilot.calls == calls_before
+        and isinstance(error, CallFailed)
+        and error.code in {"REQUEST_SIZE_LIMIT", "INVALID_REQUEST"}
+    )
+
+
+def _record_preflight_failure(
+    engine: Engine,
+    lease: tasks.Lease,
+    pilot: PilotBudget | None,
+    calls_before: int,
+    error: Exception,
+) -> None:
+    try:
+        with Session(engine) as session, session.begin():
+            tasks.fail_execution(session, lease, transient=False)
+    except BaseException:
+        if pilot is not None:
+            pilot.stop()
+        raise
+    if pilot is not None and not _safe_document_preflight_failure(
+        pilot, calls_before, error
+    ):
+        pilot.stop()
+
+
 def execute_call[T](
     engine: Engine,
     lease: tasks.Lease,
     preflight: Callable[[], Callable[[], T]],
 ) -> CallResult[T]:
-    """Stop the active pilot on any interrupted durable call boundary."""
+    """Allow only recorded, no-send document preflight failures to continue."""
     pilot = current_pilot(required=False)
+    calls_before = pilot.calls if pilot is not None else 0
     try:
-        return _execute_call(engine, lease, preflight)
+        send = preflight()
+    except PilotBudgetError:
+        if pilot is not None:
+            pilot.stop()
+        raise
+    except Exception as error:
+        _record_preflight_failure(engine, lease, pilot, calls_before, error)
+        raise
+    except BaseException:
+        if pilot is not None:
+            pilot.stop()
+        raise
+    try:
+        return _execute_prepared_call(engine, lease, send)
     except BaseException:
         if pilot is not None:
             pilot.stop()

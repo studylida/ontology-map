@@ -8,8 +8,11 @@ import threading
 from contextlib import contextmanager
 from contextvars import ContextVar
 from decimal import Decimal
+from hashlib import sha256
 from pathlib import Path
 from typing import Iterator
+
+import httpx
 
 from ontology_map.model_studio import MAX_INPUT_TOKENS, RATES, CallLimits, token_cost
 
@@ -26,6 +29,17 @@ def current_pilot(*, required: bool) -> "PilotBudget | None":
     if pilot is None and required:
         raise PilotBudgetError("PILOT_BUDGET_REQUIRED")
     return pilot
+
+
+def request_digest(request: httpx.Request) -> str:
+    """Identify method, endpoint, and body without retaining their contents."""
+    return sha256(
+        request.method.encode("ascii")
+        + b"\n"
+        + str(request.url).encode("utf-8")
+        + b"\n"
+        + request.content
+    ).hexdigest()
 
 
 class PilotBudget:
@@ -114,10 +128,13 @@ class PilotBudget:
             with self._lock:
                 self._running = False
 
-    def reserve(self, model: str, limits: CallLimits) -> int:
+    def reserve(self, model: str, limits: CallLimits, request_sha256: str) -> int:
         with self._lock:
             if self.stopped or self._fd < 0:
                 raise PilotBudgetError("PILOT_STOPPED")
+            if not re.fullmatch(r"[0-9a-f]{64}", request_sha256):
+                self.stopped = True
+                raise PilotBudgetError("PILOT_REQUEST_ID_INVALID")
             if model not in RATES:
                 self.stopped = True
                 raise PilotBudgetError("PILOT_MODEL_UNPRICED")
@@ -134,6 +151,7 @@ class PilotBudget:
                     "kind": "reserved",
                     "sequence": sequence,
                     "model": model,
+                    "request_sha256": request_sha256,
                     "estimated_upper_usd": str(estimate),
                 }
             )

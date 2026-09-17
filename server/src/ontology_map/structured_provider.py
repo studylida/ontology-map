@@ -16,7 +16,7 @@ from langchain_core.globals import get_debug, get_verbose
 from pydantic import SecretStr
 
 from ontology_map.model_studio import CallFailed, CallLimits, validate_base_url
-from ontology_map.pilot_budget import PilotBudget, current_pilot
+from ontology_map.pilot_budget import PilotBudget, current_pilot, request_digest
 
 DEFAULT_TIMEOUT_SECONDS = 60.0
 REQUEST_TEMPERATURE = 0
@@ -143,7 +143,9 @@ class ModelStudioStructuredTransport:
             content=content,
         )
         pilot = current_pilot(required=self._pilot_required)
-        reservation = pilot.reserve(model, limits) if pilot else None
+        reservation = (
+            pilot.reserve(model, limits, request_digest(prepared)) if pilot else None
+        )
         sent = False
 
         def send() -> str:

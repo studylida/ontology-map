@@ -16,8 +16,6 @@ from langchain_openai import ChatOpenAI
 from langsmith import tracing_context
 from pydantic import BaseModel, SecretStr, ValidationError
 
-from ontology_map.extraction_contracts import digest
-
 if TYPE_CHECKING:
     from ontology_map.pilot_budget import PilotBudget
 
@@ -194,6 +192,8 @@ class ModelStudio:
         self._http.close()
 
     def _check_request(self, request: httpx.Request) -> None:
+        from ontology_map.pilot_budget import request_digest
+
         if str(request.url) != self._base_url + "/chat/completions":
             self._request_error = "ENDPOINT_CONTRACT_ERROR"
             if self._pilot_for_request is not None:
@@ -209,12 +209,18 @@ class ModelStudio:
             if self._pilot_for_request is not None:
                 self._pilot_for_request.stop()
             raise CallFailed("UNEXPECTED_RETRY", fatal=True)
+        try:
+            request_hash = request_digest(request)
+        except BaseException:
+            if self._pilot_for_request is not None:
+                self._pilot_for_request.stop()
+            raise
         if self._pilot_for_request is not None:
             self._pilot_reservation = self._pilot_for_request.reserve(
-                self._request_model, self._request_limits
+                self._request_model, self._request_limits, request_hash
             )
         self._request_sent = True
-        self._request_hash = digest(request.content.decode("utf-8"))
+        self._request_hash = request_hash
 
     def call[T: BaseModel](
         self,
