@@ -448,16 +448,22 @@ def test_durable_coordinator_ready_and_reentry_do_not_resend() -> None:
                 )
             )
         ) == {"SUCCESS"}
-        assert _count(
-            session,
-            s.provider_call_slot,
-            s.provider_call_slot.c.model_task_id.in_(task_ids),
-        ) == 4
-        assert _count(
-            session,
-            s.agent_attempt,
-            s.agent_attempt.c.model_task_id.in_(task_ids),
-        ) == 4
+        assert (
+            _count(
+                session,
+                s.provider_call_slot,
+                s.provider_call_slot.c.model_task_id.in_(task_ids),
+            )
+            == 4
+        )
+        assert (
+            _count(
+                session,
+                s.agent_attempt,
+                s.agent_attempt.c.model_task_id.in_(task_ids),
+            )
+            == 4
+        )
         artifacts_before = (
             _count(session, s.node_context),
             _count(session, s.node_question_set),
@@ -523,9 +529,7 @@ def test_transient_context_retry_reuses_task_then_reaches_ready() -> None:
                     transient=True,
                     retry_after=timedelta(0),
                 )
-            return NodeContextProposal(
-                context_text="재시도 후 생성된 짧은 맥락입니다."
-            )
+            return NodeContextProposal(context_text="재시도 후 생성된 짧은 맥락입니다.")
 
         return send
 
@@ -570,16 +574,22 @@ def test_transient_context_retry_reuses_task_then_reaches_ready() -> None:
     assert attempts == 2
     with Session(engine) as session:
         assert _selected_task_ids(session, batch_id, node_id)[0] == context_task_id
-        assert _count(
-            session,
-            s.provider_call_slot,
-            s.provider_call_slot.c.model_task_id == context_task_id,
-        ) == 2
-        assert _count(
-            session,
-            s.agent_attempt,
-            s.agent_attempt.c.model_task_id == context_task_id,
-        ) == 2
+        assert (
+            _count(
+                session,
+                s.provider_call_slot,
+                s.provider_call_slot.c.model_task_id == context_task_id,
+            )
+            == 2
+        )
+        assert (
+            _count(
+                session,
+                s.agent_attempt,
+                s.agent_attempt.c.model_task_id == context_task_id,
+            )
+            == 2
+        )
 
 
 def test_one_followup_missing_from_actual_runner_blocks_ready() -> None:
@@ -640,10 +650,7 @@ def test_one_followup_missing_from_actual_runner_blocks_ready() -> None:
     with Session(engine) as session:
         readiness = publication.publication_readiness(session, batch_id)
     assert not readiness.ready
-    assert any(
-        "both independent FOLLOWUP" in reason
-        for reason in readiness.reasons
-    )
+    assert any("both independent FOLLOWUP" in reason for reason in readiness.reasons)
 
 
 def test_one_window_corrupt_insight_bundle_blocks_ready() -> None:
@@ -726,8 +733,7 @@ def test_one_window_corrupt_insight_bundle_blocks_ready() -> None:
         readiness = publication.publication_readiness(session, batch_id)
     assert not readiness.ready
     assert any(
-        "atomic window bundle is incomplete" in reason
-        for reason in readiness.reasons
+        "atomic window bundle is incomplete" in reason for reason in readiness.reasons
     )
 
 
@@ -822,11 +828,14 @@ def test_old_followup_and_insight_cannot_fill_new_generation() -> None:
         first_document = int(first_row["node_search_document_id"])
         first_context = int(first_row["node_context_id"])
         first_insight = int(first_row["node_insight_model_task_id"])
-        assert _count(
-            session,
-            s.node_question_set,
-            s.node_question_set.c.node_context_id == first_context,
-        ) == 2
+        assert (
+            _count(
+                session,
+                s.node_question_set,
+                s.node_question_set.c.node_context_id == first_context,
+            )
+            == 2
+        )
 
     with Session(engine) as session, session.begin():
         second_batch = _alias_evidence_batch(session, node_id)
@@ -881,9 +890,7 @@ def test_multi_node_terminal_failure_blocks_ready_and_preserves_data() -> None:
             sends["context"].append(prepared.agent_input.node_id)
             if prepared.agent_input.node_id == right:
                 raise ConfirmedProviderFailure("INVALID_REQUEST")
-            return NodeContextProposal(
-                context_text="완성된 노드의 짧은 맥락입니다."
-            )
+            return NodeContextProposal(context_text="완성된 노드의 짧은 맥락입니다.")
 
         return send
 
