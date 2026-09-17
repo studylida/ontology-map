@@ -1091,6 +1091,107 @@ def _required_resolutions(selection: _ResolutionSelection) -> tuple[Resolution, 
     )
 
 
+def _relation_support_key(
+    binding: RelationProposal,
+    runtime: RuntimeInput,
+    resolutions: Mapping[str, Resolution],
+) -> tuple[int, str, str]:
+    rule = _runtime_relation(runtime, binding.code)
+    if rule.revision_id is None:
+        raise ValueError("RUNTIME_RELATION_REVISION_MISSING")
+    source, target = _ordered_relation_refs(
+        rule,
+        _node_semantic_ref(resolutions[binding.source_mention]),
+        _node_semantic_ref(resolutions[binding.target_mention]),
+    )
+    return rule.revision_id, _semantic_json(source), _semantic_json(target)
+
+
+def _previously_supported_relation(session: Session, key: tuple[int, str, str]) -> bool:
+    revision_id, source_json, target_json = key
+    source = json.loads(source_json).get("node_id")
+    target = json.loads(target_json).get("node_id")
+    if source is None or target is None:
+        return False
+    relation_id = session.scalar(
+        sa.select(schema.relation.c.relation_id)
+        .join(schema.relation_type_revision)
+        .where(
+            schema.relation.c.relation_type_revision_id == revision_id,
+            sa.or_(
+                sa.and_(
+                    schema.relation.c.source_node_id == source,
+                    schema.relation.c.target_node_id == target,
+                ),
+                sa.and_(
+                    schema.relation_type_revision.c.directionality == "SYMMETRIC",
+                    schema.relation.c.source_node_id == target,
+                    schema.relation.c.target_node_id == source,
+                ),
+            ),
+        )
+    )
+    return relation_id is not None and promotion_db.relation_has_supported_claim(
+        session, int(relation_id)
+    )
+
+
+def _exclude_unsupported_relations(
+    engine: Engine, runtime: RuntimeInput, selection: _ResolutionSelection
+) -> _ResolutionSelection:
+    resolutions = {item.mention.mention_id: item for item in selection.resolutions}
+    keys = {
+        claim.candidate_id: tuple(
+            (_relation_support_key(binding, runtime, resolutions), binding.stance)
+            for binding in claim.bindings
+            if isinstance(binding, RelationProposal)
+        )
+        for claim in selection.accepted
+    }
+    all_keys = {key for entries in keys.values() for key, _ in entries}
+    with engine.connect().execution_options(
+        isolation_level="REPEATABLE READ"
+    ) as connection:
+        with connection.begin():
+            connection.exec_driver_sql("SET TRANSACTION READ ONLY")
+            with Session(bind=connection) as session:
+                existing = {
+                    key
+                    for key in all_keys
+                    if _previously_supported_relation(session, key)
+                }
+    accepted = list(selection.accepted)
+    excluded = list(selection.excluded_ids)
+    while accepted:
+        supported = existing | {
+            key
+            for claim in accepted
+            for key, stance in keys[claim.candidate_id]
+            if stance == "SUPPORT"
+        }
+        retained = [
+            claim
+            for claim in accepted
+            if all(key in supported for key, _ in keys[claim.candidate_id])
+        ]
+        if len(retained) == len(accepted):
+            break
+        excluded.extend(
+            claim.candidate_id for claim in accepted if claim not in retained
+        )
+        accepted = retained
+    return _ResolutionSelection(
+        resolutions=selection.resolutions,
+        accepted=tuple(accepted),
+        accepted_ids=tuple(claim.candidate_id for claim in accepted),
+        excluded_ids=tuple(excluded),
+        required_mentions=frozenset(
+            mention.mention_id for claim in accepted for mention in claim.mentions
+        ),
+        claim_duplicates=selection.claim_duplicates,
+    )
+
+
 def _apply_claim_set(
     session: Session,
     *,
@@ -1123,8 +1224,8 @@ def _apply_claim_set(
 
 def _validate_created_relations(session: Session, relation_ids: set[int]) -> None:
     for relation_id in relation_ids:
-        if not promotion_db.relation_is_used(session, relation_id):
-            raise ValueError("ORPHAN_NEW_RELATION")
+        if not promotion_db.relation_has_supported_claim(session, relation_id):
+            raise ValueError("UNSUPPORTED_NEW_RELATION")
 
 
 def _finalize_verified_transaction(
@@ -1222,6 +1323,7 @@ def finalize_extraction(
         selection = _judge_claim_duplicates(
             engine, runtime, selection, propose_claim_duplicate
         )
+        selection = _exclude_unsupported_relations(engine, runtime, selection)
     except Exception as error:
         return _fail_after_rollback(engine, lease, error)
     if not selection.accepted:

@@ -225,6 +225,8 @@ curl --fail --get 'http://127.0.0.1:8000/api/v1/nodes/search' --data-urlencode '
 
 ## 7. 검사
 
+제품 lint 정의는 `ontology_map.db.product_lint.ensure_product_policy(session)`을 호출자 소유 트랜잭션에서 명시적으로 한 번 등록한다. 재실행은 같은 정의를 확인하고, 활성 fixture 정책이나 정의·버전 불일치는 덮어쓰지 않고 중단한다. `require_product_policy(session)`은 읽기 전용 확인이며, 저장된 기준 그래프 재검사는 `REPEATABLE READ` 이상의 별도 트랜잭션에서 `run_full_graph(session)`을 명시적으로 호출한다. 검사는 성공한 전체 실행에서만 이전 finding을 해결하고 열린 `BLOCKING` finding은 기존 공개 조회 필터가 숨긴다. 실제 제품 DB에서 이 호출을 수행하는 권한과 순서는 D1 단독 작성자의 전환 절차를 따른다.
+
 PostgreSQL이 실행 중이고 migration이 적용된 상태에서 `server/` 검사를 실행한다.
 
 ```bash

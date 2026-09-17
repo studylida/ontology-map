@@ -8,7 +8,7 @@ from ontology_map import (
     insight_generation,
     node_context_generation,
 )
-from ontology_map.db import extraction_promotion, schema
+from ontology_map.db import extraction_promotion, product_lint, schema
 from ontology_map.db.ontology_reference_data import (
     ATTRIBUTE_DEFINITIONS,
     NODE_TYPE_DEFINITIONS,
@@ -178,11 +178,12 @@ def _require_runtime_ontology(session: Session, ontology: Ontology) -> None:
 
 
 def require_runtime_ready(session: Session, ontology: Ontology | None = None) -> None:
-    """Read-only preflight; never claim product readiness without real lint."""
+    """Read-only preflight for the exact product contracts."""
     _require_ontology(session)
     _require_output_schemas(session)
     if ontology is not None:
         _require_runtime_ontology(session, ontology)
-    # #110 defines lint policy, but current code has no product validator/version
-    # or persisted-graph evaluator. The HBF fixture's one rule cannot stand in.
-    raise RuntimeNotReady("PRODUCT_LINT_VALIDATOR_MISSING")
+    try:
+        product_lint.require_product_policy(session)
+    except ValueError as error:
+        raise RuntimeNotReady(str(error)) from error

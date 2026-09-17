@@ -28,6 +28,7 @@ from ontology_map.extraction_contracts import (
     AttributeRule,
     ClaimProposal,
     Ontology,
+    RelationProposal,
     RelationRule,
     SourceDocument,
     SourceSpan,
@@ -442,6 +443,71 @@ def test_new_multi_target_claim_promotes_atomically_and_reuses_relation(
         "CLAIM_ATTRIBUTE_VALUE_ADDED",
         "EVENT_TEMPORAL_BASIS_ADDED",
     } <= kinds
+
+
+def test_new_relation_without_support_blocks_only_dependent_claim(
+    b3_case: B3Case,
+) -> None:
+    case = b3_case
+    dispute = case.claims[1].model_copy(
+        update={
+            "bindings": [
+                case.claims[1].bindings[0].model_copy(update={"stance": "DISPUTE"})
+            ]
+        }
+    )
+    independent = case.claims[0].model_copy(
+        update={
+            "bindings": [
+                binding
+                for binding in case.claims[0].bindings
+                if not isinstance(binding, RelationProposal)
+            ],
+            "mentions": [
+                mention
+                for mention in case.claims[0].mentions
+                if mention.mention_id != "m-company-b"
+            ],
+        }
+    )
+    result = finalize_extraction(
+        case.engine,
+        _runner(case, (independent, dispute)),
+        case.execution,
+        case.runtime,
+        _new,
+        _claim_new,
+    )
+    assert result.disposition == "SUCCESS"
+    assert result.accepted_claims == ("c-multi",)
+    assert result.excluded_claims == ("c-relation",)
+    assert _count(case.engine, schema.relation) == 0
+    assert _count(case.engine, schema.claim) == 1
+
+
+def test_only_unsupported_new_relation_is_validation_blocked(
+    b3_case: B3Case,
+) -> None:
+    case = b3_case
+    dispute = case.claims[1].model_copy(
+        update={
+            "bindings": [
+                case.claims[1].bindings[0].model_copy(update={"stance": "DISPUTE"})
+            ]
+        }
+    )
+    result = finalize_extraction(
+        case.engine,
+        _runner(case, (dispute,)),
+        case.execution,
+        case.runtime,
+        _new,
+        _claim_new,
+    )
+    assert result.disposition == result.task_status == "VALIDATION_BLOCKED"
+    assert result.accepted_claims == ()
+    assert result.excluded_claims == ("c-relation",)
+    assert _count(case.engine, schema.promotion_batch) == 0
 
 
 def test_exact_reprocess_is_canonical_noop_without_duplicate_rows(

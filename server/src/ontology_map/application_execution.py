@@ -140,7 +140,7 @@ def dry_run() -> dict[str, object]:
             "attributes": len(ATTRIBUTE_DEFINITIONS),
             "topics": len(APPROVED_TOPIC_DEFINITIONS),
         },
-        "blocking_gap": "PRODUCT_LINT_VALIDATOR_MISSING",
+        "blocking_gap": None,
     }
 
 
