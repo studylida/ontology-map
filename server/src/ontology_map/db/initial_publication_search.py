@@ -5,6 +5,7 @@ from struct import pack
 from typing import Any
 
 import sqlalchemy as sa
+from sqlalchemy.engine import RowMapping
 from sqlalchemy.orm import Session
 
 from ontology_map.db import schema as s
@@ -12,6 +13,11 @@ from ontology_map.db.initial_publication_contracts import (
     PublicationStateError,
     SearchDocumentPreparationError,
     SearchDocumentSnapshot,
+)
+from ontology_map.db.publication_grounding import (
+    ReferenceTopicIdentity,
+    ReferenceTopicIntegrityError,
+    reference_topic_identities,
 )
 
 SEARCH_DOCUMENT_GENERATOR_VERSION = "node-search-document-215-v1"
@@ -158,6 +164,93 @@ def publication_visible_preferred_alias(
     return str(rows[0]["alias_text"])
 
 
+def _supported_topic_relation_ids(
+    session: Session,
+    relation_ids: set[int],
+    *,
+    current_batch_id: int,
+) -> set[int]:
+    if not relation_ids:
+        return set()
+    support_rows = (
+        session.execute(
+            _ids_statement(
+                """
+                SELECT DISTINCT cr.relation_id, cr.claim_id
+                FROM claim_relation cr
+                WHERE cr.relation_id IN :ids AND cr.stance = 'SUPPORT'
+                  AND EXISTS (
+                      SELECT 1 FROM claim_observation co
+                      WHERE co.claim_id = cr.claim_id
+                  )
+                """
+            ),
+            {"ids": sorted(relation_ids)},
+        )
+        .mappings()
+        .all()
+    )
+    usable_claim_ids = _usable_item_ids(
+        session,
+        {int(row["claim_id"]) for row in support_rows},
+        current_batch_id=current_batch_id,
+    )
+    return {
+        int(row["relation_id"])
+        for row in support_rows
+        if int(row["claim_id"]) in usable_claim_ids
+    }
+
+
+def _public_relation_endpoint(
+    row: RowMapping, usable: set[int], reference_ids: set[int]
+) -> bool:
+    source_id = int(row["source_node_id"])
+    target_id = int(row["target_node_id"])
+    if (
+        int(row["relation_id"]) not in usable
+        or source_id not in usable | reference_ids
+        or target_id not in usable | reference_ids
+    ):
+        return False
+    if source_id in reference_ids or target_id in reference_ids:
+        return row["relation_code"] == "HAS_TOPIC" and target_id in reference_ids
+    return True
+
+
+def _evidence_backed_topic_relations(
+    session: Session,
+    rows: list[RowMapping],
+    reference_ids: set[int],
+    *,
+    current_batch_id: int,
+) -> list[RowMapping]:
+    topic_relation_ids = {
+        int(row["relation_id"])
+        for row in rows
+        if row["relation_code"] == "HAS_TOPIC"
+        and int(row["target_node_id"]) in reference_ids
+    }
+    supported = _supported_topic_relation_ids(
+        session, topic_relation_ids, current_batch_id=current_batch_id
+    )
+    return [
+        row
+        for row in rows
+        if int(row["relation_id"]) not in topic_relation_ids
+        or int(row["relation_id"]) in supported
+    ]
+
+
+def _validated_reference_topics(
+    session: Session, node_ids: set[int]
+) -> dict[int, ReferenceTopicIdentity]:
+    try:
+        return reference_topic_identities(session, node_ids)
+    except ReferenceTopicIntegrityError as error:
+        raise SearchDocumentPreparationError(str(error)) from error
+
+
 def build_search_document_snapshot(
     session: Session,
     *,
@@ -188,10 +281,12 @@ def build_search_document_snapshot(
             sa.text(
                 """
                 SELECT r.relation_id, r.source_node_id, r.target_node_id,
-                       rev.display_name AS relation_name
+                       rev.display_name AS relation_name,
+                       rt.relation_code
                 FROM relation r
                 JOIN relation_type_revision rev
                   ON rev.relation_type_revision_id = r.relation_type_revision_id
+                JOIN relation_type rt ON rt.relation_type_id = rev.relation_type_id
                 WHERE r.source_node_id = :node_id OR r.target_node_id = :node_id
                 ORDER BY r.relation_id
                 """
@@ -208,6 +303,8 @@ def build_search_document_snapshot(
         else int(row["source_node_id"])
         for row in relation_rows
     }
+    reference_topics = _validated_reference_topics(session, neighbor_ids)
+
     usable = _usable_item_ids(
         session,
         {node_id, *relation_ids, *neighbor_ids},
@@ -218,13 +315,15 @@ def build_search_document_snapshot(
             "affected node is not publication-usable in this generation"
         )
 
-    selected_relations = [
+    reference_ids = set(reference_topics)
+    candidate_relations = [
         row
         for row in relation_rows
-        if int(row["relation_id"]) in usable
-        and int(row["source_node_id"]) in usable
-        and int(row["target_node_id"]) in usable
+        if _public_relation_endpoint(row, usable, reference_ids)
     ]
+    selected_relations = _evidence_backed_topic_relations(
+        session, candidate_relations, reference_ids, current_batch_id=promotion_batch_id
+    )
     selected_relation_ids = {int(row["relation_id"]) for row in selected_relations}
     selected_neighbor_ids = {
         int(row["target_node_id"])
@@ -232,6 +331,7 @@ def build_search_document_snapshot(
         else int(row["source_node_id"])
         for row in selected_relations
     }
+    selected_basis_neighbor_ids = selected_neighbor_ids & usable
 
     claim_rows = (
         session.execute(
@@ -312,17 +412,24 @@ def build_search_document_snapshot(
         for row in selected_relations
         for value in (int(row["source_node_id"]), int(row["target_node_id"]))
     }
-    name_ids = sorted(relation_node_ids) or [node_id]
+    normal_name_ids = sorted(relation_node_ids - reference_topics.keys())
     name_rows = _publication_visible_alias_rows(
         session,
-        name_ids,
+        normal_name_ids or [node_id],
         current_batch_id=promotion_batch_id,
         preferred_only=True,
     )
     names = {int(row["node_id"]): str(row["alias_text"]) for row in name_rows}
-    if set(name_ids) - names.keys():
+    names.update(
+        {
+            reference.node_id: reference.canonical_display_name
+            for reference in reference_topics.values()
+            if reference.node_id in relation_node_ids
+        }
+    )
+    if relation_node_ids - names.keys():
         raise SearchDocumentPreparationError(
-            "direct relation endpoint lacks a publication-visible preferred alias"
+            "direct relation endpoint lacks a publication-visible identity"
         )
 
     identity_text = "\n".join(aliases)
@@ -343,7 +450,7 @@ def build_search_document_snapshot(
             {
                 node_id,
                 *selected_relation_ids,
-                *selected_neighbor_ids,
+                *selected_basis_neighbor_ids,
                 *(int(row["claim_id"]) for row in selected_claims),
             }
         )

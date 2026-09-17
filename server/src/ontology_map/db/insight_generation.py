@@ -17,6 +17,10 @@ from sqlalchemy.orm import Session
 
 from ontology_map import insight_generation as product
 from ontology_map.db import schema as s
+from ontology_map.db.publication_grounding import (
+    ReferenceTopicIntegrityError,
+    reference_topic_identities,
+)
 from ontology_map.exploration import TimeWindow
 from ontology_map.insight_generation_contracts import (
     ClaimConnection,
@@ -181,6 +185,20 @@ def _node_identities(
             node_type=str(row["node_type_code"]),
             preferred_alias=row["preferred_alias"],
         )
+    try:
+        references = reference_topic_identities(session, ids)
+    except ReferenceTopicIntegrityError as error:
+        raise InsightPreparationError(str(error)) from error
+    result.update(
+        {
+            reference.node_id: RelatedNode(
+                node_id=reference.node_id,
+                node_type="TOPIC",
+                preferred_alias=reference.canonical_display_name,
+            )
+            for reference in references.values()
+        }
+    )
     return result
 
 
@@ -278,7 +296,7 @@ def _direct_relation_ids(
     basis_ids: tuple[int, ...],
     current_batch_id: int,
 ) -> frozenset[int]:
-    """Return direct basis relations whose opposite endpoint is publication-usable."""
+    """Return direct basis relations with an approved public endpoint identity."""
     if not basis_ids:
         return frozenset()
     rows = (

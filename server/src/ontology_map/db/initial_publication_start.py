@@ -14,7 +14,7 @@ from ontology_map.db.initial_publication_contracts import (
 
 
 def affected_node_ids(session: Session, batch_id: int) -> tuple[int, ...]:
-    """Project direct affected Nodes from the two approved durable sources."""
+    """Project direct affected evidence-backed Nodes from durable sources."""
     values = session.execute(
         sa.text(
             """
@@ -122,10 +122,13 @@ def affected_node_ids(session: Session, batch_id: int) -> tuple[int, ...]:
                 FROM projection_claims c
                 JOIN event_temporal_basis e ON e.claim_id = c.claim_id
             )
-            SELECT node_id
-            FROM affected
-            WHERE node_id IS NOT NULL
-            ORDER BY node_id
+            SELECT a.node_id
+            FROM affected a
+            JOIN knowledge_item k ON k.knowledge_item_id = a.node_id
+            WHERE a.node_id IS NOT NULL
+              AND k.item_kind = 'NODE'
+              AND k.lifecycle_kind = 'EVIDENCE_BACKED'
+            ORDER BY a.node_id
             """
         ),
         {"batch_id": batch_id},
