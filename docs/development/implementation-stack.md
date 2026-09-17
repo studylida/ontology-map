@@ -2,15 +2,15 @@
 
 ## 문서 상태
 
-- 상태: 현재 구현·Draft 통합·후속 범위를 구분한 기술 기준
+- 상태: 현재 구현·운영 미활성 범위·후속 책임을 구분한 기술 기준
 - 확인일: 2026-09-17
-- current main 기준: `06cc901c64c4f72fa0e2a0577f23235600280cc0`
-- #215 Draft 기준: PR #220 (`issue-215-initial-publication`)
+- #215 구현 merge 기준: `542ebe5d4899b06f0fa7022d53549c7c194ec2be`
+- #215: completed, PR #220 merged
 - 실행 안내: [DB 운영](../operations/database.md)
 - initial publication 상세: [Initial publication durable execution](initial-publication.md)
 - 코드 규칙: [code-conventions.md](code-conventions.md)
 
-이 문서는 저장소의 현재 runtime·직접 의존성·프로세스·durable 실행 경계를 설명한다. 과거 모델 비교와 품질 시험의 세부 점수·비용·원시 판정은 각 Issue, 특히 #139에 보존하고 여기서 현재 제품 구현과 섞지 않는다. Draft PR의 구현은 main에 이미 병합된 것으로 표현하지 않는다.
+이 문서는 저장소의 현재 runtime·직접 의존성·프로세스·durable 실행 경계를 설명한다. 과거 모델 비교와 품질 시험의 세부 점수·비용·원시 판정은 각 Issue, 특히 #139에 보존하고 여기서 현재 제품 구현과 섞지 않는다. 코드가 main에 병합됐다는 사실과 실제 shared/product DB에서 해당 경로를 enable했다는 사실은 구분한다.
 
 ## 기본 원칙
 
@@ -111,7 +111,7 @@ LangChain/OpenAI-compatible provider integration은 #127에서 main에 병합됐
 | `ENTITY_RESOLUTION_PROPOSAL` | 저장 후보 조회·동일 대상 판정·canonical write 연계 경계가 구현됨. 이름/alias 일치만으로 확정하지 않음 | #128 |
 | `FOLLOWUP_QUESTIONS` | #129의 기간별 input identity, provider adapter, durable runner, validation/finalizer가 main에 존재 | #129 |
 | `NODE_INSIGHT` | #68의 90일+1년 atomic input identity, provider adapter, durable runner, validation/finalizer가 main에 존재 | #68 |
-| `NODE_CONTEXT` | product identity·finalizer는 #215에 구현. 공통 #127 durable lifecycle 연결과 initial coordinator integration은 Draft PR #220에 구현 | #215 |
+| `NODE_CONTEXT` | #215의 product identity·finalizer·provider adapter·durable runner가 main에 존재하고 initial coordinator에 연결됨 | #215 |
 | `CONFLICT_SUMMARY` | 기존 conflict 계약을 따르며 별도 승인 없는 범용 생성/요약 runner는 추가하지 않음 | #130 |
 | `EVIDENCE_LINEAGE_PROPOSAL` | schema task kind와 lineage 계약을 구분하며 별도 제품 실행 범위는 소유 Issue를 따름 | #64, #124 |
 
@@ -119,10 +119,15 @@ FOLLOWUP과 NODE_INSIGHT의 품질 의미·Claim role·normal empty·`VALIDATION
 
 ## Initial publication
 
-#215 Draft PR #220은 current main의 #216/#127/#129/#68 경계를 다음 순서로 조합한다.
+#215 / merged PR #220은 main의 #216/#127/#129/#68 경계를 다음 순서로 조합한다.
 
 ```text
-promotion COMMITTED
+#127 promotion transaction
+→ canonical mutation + #216 provenance
+→ promotion COMMITTED
+→ commit
+
+post-commit application handoff
 → affected Node projection
 → publication_affected_node frozen membership
 → PREPARING
@@ -137,6 +142,10 @@ promotion COMMITTED
 
 `publication_affected_node`는 최초 `NOT_STARTED → PREPARING` 때 #216 provenance에서 확정하고 그 뒤 같은 generation의 authoritative membership으로 사용한다. deterministic search-document exact row reuse는 허용하지만 과거 generation의 NODE_CONTEXT/FOLLOWUP/Insight를 새 generation completeness에 섞지 않는다.
 
+search document와 NODE_CONTEXT alias grounding은 publication-visible alias만 사용한다. historical alias, current batch alias, READY batch alias는 허용하고 다른 NOT_STARTED/PREPARING/FAILED batch가 만든 alias는 제외한다. Reviewer 확인 시점에는 기존 `node_alias` row를 in-place 수정하는 production path가 없으므로, 향후 그런 mutation 경로를 도입하면 alias provenance/visibility 판정을 재검토한다.
+
+NODE_CONTEXT effective input identity에는 publication generation, selected search-document identity/basis, 실제 agent input과 result-affecting execution settings가 포함된다.
+
 #215는 queue, scheduler, publication job/attempt table, 새 generation table을 추가하지 않는다. process restart나 명시적 재실행에서는 durable task의 현재 상태를 이어가며 terminal SUCCESS를 재전송하지 않는다. 상세는 [Initial publication durable execution](initial-publication.md)을 따른다.
 
 READY 이후 basis invalidation/reconciliation/recovery는 #180 소유이며 initial publication과 구분한다.
@@ -146,7 +155,7 @@ READY 이후 basis invalidation/reconciliation/recovery는 #180 소유이며 ini
 - generated raw response, reasoning, 중간 candidate를 제품 DB에 새로 저장하지 않는다.
 - Agent는 입력으로 제공받은 stable ID를 참조하고 일반 코드가 존재성·공개성·generation·basis를 검증한다.
 - canonical mutation과 #216 provenance는 promotion transaction 안에서 기록하고 `promotion_status=COMMITTED`까지 소유한다.
-- initial publication은 promotion transaction과 분리된 transaction에서 시작한다.
+- initial publication은 promotion transaction commit 이후 별도 application handoff와 transaction에서 시작한다.
 - 이전 READY publication/artifact와 canonical knowledge는 새 generation 실패 때문에 삭제·rollback하지 않는다.
 - 사용자 read/click은 generation이나 provider call을 시작하지 않는다.
 
@@ -165,8 +174,9 @@ ontology-map/
 │   │   ├── durable_provider.py     # shared provider call composition
 │   │   ├── followup_*.py           # #129 provider/execution/runner
 │   │   ├── insight_*.py            # #68 provider/execution/runner
-│   │   ├── node_context_*.py       # #215 context product; durable runner in PR #220
-│   │   ├── initial_publication_coordinator.py  # PR #220
+│   │   ├── node_context_*.py       # #215 context product/provider/runner
+│   │   ├── initial_publication_coordinator.py
+│   │   ├── initial_publication_handoff.py
 │   │   └── db/
 │   │       ├── schema.py, session.py
 │   │       ├── model_tasks.py       # shared claim/lease/call ledger
@@ -201,10 +211,10 @@ explicit coordinator/runner call
 | KNOWLEDGE_EXTRACTION durable execution | main 구현 | #127 runner/application functions |
 | FOLLOWUP durable execution | main 구현 | `followup_runner.run_followup()` |
 | NODE_INSIGHT durable execution | main 구현 | `insight_runner.run_insight()` |
-| #215 initial publication durable integration | Draft PR #220 | `initial_publication_coordinator.run_initial_publication()` |
+| #215 initial publication durable integration | main 구현 | `initial_publication_handoff.finalize_extraction_with_initial_publication()` / `initial_publication_coordinator.run_initial_publication()` |
 | generic scheduler/queue daemon | 없음 | 의도적으로 미도입 |
 
-runner 함수의 존재를 운영 scheduler enable과 동일시하지 않는다. 현재 POC에서 scheduler/process 배치는 별도 제품 의미를 만들지 않고 명시적 application 호출로 연결한다.
+runner 함수의 존재를 product/shared DB 운영 enable과 동일시하지 않는다. 실제 cutover·enable 검증은 #227에서 별도로 수행한다.
 
 ## 설정과 비밀 관리
 
@@ -225,6 +235,8 @@ MockTransport/injected operation을 사용한 CI와 실제 외부 paid provider 
 
 Durable provider와 publication 변경은 격리 PostgreSQL 18.6에서 migration head와 실제 transaction/lease/call-slot/finalizer 순서를 검증한다. Issue별 전용 DB environment가 필요한 회귀는 해당 workflow에서 실행하고 다른 workflow의 skip을 그 Issue의 PASS 증거로 세지 않는다.
 
+#215 final candidate는 exact merge-ref에서 Phase A/B/C/D, #129/#68 durable runner, 전체 backend, Ruff, mypy, Alembic, docs/diff 검사를 통과한 뒤 main에 병합됐다. 이 검증은 실제 paid/live provider 품질이나 shared/product DB cutover 완료를 뜻하지 않는다.
+
 ## 현재 구현과 후속 경계
 
 | 영역 | 현재 구현 | 후속 경계 |
@@ -234,7 +246,7 @@ Durable provider와 publication 변경은 격리 PostgreSQL 18.6에서 migration
 | extraction/promotion | #127 durable provider execution과 canonical promotion/provenance 연계 | 실제 자료 품질·운영 사용은 별도 평가 |
 | FOLLOWUP | #129 durable runner와 product finalizer main 반영 | 실제 모델 품질 평가는 #129 기록에 따름 |
 | NODE_INSIGHT | #68 durable atomic runner와 product finalizer main 반영 | 실제 모델 품질 평가는 #68 기록에 따름 |
-| initial publication | Phase A/B/C + Phase D durable integration이 PR #220에 구현 | 독립 Reviewer 최종 PASS 전 merge/Issue close 금지 |
-| shared/product DB enable | 코드·격리 DB 검증과 분리 | current migration head 적용 + #216 legacy cutover guard PASS 필요 |
+| initial publication | #215 Phase A/B/C/D durable integration과 post-commit handoff가 main에 병합됨 | READY 이후 recovery는 #180 |
+| shared/product DB enable | 코드·격리 DB 검증과 분리 | #227: current migration head 적용 + #216 legacy cutover guard + 실제 coordinator enable/smoke |
 
 인증·관리자·배포 인프라와 #180 recovery는 승인된 별도 작업 없이 #215에 추가하지 않는다. schema의 존재, 합성 fixture, MockTransport integration을 실제 paid/live 모델 품질 보증으로 해석하지 않는다.
