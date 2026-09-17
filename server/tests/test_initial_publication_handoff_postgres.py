@@ -201,9 +201,13 @@ def test_actual_finalizer_commits_before_publication_handoff_and_failure_isolate
     assert _batch_state(engine, batch_id) == ("COMMITTED", "PREPARING")
     assert _membership(engine, batch_id)
     assert _promotion_counts(engine, batch_id) == (knowledge_before, changes_before)
-    assert _batch_state(engine, previous_ready_id) == previous_ready_state == (
-        "COMMITTED",
-        "READY",
+    assert (
+        _batch_state(engine, previous_ready_id)
+        == previous_ready_state
+        == (
+            "COMMITTED",
+            "READY",
+        )
     )
     engine.dispose()
 
@@ -267,9 +271,7 @@ def test_actual_noop_reprocess_does_not_call_publication_coordinator(
             or 0
         )
         batch_count_before = int(
-            session.scalar(
-                sa.select(sa.func.count()).select_from(s.promotion_batch)
-            )
+            session.scalar(sa.select(sa.func.count()).select_from(s.promotion_batch))
             or 0
         )
 
