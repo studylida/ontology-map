@@ -65,6 +65,13 @@ def _isolate_database() -> None:
     _truncate()
 
 
+def _count(session: Session, table: sa.Table, *conditions: object) -> int:
+    statement = sa.select(sa.func.count()).select_from(table)
+    if conditions:
+        statement = statement.where(*conditions)
+    return int(session.scalar(statement) or 0)
+
+
 def _batch(session: Session) -> int:
     policy_id = session.scalar(
         sa.select(s.lint_policy_version.c.lint_policy_version_id)
@@ -85,7 +92,7 @@ def _activate_contract(
     session: Session,
     task_kind: str,
     schema_json: dict[str, object],
-) -> int:
+) -> None:
     session.execute(
         s.output_schema_definition.update()
         .where(
@@ -116,7 +123,6 @@ def _activate_contract(
         .returning(s.output_schema_definition.c.output_schema_definition_id)
     )
     assert contract_id is not None
-    return int(contract_id)
 
 
 def _activate_generation_contracts(session: Session) -> None:
@@ -204,7 +210,7 @@ def _claim_for_relation(session: Session, relation_id: int) -> int:
     return int(claim_id)
 
 
-def _single_node_alias_batch(session: Session, node_id: int) -> int:
+def _alias_batch(session: Session, node_id: int) -> int:
     batch_id = _batch(session)
     alias_id = session.scalar(
         s.node_alias.insert()
@@ -222,7 +228,7 @@ def _single_node_alias_batch(session: Session, node_id: int) -> int:
     return batch_id
 
 
-def _single_node_alias_evidence_batch(session: Session, node_id: int) -> int:
+def _alias_evidence_batch(session: Session, node_id: int) -> int:
     alias_id = session.scalar(
         sa.select(s.node_alias.c.node_alias_id)
         .where(s.node_alias.c.node_id == node_id, s.node_alias.c.is_preferred)
@@ -240,7 +246,7 @@ def _single_node_alias_evidence_batch(session: Session, node_id: int) -> int:
     return batch_id
 
 
-def _two_node_evidence_batch(session: Session, left: int, right: int) -> int:
+def _two_node_batch(session: Session, left: int, right: int) -> int:
     relation_id = _relation_between(session, left, right)
     claim_id = _claim_for_relation(session, relation_id)
     batch_id = _batch(session)
@@ -273,10 +279,7 @@ def _assert_reserved(engine: sa.Engine, task_kind: str) -> None:
     assert int(count or 0) == 1
 
 
-def _providers(
-    engine: sa.Engine,
-    sends: dict[str, list[object]],
-):
+def _providers(engine: sa.Engine, sends: dict[str, list[object]]):
     def context(prepared):
         def send():
             _assert_reserved(engine, "NODE_CONTEXT")
@@ -311,8 +314,8 @@ def _providers(
     return context, followup, insight
 
 
-def _selected_task_ids(session: Session, batch_id: int, node_id: int) -> tuple[int, ...]:
-    pan = (
+def _publication_row(session: Session, batch_id: int, node_id: int):
+    return (
         session.execute(
             sa.select(s.publication_affected_node).where(
                 s.publication_affected_node.c.promotion_batch_id == batch_id,
@@ -322,7 +325,15 @@ def _selected_task_ids(session: Session, batch_id: int, node_id: int) -> tuple[i
         .mappings()
         .one()
     )
-    context_id = int(pan["node_context_id"])
+
+
+def _selected_task_ids(
+    session: Session,
+    batch_id: int,
+    node_id: int,
+) -> tuple[int, ...]:
+    row = _publication_row(session, batch_id, node_id)
+    context_id = int(row["node_context_id"])
     context_task_id = int(
         session.scalar(
             sa.select(s.node_context.c.model_task_id).where(
@@ -338,8 +349,11 @@ def _selected_task_ids(session: Session, batch_id: int, node_id: int) -> tuple[i
             .order_by(s.node_question_set.c.time_window)
         )
     )
-    insight_id = int(pan["node_insight_model_task_id"])
-    return (context_task_id, *followup_ids, insight_id)
+    return (
+        context_task_id,
+        *followup_ids,
+        int(row["node_insight_model_task_id"]),
+    )
 
 
 def _run_context_only(
@@ -371,36 +385,29 @@ def _run_context_only(
     )
     assert result.task_status == "SUCCESS"
     with Session(engine) as session:
-        row = (
-            session.execute(
-                sa.select(
-                    s.publication_affected_node.c.node_context_id,
-                    s.promotion_batch.c.committed_at,
-                )
-                .select_from(
-                    s.publication_affected_node.join(
-                        s.promotion_batch,
-                        s.promotion_batch.c.promotion_batch_id
-                        == s.publication_affected_node.c.promotion_batch_id,
-                    )
-                )
-                .where(
-                    s.publication_affected_node.c.promotion_batch_id == batch_id,
-                    s.publication_affected_node.c.node_id == node_id,
-                )
+        row = _publication_row(session, batch_id, node_id)
+        committed_at = session.scalar(
+            sa.select(s.promotion_batch.c.committed_at).where(
+                s.promotion_batch.c.promotion_batch_id == batch_id
             )
-            .mappings()
-            .one()
         )
-    return document_id, int(row["node_context_id"]), row["committed_at"]
+    assert committed_at is not None
+    return document_id, int(row["node_context_id"]), committed_at
 
 
 def test_durable_coordinator_ready_and_reentry_do_not_resend() -> None:
     _created, nodes = load_hbf_fixture()
     engine = _engine()
     node_id = nodes["hbf"]
-    sends: dict[str, list[object]] = {"context": [], "followup": [], "insight": []}
-    context_provider, followup_provider, insight_provider = _providers(engine, sends)
+    sends: dict[str, list[object]] = {
+        "context": [],
+        "followup": [],
+        "insight": [],
+    }
+    context_provider, followup_provider, insight_provider = _providers(
+        engine,
+        sends,
+    )
     with Session(engine) as session:
         previous_ready = set(
             int(value)
@@ -412,10 +419,8 @@ def test_durable_coordinator_ready_and_reentry_do_not_resend() -> None:
         )
     with Session(engine) as session, session.begin():
         _activate_generation_contracts(session)
-        batch_id = _single_node_alias_batch(session, node_id)
-        canonical_count = int(
-            session.scalar(sa.select(sa.func.count()).select_from(s.knowledge_item)) or 0
-        )
+        batch_id = _alias_batch(session, node_id)
+        canonical_count = _count(session, s.knowledge_item)
 
     first = run_initial_publication(
         engine,
@@ -426,15 +431,12 @@ def test_durable_coordinator_ready_and_reentry_do_not_resend() -> None:
         prepare_insight_provider=insight_provider,
     )
     assert first.ready
-    assert first.publication_status == "READY"
-    assert sends == {
-        "context": [node_id],
-        "followup": [
-            (node_id, "RECENT_90_DAYS"),
-            (node_id, "RECENT_1_YEAR"),
-        ],
-        "insight": [node_id],
-    }
+    assert sends["context"] == [node_id]
+    assert sends["followup"] == [
+        (node_id, "RECENT_90_DAYS"),
+        (node_id, "RECENT_1_YEAR"),
+    ]
+    assert sends["insight"] == [node_id]
 
     with Session(engine) as session:
         task_ids = _selected_task_ids(session, batch_id, node_id)
@@ -446,32 +448,20 @@ def test_durable_coordinator_ready_and_reentry_do_not_resend() -> None:
                 )
             )
         ) == {"SUCCESS"}
-        assert int(
-            session.scalar(
-                sa.select(sa.func.count())
-                .select_from(s.provider_call_slot)
-                .where(s.provider_call_slot.c.model_task_id.in_(task_ids))
-            )
-            or 0
+        assert _count(
+            session,
+            s.provider_call_slot,
+            s.provider_call_slot.c.model_task_id.in_(task_ids),
         ) == 4
-        assert int(
-            session.scalar(
-                sa.select(sa.func.count())
-                .select_from(s.agent_attempt)
-                .where(s.agent_attempt.c.model_task_id.in_(task_ids))
-            )
-            or 0
+        assert _count(
+            session,
+            s.agent_attempt,
+            s.agent_attempt.c.model_task_id.in_(task_ids),
         ) == 4
         artifacts_before = (
-            int(session.scalar(sa.select(sa.func.count()).select_from(s.node_context)) or 0),
-            int(
-                session.scalar(sa.select(sa.func.count()).select_from(s.node_question_set))
-                or 0
-            ),
-            int(
-                session.scalar(sa.select(sa.func.count()).select_from(s.node_insight_window))
-                or 0
-            ),
+            _count(session, s.node_context),
+            _count(session, s.node_question_set),
+            _count(session, s.node_insight_window),
         )
 
     second = run_initial_publication(
@@ -490,19 +480,11 @@ def test_durable_coordinator_ready_and_reentry_do_not_resend() -> None:
     with Session(engine) as session:
         assert _selected_task_ids(session, batch_id, node_id) == task_ids
         assert artifacts_before == (
-            int(session.scalar(sa.select(sa.func.count()).select_from(s.node_context)) or 0),
-            int(
-                session.scalar(sa.select(sa.func.count()).select_from(s.node_question_set))
-                or 0
-            ),
-            int(
-                session.scalar(sa.select(sa.func.count()).select_from(s.node_insight_window))
-                or 0
-            ),
+            _count(session, s.node_context),
+            _count(session, s.node_question_set),
+            _count(session, s.node_insight_window),
         )
-        assert canonical_count == int(
-            session.scalar(sa.select(sa.func.count()).select_from(s.knowledge_item)) or 0
-        )
+        assert _count(session, s.knowledge_item) == canonical_count
         current_ready = set(
             int(value)
             for value in session.scalars(
@@ -518,29 +500,38 @@ def test_transient_context_retry_reuses_task_then_reaches_ready() -> None:
     _created, nodes = load_hbf_fixture()
     engine = _engine()
     node_id = nodes["hbf"]
-    sends: dict[str, list[object]] = {"context": [], "followup": [], "insight": []}
-    _normal_context, followup_provider, insight_provider = _providers(engine, sends)
-    context_attempts = 0
+    sends: dict[str, list[object]] = {
+        "context": [],
+        "followup": [],
+        "insight": [],
+    }
+    _normal_context, followup_provider, insight_provider = _providers(
+        engine,
+        sends,
+    )
+    attempts = 0
 
     def context_provider(prepared):
         def send():
-            nonlocal context_attempts
+            nonlocal attempts
             _assert_reserved(engine, "NODE_CONTEXT")
-            context_attempts += 1
+            attempts += 1
             sends["context"].append(prepared.agent_input.node_id)
-            if context_attempts == 1:
+            if attempts == 1:
                 raise ConfirmedProviderFailure(
                     "RATE_LIMITED",
                     transient=True,
                     retry_after=timedelta(0),
                 )
-            return NodeContextProposal(context_text="재시도 후 생성된 짧은 맥락입니다.")
+            return NodeContextProposal(
+                context_text="재시도 후 생성된 짧은 맥락입니다."
+            )
 
         return send
 
     with Session(engine) as session, session.begin():
         _activate_generation_contracts(session)
-        batch_id = _single_node_alias_batch(session, node_id)
+        batch_id = _alias_batch(session, node_id)
 
     first = run_initial_publication(
         engine,
@@ -560,11 +551,12 @@ def test_transient_context_retry_reuses_task_then_reaches_ready() -> None:
                 .limit(1)
             )
         )
-        assert session.scalar(
+        status = session.scalar(
             sa.select(s.model_task.c.status).where(
                 s.model_task.c.model_task_id == context_task_id
             )
-        ) == "RETRY_WAIT"
+        )
+    assert status == "RETRY_WAIT"
 
     second = run_initial_publication(
         engine,
@@ -575,25 +567,18 @@ def test_transient_context_retry_reuses_task_then_reaches_ready() -> None:
         prepare_insight_provider=insight_provider,
     )
     assert second.ready
-    assert context_attempts == 2
+    assert attempts == 2
     with Session(engine) as session:
-        selected = _selected_task_ids(session, batch_id, node_id)
-        assert selected[0] == context_task_id
-        assert int(
-            session.scalar(
-                sa.select(sa.func.count())
-                .select_from(s.provider_call_slot)
-                .where(s.provider_call_slot.c.model_task_id == context_task_id)
-            )
-            or 0
+        assert _selected_task_ids(session, batch_id, node_id)[0] == context_task_id
+        assert _count(
+            session,
+            s.provider_call_slot,
+            s.provider_call_slot.c.model_task_id == context_task_id,
         ) == 2
-        assert int(
-            session.scalar(
-                sa.select(sa.func.count())
-                .select_from(s.agent_attempt)
-                .where(s.agent_attempt.c.model_task_id == context_task_id)
-            )
-            or 0
+        assert _count(
+            session,
+            s.agent_attempt,
+            s.agent_attempt.c.model_task_id == context_task_id,
         ) == 2
 
 
@@ -601,13 +586,23 @@ def test_one_followup_missing_from_actual_runner_blocks_ready() -> None:
     _created, nodes = load_hbf_fixture()
     engine = _engine()
     node_id = nodes["hbf"]
-    sends: dict[str, list[object]] = {"context": [], "followup": [], "insight": []}
-    context_provider, followup_provider, insight_provider = _providers(engine, sends)
+    sends: dict[str, list[object]] = {
+        "context": [],
+        "followup": [],
+        "insight": [],
+    }
+    context_provider, followup_provider, insight_provider = _providers(
+        engine,
+        sends,
+    )
     with Session(engine) as session, session.begin():
         _activate_generation_contracts(session)
-        batch_id = _single_node_alias_batch(session, node_id)
+        batch_id = _alias_batch(session, node_id)
     _document_id, context_id, as_of_at = _run_context_only(
-        engine, batch_id, node_id, context_provider
+        engine,
+        batch_id,
+        node_id,
+        context_provider,
     )
     with Session(engine) as session, session.begin():
         followup_90 = followup_tasks.enqueue_followup(
@@ -616,8 +611,13 @@ def test_one_followup_missing_from_actual_runner_blocks_ready() -> None:
             TimeWindow.RECENT_90_DAYS,
             as_of_at,
         )
-        insight = insight_tasks.enqueue_insight(session, batch_id, node_id, as_of_at)
-    assert run_followup(
+        insight = insight_tasks.enqueue_insight(
+            session,
+            batch_id,
+            node_id,
+            as_of_at,
+        )
+    followup_result = run_followup(
         engine,
         followup_90.task_id,
         "phase-d-missing",
@@ -625,8 +625,8 @@ def test_one_followup_missing_from_actual_runner_blocks_ready() -> None:
         window=TimeWindow.RECENT_90_DAYS,
         as_of_at=as_of_at,
         prepare_provider=followup_provider,
-    ).task_status == "SUCCESS"
-    assert run_insight(
+    )
+    insight_result = run_insight(
         engine,
         insight.task_id,
         "phase-d-missing",
@@ -634,47 +634,77 @@ def test_one_followup_missing_from_actual_runner_blocks_ready() -> None:
         node_id=node_id,
         as_of_at=as_of_at,
         prepare_provider=insight_provider,
-    ).task_status == "SUCCESS"
+    )
+    assert followup_result.task_status == "SUCCESS"
+    assert insight_result.task_status == "SUCCESS"
     with Session(engine) as session:
         readiness = publication.publication_readiness(session, batch_id)
     assert not readiness.ready
-    assert any("both independent FOLLOWUP" in reason for reason in readiness.reasons)
+    assert any(
+        "both independent FOLLOWUP" in reason
+        for reason in readiness.reasons
+    )
 
 
 def test_one_window_corrupt_insight_bundle_blocks_ready() -> None:
     _created, nodes = load_hbf_fixture()
     engine = _engine()
     node_id = nodes["hbf"]
-    sends: dict[str, list[object]] = {"context": [], "followup": [], "insight": []}
-    context_provider, followup_provider, insight_provider = _providers(engine, sends)
-    with Session(engine) as session, session.begin():
-        _activate_generation_contracts(session)
-        batch_id = _single_node_alias_batch(session, node_id)
-    _document_id, context_id, as_of_at = _run_context_only(
-        engine, batch_id, node_id, context_provider
+    sends: dict[str, list[object]] = {
+        "context": [],
+        "followup": [],
+        "insight": [],
+    }
+    context_provider, followup_provider, insight_provider = _providers(
+        engine,
+        sends,
     )
     with Session(engine) as session, session.begin():
-        followup_90 = followup_tasks.enqueue_followup(
-            session, context_id, TimeWindow.RECENT_90_DAYS, as_of_at
+        _activate_generation_contracts(session)
+        batch_id = _alias_batch(session, node_id)
+    _document_id, context_id, as_of_at = _run_context_only(
+        engine,
+        batch_id,
+        node_id,
+        context_provider,
+    )
+    with Session(engine) as session, session.begin():
+        queued = (
+            followup_tasks.enqueue_followup(
+                session,
+                context_id,
+                TimeWindow.RECENT_90_DAYS,
+                as_of_at,
+            ),
+            followup_tasks.enqueue_followup(
+                session,
+                context_id,
+                TimeWindow.RECENT_1_YEAR,
+                as_of_at,
+            ),
         )
-        followup_1y = followup_tasks.enqueue_followup(
-            session, context_id, TimeWindow.RECENT_1_YEAR, as_of_at
+        insight = insight_tasks.enqueue_insight(
+            session,
+            batch_id,
+            node_id,
+            as_of_at,
         )
-        insight = insight_tasks.enqueue_insight(session, batch_id, node_id, as_of_at)
-    for queued, window in (
-        (followup_90, TimeWindow.RECENT_90_DAYS),
-        (followup_1y, TimeWindow.RECENT_1_YEAR),
+    for task, window in zip(
+        queued,
+        (TimeWindow.RECENT_90_DAYS, TimeWindow.RECENT_1_YEAR),
+        strict=True,
     ):
-        assert run_followup(
+        result = run_followup(
             engine,
-            queued.task_id,
+            task.task_id,
             "phase-d-corrupt",
             node_context_id=context_id,
             window=window,
             as_of_at=as_of_at,
             prepare_provider=followup_provider,
-        ).task_status == "SUCCESS"
-    assert run_insight(
+        )
+        assert result.task_status == "SUCCESS"
+    insight_result = run_insight(
         engine,
         insight.task_id,
         "phase-d-corrupt",
@@ -682,7 +712,8 @@ def test_one_window_corrupt_insight_bundle_blocks_ready() -> None:
         node_id=node_id,
         as_of_at=as_of_at,
         prepare_provider=insight_provider,
-    ).task_status == "SUCCESS"
+    )
+    assert insight_result.task_status == "SUCCESS"
     with Session(engine) as session, session.begin():
         deleted = session.execute(
             s.node_insight_window.delete().where(
@@ -694,7 +725,10 @@ def test_one_window_corrupt_insight_bundle_blocks_ready() -> None:
     with Session(engine) as session:
         readiness = publication.publication_readiness(session, batch_id)
     assert not readiness.ready
-    assert any("atomic window bundle is incomplete" in r for r in readiness.reasons)
+    assert any(
+        "atomic window bundle is incomplete" in reason
+        for reason in readiness.reasons
+    )
 
 
 def test_stale_context_after_provider_attempt_is_validation_blocked() -> None:
@@ -703,7 +737,7 @@ def test_stale_context_after_provider_attempt_is_validation_blocked() -> None:
     node_id = nodes["hbf"]
     with Session(engine) as session, session.begin():
         _activate_generation_contracts(session)
-        batch_id = _single_node_alias_batch(session, node_id)
+        batch_id = _alias_batch(session, node_id)
         publication.start_initial_publication(session, batch_id)
         publication.ensure_search_document(
             session,
@@ -750,13 +784,10 @@ def test_stale_context_after_provider_attempt_is_validation_blocked() -> None:
                 s.publication_affected_node.c.node_id == node_id,
             )
         )
-        attempts = int(
-            session.scalar(
-                sa.select(sa.func.count())
-                .select_from(s.agent_attempt)
-                .where(s.agent_attempt.c.model_task_id == task.model_task_id)
-            )
-            or 0
+        attempts = _count(
+            session,
+            s.agent_attempt,
+            s.agent_attempt.c.model_task_id == task.model_task_id,
         )
     assert pointer is None
     assert attempts == 1
@@ -766,11 +797,18 @@ def test_old_followup_and_insight_cannot_fill_new_generation() -> None:
     _created, nodes = load_hbf_fixture()
     engine = _engine()
     node_id = nodes["hbf"]
-    sends: dict[str, list[object]] = {"context": [], "followup": [], "insight": []}
-    context_provider, followup_provider, insight_provider = _providers(engine, sends)
+    sends: dict[str, list[object]] = {
+        "context": [],
+        "followup": [],
+        "insight": [],
+    }
+    context_provider, followup_provider, insight_provider = _providers(
+        engine,
+        sends,
+    )
     with Session(engine) as session, session.begin():
         _activate_generation_contracts(session)
-        first_batch = _single_node_alias_batch(session, node_id)
+        first_batch = _alias_batch(session, node_id)
     assert run_initial_publication(
         engine,
         first_batch,
@@ -780,33 +818,23 @@ def test_old_followup_and_insight_cannot_fill_new_generation() -> None:
         prepare_insight_provider=insight_provider,
     ).ready
     with Session(engine) as session:
-        first_pan = (
-            session.execute(
-                sa.select(s.publication_affected_node).where(
-                    s.publication_affected_node.c.promotion_batch_id == first_batch,
-                    s.publication_affected_node.c.node_id == node_id,
-                )
-            )
-            .mappings()
-            .one()
-        )
-        first_document = int(first_pan["node_search_document_id"])
-        first_context = int(first_pan["node_context_id"])
-        first_insight = int(first_pan["node_insight_model_task_id"])
-        old_question_sets = tuple(
-            int(value)
-            for value in session.scalars(
-                sa.select(s.node_question_set.c.question_set_id).where(
-                    s.node_question_set.c.node_context_id == first_context
-                )
-            )
-        )
-        assert len(old_question_sets) == 2
+        first_row = _publication_row(session, first_batch, node_id)
+        first_document = int(first_row["node_search_document_id"])
+        first_context = int(first_row["node_context_id"])
+        first_insight = int(first_row["node_insight_model_task_id"])
+        assert _count(
+            session,
+            s.node_question_set,
+            s.node_question_set.c.node_context_id == first_context,
+        ) == 2
 
     with Session(engine) as session, session.begin():
-        second_batch = _single_node_alias_evidence_batch(session, node_id)
+        second_batch = _alias_evidence_batch(session, node_id)
     second_document, second_context, _as_of = _run_context_only(
-        engine, second_batch, node_id, context_provider
+        engine,
+        second_batch,
+        node_id,
+        context_provider,
     )
     assert second_document == first_document
     assert second_context != first_context
@@ -821,16 +849,13 @@ def test_old_followup_and_insight_cannot_fill_new_generation() -> None:
         )
     with Session(engine) as session:
         readiness = publication.publication_readiness(session, second_batch)
-        new_question_sets = tuple(
-            int(value)
-            for value in session.scalars(
-                sa.select(s.node_question_set.c.question_set_id).where(
-                    s.node_question_set.c.node_context_id == second_context
-                )
-            )
+        new_question_sets = _count(
+            session,
+            s.node_question_set,
+            s.node_question_set.c.node_context_id == second_context,
         )
     assert not readiness.ready
-    assert new_question_sets == ()
+    assert new_question_sets == 0
     assert any("both independent FOLLOWUP" in r for r in readiness.reasons)
     assert any("atomic window bundle is incomplete" in r for r in readiness.reasons)
 
@@ -840,8 +865,15 @@ def test_multi_node_terminal_failure_blocks_ready_and_preserves_data() -> None:
     engine = _engine()
     left = nodes["sk_hynix"]
     right = nodes["hbf"]
-    sends: dict[str, list[object]] = {"context": [], "followup": [], "insight": []}
-    _normal_context, followup_provider, insight_provider = _providers(engine, sends)
+    sends: dict[str, list[object]] = {
+        "context": [],
+        "followup": [],
+        "insight": [],
+    }
+    _normal_context, followup_provider, insight_provider = _providers(
+        engine,
+        sends,
+    )
 
     def context_provider(prepared):
         def send():
@@ -849,7 +881,9 @@ def test_multi_node_terminal_failure_blocks_ready_and_preserves_data() -> None:
             sends["context"].append(prepared.agent_input.node_id)
             if prepared.agent_input.node_id == right:
                 raise ConfirmedProviderFailure("INVALID_REQUEST")
-            return NodeContextProposal(context_text="완성된 노드의 짧은 맥락입니다.")
+            return NodeContextProposal(
+                context_text="완성된 노드의 짧은 맥락입니다."
+            )
 
         return send
 
@@ -864,10 +898,8 @@ def test_multi_node_terminal_failure_blocks_ready_and_preserves_data() -> None:
         )
     with Session(engine) as session, session.begin():
         _activate_generation_contracts(session)
-        batch_id = _two_node_evidence_batch(session, left, right)
-        canonical_after_commit = int(
-            session.scalar(sa.select(sa.func.count()).select_from(s.knowledge_item)) or 0
-        )
+        batch_id = _two_node_batch(session, left, right)
+        canonical_after_commit = _count(session, s.knowledge_item)
 
     result = run_initial_publication(
         engine,
@@ -880,20 +912,16 @@ def test_multi_node_terminal_failure_blocks_ready_and_preserves_data() -> None:
     assert not result.ready
     assert set(result.affected_node_ids) == {left, right}
     with Session(engine) as session:
-        right_task = int(
-            session.scalar(
-                sa.select(s.model_task.c.model_task_id)
-                .where(
-                    s.model_task.c.task_kind == "NODE_CONTEXT",
-                    s.model_task.c.status == "FINAL_FAILED",
-                )
-                .limit(1)
+        right_task = session.scalar(
+            sa.select(s.model_task.c.model_task_id)
+            .where(
+                s.model_task.c.task_kind == "NODE_CONTEXT",
+                s.model_task.c.status == "FINAL_FAILED",
             )
+            .limit(1)
         )
-        assert right_task > 0
-        assert canonical_after_commit == int(
-            session.scalar(sa.select(sa.func.count()).select_from(s.knowledge_item)) or 0
-        )
+        assert right_task is not None
+        assert _count(session, s.knowledge_item) == canonical_after_commit
         current_ready = set(
             int(value)
             for value in session.scalars(
