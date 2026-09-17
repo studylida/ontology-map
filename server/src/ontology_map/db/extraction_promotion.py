@@ -103,6 +103,10 @@ def source_document(session: Session, document_id: int) -> RowMapping:
 
 
 def active_policy_id(session: Session, validator_version: str) -> int:
+    from ontology_map.db import product_lint
+
+    if validator_version == product_lint.VALIDATOR_VERSION:
+        return product_lint.require_product_policy(session)[0]
     rows = list(
         session.execute(
             sa.select(
@@ -970,11 +974,16 @@ def event_basis_exists(session: Session, event_node_id: int, claim_id: int) -> b
     )
 
 
-def relation_is_used(session: Session, relation_id: int) -> bool:
+def relation_has_supported_claim(session: Session, relation_id: int) -> bool:
     return bool(
         session.execute(
-            sa.select(
-                sa.exists().where(schema.claim_relation.c.relation_id == relation_id)
+            sa.text("""
+            SELECT EXISTS (
+                SELECT 1 FROM claim_relation cr
+                JOIN claim_observation co ON co.claim_id = cr.claim_id
+                WHERE cr.relation_id = :relation_id AND cr.stance = 'SUPPORT'
             )
+            """),
+            {"relation_id": relation_id},
         ).scalar_one()
     )

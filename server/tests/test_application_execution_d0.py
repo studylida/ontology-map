@@ -25,7 +25,7 @@ def test_dry_run_uses_real_contracts_without_io(monkeypatch, capsys):
     plan = json.loads(capsys.readouterr().out)
     assert plan["database_reads"] == plan["database_writes"] == 0
     assert plan["provider_sends"] == 0
-    assert plan["blocking_gap"] == "PRODUCT_LINT_VALIDATOR_MISSING"
+    assert plan["blocking_gap"] is None
     assert set(plan["output_schema_sha256"]) == {
         "KNOWLEDGE_EXTRACTION",
         "NODE_CONTEXT",
@@ -42,11 +42,16 @@ def test_dry_run_uses_real_contracts_without_io(monkeypatch, capsys):
     )
 
 
-def test_product_lint_gap_blocks_execution_before_enqueue(monkeypatch):
+def test_missing_product_policy_blocks_execution_before_enqueue(monkeypatch):
     monkeypatch.setattr(bootstrap, "_require_ontology", lambda _session: None)
     monkeypatch.setattr(bootstrap, "_require_output_schemas", lambda _session: None)
+
+    def missing(_session):
+        raise ValueError("PRODUCT_LINT_DEFINITION_MISSING")
+
+    monkeypatch.setattr(bootstrap.product_lint, "require_product_policy", missing)
     with pytest.raises(
-        bootstrap.RuntimeNotReady, match="PRODUCT_LINT_VALIDATOR_MISSING"
+        bootstrap.RuntimeNotReady, match="PRODUCT_LINT_DEFINITION_MISSING"
     ):
         bootstrap.require_runtime_ready(object())
 

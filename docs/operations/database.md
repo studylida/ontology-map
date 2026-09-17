@@ -87,6 +87,8 @@ docker compose ps
 
 기본 `compose.yaml`은 작업 디렉터리의 Compose project별 DB volume을 사용한다. 위 명령과 CI의 일반 `docker compose` 명령은 다른 작업 디렉터리나 기존 `ontology-map-postgres` volume에 연결하지 않는다. `COMPOSE_PROJECT_NAME`을 공통 값으로 지정하면 이 격리가 깨지므로 작업 디렉터리마다 기본 project 이름을 사용한다.
 
+DB 포트는 `127.0.0.1`에만 공개한다. 다른 장치에서 접속해야 하는 운영 경로가 필요하면 해당 환경의 네트워크·인증 정책을 별도로 정한다.
+
 D1은 이 로컬 Docker 환경에 새 `ontology-map-postgres` volume을 한 번 만들어 사용한다. D1 단독 작성자는 저장소 루트에서 아래 명령으로 Docker 대상과 정확한 이름의 volume 존재 여부를 먼저 확인한다. `docker volume inspect`가 해당 volume이 없다고 실패해야 새로 만들 수 있다. 이미 있으면 출처·사용 중인 세션·자료와 필요한 백업을 확인할 때까지 생성하거나 연결하지 않는다.
 
 ```bash
@@ -224,6 +226,8 @@ curl --fail --get 'http://127.0.0.1:8000/api/v1/nodes/search' --data-urlencode '
 브라우저에서는 기본 중심 graph가 열리고, node 선택과 `RECENT_90_DAYS`·`RECENT_1_YEAR` 변경 및 검색 결과 선택이 새 exploration 요청으로 이어지는지 확인한다. Relation 목록과 Evidence Trace는 상세 panel과 graph에서 실제 API로 조회한다. peripheral 첫 page는 자동으로 표시되며 사용자 축소와 바깥 경계 pan으로 다음 page를 조회한다. 인사이트 tab은 저장 목록·상세를 읽고 연결 근거를 펼친다. 생성 worker는 아직 구현되지 않았다.
 
 ## 7. 검사
+
+제품 lint 정의는 `ontology_map.db.product_lint.ensure_product_policy(session)`을 호출자 소유 트랜잭션에서 명시적으로 한 번 등록한다. 재실행은 같은 정의를 확인하고, 활성 fixture 정책이나 정의·버전 불일치는 덮어쓰지 않고 중단한다. `require_product_policy(session)`은 읽기 전용 확인이며, 저장된 기준 그래프 재검사는 `REPEATABLE READ` 이상의 별도 트랜잭션에서 `run_full_graph(session)`을 명시적으로 호출한다. 검사는 성공한 전체 실행에서만 이전 finding을 해결하고 열린 `BLOCKING` finding은 기존 공개 조회 필터가 숨긴다. 실제 제품 DB에서 이 호출을 수행하는 권한과 순서는 D1 단독 작성자의 전환 절차를 따른다.
 
 PostgreSQL이 실행 중이고 migration이 적용된 상태에서 `server/` 검사를 실행한다.
 

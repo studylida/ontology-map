@@ -1,6 +1,6 @@
 # 출처·lint 적재 정책
 
-> 상태: 승인된 데이터 정책 · 구현 미포함
+> 상태: 승인된 데이터 정책 · 제품 lint 정의·저장 그래프 검사 구현, 자료 입력은 별도
 >
 > 확정일: 2026-09-15
 >
@@ -101,6 +101,8 @@ Structured Output 계약을 만족한 후보만 승격 전 lint에 들어간다.
 규칙의 코드와 평가 범위는 `lint_rule`, 함께 적용하는 규칙과 심각도는 불변 `lint_policy_version`·`lint_policy_rule`이 소유한다. 선택 규칙·심각도 또는 판정 결과가 달라질 때만 새 정책 버전을 활성화한다. 승격 전 `BLOCKING`은 후보 payload 없이 `blocked_fingerprint`로 반복 범위만 기록한다.
 
 저장된 그래프 재검사는 평가 범위가 `PERSISTED_GRAPH | BOTH`인 결정적 규칙만 `FULL_GRAPH` `lint_run`으로 수행하고 `lint_finding`을 남긴다. 성공한 전체 실행만 사라진 finding을 해결할 수 있고, 실패하거나 끝나지 않은 실행은 기존 finding을 해결하지 않는다. 열린 `BLOCKING` finding은 사람의 지식 상태를 바꾸지 않고 일반 공개 조회에서 해당 지식과 이를 basis로 삼은 파생 결과를 즉시 숨긴다.
+
+제품 코드의 `source-intake-110-v1` validator는 위 표의 여섯 `BLOCKING` 검사를 `EVIDENCE_TRACE_COMPLETE`, `OBSERVATION_SOURCE_INTEGRITY`, `CLAIM_SEMANTIC_TARGET`, `RELATION_SUPPORTED`, `ACTIVE_ONTOLOGY`, `STORED_REVISION_VALID`로 고정한다. 승격 전 검사는 기존 추출 후보 검증, 원문 Observation 검증, 승격 트랜잭션의 활성 온톨로지·관계 지지 검사를 재사용한다. 저장 그래프 검사는 `ontology_map.db.product_lint.run_full_graph`가 호출된 때에만 실행되며, 사람의 지식 상태를 변경하지 않는다. 여러 의미 대상을 분리할 수 없는지 판단하는 `WARNING`은 결정적 규칙으로 정의되지 않았으므로 이 validator 버전에 포함하지 않는다.
 
 ## publication과 READY
 
