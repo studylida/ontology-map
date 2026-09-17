@@ -181,6 +181,15 @@ afterEach(() => {
   Reflect.deleteProperty(HTMLDialogElement.prototype, "close");
 });
 
+it("shows the structured other Node name and type in a report Claim without graph data", async () => {
+  render(<NestedFlow />);
+
+  await screen.findByRole("heading", { name: "종합 보고서" });
+  expect(
+    screen.getByRole("button", { name: "상대 노드 · 기술 · Node 보기" }),
+  ).toBeTruthy();
+});
+
 it("keeps the report mounted, expanded and scrolled while nested Relation Evidence opens and restores opener focus", async () => {
   render(<NestedFlow />);
 

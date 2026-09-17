@@ -188,7 +188,8 @@ export function ClaimCard({
                   type="button"
                   onClick={() => onSelect(relation.otherNode.id)}
                 >
-                  {relation.otherNode.name} · Node 보기
+                  {relation.otherNode.name} · {relation.otherNode.kind} · Node
+                  보기
                 </button>
                 <button
                   type="button"

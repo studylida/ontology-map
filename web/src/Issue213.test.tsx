@@ -207,7 +207,9 @@ describe("Issue #213 relation verification UX", () => {
     expect(onEvidence).toHaveBeenCalledWith(
       expect.objectContaining({ id: "101" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: /HBF · Node 보기/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /HBF · 기술 · Node 보기/ }),
+    );
     expect(onSelect).toHaveBeenCalledWith("2");
 
     fireEvent.click(disclosure);
