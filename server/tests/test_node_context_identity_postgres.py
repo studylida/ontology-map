@@ -136,8 +136,7 @@ def test_result_affecting_setting_change_creates_new_logical_context_task(
 
     assert changed_prepared.promotion_batch_id == old_prepared.promotion_batch_id
     assert (
-        changed_prepared.node_search_document_id
-        == old_prepared.node_search_document_id
+        changed_prepared.node_search_document_id == old_prepared.node_search_document_id
     )
     assert (
         changed_prepared.search_document_input_hash
