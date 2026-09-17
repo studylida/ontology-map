@@ -76,6 +76,7 @@ jobs:
           uv run --project server --frozen pytest \
             server/tests/test_initial_publication_phase_b_alias_visibility_postgres.py \
             server/tests/test_initial_publication_phase_b_postgres.py \
+            server/tests/test_node_context_identity_postgres.py \
             server/tests/test_initial_publication_postgres.py::test_stale_node_context_becomes_validation_blocked \
             server/tests/test_node_context_generation.py
       - name: PostgreSQL Phase C 회귀
@@ -86,6 +87,7 @@ jobs:
         run: |
           uv run --project server --frozen pytest \
             server/tests/test_initial_publication_phase_d_postgres.py \
+            server/tests/test_initial_publication_handoff_postgres.py \
             server/tests/test_node_context_provider.py
       - name: current durable runner 회귀
         run: |
