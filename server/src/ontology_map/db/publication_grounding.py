@@ -13,7 +13,12 @@ from dataclasses import dataclass
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from ontology_map.db.topic_reference_schema import PRODUCT_REFERENCE
+from ontology_map.db.topic_reference_schema import (
+    APPROVED_TOPIC_DEFINITIONS,
+    PRODUCT_REFERENCE,
+)
+
+_APPROVED_TOPIC_NAMES = dict(APPROVED_TOPIC_DEFINITIONS)
 
 
 class ReferenceTopicIntegrityError(ValueError):
@@ -68,15 +73,20 @@ def reference_topic_identities(
 
     result: dict[int, ReferenceTopicIdentity] = {}
     for row in rows:
+        topic_code = None if row["topic_code"] is None else str(row["topic_code"])
+        canonical_name = (
+            None
+            if row["canonical_display_name"] is None
+            else str(row["canonical_display_name"])
+        )
         valid = (
             row["node_type_code"] == "TOPIC"
             and row["item_kind"] == "NODE"
             and row["lifecycle_kind"] == PRODUCT_REFERENCE
             and row["current_state"] is None
             and row["promotion_batch_id"] is None
-            and row["topic_code"] is not None
-            and row["canonical_display_name"] is not None
-            and str(row["canonical_display_name"]).strip() != ""
+            and topic_code in _APPROVED_TOPIC_NAMES
+            and canonical_name == _APPROVED_TOPIC_NAMES.get(topic_code)
         )
         if not valid:
             raise ReferenceTopicIntegrityError(
@@ -85,7 +95,7 @@ def reference_topic_identities(
         node_id = int(row["node_id"])
         result[node_id] = ReferenceTopicIdentity(
             node_id=node_id,
-            canonical_display_name=str(row["canonical_display_name"]),
+            canonical_display_name=canonical_name,
         )
     return result
 
