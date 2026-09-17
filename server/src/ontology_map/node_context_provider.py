@@ -6,9 +6,9 @@ import httpx
 import sqlalchemy as sa
 from pydantic import SecretStr, ValidationError
 
+from ontology_map import node_context_execution
 from ontology_map import node_context_generation as product
 from ontology_map.model_studio import CallFailed
-from ontology_map.node_context_execution import NODE_CONTEXT_LIMITS
 from ontology_map.node_context_generation_contracts import (
     NodeContextProposal,
     PreparedNodeContext,
@@ -62,7 +62,7 @@ class ModelStudioNodeContextAdapter:
             messages=messages,
             schema_name=NodeContextProposal.__name__,
             schema=product.output_schema(),
-            limits=NODE_CONTEXT_LIMITS,
+            limits=node_context_execution.NODE_CONTEXT_LIMITS,
         )
 
         def send() -> NodeContextProposal:
