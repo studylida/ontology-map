@@ -55,7 +55,8 @@ class SelectionItem:
 class MaterializationApproval:
     qualification_ref: str
     lineage_ref: str
-    evidence_group_id: int
+    evidence_group_id: int | None
+    create_new_group: bool = False
 
 
 @dataclass(frozen=True)
@@ -72,7 +73,7 @@ class MaterializationResult:
 class PreparedSelectionItem:
     item: SelectionItem
     document: SourceDocumentInput
-    evidence_group_id: int
+    evidence_group_id: int | None
 
 
 def normalize_source_body(value: str) -> str:
@@ -227,9 +228,11 @@ def prepare_selection_item(
         raise PreparationFailure(
             "APPROVAL_MISSING", "qualification and lineage approval is required"
         )
-    if approval.evidence_group_id <= 0:
+    if approval.create_new_group != (approval.evidence_group_id is None) or (
+        approval.evidence_group_id is not None and approval.evidence_group_id <= 0
+    ):
         raise PreparationFailure(
-            "APPROVAL_INVALID", "evidence_group_id must be positive"
+            "APPROVAL_INVALID", "approve either a new group or a positive existing ID"
         )
     if approval.qualification_ref != item.qualification_ref:
         raise PreparationFailure(
