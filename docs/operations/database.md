@@ -87,6 +87,8 @@ docker compose ps
 
 기본 `compose.yaml`은 작업 디렉터리의 Compose project별 DB volume을 사용한다. 위 명령과 CI의 일반 `docker compose` 명령은 다른 작업 디렉터리나 기존 `ontology-map-postgres` volume에 연결하지 않는다. `COMPOSE_PROJECT_NAME`을 공통 값으로 지정하면 이 격리가 깨지므로 작업 디렉터리마다 기본 project 이름을 사용한다.
 
+DB 포트는 `127.0.0.1`에만 공개한다. 다른 장치에서 접속해야 하는 운영 경로가 필요하면 해당 환경의 네트워크·인증 정책을 별도로 정한다.
+
 D1은 이 로컬 Docker 환경에 새 `ontology-map-postgres` volume을 한 번 만들어 사용한다. D1 단독 작성자는 저장소 루트에서 아래 명령으로 Docker 대상과 정확한 이름의 volume 존재 여부를 먼저 확인한다. `docker volume inspect`가 해당 volume이 없다고 실패해야 새로 만들 수 있다. 이미 있으면 출처·사용 중인 세션·자료와 필요한 백업을 확인할 때까지 생성하거나 연결하지 않는다.
 
 ```bash
