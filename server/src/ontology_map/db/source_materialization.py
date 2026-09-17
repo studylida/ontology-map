@@ -49,6 +49,11 @@ def _source_lock_key(source_key: str) -> int:
     return int.from_bytes(raw, byteorder="big", signed=True)
 
 
+def _body_lock_key(body_hash: bytes) -> int:
+    raw = sha256(b"body:" + body_hash).digest()[:8]
+    return int.from_bytes(raw, byteorder="big", signed=True)
+
+
 def _same_immutable_document(row: RowMapping, document: SourceDocumentInput) -> bool:
     return (
         str(row["canonical_url"]) == document.canonical_url
@@ -69,21 +74,52 @@ def materialize_source_document(
     connection: Connection,
     *,
     document: SourceDocumentInput,
-    evidence_group_id: int,
+    evidence_group_id: int | None,
     checked_at: datetime,
 ) -> SourceDocumentWriteResult:
-    """Persist one already-qualified and lineage-approved immutable document version."""
+    """Choose/recheck the approved lineage and save in the caller's transaction."""
 
-    connection.execute(
-        sa.select(sa.func.pg_advisory_xact_lock(_source_lock_key(document.source_key)))
-    )
+    if not connection.in_transaction():
+        raise ValueError("caller must own the source materialization transaction")
+    for lock_key in sorted(
+        {_source_lock_key(document.source_key), _body_lock_key(document.body_hash)}
+    ):
+        connection.execute(sa.select(sa.func.pg_advisory_xact_lock(lock_key)))
 
-    group_exists = connection.execute(
-        sa.select(evidence_group.c.evidence_group_id).where(
-            evidence_group.c.evidence_group_id == evidence_group_id
+    existing_groups = set(
+        connection.scalars(
+            sa.select(source_document.c.evidence_group_id)
+            .where(
+                sa.or_(
+                    source_document.c.source_key == document.source_key,
+                    source_document.c.body_hash == document.body_hash,
+                )
+            )
+            .with_for_update()
         )
-    ).scalar_one_or_none()
-    if group_exists is None:
+    )
+    if len(existing_groups) > 1 or (
+        evidence_group_id is not None
+        and existing_groups
+        and evidence_group_id not in existing_groups
+    ):
+        raise EvidenceGroupConflict("deterministic lineage signals disagree")
+    if existing_groups:
+        evidence_group_id = int(next(iter(existing_groups)))
+    elif evidence_group_id is None:
+        evidence_group_id = int(
+            connection.execute(
+                evidence_group.insert().returning(evidence_group.c.evidence_group_id)
+            ).scalar_one()
+        )
+    elif (
+        connection.scalar(
+            sa.select(evidence_group.c.evidence_group_id)
+            .where(evidence_group.c.evidence_group_id == evidence_group_id)
+            .with_for_update()
+        )
+        is None
+    ):
         raise EvidenceGroupNotFound("approved evidence_group_id does not exist")
 
     latest = (

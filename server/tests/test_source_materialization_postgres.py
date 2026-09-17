@@ -16,6 +16,10 @@ from uuid import uuid4
 import pytest
 import sqlalchemy as sa
 
+from ontology_map.db.source_materialization import (
+    SourceDocumentInput,
+    materialize_source_document,
+)
 from ontology_map.source_materialization import (
     MaterializationApproval,
     materialize_selection_manifest,
@@ -418,3 +422,105 @@ def test_missing_approved_group_fails_without_write(engine, tmp_path: Path) -> N
 
     assert result[0].failure_code == "EVIDENCE_GROUP_NOT_FOUND"
     assert source_rows(current, str(record["source_key"])) == []
+
+
+def test_approved_new_group_is_atomic_idempotent_and_rechecked(
+    engine, tmp_path: Path
+) -> None:
+    current, prefix = engine
+    first = item(prefix=prefix, name="first", body="공유 본문")
+    copy = item(prefix=prefix, name="copy", body="공유 본문")
+    unrelated = item(prefix=prefix, name="unrelated", body="독립 본문")
+    for record, body in (
+        (first, "공유 본문"),
+        (copy, "공유 본문"),
+        (unrelated, "독립 본문"),
+    ):
+        artifact(tmp_path, str(record["artifact_key"]), body)
+    manifest = tmp_path / "manifest.jsonl"
+
+    def approved(name: str) -> MaterializationApproval:
+        return MaterializationApproval(
+            qualification_ref=f"qualification:{name}",
+            lineage_ref=f"lineage:{name}",
+            evidence_group_id=None,
+            create_new_group=True,
+        )
+
+    write_manifest(manifest, [first, copy, unrelated])
+    approvals = {name: approved(name) for name in ("first", "copy", "unrelated")}
+    created = materialize_selection_manifest(
+        current, manifest_path=manifest, artifact_root=tmp_path, approvals=approvals
+    )
+    repeated = materialize_selection_manifest(
+        current, manifest_path=manifest, artifact_root=tmp_path, approvals=approvals
+    )
+
+    assert [result.status for result in created] == ["CREATED"] * 3
+    assert [result.status for result in repeated] == ["REUSED"] * 3
+    assert [result.source_document_id for result in created] == [
+        result.source_document_id for result in repeated
+    ]
+    first_group = source_rows(current, str(first["source_key"]))[0]["evidence_group_id"]
+    copy_group = source_rows(current, str(copy["source_key"]))[0]["evidence_group_id"]
+    other_group = source_rows(current, str(unrelated["source_key"]))[0][
+        "evidence_group_id"
+    ]
+    assert first_group == copy_group != other_group
+
+    conflict = materialize_selection_manifest(
+        current,
+        manifest_path=manifest,
+        artifact_root=tmp_path,
+        approvals={"copy": approval("copy", int(other_group))},
+        only_test_item_ids=frozenset({"copy"}),
+    )
+    assert conflict[0].failure_code == "EVIDENCE_GROUP_CONFLICT"
+    assert len(source_rows(current, str(copy["source_key"]))) == 1
+
+    changed = item(prefix=prefix, name="first", body="공유 본문", title="수정 제목")
+    write_manifest(manifest, [changed])
+    version = materialize_selection_manifest(
+        current, manifest_path=manifest, artifact_root=tmp_path, approvals=approvals
+    )
+    assert (version[0].status, version[0].version_no) == ("CREATED", 2)
+    assert [
+        row["evidence_group_id"]
+        for row in source_rows(current, str(first["source_key"]))
+    ] == [
+        first_group,
+        first_group,
+    ]
+
+
+def test_failed_source_insert_rolls_back_new_group(engine) -> None:
+    current, prefix = engine
+    with current.connect() as connection:
+        before = connection.scalar(sa.text("SELECT count(*) FROM evidence_group"))
+    invalid = SourceDocumentInput(
+        source_key=f"{prefix}invalid",
+        canonical_url="https://example.com/invalid",
+        publisher_name="합성 발행처",
+        title="",
+        author_text=None,
+        original_language="ko",
+        normalized_body="합성 본문",
+        body_hash=sha256("합성 본문".encode()).digest(),
+        published_at=None,
+        published_precision="UNKNOWN",
+        source_modified_at=None,
+        modified_precision="UNKNOWN",
+    )
+    with pytest.raises(sa.exc.IntegrityError):
+        with current.begin() as connection:
+            materialize_source_document(
+                connection,
+                document=invalid,
+                evidence_group_id=None,
+                checked_at=datetime.now(UTC),
+            )
+    with current.connect() as connection:
+        assert (
+            connection.scalar(sa.text("SELECT count(*) FROM evidence_group")) == before
+        )
+    assert source_rows(current, invalid.source_key) == []
