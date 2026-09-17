@@ -293,7 +293,7 @@ function panelClaim(value: unknown): PanelClaim213 {
       ] as const);
       const rawRelation = connection.relation;
       let relation: ClaimRelationConnection | null = null;
-      if (rawRelation !== null) {
+      if (rawRelation != null) {
         const item = object(rawRelation);
         relation = {
           id: string(item.relation_id),

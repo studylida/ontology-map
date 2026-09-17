@@ -37,6 +37,12 @@ const claim = {
   role: "KEY_CLAIM",
   connections: [
     {
+      kind: "CONFLICT",
+      target_id: "200",
+      position: "SEPTEMBER",
+      label: "같은 대상에 관한 엇갈리는 주장",
+    },
+    {
       kind: "RELATION",
       target_id: "100",
       position: "SUPPORT",
@@ -146,7 +152,8 @@ beforeEach(() => {
   request.mockImplementation(async (path: string) => {
     if (path.includes("/insight-report")) return response(report);
     if (path.includes("/claims/10/evidence")) return response(claimTrace);
-    if (path.includes("/relations/100/evidence")) return response(relationTrace);
+    if (path.includes("/relations/100/evidence"))
+      return response(relationTrace);
     return response({ items: [], next_cursor: null });
   });
   vi.stubGlobal("fetch", request);
