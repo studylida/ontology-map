@@ -39,7 +39,10 @@ def _isolate_database() -> None:
     yield
 
 
-def _task_identity(session: Session, task_id: int) -> tuple[bytes, bytes, str, str, int]:
+def _task_identity(
+    session: Session,
+    task_id: int,
+) -> tuple[bytes, bytes, str, str, int]:
     row = session.execute(
         sa.select(
             s.model_task.c.input_hash,
@@ -132,7 +135,10 @@ def test_result_affecting_setting_change_creates_new_logical_context_task(
         changed_identity = _task_identity(session, changed_task.model_task_id)
 
     assert changed_prepared.promotion_batch_id == old_prepared.promotion_batch_id
-    assert changed_prepared.node_search_document_id == old_prepared.node_search_document_id
+    assert (
+        changed_prepared.node_search_document_id
+        == old_prepared.node_search_document_id
+    )
     assert (
         changed_prepared.search_document_input_hash
         == old_prepared.search_document_input_hash
