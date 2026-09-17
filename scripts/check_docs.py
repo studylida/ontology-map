@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_PATH = Path("server/src/ontology_map/db/schema.py")
+SCHEMA_PATH = Path("server/src/ontology_map/db/metadata.py")
 REFERENCE_PATH = Path("docs/data/schema-reference.md")
 DECISIONS_PATH = Path("docs/architecture/decisions")
 SKIPPED_DIRECTORIES = {
@@ -217,7 +217,7 @@ def render_schema_reference(metadata: sa.MetaData) -> str:
         "",
         "# ontology-map PostgreSQL 스키마 참고 문서",
         "",
-        "이 문서는 [SQLAlchemy metadata](../../server/src/ontology_map/db/schema.py)의 "
+        "이 문서는 [완성 SQLAlchemy metadata](../../server/src/ontology_map/db/metadata.py)의 "
         "실제 table, column, constraint와 index를 이름순으로 보여 주는 생성 결과다. "
         "데이터 의미와 수명주기는 [논리 스키마](logical-schema.md), PostgreSQL 공통 "
         "표현 규칙은 [물리 스키마](physical-schema.md)가 소유한다.",

@@ -815,8 +815,8 @@ model_task = sa.Table(
         server_default=sa.text("0"),
         nullable=False,
         comment=(
-            "이 논리 작업에서 실제 provider를 호출한 누계. cache 적중은 증가시키지 "
-            "않으며 agent_attempt 행과 같은 트랜잭션에서 유지한다."
+            "durable terminal agent_attempt 행 수. append와 같은 transaction에서 "
+            "유지하며 실제 호출 hard budget은 provider_call_slot 소비 수로 판단한다."
         ),
     ),
     sa.Column("next_attempt_at", sa.DateTime(timezone=True)),
@@ -889,7 +889,7 @@ model_task = sa.Table(
         name="ck_model_task__status_shape",
     ),
     comment=(
-        "재시도 전체를 묶는 논리 모델 작업. 실제 호출 누계와 현재 실행 상태를 "
+        "재시도 전체를 묶는 논리 모델 작업. terminal attempt 수와 현재 실행 상태를 "
         "소유하며 모델 응답 payload를 저장하지 않는다."
     ),
 )
@@ -969,9 +969,51 @@ agent_attempt = sa.Table(
         name="ck_agent_attempt__attempted_at_finite",
     ),
     comment=(
-        "한 논리 모델 작업의 실제 provider 호출 한 번을 기록하는 append-only 이력."
+        "확정된 provider terminal 결과의 append-only 이력. attempt_no는 slot_no이며 "
+        "UNKNOWN slot 때문에 번호에 gap이 생길 수 있다."
     ),
 )
+
+provider_call_slot = sa.Table(
+    "provider_call_slot",
+    metadata,
+    sa.Column(
+        "model_task_id",
+        sa.BigInteger,
+        sa.ForeignKey(
+            "model_task.model_task_id",
+            name="fk_provider_call_slot__model_task",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        nullable=False,
+    ),
+    sa.Column("slot_no", sa.Integer, nullable=False),
+    sa.Column("state", sa.Text, nullable=False),
+    sa.Column("reserved_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("resolved_at", sa.DateTime(timezone=True)),
+    sa.PrimaryKeyConstraint("model_task_id", "slot_no", name="pk_provider_call_slot"),
+    sa.CheckConstraint("slot_no BETWEEN 1 AND 3", name="ck_provider_call_slot__number"),
+    sa.CheckConstraint(
+        "state IN ('RESERVED', 'COMPLETED', 'UNKNOWN')",
+        name="ck_provider_call_slot__state",
+    ),
+    sa.CheckConstraint(
+        "(state = 'RESERVED' AND resolved_at IS NULL) OR "
+        "(state IN ('COMPLETED', 'UNKNOWN') AND resolved_at IS NOT NULL)",
+        name="ck_provider_call_slot__state_shape",
+    ),
+    sa.CheckConstraint(
+        "isfinite(reserved_at) AND (resolved_at IS NULL OR "
+        "(isfinite(resolved_at) AND resolved_at >= reserved_at))",
+        name="ck_provider_call_slot__timestamps",
+    ),
+    comment=(
+        "전송 전 durable하게 소비하는 제품 provider 호출 슬롯. UNKNOWN도 예산을 "
+        "소비하며 재사용하지 않는다. 모델 입력·응답·결과 payload는 저장하지 않는다."
+    ),
+)
+
 
 blocked_fingerprint = sa.Table(
     "blocked_fingerprint",

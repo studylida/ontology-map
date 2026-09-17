@@ -3,13 +3,13 @@
 ## 문서 상태
 
 - 상태: Physical Schema v2 — 동결 및 migration 구현 완료
-- 확인일: 2026-09-15
-- 관련 Issue: [#40 Define PostgreSQL physical schema conventions](https://github.com/studylida/ontology-map/issues/40), [#200 NUMBER attribute 복수 허용 단위 지원](https://github.com/studylida/ontology-map/issues/200), [#203 Topic reference lifecycle 지원](https://github.com/studylida/ontology-map/issues/203)
+- 확인일: 2026-09-16
+- 관련 Issue: [#40 Define PostgreSQL physical schema conventions](https://github.com/studylida/ontology-map/issues/40), [#200 NUMBER attribute 복수 허용 단위 지원](https://github.com/studylida/ontology-map/issues/200), [#203 Topic reference lifecycle 지원](https://github.com/studylida/ontology-map/issues/203), [#216 promotion canonical change provenance](https://github.com/studylida/ontology-map/issues/216)
 - 논리 모델: [논리 스키마](logical-schema.md)
 - 생성 목록: [스키마 참고 문서](schema-reference.md)
 - 구현 스택: [구현 스택](../development/implementation-stack.md)
 - 코드·migration 규칙: [코드 규칙](../development/code-conventions.md)
-- 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`; #200, `server/migrations/versions/0003_support_multiple_number_attribute_units.py`; #203, `server/migrations/versions/0004_support_topic_reference_lifecycle.py`
+- 구현: #95, `server/migrations/versions/0001_create_frozen_schema.py`; #200, `server/migrations/versions/0003_support_multiple_number_attribute_units.py`; #203, `server/migrations/versions/0004_support_topic_reference_lifecycle.py`; #216, `server/migrations/versions/0005_add_promotion_canonical_change.py`
 
 이 문서는 Logical Schema v1.2의 의미를 PostgreSQL로 옮기는 공통 표현 규칙을 정의한다. 실제 table, column, constraint와 index 목록은 SQLAlchemy metadata에서 생성한 [스키마 참고 문서](schema-reference.md)가 소유한다.
 
@@ -17,8 +17,8 @@
 
 ## 현재 구현 기준
 
-- SQLAlchemy metadata: `server/src/ontology_map/db/schema.py`
-- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_support_multiple_number_attribute_units.py` → `0004_support_topic_reference_lifecycle.py`
+- SQLAlchemy complete metadata: `server/src/ontology_map/db/metadata.py` (`schema.py`의 기존 metadata에 #216 provenance table을 등록)
+- Alembic revision: `0001_create_frozen_schema.py` → `0002_add_panel_reading_contracts.py` → `0003_support_multiple_number_attribute_units.py` → `0004_support_topic_reference_lifecycle.py` → `0005_add_promotion_canonical_change.py` → `0006_add_provider_call_slot.py`
 - 개발 fixture: `server/src/ontology_map/db/fixture.py`
 - PostgreSQL namespace: `public`
 - 현재 metadata에 구현된 table 수와 각 객체의 세부 정의는 [스키마 참고 문서](schema-reference.md)에서 확인한다.
@@ -35,6 +35,22 @@ claim
 ```
 
 Relation의 stance는 `claim_relation`, 구조화 속성값은 `claim_attribute_value`, 사건 시간 근거는 `event_temporal_basis`가 Claim에 연결한다. node 인사이트도 `node_insight_claim`에서 기존 Claim으로 이어져 같은 Evidence Trace를 재사용한다.
+
+### Promotion canonical-change provenance
+
+#216의 `promotion_canonical_change`는 identity PK, NOT NULL `promotion_batch_id`, closed `change_kind`, 그리고 `node_alias_id`, `observation_id`, `claim_id`, `relation_id`, `claim_attribute_value_id`, `event_node_id` 전용 nullable target column만 가진다. JSON payload, `affected_node_id`, workflow/publication 상태 column은 두지 않는다.
+
+`NODE_ALIAS_EVIDENCE_ADDED`, `CLAIM_OBSERVATION_ADDED`, `CLAIM_RELATION_ADDED`, `EVENT_TEMPORAL_BASIS_ADDED`는 각각 원본 association의 composite PK를 composite FK로 직접 참조한다. `NODE_ALIAS_CHANGED`와 `CLAIM_ATTRIBUTE_VALUE_ADDED`는 exact target row를 단일 FK로 참조한다. 하나의 CHECK가 kind별 필요한 target만 non-NULL이고 관계없는 target은 NULL임을 강제하며, 별도 closed-kind CHECK가 여섯 종류 밖의 값을 거부한다.
+
+Idempotency는 nullable 전체 UNIQUE에 의존하지 않고 kind별 partial unique index 여섯 개로 `promotion_batch + change_kind + exact target`을 고정한다. `(promotion_batch_id, promotion_canonical_change_id)` index는 향후 coordinator가 batch 기준으로 provenance를 읽을 최소 access path다.
+
+migration `0005`는 historical association을 backfill하지 않는다. `ontology_map.db.promotion_provenance`의 production write boundary는 caller가 연 promotion transaction 안에서만 동작하고 association insert는 `INSERT ... ON CONFLICT DO NOTHING RETURNING ...` 결과로 실제 mutation 여부를 판별한다. `claim_attribute_value`에는 #216이 새로운 semantic equality나 UNIQUE 규칙을 추가하지 않는다. caller가 canonical insert를 요청하면 `add_claim_attribute_value()`는 새 row를 INSERT하고 반환된 exact `claim_attribute_value_id`에 provenance를 기록하며, 동일 입력의 재처리 억제나 canonical reuse 여부는 #125 task/cache와 #127 canonicalization/write path가 소유한다. merged #128 Entity Resolution의 alias/alias-evidence path는 이 boundary에 직접 연결되어 실제 INSERT winner만 provenance를 남긴다. Claim/Relation/attribute/event canonical service도 같은 transaction-local boundary를 제공하며, 최종 KNOWLEDGE_EXTRACTION orchestration은 별도 #127 책임이다. `mark_promotion_committed`는 canonical writes와 provenance 뒤 같은 caller transaction에서 `COMMITTED`를 확정하지만 commit 자체는 호출하지 않는다. #215 initial publication coordinator와 #180 recovery는 별도 책임으로 남는다.
+
+### Durable provider 호출 슬롯
+
+`provider_call_slot`은 `(model_task_id, slot_no)` 복합 PK와 RESTRICT model_task FK만 사용한다. slot_no 1..3, RESERVED/COMPLETED/UNKNOWN, 유한 시각, 종료 시각의 상태별 NULL 규칙과 reserved_at 이후 조건을 CHECK로 제한한다. 새로운 result/staging payload나 task→promotion FK는 없다. `agent_attempt.outcome`은 기존 terminal 값만 유지하고 attempt_no는 slot_no이므로 gap을 허용한다. `model_task.attempt_count`는 durable terminal agent_attempt 행 수이며 기존 BETWEEN 0 AND 5 CHECK는 유지한다.
+
+예약·reclaim·terminal 기록은 model_task row lock과 현재 lease token·만료 시각 검사로 직렬화한다. application은 clock_timestamp를 lock 획득 뒤 읽고 UNKNOWN 또는 COMPLETED slot의 재사용을 거부한다. 예약·전송 사이에는 장기 DB transaction을 유지하지 않는다. 확정 결과 기록은 attempt append, count 증가, COMPLETED와 가능한 task 상태 변경을 원자적으로 commit한다. migration downgrade는 소비된 slot이 있으면 삭제 전에 중단하여 무료 재호출을 허용하지 않는다.
 
 `publication_affected_node`는 한 batch가 영향을 준 node와 선택한 검색 문서, context와 `NODE_INSIGHT` 작업을 가리킨다. 이 행은 지도 구성원, 좌표나 전체 graph snapshot이 아니다.
 

@@ -2,9 +2,9 @@
 
 > 상태: Logical Schema v1.2 — Frozen
 >
-> 변경 기준일: 2026-09-15
+> 변경 기준일: 2026-09-16
 >
-> 관련 변경: Issue #41, #64, #69, #91, #110, #200, #203
+> 관련 변경: Issue #41, #64, #69, #91, #110, #200, #203, #216
 >
 > 제품 기준: 공개 자료를 근거와 시간축이 있는 지식그래프로 축적하고, 검색한 노드를 중심으로 탐색하는 HBF POC
 
@@ -94,6 +94,7 @@ erDiagram
 ```mermaid
 erDiagram
     PROMOTION_BATCH ||--o{ KNOWLEDGE_ITEM : creates
+    PROMOTION_BATCH ||--o{ PROMOTION_CANONICAL_CHANGE : records
     KNOWLEDGE_ITEM ||--o| NODE : node_subtype
     KNOWLEDGE_ITEM ||--o| RELATION : relation_subtype
     KNOWLEDGE_ITEM ||--o| CLAIM : claim_subtype
@@ -254,7 +255,14 @@ erDiagram
 
 #### `agent_attempt`
 
-실제 모델 호출 한 번의 최소 이력이다. `model_task_id + attempt_no`가 고유하며 `outcome`, 정형 `failure_reason`, `attempted_at`만 보존한다. 토큰·비용·원시 응답·응답 ID와 중복 모델·프롬프트 필드는 저장하지 않는다.
+확정된 실제 provider terminal 결과의 append-only 이력이다. `attempt_no = provider_call_slot.slot_no`이며 UNKNOWN slot 때문에 번호 gap이 생길 수 있다. `attempt_count`와 같은 transaction에서 행 수를 유지한다. `model_task_id + attempt_no`가 고유하며 `outcome`, 정형 `failure_reason`, `attempted_at`만 보존한다. 토큰·비용·원시 응답·응답 ID와 중복 모델·프롬프트 필드는 저장하지 않는다.
+
+#### `provider_call_slot`
+
+[#125 승인](https://github.com/studylida/ontology-map/issues/125#issuecomment-5658185041)과 [#124 감사](https://github.com/studylida/ontology-map/issues/124#issuecomment-5658186263)에 따른 최소 실행 제어 구조다. `(model_task_id, slot_no)`가 유일하고 slot_no는 1..3이다. 상태는 RESERVED, COMPLETED, UNKNOWN뿐이다. deterministic local preflight와 request 구성이 끝난 뒤 전송 직전에 RESERVED를 commit하며, UNKNOWN도 소비된 예산으로 유지한다. raw request/response, reasoning과 결과 payload는 저장하지 않는다. runtime helper에는 적용하지 않는다.
+
+확정 결과는 같은 짧은 transaction에서 agent_attempt append, attempt_count 증가, slot COMPLETED와 가능한 task 상태 전환을 기록한다. lease reclaim은 task row lock 안에서 stale RESERVED를 UNKNOWN으로 닫으며 이전 lease의 늦은 결과를 거부한다. hard cap은 terminal attempt 수가 아니라 slot 소비 수로 판단한다. 기존 terminal 이력은 재작성하지 않으며 slot과 대응되지 않는 과거 미완료 task는 예산을 추정해 재실행하지 않는다.
+
 
 #### `blocked_fingerprint`
 
@@ -334,6 +342,14 @@ POC는 전체 활성 규칙 집합을 `ontology_version`과 `ontology_member` ma
 | `publication_status` | `NOT_STARTED | PREPARING | READY | FAILED` |
 | `started_at`, `committed_at`, `ready_at` | 단계별 시각 |
 | `promotion_failure_reason`, `publication_failure_reason` | 서로 분리된 실패 이유 |
+
+#### `promotion_canonical_change`
+
+기존 canonical object를 재사용하면서 이번 promotion이 실제로 새 association/change를 만들었지만 기존 schema만으로 batch attribution을 복원할 수 없는 경우만 기록하는 immutable provenance다. 새 Node·Relation·Claim 자체는 계속 `knowledge_item.promotion_batch_id`를 사용하며 이 테이블에 중복 기록하지 않는다.
+
+허용 `change_kind`는 `NODE_ALIAS_CHANGED`, `NODE_ALIAS_EVIDENCE_ADDED`, `CLAIM_OBSERVATION_ADDED`, `CLAIM_RELATION_ADDED`, `CLAIM_ATTRIBUTE_VALUE_ADDED`, `EVENT_TEMPORAL_BASIS_ADDED` 여섯 종류로 닫혀 있다. exact target은 각각 `node_alias_id`, `(node_alias_id, observation_id)`, `(claim_id, observation_id)`, `(claim_id, relation_id)`, `claim_attribute_value_id`, `(event_node_id, claim_id)`다. association target은 가능한 경우 원본 association의 복합 키를 FK로 직접 참조한다.
+
+이 provenance는 publication job/state, affected Node, retry attempt, staging/result payload 또는 generic event log가 아니다. 실제 canonical mutation과 같은 promotion transaction에서만 기록하고 실제 no-op/retry에는 새 provenance를 만들지 않는다. migration 이전 historical association은 timestamp나 row 순서로 추정 backfill하지 않는다.
 
 #### `knowledge_item`, `knowledge_state_event`
 
@@ -468,7 +484,7 @@ publication_status: NOT_STARTED → PREPARING → READY
                                           └→ FAILED → PREPARING
 ```
 
-승격 실패는 지식 쓰기를 모두 롤백한다. 공개 실패는 기준 지식을 유지하고 이전 `READY` 결과를 제공한다.
+승격 실패는 지식 쓰기를 모두 롤백한다. `promotion_canonical_change`는 실제 canonical mutation과 같은 promotion transaction에서 함께 commit 또는 rollback되는 불변 이력이며 publication 상태 전이로 소비·삭제하지 않는다. 공개 실패는 기준 지식을 유지하고 이전 `READY` 결과를 제공한다.
 
 ## 7. 무결성 책임
 
@@ -484,6 +500,7 @@ publication_status: NOT_STARTED → PREPARING → READY
 - Claim 속성값의 tagged-union 로컬 CHECK
 - NUMBER Claim의 `(attribute_revision_id, unit_code)`가 해당 revision의 허용 단위 집합에 존재함
 - 충돌 대상 형태와 상태·시각 조합의 행 내부 CHECK
+- `promotion_canonical_change`의 닫힌 6종 kind, kind별 exact target shape, canonical association FK와 batch+kind+target partial unique idempotency
 
 ### 7.2 서비스 트랜잭션이 보장할 규칙
 
@@ -498,6 +515,7 @@ publication_status: NOT_STARTED → PREPARING → READY
 - 관계의 관측 가능한 지지 Claim, 노드·사건의 최소 근거
 - 서로 다른 시간 정밀도의 기간 비교
 - 상태 이벤트와 현재 상태의 동시 갱신
+- 실제 canonical mutation 성공 여부를 PostgreSQL write 결과로 판별하고 같은 promotion transaction에서만 해당 `promotion_canonical_change`를 기록하며 no-op에는 기록하지 않음
 - 충돌 snapshot 생성과 검색·임베딩·맥락·질문·인사이트의 READY 완결성
 
 같은 교차 행 규칙을 DB custom trigger와 서비스 양쪽에 중복 구현하지 않는다.
