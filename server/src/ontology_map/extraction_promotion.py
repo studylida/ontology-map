@@ -1107,12 +1107,12 @@ def _relation_support_key(
     return rule.revision_id, _semantic_json(source), _semantic_json(target)
 
 
-def _previously_supported_relation(session: Session, key: tuple[int, str, str]) -> bool:
+def _existing_relation_id(session: Session, key: tuple[int, str, str]) -> int | None:
     revision_id, source_json, target_json = key
     source = json.loads(source_json).get("node_id")
     target = json.loads(target_json).get("node_id")
     if source is None or target is None:
-        return False
+        return None
     relation_id = session.scalar(
         sa.select(schema.relation.c.relation_id)
         .join(schema.relation_type_revision)
@@ -1131,9 +1131,7 @@ def _previously_supported_relation(session: Session, key: tuple[int, str, str]) 
             ),
         )
     )
-    return relation_id is not None and promotion_db.relation_has_supported_claim(
-        session, int(relation_id)
-    )
+    return None if relation_id is None else int(relation_id)
 
 
 def _exclude_unsupported_relations(
@@ -1155,10 +1153,23 @@ def _exclude_unsupported_relations(
         with connection.begin():
             connection.exec_driver_sql("SET TRANSACTION READ ONLY")
             with Session(bind=connection) as session:
+                relation_ids = {
+                    key: _existing_relation_id(session, key) for key in all_keys
+                }
+                unusable = {
+                    key
+                    for key, relation_id in relation_ids.items()
+                    if relation_id is not None
+                    and not promotion_db._usable_knowledge(
+                        session, relation_id, "RELATION"
+                    )
+                }
                 existing = {
                     key
-                    for key in all_keys
-                    if _previously_supported_relation(session, key)
+                    for key, relation_id in relation_ids.items()
+                    if relation_id is not None
+                    and key not in unusable
+                    and promotion_db.relation_has_supported_claim(session, relation_id)
                 }
     accepted = list(selection.accepted)
     excluded = list(selection.excluded_ids)
@@ -1172,7 +1183,10 @@ def _exclude_unsupported_relations(
         retained = [
             claim
             for claim in accepted
-            if all(key in supported for key, _ in keys[claim.candidate_id])
+            if all(
+                key not in unusable and key in supported
+                for key, _ in keys[claim.candidate_id]
+            )
         ]
         if len(retained) == len(accepted):
             break

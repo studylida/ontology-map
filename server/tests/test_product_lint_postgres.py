@@ -19,7 +19,7 @@ def engine():
     assert URL is not None
     url = sa.engine.make_url(URL)
     assert url.host in {"127.0.0.1", "localhost", "::1"}
-    assert url.port == 55434 and url.database.endswith("_lint_test")
+    assert url.database and url.database.endswith("_lint_test")
     engine = sa.create_engine(url, isolation_level="REPEATABLE READ")
     names = ", ".join(f'"{table.name}"' for table in schema.metadata.sorted_tables)
     try:
