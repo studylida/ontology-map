@@ -34,9 +34,18 @@ def _isolate_database() -> None:
         yield
         return
     names = ", ".join(f'"{table.name}"' for table in s.metadata.sorted_tables)
-    with _engine().begin() as connection:
-        connection.execute(sa.text(f"TRUNCATE TABLE {names} RESTART IDENTITY CASCADE"))
-    yield
+    engine = _engine()
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                sa.text(f"TRUNCATE TABLE {names} RESTART IDENTITY CASCADE")
+            )
+        yield
+    finally:
+        with engine.begin() as connection:
+            connection.execute(
+                sa.text(f"TRUNCATE TABLE {names} RESTART IDENTITY CASCADE")
+            )
 
 
 def _task_identity(
