@@ -82,6 +82,19 @@ jobs:
         run: |
           uv run --project server --frozen pytest \
             server/tests/test_initial_publication_phase_c_postgres.py
+      - name: PostgreSQL Phase D durable 회귀
+        run: |
+          uv run --project server --frozen pytest \
+            server/tests/test_initial_publication_phase_d_postgres.py \
+            server/tests/test_node_context_provider.py
+      - name: current durable runner 회귀
+        run: |
+          uv run --project server --frozen pytest \
+            server/tests/test_followup_provider.py \
+            server/tests/test_followup_runner_postgres.py \
+            server/tests/test_followup_runner_blockers_postgres.py \
+            server/tests/test_insight_provider.py \
+            server/tests/test_insight_runner_postgres.py
       - name: PostgreSQL initial publication 회귀
         run: |
           uv run --project server --frozen pytest \
