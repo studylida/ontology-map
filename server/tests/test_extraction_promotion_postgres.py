@@ -14,10 +14,11 @@ from test_extraction import limits
 from test_extraction_tasks_postgres import reference_data
 
 from ontology_map.claim_duplicate import ClaimDuplicateInput
+from ontology_map.db import extraction_promotion as promotion_db
 from ontology_map.db import extraction_tasks as inputs
 from ontology_map.db import model_tasks as tasks
+from ontology_map.db import product_lint, schema
 from ontology_map.db import promotion_provenance as provenance
-from ontology_map.db import schema
 from ontology_map.db.topic_references import (
     ensure_topic_reference,
     set_topic_reference_active,
@@ -28,6 +29,7 @@ from ontology_map.extraction_contracts import (
     AttributeRule,
     ClaimProposal,
     Ontology,
+    RelationProposal,
     RelationRule,
     SourceDocument,
     SourceSpan,
@@ -272,9 +274,19 @@ def _claims(*, conflicting_event: bool = False) -> tuple[ClaimProposal, ...]:
     return first, second
 
 
-def _seed(engine: Engine, *, conflicting_event: bool = False) -> B3Case:
+def _seed(
+    engine: Engine, *, conflicting_event: bool = False, product_policy: bool = False
+) -> B3Case:
     with Session(engine) as session, session.begin():
         data = reference_data(session)
+        if product_policy:
+            session.execute(
+                sa.delete(schema.lint_policy_version).where(
+                    schema.lint_policy_version.c.lint_policy_version_id
+                    == data.policy_id
+                )
+            )
+            product_lint.ensure_product_policy(session)
         company_type_id = _node_type(session, "COMPANY")
         _node_type(session, "EVENT")
         relation_revision = _relation(session, company_type_id)
@@ -316,7 +328,12 @@ def _seed(engine: Engine, *, conflicting_event: bool = False) -> B3Case:
         runtime = RuntimeInput(document, ontology, limits())
         execution = data.execution.model_copy(
             update={
-                "runtime_settings": {"extraction_runner": runtime.identity_settings()}
+                "validator_version": (
+                    product_lint.VALIDATOR_VERSION
+                    if product_policy
+                    else data.execution.validator_version
+                ),
+                "runtime_settings": {"extraction_runner": runtime.identity_settings()},
             }
         )
         task_id = inputs.enqueue_extraction(
@@ -442,6 +459,196 @@ def test_new_multi_target_claim_promotes_atomically_and_reuses_relation(
         "CLAIM_ATTRIBUTE_VALUE_ADDED",
         "EVENT_TEMPORAL_BASIS_ADDED",
     } <= kinds
+
+
+def test_new_relation_without_support_blocks_only_dependent_claim(
+    b3_case: B3Case,
+) -> None:
+    case = b3_case
+    dispute = case.claims[1].model_copy(
+        update={
+            "bindings": [
+                case.claims[1].bindings[0].model_copy(update={"stance": "DISPUTE"})
+            ]
+        }
+    )
+    independent = case.claims[0].model_copy(
+        update={
+            "bindings": [
+                binding
+                for binding in case.claims[0].bindings
+                if not isinstance(binding, RelationProposal)
+            ],
+            "mentions": [
+                mention
+                for mention in case.claims[0].mentions
+                if mention.mention_id != "m-company-b"
+            ],
+        }
+    )
+    result = finalize_extraction(
+        case.engine,
+        _runner(case, (independent, dispute)),
+        case.execution,
+        case.runtime,
+        _new,
+        _claim_new,
+    )
+    assert result.disposition == "SUCCESS"
+    assert result.accepted_claims == ("c-multi",)
+    assert result.excluded_claims == ("c-relation",)
+    assert _count(case.engine, schema.relation) == 0
+    assert _count(case.engine, schema.claim) == 1
+
+
+@pytest.mark.parametrize("stance", ["SUPPORT", "DISPUTE"])
+def test_blocking_existing_relation_excludes_only_dependent_claim(stance: str) -> None:
+    assert URL is not None
+    engine = sa.create_engine(URL)
+    _truncate(engine)
+    try:
+        case = _seed(engine, product_policy=True)
+        first = finalize_extraction(
+            engine,
+            _runner(case, (case.claims[1],)),
+            case.execution,
+            case.runtime,
+            _new,
+            _claim_new,
+        )
+        assert first.disposition == "SUCCESS"
+        with Session(engine) as session, session.begin():
+            relation_id = int(session.scalar(sa.select(schema.relation.c.relation_id)))
+            existing = dict(
+                session.execute(
+                    sa.select(
+                        schema.node_alias.c.alias_text, schema.node_alias.c.node_id
+                    )
+                ).all()
+            )
+            policy_id, rules = product_lint.require_product_policy(session)
+            now = datetime.now(UTC)
+            run_id = int(
+                session.execute(
+                    schema.lint_run.insert()
+                    .values(
+                        lint_policy_version_id=policy_id,
+                        status="SUCCESS",
+                        started_at=now,
+                        completed_at=now,
+                    )
+                    .returning(schema.lint_run.c.lint_run_id)
+                ).scalar_one()
+            )
+            session.execute(
+                schema.lint_finding.insert().values(
+                    finding_key=sha256(
+                        f"{policy_id}:RELATION_SUPPORTED:{relation_id}".encode()
+                    ).digest(),
+                    knowledge_item_id=relation_id,
+                    lint_policy_rule_id=rules["RELATION_SUPPORTED"],
+                    first_detected_run_id=run_id,
+                    latest_detected_run_id=run_id,
+                    first_detected_at=now,
+                    last_detected_at=now,
+                    message="RELATION_SUPPORTED",
+                )
+            )
+            assert not promotion_db._usable_knowledge(session, relation_id, "RELATION")
+            assert promotion_db.relation_has_supported_claim(session, relation_id)
+
+        independent = case.claims[0].model_copy(
+            update={
+                "bindings": [
+                    binding
+                    for binding in case.claims[0].bindings
+                    if not isinstance(binding, RelationProposal)
+                ],
+                "mentions": [
+                    mention
+                    for mention in case.claims[0].mentions
+                    if mention.mention_id != "m-company-b"
+                ],
+            }
+        )
+        dependent = case.claims[1].model_copy(
+            update={
+                "statement": "한빛과 푸른은 공동 개발했다.",
+                "bindings": [
+                    case.claims[1].bindings[0].model_copy(update={"stance": stance})
+                ],
+            }
+        )
+        execution = case.execution.model_copy(
+            update={"execution_generation": "blocked-relation-followup"}
+        )
+        with Session(engine) as session, session.begin():
+            task_id = inputs.enqueue_extraction(
+                session, int(case.runtime.document.document_id), execution
+            ).task_id
+        with Session(engine) as session, session.begin():
+            lease = tasks.claim_task(session, task_id, "blocked-relation-test")
+            assert lease is not None
+        with Session(engine) as session, session.begin():
+            slot = tasks.reserve_slot(session, lease)
+            assert slot is not None
+        with Session(engine) as session, session.begin():
+            assert (
+                tasks.record_terminal(
+                    session, slot, tasks.TerminalResult("SUCCESS", datetime.now(UTC))
+                )
+                == "RUNNING"
+            )
+        followup = B3Case(engine, task_id, execution, case.runtime, case.claims, lease)
+
+        def propose(messages: list[tuple[str, str]]) -> object:
+            mention = ResolutionInput.model_validate_json(messages[1][1]).mention_text
+            if mention in existing:
+                return {"decision": "SAME", "node_id": existing[mention]}
+            return _new(messages)
+
+        result = finalize_extraction(
+            engine,
+            _runner(followup, (independent, dependent)),
+            execution,
+            case.runtime,
+            propose,
+            _claim_new,
+        )
+        assert result.disposition == result.task_status == "SUCCESS"
+        assert result.promotion_batch_id is not None
+        assert result.accepted_claims == ("c-multi",)
+        assert result.excluded_claims == ("c-relation",)
+        assert _count(engine, schema.claim) == 2
+        assert _count(engine, schema.relation) == 1
+        assert _count(engine, schema.promotion_batch) == 2
+    finally:
+        engine.dispose()
+
+
+def test_only_unsupported_new_relation_is_validation_blocked(
+    b3_case: B3Case,
+) -> None:
+    case = b3_case
+    dispute = case.claims[1].model_copy(
+        update={
+            "bindings": [
+                case.claims[1].bindings[0].model_copy(update={"stance": "DISPUTE"})
+            ]
+        }
+    )
+    result = finalize_extraction(
+        case.engine,
+        _runner(case, (dispute,)),
+        case.execution,
+        case.runtime,
+        _new,
+        _claim_new,
+    )
+    assert result.disposition == result.task_status == "VALIDATION_BLOCKED"
+    assert result.accepted_claims == ()
+    assert result.excluded_claims == ("c-relation",)
+    assert _count(case.engine, schema.promotion_batch) == 0
 
 
 def test_exact_reprocess_is_canonical_noop_without_duplicate_rows(

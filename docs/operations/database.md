@@ -69,7 +69,7 @@ cp .env.example .env
 POSTGRES_DB=ontology_map
 POSTGRES_USER=ontology_map
 POSTGRES_PASSWORD=ontology_map-local
-POSTGRES_PORT=5432
+POSTGRES_PORT=127.0.0.1:5432
 ONTOLOGY_MAP_ENVIRONMENT=development
 ONTOLOGY_MAP_DATABASE_URL=postgresql+psycopg://ontology_map:ontology_map-local@127.0.0.1:5432/ontology_map
 ```
@@ -83,6 +83,38 @@ ONTOLOGY_MAP_DATABASE_URL=postgresql+psycopg://ontology_map:ontology_map-local@1
 ```bash
 docker compose up -d db
 docker compose ps
+```
+
+기본 `compose.yaml`은 작업 디렉터리의 Compose project별 DB volume을 사용한다. 위 명령과 CI의 일반 `docker compose` 명령은 다른 작업 디렉터리나 기존 `ontology-map-postgres` volume에 연결하지 않는다. `COMPOSE_PROJECT_NAME`을 공통 값으로 지정하면 이 격리가 깨지므로 작업 디렉터리마다 기본 project 이름을 사용한다.
+
+`POSTGRES_PORT`에는 `[바인드 호스트:]포트`를 지정한다. 위 예시처럼 `127.0.0.1:5432`를 쓰면 DB는 로컬 호스트에만 공개된다. 호스트를 생략하고 `5432`만 쓰면 Docker가 모든 호스트 인터페이스에 바인딩하므로, 다른 장치에서 접속해야 하는 운영 경로에만 해당 환경의 네트워크·인증 정책을 확인한 뒤 사용한다.
+
+D1은 이 로컬 Docker 환경에 새 `ontology-map-postgres` volume을 한 번 만들어 사용한다. D1 단독 작성자는 저장소 루트에서 아래 명령으로 Docker 대상과 정확한 이름의 volume 존재 여부를 먼저 확인한다. `docker volume inspect`가 해당 volume이 없다고 실패해야 새로 만들 수 있다. 이미 있으면 출처·사용 중인 세션·자료와 필요한 백업을 확인할 때까지 생성하거나 연결하지 않는다.
+
+```bash
+docker context show
+docker info --format '{{.Name}}'
+docker volume inspect ontology-map-postgres --format '{{.Name}}'
+```
+
+대상이 의도한 로컬 Docker 환경이고 volume이 없음을 확인한 D1 단독 작성자만 다음 명령을 한 번 실행한다. 이때 새 volume에는 백업할 기존 DB 자료가 없다. 기존 volume이 발견되면 이를 빈 것으로 간주하거나 삭제하지 않고 자료 보존·백업 판단을 먼저 한다.
+
+```bash
+docker volume create ontology-map-postgres
+docker volume inspect ontology-map-postgres --format '{{.Name}}'
+```
+
+이 작업 트리에는 `.env`가 없으므로 D1은 저장소 밖의 접근 제한된 환경 파일을 사용한다. 아래 `/absolute/path/to/restricted/d1.env`를 실제 절대 경로로 바꾸고 파일 권한을 `0600`으로 제한한다. 파일에는 `POSTGRES_*`, `ONTOLOGY_MAP_ENVIRONMENT`, `ONTOLOGY_MAP_DATABASE_URL`을 일치시켜 넣되 값이나 자격 증명을 저장소·로그에 복사하지 않는다. `compose.authoritative.yaml`은 위에서 만든 정확한 이름의 외부 volume만 연결하며 volume을 자동 생성하지 않는다. D1의 Compose project도 일반 개발 project와 분리한다.
+
+```bash
+docker compose --env-file /absolute/path/to/restricted/d1.env -p ontology-map-d1 -f compose.yaml -f compose.authoritative.yaml up -d db
+```
+
+D1에서 시작한 컨테이너를 조회하거나 멈출 때도 같은 환경 파일·project·두 설정 파일을 지정한다. D1의 `uv` 명령에도 같은 제한된 환경 파일을 `--env-file`로 전달한다.
+
+```bash
+docker compose --env-file /absolute/path/to/restricted/d1.env -p ontology-map-d1 -f compose.yaml -f compose.authoritative.yaml ps
+docker compose --env-file /absolute/path/to/restricted/d1.env -p ontology-map-d1 -f compose.yaml -f compose.authoritative.yaml down
 ```
 
 `server/`에서 고정된 의존성을 설치하고 Alembic migration을 적용한다.
@@ -195,6 +227,8 @@ curl --fail --get 'http://127.0.0.1:8000/api/v1/nodes/search' --data-urlencode '
 
 ## 7. 검사
 
+제품 lint 정의는 `ontology_map.db.product_lint.ensure_product_policy(session)`을 호출자 소유 트랜잭션에서 명시적으로 한 번 등록한다. 재실행은 같은 정의를 확인하고, 활성 fixture 정책이나 정의·버전 불일치는 덮어쓰지 않고 중단한다. `require_product_policy(session)`은 읽기 전용 확인이며, 저장된 기준 그래프 재검사는 `REPEATABLE READ` 이상의 별도 트랜잭션에서 `run_full_graph(session)`을 명시적으로 호출한다. 검사는 성공한 전체 실행에서만 이전 finding을 해결하고 열린 `BLOCKING` finding은 기존 공개 조회 필터가 숨긴다. 실제 제품 DB에서 이 호출을 수행하는 권한과 순서는 D1 단독 작성자의 전환 절차를 따른다.
+
 PostgreSQL이 실행 중이고 migration이 적용된 상태에서 `server/` 검사를 실행한다.
 
 ```bash
@@ -227,7 +261,7 @@ API와 worker는 구현된 뒤에도 같은 Python 코드와 image를 사용하�
 docker compose down
 ```
 
-개발 DB를 완전히 다시 만들 때만 다음 명령을 사용한다. #121 이전 frozen baseline의 개발 volume을 새 baseline으로 전환할 때도 이 재생성 경로를 사용한다. 먼저 필요한 `pg_dump` 백업과 복구 가능성을 확인하고 다른 세션이 해당 volume을 쓰지 않는지 확인한다. 이 명령은 `ontology-map-postgres` volume과 안의 로컬 데이터를 삭제하므로 되돌릴 수 없다.
+개발 DB를 완전히 다시 만들 때만 다음 명령을 사용한다. #121 이전 frozen baseline의 개발 volume을 새 baseline으로 전환할 때도 이 재생성 경로를 사용한다. 먼저 필요한 `pg_dump` 백업과 복구 가능성을 확인하고 다른 세션이 해당 volume을 쓰지 않는지 확인한다. 이 명령은 현재 Compose project의 개발 volume과 안의 로컬 데이터를 삭제하므로 되돌릴 수 없다. 위 D1 overlay의 `ontology-map-postgres`는 외부 volume이므로 이 명령의 대상이 아니다.
 
 ```bash
 docker compose down --volumes
