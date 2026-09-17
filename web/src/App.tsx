@@ -708,11 +708,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
               introCompleted={introComplete}
               onReady={() => setGraphReady(true)}
               onSelect={selectNode}
-              onEvidence={
-                isTopicExploration(peripheral.graphView)
-                  ? () => undefined
-                  : setEvidence
-              }
+              onEvidence={setEvidence}
               onTransitionComplete={finishNodeTransition}
             />
           )}
@@ -786,15 +782,19 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                     onClose={() => setPanelOpen(false)}
                     onSelect={selectNode}
                     onSelectInsight={selectNodeInsight}
+                    onEvidence={setEvidence}
                   />
                 ) : (
                   <DetailPanel
                     key={`${currentView.centerId}:${timeRange}:${panelTab}`}
                     timeRange={timeRange}
                     view={currentView}
+                    loadedGraph={peripheral.graphView}
+                    hiddenKinds={hiddenKinds}
                     initialTab={panelTab}
                     onClose={() => setPanelOpen(false)}
                     onSelect={selectNode}
+                    onEvidence={setEvidence}
                   />
                 )
               ) : (

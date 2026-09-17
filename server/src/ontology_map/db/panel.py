@@ -6,7 +6,8 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from ontology_map.db.exploration import _PUBLIC_NODES_CTE, get_center
+from ontology_map.db.exploration import get_center
+from ontology_map.db.relations import _PUBLIC_RELATION_ENDPOINTS_CTE
 
 
 def context(session: Session, node_id: int) -> dict[str, Any] | None:
@@ -56,21 +57,21 @@ def basis(session: Session, document_id: int) -> tuple[list[int], bool]:
 
 
 _NODE_CLAIMS = (
-    _PUBLIC_NODES_CTE
+    _PUBLIC_RELATION_ENDPOINTS_CTE
     + """
 , connected_relations AS (
  SELECT relation_id AS target_id FROM relation
  WHERE :node_id IN (source_node_id, target_node_id) AND relation_id = ANY(:basis_ids)
-   AND source_node_id IN (SELECT node_id FROM public_nodes)
-   AND target_node_id IN (SELECT node_id FROM public_nodes)
+   AND source_node_id IN (SELECT node_id FROM public_relation_endpoints)
+   AND target_node_id IN (SELECT node_id FROM public_relation_endpoints)
 ), connected AS (
     SELECT cr.claim_id, 'RELATION' AS kind, r.relation_id AS target_id,
       cr.stance AS position
     FROM claim_relation cr JOIN relation r USING (relation_id)
     WHERE :node_id IN (r.source_node_id, r.target_node_id)
       AND r.relation_id = ANY(:basis_ids)
-      AND r.source_node_id IN (SELECT node_id FROM public_nodes)
-      AND r.target_node_id IN (SELECT node_id FROM public_nodes)
+      AND r.source_node_id IN (SELECT node_id FROM public_relation_endpoints)
+      AND r.target_node_id IN (SELECT node_id FROM public_relation_endpoints)
     UNION
     SELECT cav.claim_id, 'ATTRIBUTE', cav.attribute_revision_id, NULL
     FROM claim_attribute_value cav WHERE cav.target_node_id = :node_id
@@ -83,6 +84,28 @@ _NODE_CLAIMS = (
     WHERE cs.current_state IN ('AGENT_PROPOSED', 'HUMAN_CONFIRMED')
       AND (cs.target_node_id = :node_id OR cs.event_node_id = :node_id OR
         cs.relation_id IN (SELECT target_id FROM connected_relations))
+      AND EXISTS (
+        SELECT 1 FROM conflict_member present
+        WHERE present.conflict_set_id = cs.conflict_set_id
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM conflict_member other
+        JOIN knowledge_item mki ON mki.knowledge_item_id = other.claim_id
+        WHERE other.conflict_set_id = cs.conflict_set_id
+          AND (
+            mki.item_kind <> 'CLAIM'
+            OR mki.lifecycle_kind <> 'EVIDENCE_BACKED'
+            OR mki.current_state NOT IN ('EVIDENCE_VERIFIED', 'HUMAN_VERIFIED')
+            OR NOT (other.claim_id = ANY(:basis_ids))
+            OR EXISTS (
+              SELECT 1 FROM lint_finding mlf
+              JOIN lint_policy_rule mlpr USING (lint_policy_rule_id)
+              WHERE mlf.knowledge_item_id = other.claim_id
+                AND mlf.resolved_at IS NULL AND mlpr.severity = 'BLOCKING'
+            )
+          )
+      )
 ), selected AS (
     SELECT c.claim_id, c.statement_text, c.modality, ki.current_state,
       count(DISTINCT sd.evidence_group_id) FILTER (
@@ -121,22 +144,61 @@ def claim_connections(session: Session, params: dict[str, Any]) -> list[dict[str
         sa.text(
             _NODE_CLAIMS
             + """
-        SELECT DISTINCT kind, target_id, position,
-          CASE kind
-          WHEN 'RELATION' THEN (
-            SELECT a.alias_text || ' · ' || rt.display_name || ' · ' || b.alias_text
-            FROM relation r JOIN relation_type_revision rt
-              USING (relation_type_revision_id)
-            JOIN node_alias a ON a.node_id = r.source_node_id AND a.is_preferred
-            JOIN node_alias b ON b.node_id = r.target_node_id AND b.is_preferred
-            WHERE r.relation_id = connected.target_id)
+        SELECT DISTINCT
+          connected.kind,
+          connected.target_id,
+          connected.position,
+          CASE connected.kind
+          WHEN 'RELATION' THEN
+            source.name || ' · ' || rtr.display_name || ' · ' || target.name
           WHEN 'ATTRIBUTE' THEN (SELECT display_name FROM attribute_revision
             WHERE attribute_revision_id = connected.target_id)
           WHEN 'EVENT_TIME' THEN '사건의 채택 시간'
           ELSE '같은 대상에 관한 엇갈리는 주장'
-          END AS label
+          END AS label,
+          CASE WHEN connected.kind = 'RELATION' THEN rtr.display_name END
+            AS relation_display_name,
+          CASE WHEN connected.kind = 'RELATION' THEN rtr.directionality END
+            AS directionality,
+          source.node_id AS source_node_id,
+          source.name AS source_node_name,
+          source.node_type_code AS source_node_type_code,
+          source.node_type_display_name AS source_node_type_display_name,
+          target.node_id AS target_node_id,
+          target.name AS target_node_name,
+          target.node_type_code AS target_node_type_code,
+          target.node_type_display_name AS target_node_type_display_name,
+          CASE
+            WHEN connected.kind = 'RELATION' AND source.node_id = :node_id
+              THEN target.node_id
+            WHEN connected.kind = 'RELATION' THEN source.node_id
+          END AS other_node_id,
+          CASE
+            WHEN connected.kind = 'RELATION' AND source.node_id = :node_id
+              THEN target.name
+            WHEN connected.kind = 'RELATION' THEN source.name
+          END AS other_node_name,
+          CASE
+            WHEN connected.kind = 'RELATION' AND source.node_id = :node_id
+              THEN target.node_type_code
+            WHEN connected.kind = 'RELATION' THEN source.node_type_code
+          END AS other_node_type_code,
+          CASE
+            WHEN connected.kind = 'RELATION' AND source.node_id = :node_id
+              THEN target.node_type_display_name
+            WHEN connected.kind = 'RELATION' THEN source.node_type_display_name
+          END AS other_node_type_display_name
         FROM connected
-        WHERE claim_id = :claim_id ORDER BY kind, target_id, position
+        LEFT JOIN relation r
+          ON connected.kind = 'RELATION' AND r.relation_id = connected.target_id
+        LEFT JOIN relation_type_revision rtr
+          ON rtr.relation_type_revision_id = r.relation_type_revision_id
+        LEFT JOIN public_relation_endpoints source
+          ON source.node_id = r.source_node_id
+        LEFT JOIN public_relation_endpoints target
+          ON target.node_id = r.target_node_id
+        WHERE connected.claim_id = :claim_id
+        ORDER BY connected.kind, connected.target_id, connected.position
     """
         ),
         params,

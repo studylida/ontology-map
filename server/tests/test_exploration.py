@@ -13,12 +13,15 @@ from sqlalchemy.orm import Session
 from starlette.types import Message, Scope
 
 import ontology_map.api as api_module
+from ontology_map import panel
 from ontology_map.db.fixture import load_hbf_fixture
+from ontology_map.db.panel_fixture import load_panel_fixture
 from ontology_map.db.schema import (
     claim_observation,
     claim_relation,
     conflict_member,
     conflict_set,
+    followup_question,
     knowledge_item,
     lint_finding,
     lint_policy_rule,
@@ -178,6 +181,33 @@ def test_repository_builds_hbf_graph_and_can_change_center(directionality: str) 
     assert [question.slot for question in first.followup_questions] == [1, 2]
     assert second.center_node_id == next_node_id
     assert second.graph.nodes[0].node_id == next_node_id
+
+
+def test_ready_empty_questions_do_not_require_legacy_followup_slots() -> None:
+    _created, node_ids = load_panel_fixture()
+    with rollback_session() as session:
+        node_id = node_ids["empty"]
+        context_id = session.scalar(
+            sa.select(publication_affected_node.c.node_context_id).where(
+                publication_affected_node.c.node_id == node_id
+            )
+        )
+        assert context_id is not None
+        session.execute(
+            followup_question.delete().where(
+                followup_question.c.node_context_id == context_id
+            )
+        )
+        assert (
+            panel.list_questions(
+                session, node_id, TimeWindow.RECENT_90_DAYS, cursor=None
+            )["items"]
+            == []
+        )
+        result = get_exploration(session, node_id, TimeWindow.RECENT_90_DAYS)
+
+    assert result.center_node_id == node_id
+    assert result.followup_questions == []
 
 
 def test_repository_keeps_previous_ready_when_newer_publication_fails() -> None:
