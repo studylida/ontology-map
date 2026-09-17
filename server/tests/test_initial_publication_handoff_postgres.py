@@ -17,6 +17,7 @@ from test_extraction_promotion_postgres import (
 )
 from test_initial_publication_phase_b_postgres import _activate_context_contract
 
+from ontology_map import initial_publication_handoff as handoff
 from ontology_map.db import extraction_tasks as extraction_inputs
 from ontology_map.db import model_tasks as tasks
 from ontology_map.db import promotion_provenance as provenance
@@ -26,10 +27,17 @@ from ontology_map.entity_resolution_contracts import ResolutionInput
 from ontology_map.extraction import ExtractionResult
 from ontology_map.extraction_promotion import finalize_extraction
 from ontology_map.extraction_runner import RunnerResult as ExtractionRunnerResult
+from ontology_map.followup_runner import ProviderPreflight as FollowupProviderPreflight
+from ontology_map.initial_publication_coordinator import (
+    InitialPublicationRunResult,
+)
 from ontology_map.initial_publication_coordinator import (
     run_initial_publication as real_run_initial_publication,
 )
-from ontology_map import initial_publication_handoff as handoff
+from ontology_map.insight_runner import ProviderPreflight as InsightProviderPreflight
+from ontology_map.node_context_runner import (
+    ProviderPreflight as NodeContextProviderPreflight,
+)
 
 DATABASE_URL = os.environ.get("ONTOLOGY_MAP_INITIAL_PUBLICATION_TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(
@@ -148,8 +156,11 @@ def test_actual_finalizer_commits_before_publication_handoff_and_failure_isolate
         called_engine: sa.Engine,
         batch_id: int,
         worker_name: str,
-        **kwargs: object,
-    ):
+        *,
+        prepare_node_context_provider: NodeContextProviderPreflight,
+        prepare_followup_provider: FollowupProviderPreflight,
+        prepare_insight_provider: InsightProviderPreflight,
+    ) -> InitialPublicationRunResult:
         assert called_engine is engine
         observed_before_start["state"] = _batch_state(engine, batch_id)
         observed_before_start["membership"] = _membership(engine, batch_id)
@@ -158,7 +169,9 @@ def test_actual_finalizer_commits_before_publication_handoff_and_failure_isolate
             called_engine,
             batch_id,
             worker_name,
-            **kwargs,
+            prepare_node_context_provider=prepare_node_context_provider,
+            prepare_followup_provider=prepare_followup_provider,
+            prepare_insight_provider=prepare_insight_provider,
         )
 
     monkeypatch.setattr(handoff, "run_initial_publication", observe_then_start)
@@ -254,7 +267,9 @@ def test_actual_noop_reprocess_does_not_call_publication_coordinator(
             or 0
         )
         batch_count_before = int(
-            session.scalar(sa.select(sa.func.count()).select_from(s.promotion_batch))
+            session.scalar(
+                sa.select(sa.func.count()).select_from(s.promotion_batch)
+            )
             or 0
         )
 
@@ -298,13 +313,18 @@ def test_actual_noop_reprocess_does_not_call_publication_coordinator(
             == publication_count_before
         )
         assert (
-            int(session.scalar(sa.select(sa.func.count()).select_from(s.promotion_batch)) or 0)
+            int(
+                session.scalar(
+                    sa.select(sa.func.count()).select_from(s.promotion_batch)
+                )
+                or 0
+            )
             == batch_count_before
         )
     engine.dispose()
 
 
-def test_committed_not_started_survives_process_gap_and_reenters_same_coordinator() -> None:
+def test_committed_not_started_reenters_same_coordinator() -> None:
     engine = _engine()
     case = _seed(engine)
     with Session(engine) as session, session.begin():
