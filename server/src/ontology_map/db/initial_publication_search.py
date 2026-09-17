@@ -13,6 +13,10 @@ from ontology_map.db.initial_publication_contracts import (
     SearchDocumentPreparationError,
     SearchDocumentSnapshot,
 )
+from ontology_map.db.publication_grounding import (
+    ReferenceTopicIntegrityError,
+    reference_topic_identities,
+)
 
 SEARCH_DOCUMENT_GENERATOR_VERSION = "node-search-document-215-v1"
 
@@ -208,6 +212,11 @@ def build_search_document_snapshot(
         else int(row["source_node_id"])
         for row in relation_rows
     }
+    try:
+        reference_topics = reference_topic_identities(session, neighbor_ids)
+    except ReferenceTopicIntegrityError as error:
+        raise SearchDocumentPreparationError(str(error)) from error
+
     usable = _usable_item_ids(
         session,
         {node_id, *relation_ids, *neighbor_ids},
@@ -218,12 +227,13 @@ def build_search_document_snapshot(
             "affected node is not publication-usable in this generation"
         )
 
+    valid_endpoint_ids = usable | set(reference_topics)
     selected_relations = [
         row
         for row in relation_rows
         if int(row["relation_id"]) in usable
-        and int(row["source_node_id"]) in usable
-        and int(row["target_node_id"]) in usable
+        and int(row["source_node_id"]) in valid_endpoint_ids
+        and int(row["target_node_id"]) in valid_endpoint_ids
     ]
     selected_relation_ids = {int(row["relation_id"]) for row in selected_relations}
     selected_neighbor_ids = {
@@ -232,6 +242,7 @@ def build_search_document_snapshot(
         else int(row["source_node_id"])
         for row in selected_relations
     }
+    selected_basis_neighbor_ids = selected_neighbor_ids & usable
 
     claim_rows = (
         session.execute(
@@ -312,17 +323,24 @@ def build_search_document_snapshot(
         for row in selected_relations
         for value in (int(row["source_node_id"]), int(row["target_node_id"]))
     }
-    name_ids = sorted(relation_node_ids) or [node_id]
+    normal_name_ids = sorted(relation_node_ids - reference_topics.keys())
     name_rows = _publication_visible_alias_rows(
         session,
-        name_ids,
+        normal_name_ids or [node_id],
         current_batch_id=promotion_batch_id,
         preferred_only=True,
     )
     names = {int(row["node_id"]): str(row["alias_text"]) for row in name_rows}
-    if set(name_ids) - names.keys():
+    names.update(
+        {
+            reference.node_id: reference.canonical_display_name
+            for reference in reference_topics.values()
+            if reference.node_id in relation_node_ids
+        }
+    )
+    if relation_node_ids - names.keys():
         raise SearchDocumentPreparationError(
-            "direct relation endpoint lacks a publication-visible preferred alias"
+            "direct relation endpoint lacks a publication-visible identity"
         )
 
     identity_text = "\n".join(aliases)
@@ -343,7 +361,7 @@ def build_search_document_snapshot(
             {
                 node_id,
                 *selected_relation_ids,
-                *selected_neighbor_ids,
+                *selected_basis_neighbor_ids,
                 *(int(row["claim_id"]) for row in selected_claims),
             }
         )
