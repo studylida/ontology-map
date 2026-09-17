@@ -42,9 +42,7 @@ Disposition = Literal[
     "AWAITING_RECLAIM",
     "LEASE_LOST",
 ]
-ProviderPreflight = Callable[
-    [PreparedNodeContext], Callable[[], NodeContextProposal]
-]
+ProviderPreflight = Callable[[PreparedNodeContext], Callable[[], NodeContextProposal]]
 
 
 @dataclass(frozen=True)
