@@ -5,14 +5,16 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
+from ontology_map import node_context_execution
 from ontology_map import node_context_generation as product
-from ontology_map.model_studio import CallFailed
+from ontology_map.model_studio import CallFailed, CallLimits
 from ontology_map.node_context_generation_contracts import (
     NodeContextAgentInput,
     NodeContextProposal,
     PreparedNodeContext,
 )
 from ontology_map.node_context_provider import ModelStudioNodeContextAdapter
+from ontology_map.structured_provider import request_identity_settings
 
 BASE_URL = "https://ws-product-test.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
 
@@ -71,9 +73,14 @@ def test_prepare_uses_exact_node_context_contract_and_sends_once() -> None:
         calls.append(payload)
         assert str(req.url) == BASE_URL + "/chat/completions"
         assert payload["model"] == product.MODEL_VERSION
-        assert payload["temperature"] == 0
-        assert payload["stream"] is False
-        assert payload["enable_thinking"] is False
+        settings = node_context_execution.identity_settings()
+        structured = settings["structured_request"]
+        limits = settings["limits"]
+        assert structured == request_identity_settings()
+        assert payload["temperature"] == structured["temperature"]
+        assert payload["stream"] == structured["stream"]
+        assert payload["enable_thinking"] == structured["enable_thinking"]
+        assert payload["max_tokens"] == limits["max_output_tokens"]
         assert not {"tools", "tool_choice", "stream_options"} & payload.keys()
         expected_messages = [
             {
@@ -84,9 +91,9 @@ def test_prepare_uses_exact_node_context_contract_and_sends_once() -> None:
         ]
         assert payload["messages"] == expected_messages
         response_format = payload["response_format"]
-        assert response_format["type"] == "json_schema"
+        assert response_format["type"] == structured["response_format"]
         assert response_format["json_schema"]["name"] == "NodeContextProposal"
-        assert response_format["json_schema"]["strict"] is True
+        assert response_format["json_schema"]["strict"] == structured["schema_strict"]
         assert response_format["json_schema"]["schema"] == product.output_schema()
         return response(req)
 
@@ -107,6 +114,43 @@ def test_prepare_uses_exact_node_context_contract_and_sends_once() -> None:
     assert isinstance(result, NodeContextProposal)
     assert result.context_text == "짧은 공개 맥락입니다."
     assert len(calls) == 1
+
+
+def test_provider_and_identity_share_mutated_execution_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = node_context_execution.NODE_CONTEXT_LIMITS
+    changed = CallLimits(
+        max_input_tokens=original.max_input_tokens,
+        max_output_tokens=original.max_output_tokens - 1,
+        max_request_bytes=original.max_request_bytes,
+    )
+    monkeypatch.setattr(node_context_execution, "NODE_CONTEXT_LIMITS", changed)
+    seen: list[dict[str, object]] = []
+
+    def handle(req: httpx.Request) -> httpx.Response:
+        payload = json.loads(req.content)
+        seen.append(payload)
+        return response(req)
+
+    settings = node_context_execution.identity_settings()
+    assert settings["limits"] == {
+        "max_input_tokens": changed.max_input_tokens,
+        "max_output_tokens": changed.max_output_tokens,
+        "max_request_bytes": changed.max_request_bytes,
+    }
+    assert settings["structured_request"] == request_identity_settings()
+
+    adapter = ModelStudioNodeContextAdapter(
+        SecretStr("offline-key"),
+        base_url=BASE_URL,
+        transport=httpx.MockTransport(handle),
+    )
+    try:
+        adapter.prepare(prepared())()
+    finally:
+        adapter.close()
+    assert seen[0]["max_tokens"] == changed.max_output_tokens
 
 
 @pytest.mark.parametrize(
