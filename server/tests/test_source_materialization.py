@@ -105,6 +105,23 @@ def test_prepare_selection_requires_external_approval(tmp_path: Path) -> None:
     assert raised.value.code == "APPROVAL_MISSING"
 
 
+def test_new_group_requires_explicit_approval_flag(tmp_path: Path) -> None:
+    record = manifest_record("본문")
+    write_artifact(tmp_path, str(record["artifact_key"]), "본문")
+    missing_group = MaterializationApproval(
+        qualification_ref="qualification:approved-001",
+        lineage_ref="lineage:approved-001",
+        evidence_group_id=None,
+    )
+    with pytest.raises(PreparationFailure) as raised:
+        prepare_selection_item(
+            item=parse_selection_item(record),
+            artifact_root=tmp_path,
+            approval=missing_group,
+        )
+    assert raised.value.code == "APPROVAL_INVALID"
+
+
 def test_prepare_selection_rejects_mismatched_lineage_ref(tmp_path: Path) -> None:
     record = manifest_record("본문")
     write_artifact(tmp_path, str(record["artifact_key"]), "본문")
