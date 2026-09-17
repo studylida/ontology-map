@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from hashlib import sha256
 from typing import Literal
 
 from sqlalchemy.orm import Session
@@ -64,7 +65,9 @@ class EvidenceLocator:
 
 @dataclass(frozen=True)
 class RelationEvidence:
+    item_key: str
     claim_text: str
+    modality: str
     stance: str
     source: EvidenceSource
     quote_text: str
@@ -198,6 +201,10 @@ def _trace_cursor(relation_id: int, row: relation_queries.EvidenceTraceRow) -> s
     )
 
 
+def _trace_item_key(row: relation_queries.EvidenceTraceRow) -> str:
+    return sha256(f"{row.claim_id}:{row.observation_id}".encode()).hexdigest()
+
+
 def list_relation_evidence(
     session: Session,
     relation_id: int,
@@ -223,7 +230,9 @@ def list_relation_evidence(
     return RelationEvidencePage(
         items=[
             RelationEvidence(
+                item_key=_trace_item_key(row),
                 claim_text=row.claim_text,
+                modality=row.modality,
                 stance=row.stance,
                 source=EvidenceSource(
                     title=row.source_title,

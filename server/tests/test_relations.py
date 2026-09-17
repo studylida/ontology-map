@@ -596,7 +596,9 @@ def test_http_contract_returns_string_ids_and_hides_internal_ids() -> None:
     assert set(evidence_body) == {"items", "trace_count", "next_cursor"}
     evidence_item = evidence_body["items"][0]
     assert set(evidence_item) == {
+        "item_key",
         "claim_text",
+        "modality",
         "stance",
         "source",
         "quote_text",

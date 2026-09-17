@@ -446,8 +446,6 @@ def get_exploration(
     )
     all_activity_counts = activity_counts | direct_activity | two_hop_activity
     followups = list_followups(session, center.node_context_id)
-    if [followup.slot for followup in followups] != [1, 2]:
-        raise PublicationNotReadyError
 
     graph_nodes = [
         GraphNode(

@@ -2,11 +2,15 @@ import { useEffect, useEffectEvent, useId, useRef } from "react";
 import styles from "./App.module.css";
 import {
   type APIRequestError,
-  fetchNodeRelations,
-  fetchRelationEvidence,
+  type ExplorationView,
   relationPathLabel,
   type SourceTrace,
 } from "./data";
+import {
+  fetchNodeRelations213,
+  fetchRelationEvidence213,
+  type NodeRelation,
+} from "./read213";
 import { useCursorPage } from "./useCursorPage";
 
 export interface EvidenceSelection {
@@ -69,61 +73,107 @@ export function PageNotice({
   );
 }
 
+function relationBadge(
+  relation: NodeRelation,
+  loadedGraph: ExplorationView | null,
+  hiddenKinds: readonly string[],
+): string | null {
+  if (!loadedGraph?.relations.some((item) => item.id === relation.id))
+    return null;
+  const source = loadedGraph.nodes.find(
+    (node) => node.id === relation.sourceId,
+  );
+  const target = loadedGraph.nodes.find(
+    (node) => node.id === relation.targetId,
+  );
+  if (!source || !target) return null;
+  return hiddenKinds.includes(source.kindCode) ||
+    hiddenKinds.includes(target.kindCode)
+    ? "지도 유형 필터로 숨김"
+    : "현재 지도에 포함됨";
+}
+
 export function RelationList({
   nodeId,
   nodeName,
   onEvidence,
+  onSelect = () => undefined,
+  loadedGraph = null,
+  hiddenKinds = [],
 }: {
   nodeId: string;
   nodeName: string;
   onEvidence: (selection: EvidenceSelection) => void;
+  onSelect?: (nodeId: string) => void;
+  loadedGraph?: ExplorationView | null;
+  hiddenKinds?: readonly string[];
 }) {
-  const page = useCursorPage(nodeId, fetchNodeRelations);
+  const page = useCursorPage(nodeId, fetchNodeRelations213);
   return (
-    <section className={styles.followupSection} aria-label="Node의 공개 관계">
-      <h2>확인된 관계</h2>
+    <section
+      className={styles.followupSection}
+      aria-label="Node의 전체 공개 관계"
+    >
+      <h2>전체 관계</h2>
+      <p className={styles.panelMeta}>
+        전체 공개 관계 · 선택한 분석 기간과 별도
+      </p>
       <div className={styles.relationAccordion}>
-        {page.items.map((relation) => (
-          <article
-            key={relation.id}
-            className={styles.relationCard}
-            data-conflict={relation.conflict || undefined}
-          >
-            <button
-              type="button"
-              className={styles.relationToggle}
-              onClick={() =>
-                onEvidence({
-                  id: relation.id,
-                  label: `${nodeName} · ${relation.label} · ${relation.otherName}`,
-                })
-              }
+        {page.items.map((relation) => {
+          const badge = relationBadge(relation, loadedGraph, hiddenKinds);
+          const sourceName =
+            relation.sourceId === nodeId ? nodeName : relation.other.name;
+          const targetName =
+            relation.targetId === nodeId ? nodeName : relation.other.name;
+          const path = relationPathLabel(
+            sourceName,
+            relation.label,
+            targetName,
+            relation.directionality,
+          );
+          return (
+            <article
+              key={relation.id}
+              className={styles.relationCard}
+              data-conflict={relation.conflict || undefined}
             >
-              <span>
-                <strong>
-                  {relation.otherName} · {relation.otherKind}
-                </strong>
-                <small>
-                  {relationPathLabel(
-                    relation.sourceId === nodeId
-                      ? nodeName
-                      : relation.otherName,
-                    relation.label,
-                    relation.targetId === nodeId
-                      ? nodeName
-                      : relation.otherName,
-                    relation.directionality,
-                  )}
-                </small>
-                <small>
-                  독립 근거 {relation.evidenceGroupCount}개
-                  {relation.conflict ? " · 충돌 있음" : ""}
-                </small>
-              </span>
-              <span>근거 보기</span>
-            </button>
-          </article>
-        ))}
+              <div className={styles.relationToggle}>
+                <span>
+                  <strong>
+                    {relation.other.name} · {relation.other.kind}
+                  </strong>
+                  <small>{path}</small>
+                  <small>
+                    독립 근거 {relation.evidenceGroupCount}개
+                    {relation.conflict ? " · 충돌" : ""}
+                  </small>
+                  {badge && <small>{badge}</small>}
+                </span>
+                <span>
+                  <button
+                    type="button"
+                    aria-label={`${relation.other.name} Node 보기`}
+                    onClick={() => onSelect(relation.other.id)}
+                  >
+                    Node 보기
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`${relation.other.name} 관계 근거 보기`}
+                    onClick={() =>
+                      onEvidence({
+                        id: relation.id,
+                        label: `${sourceName} · ${relation.label} · ${targetName}`,
+                      })
+                    }
+                  >
+                    관계 근거
+                  </button>
+                </span>
+              </div>
+            </article>
+          );
+        })}
       </div>
       <PageNotice
         {...page}
@@ -153,6 +203,13 @@ export function publicationLabel(trace: SourceTrace): string {
   return trace.publishedAt.slice(0, length);
 }
 
+function modalityLabel(modality: string): string | null {
+  if (modality === "PLAN_OR_TARGET") return "계획·목표";
+  if (modality === "PREDICTION_OR_ESTIMATE") return "예측·추정";
+  if (modality === "OPINION_OR_EVALUATION") return "의견·평가";
+  return null;
+}
+
 export function EvidenceDialog({
   selection,
   onClose,
@@ -162,7 +219,7 @@ export function EvidenceDialog({
 }) {
   const dialogRef = useModalDialog(onClose);
   const titleId = useId();
-  const page = useCursorPage(selection.id, fetchRelationEvidence);
+  const page = useCursorPage(selection.id, fetchRelationEvidence213);
   return (
     <dialog
       ref={dialogRef}
@@ -176,13 +233,22 @@ export function EvidenceDialog({
           ×
         </button>
       </header>
-      {page.items.map((trace) => (
-        <article key={trace.key} className={styles.evidenceEntry}>
-          <span>{trace.stance === "SUPPORT" ? "지지 근거" : "반박 근거"}</span>
-          <h3>{trace.claimText}</h3>
-          <TraceContent trace={trace} claimText={trace.claimText} />
-        </article>
-      ))}
+      <p className={styles.panelMeta}>
+        전체 공개 관계 근거 · 선택한 분석 기간과 별도
+      </p>
+      {page.items.map((trace) => {
+        const modality = modalityLabel(trace.modality);
+        return (
+          <article key={trace.key} className={styles.evidenceEntry}>
+            <span>
+              {trace.stance === "SUPPORT" ? "지지 근거" : "반박 근거"}
+            </span>
+            {modality && <span>{modality}</span>}
+            <h3>{trace.claimText}</h3>
+            <TraceContent trace={trace} claimText={trace.claimText} />
+          </article>
+        );
+      })}
       <PageNotice
         {...page}
         empty={!page.items.length}
