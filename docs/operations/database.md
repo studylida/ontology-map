@@ -85,6 +85,21 @@ docker compose up -d db
 docker compose ps
 ```
 
+기본 `compose.yaml`은 작업 디렉터리의 Compose project별 DB volume을 사용한다. 위 명령과 CI의 일반 `docker compose` 명령은 다른 작업 디렉터리나 기존 `ontology-map-postgres` volume에 연결하지 않는다. `COMPOSE_PROJECT_NAME`을 공통 값으로 지정하면 이 격리가 깨지므로 작업 디렉터리마다 기본 project 이름을 사용한다.
+
+D1에서 기존 `ontology-map-postgres` volume을 사용하기로 결정한 경우에만, 해당 volume의 존재와 백업·다른 세션의 사용 여부를 확인한 뒤 저장소 루트에서 다음 명령을 실행한다. `compose.authoritative.yaml`은 이 정확한 이름의 기존 외부 volume만 연결하며 volume이 없으면 새로 만들지 않는다. D1의 Compose project도 일반 개발 project와 분리한다.
+
+```bash
+docker compose -p ontology-map-d1 -f compose.yaml -f compose.authoritative.yaml up -d db
+```
+
+D1에서 시작한 컨테이너를 조회하거나 멈출 때도 같은 project와 두 설정 파일을 지정한다.
+
+```bash
+docker compose -p ontology-map-d1 -f compose.yaml -f compose.authoritative.yaml ps
+docker compose -p ontology-map-d1 -f compose.yaml -f compose.authoritative.yaml down
+```
+
 `server/`에서 고정된 의존성을 설치하고 Alembic migration을 적용한다.
 
 ```bash
@@ -227,7 +242,7 @@ API와 worker는 구현된 뒤에도 같은 Python 코드와 image를 사용하�
 docker compose down
 ```
 
-개발 DB를 완전히 다시 만들 때만 다음 명령을 사용한다. #121 이전 frozen baseline의 개발 volume을 새 baseline으로 전환할 때도 이 재생성 경로를 사용한다. 먼저 필요한 `pg_dump` 백업과 복구 가능성을 확인하고 다른 세션이 해당 volume을 쓰지 않는지 확인한다. 이 명령은 `ontology-map-postgres` volume과 안의 로컬 데이터를 삭제하므로 되돌릴 수 없다.
+개발 DB를 완전히 다시 만들 때만 다음 명령을 사용한다. #121 이전 frozen baseline의 개발 volume을 새 baseline으로 전환할 때도 이 재생성 경로를 사용한다. 먼저 필요한 `pg_dump` 백업과 복구 가능성을 확인하고 다른 세션이 해당 volume을 쓰지 않는지 확인한다. 이 명령은 현재 Compose project의 개발 volume과 안의 로컬 데이터를 삭제하므로 되돌릴 수 없다. 위 D1 overlay의 `ontology-map-postgres`는 외부 volume이므로 이 명령의 대상이 아니다.
 
 ```bash
 docker compose down --volumes

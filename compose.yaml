@@ -28,4 +28,3 @@ services:
 
 volumes:
   ontology-map-postgres:
-    name: ontology-map-postgres
