@@ -190,9 +190,7 @@ def record_failure(
         ),
         http_status=_safe_status(http_status) or detail.http_status,
         usage_confirmed=(
-            usage_confirmed
-            if type(usage_confirmed) is bool
-            else detail.usage_confirmed
+            usage_confirmed if type(usage_confirmed) is bool else detail.usage_confirmed
         ),
     )
 
