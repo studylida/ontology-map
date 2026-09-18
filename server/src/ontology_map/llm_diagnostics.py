@@ -128,11 +128,13 @@ def _details(error: BaseException) -> _Failure:
         if isinstance(detail, _Failure):
             return detail
     # Legacy exceptions have no wire markers: unknown is not false/no-send.
+    # Prefer a specific HTTPX type over an underlying OS/generic cause. The
+    # latter still supplies errno below; it must not erase timeout distinctions.
     kind = next(
         (
             cls.__name__
-            for item in reversed(chain)
             for cls in _ERROR_TYPES
+            for item in reversed(chain)
             if isinstance(item, cls)
         ),
         "OTHER_ERROR",
