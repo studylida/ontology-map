@@ -61,7 +61,9 @@ topic_name은 null이다. 원문 표현과 명칭이 달라도 자기 근거가 
 개발·협력·발표·투자는 허용된 직접 관계를 우선 제안한다. 모든 행위를 EVENT로
 만들지 마라. EVENT는 원문에서 구체적인 사건을 식별할 수 있을 때만 제안한다.
 ID는 이 응답 안에서만 사용하는 참조이며 영속 ID를 만들지 마라. 임의 PRODUCT 유형을
-만들지 마라. ontology로 표현할 수 없는 필수 사실도 statement·modality·근거는
+만들지 마라. bindings의 source_mention·target_mention·event_mention에는 원문
+text 대신 같은 Claim의 mentions[].mention_id를 정확히 써라. 임의 참조를 만들지 마라.
+ontology로 표현할 수 없는 필수 사실도 statement·modality·근거는
 반환하고 bindings는 빈 목록으로 둔다. 없는 code나 근거를 발명하지 마라.
 한 Claim의 source_ids 안에서 모든 언급과 의미 연결을 설명할 수 있어야 한다.
 FACT는 제공된 자료가 그런 발표·발언을 했다는 뜻일 수 있으며 세계의 진실 보증이 아니다.
