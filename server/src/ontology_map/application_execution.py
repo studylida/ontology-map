@@ -36,6 +36,7 @@ from ontology_map.initial_publication_handoff import (
     finalize_extraction_with_initial_publication,
 )
 from ontology_map.insight_runner import ProviderPreflight as InsightPreflight
+from ontology_map.kimi_response_archive import response_task
 from ontology_map.node_context_runner import ProviderPreflight as ContextPreflight
 from ontology_map.pilot_budget import PilotBudget
 
@@ -90,18 +91,19 @@ def run_document(
         pilot.require_active()
         if runner.disposition not in {"VERIFIED_RUNTIME", "ZERO_RESULT", "ALL_BLOCKED"}:
             return runner
-        result = finalize_extraction_with_initial_publication(
-            engine,
-            runner,
-            execution,
-            runtime,
-            propose_resolution,
-            propose_claim_duplicate,
-            worker_name,
-            prepare_node_context_provider=prepare_node_context_provider,
-            prepare_followup_provider=prepare_followup_provider,
-            prepare_insight_provider=prepare_insight_provider,
-        )
+        with response_task(task.task_id):
+            result = finalize_extraction_with_initial_publication(
+                engine,
+                runner,
+                execution,
+                runtime,
+                propose_resolution,
+                propose_claim_duplicate,
+                worker_name,
+                prepare_node_context_provider=prepare_node_context_provider,
+                prepare_followup_provider=prepare_followup_provider,
+                prepare_insight_provider=prepare_insight_provider,
+            )
         pilot.require_active()
         return result
 

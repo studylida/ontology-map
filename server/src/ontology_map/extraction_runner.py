@@ -32,6 +32,7 @@ from ontology_map.extraction_contracts import (
     Ontology,
     SourceDocument,
 )
+from ontology_map.kimi_response_archive import response_task
 from ontology_map.llm_diagnostics import carry_failure
 from ontology_map.model_studio import FLASH, CallFailed, CallLimits, Role
 from ontology_map.pilot_budget import PilotBudgetError, current_pilot
@@ -158,7 +159,8 @@ class _RunModels:
     ) -> T:
         self._check_lease()
         if role != "generation":
-            return self._helper(role, prompt, payload, schema, limits)
+            with response_task(self.lease.task_id):
+                return self._helper(role, prompt, payload, schema, limits)
         if (
             not isinstance(payload, harness.GenerationInput)
             or schema is not KnowledgeProposals

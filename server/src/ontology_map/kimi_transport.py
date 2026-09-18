@@ -11,8 +11,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
+from ontology_map.kimi_response_archive import ResponseArchive
 from ontology_map.llm_config import (
     BASE_URL,
     DEFAULT_TIMEOUT_SECONDS,
@@ -26,7 +27,7 @@ from ontology_map.llm_contracts import (
     check_logging,
     validate_base_url,
 )
-from ontology_map.llm_diagnostics import record_failure
+from ontology_map.llm_diagnostics import record_failure, record_validation
 
 if TYPE_CHECKING:
     from ontology_map.pilot_budget import PilotBudget
@@ -60,23 +61,29 @@ def _checked_usage(payload: dict[str, Any], limits: CallLimits) -> tuple[int, in
     return input_tokens, output_tokens
 
 
+def _output_error(reason: str) -> CallFailed:
+    error = CallFailed("OUTPUT_CONTRACT_ERROR", fatal=False)
+    record_failure(error, stage="OUTPUT", reason=reason)
+    return error
+
+
 def _checked_content(payload: dict[str, Any]) -> str:
     choices = payload.get("choices")
     if not isinstance(choices, list) or len(choices) != 1:
-        raise CallFailed("OUTPUT_CONTRACT_ERROR", fatal=False)
+        raise _output_error("CHOICES_SHAPE")
     choice = choices[0]
     if not isinstance(choice, dict) or choice.get("finish_reason") != "stop":
-        raise CallFailed("OUTPUT_CONTRACT_ERROR", fatal=False)
+        raise _output_error("FINISH_REASON")
     message = choice.get("message")
     if not isinstance(message, dict):
-        raise CallFailed("OUTPUT_CONTRACT_ERROR", fatal=False)
+        raise _output_error("MESSAGE_SHAPE")
     content = message.get("content")
     if (
         not isinstance(content, str)
         or message.get("tool_calls")
         or message.get("function_call")
     ):
-        raise CallFailed("OUTPUT_CONTRACT_ERROR", fatal=False)
+        raise _output_error("CONTENT_SHAPE")
     return content
 
 
@@ -91,6 +98,10 @@ class PreparedJsonCall:
     _pilot: "PilotBudget | None" = field(repr=False)
     _reservation: int | None
     request_hash: str
+    _schema_name: str
+    _schema: dict[str, Any] = field(repr=False)
+    _role: str
+    archive: ResponseArchive = field(default_factory=ResponseArchive, init=False)
     sent: bool = field(default=False, init=False)
     usage: tuple[int, int] | None = field(default=None, init=False)
     _invoked: bool = field(default=False, init=False)
@@ -120,6 +131,15 @@ class PreparedJsonCall:
             stage = "HTTP_SEND"
             self.sent = True
             response = self._owner._client.send(self._request)
+            self.archive.capture(
+                response.content,
+                role=self._role,
+                schema_name=self._schema_name,
+                request_hash=self.request_hash,
+                http_status=response.status_code,
+                pilot_path=self._pilot.path if self._pilot is not None else None,
+                pilot_sequence=self._reservation,
+            )
             http_status = response.status_code
             stage = "HTTP_STATUS"
             response.raise_for_status()
@@ -139,9 +159,45 @@ class PreparedJsonCall:
                 http_status=http_status,
                 usage_confirmed=confirmed,
             )
+            self.archive.failed(error)
             if self._pilot is not None and not confirmed:
                 self._pilot.stop(error)
             raise
+
+    def parse[T](self, parser: Callable[[str], T]) -> T:
+        """Run the caller's unchanged product parser and retain safe field paths."""
+        content = self()
+        try:
+            return parser(content)
+        except Exception as error:
+            try:
+                if isinstance(error, ValidationError):
+                    record_validation(error, self._schema)
+                record_failure(
+                    error,
+                    stage="OUTPUT_SCHEMA",
+                    request_hash=self.request_hash,
+                    send_entered=self.sent,
+                    usage_confirmed=self.usage is not None,
+                    http_status=self.archive.http_status,
+                )
+                self.archive.failed(error)
+            except Exception:
+                pass  # Diagnostic failure must not replace the original exception.
+            raise
+
+
+_SCHEMA_ROLES = {
+    "BodySelection": "body",
+    "KnowledgeProposals": "generation",
+    "ClaimSupport": "claim_support",
+    "MeaningSupport": "meaning_support",
+    "ResolutionProposal": "entity_resolution",
+    "ClaimDuplicateProposal": "claim_duplicate",
+    "NodeContextProposal": "node_context",
+    "FollowupQuestionsProposal": "followup",
+    "InsightBundleProposal": "insight",
+}
 
 
 class KimiStructuredTransport:
@@ -235,7 +291,16 @@ class KimiStructuredTransport:
             )
             raise
         return PreparedJsonCall(
-            self, prepared, model, limits, pilot, reservation, digest
+            self,
+            prepared,
+            model,
+            limits,
+            pilot,
+            reservation,
+            digest,
+            schema_name,
+            schema,
+            _SCHEMA_ROLES.get(schema_name, "unknown"),
         )
 
     @staticmethod

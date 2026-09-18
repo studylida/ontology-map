@@ -19,7 +19,7 @@
 
 제품 JSON Schema는 변경 없이 system message 뒤에 결정적으로 첨부한다. `pattern`, `format`, `$ref`는 provider grammar로 제출하지 않으며, 응답의 필수 필드·타입·Mention·시간 및 각 제품 의미 검증은 기존 코드로 수행한다. JSON mode는 유효한 제품 출력을 보장하지 않는다. 원문·source ID·인용 범위·hash, Claim/Meaning 판정, Entity Resolution, canonical promotion 및 publication READY 조건은 완화하지 않는다. 자동 보정이나 출력 재요청 루프는 없다.
 
-모든 helper와 durable adapter는 공통 단발 HTTP transport를 사용한다. 요청 byte 상한을 전송 전에 검사하고, redirect·자동 retry·환경 proxy를 사용하지 않는다. 실제 모델과 usage가 확인되지 않은 호출은 보수적인 예약액을 유지하고 pilot을 중단한다. usage가 확인된 잘린 출력은 사용량을 계산하되 제품 출력 실패로 남긴다. 원시 응답·reasoning·키·원문은 ledger에 쓰지 않는다.
+모든 helper와 durable adapter는 공통 단발 HTTP transport를 사용한다. 요청 byte 상한을 전송 전에 검사하고, redirect·자동 retry·환경 proxy를 사용하지 않는다. 실제 모델과 usage가 확인되지 않은 호출은 보수적인 예약액을 유지하고 pilot을 중단한다. usage가 확인된 잘린 출력은 사용량을 계산하되 제품 출력 실패로 남긴다. 원시 응답·reasoning·키·원문은 ledger에 쓰지 않는다. 수신한 전체 응답은 아래 정책에 따라 별도 비공개 로컬 파일로 보관한다.
 
 ## 한도와 실행 식별
 
@@ -68,6 +68,20 @@ with kimi_clients(helper_budget) as clients:
 HTTP 200 또는 JSON 파싱 성공만으로 완료라고 하지 않는다. 실제 D1에서는 유효한 후보가 하나 이상 남고, Claim·Evidence가 D1의 정확한 source·quote·offset·hash에 연결되어 저장되며, 공식 promotion COMMITTED와 publication READY를 거친 뒤 실제 API 및 화면에서 같은 근거가 표시되는지 확인한다. mocked HTTP 회귀, 실제 유료 provider 실행, 제품 DB와 화면 성공, formal 모델 품질 관문은 서로 다른 증거다.
 
 기존 제품 검증이 빈 질문이나 빈 Insight를 정상 결과로 인정하는 경우 그 의미는 유지한다. 모델 교체를 이유로 가짜 질문·보고서를 채우거나 READY 조건을 생략하지 않는다. 읽기 API와 화면 조작은 LLM 호출을 시작하지 않는다.
+
+## 비공개 응답 보관과 출력 오류 진단
+
+[Issue #237](https://github.com/studylida/ontology-map/issues/237)의 사용자 요청에 따라 공통 `KimiStructuredTransport`는 HTTP 응답이 반환되면 상태 검사와 파싱 전에 전체 `response.content` bytes를 비공개 로컬 파일에 보관한다. 성공 응답과 4xx/5xx 응답도 포함한다. JSON 재직렬화, 문자열 디코딩, 잘라내기, 요약, task ID별 분기는 없다. HTTPX가 content-encoding을 해제한 뒤 파서에 넘기는 bytes이며 TLS/압축 전 네트워크 패킷의 보관은 아니다. 요청 본문·키·인증 헤더는 보관기로 전달하지 않는다.
+
+기본 위치는 `PilotBudget.path.parent / "kimi-responses"`이고, 파일럿이 없는 독립 호출은 `~/.local/state/ontology-map/kimi-responses`를 사용한다. `ONTOLOGY_MAP_KIMI_RESPONSE_DIR`로 절대 경로를 지정할 수 있다. 기존 디렉터리가 있으면 현재 사용자 소유의 0700이어야 한다. Git 작업 트리 내부, symlink 경로, 상대 경로는 보관을 거절한다. 디렉터리는 0700, 파일은 0600이며 원장과 같은 exclusive/no-follow 패턴으로 생성한다. 보관 파일은 Git·콘솔·공유 artifact·제품 DB·자동 백업 공유 대상에 넣지 않는다. 보관 기간과 디스크 사용량은 운영자가 관리하고, 코드는 원본을 자동 축약하거나 삭제하지 않는다.
+
+각 호출은 고유 `response_id` 디렉터리를 만든다. `response.body`는 전체 원본, `metadata.json`은 role·schema_name·요청/응답 hash·byte 수·수신 시각·model_task_id·provider_slot_no·pilot_sequence·원장 파일명을 담는다. 같은 요청 hash의 재시도도 별도 디렉터리에 보관한다. helper에는 durable slot을 발명하지 않고 null로 남긴다. 실제 task ID는 extraction runner와 application finalizer 경계가, 파생 생성과 generation의 slot은 기존 durable send 경계가 제공한다. 독립 adapter 호출처럼 task가 없는 호출도 null로 남긴다. 기존 로컬 caller가 공식 run_document/run_extraction을 쓰면 보관용 task ID를 따로 주입할 필요가 없다.
+
+각 adapter는 `PreparedJsonCall.parse(existing_parser)`로 기존 파서를 그대로 실행한다. 실패하면 같은 디렉터리의 `failure.json`과 `failure_diagnostic(error)`에 response_id를 연결한다. envelope JSON은 `RESPONSE_JSON`, model은 `RESPONSE_MODEL`, usage는 `USAGE`, choices/finish_reason/message/content 형태는 `OUTPUT`의 구체적 reason, 모델이 생성한 content의 JSON 문법은 `OUTPUT_JSON`, KnowledgeProposals 등 제품 검증은 `OUTPUT_SCHEMA`로 구분한다. Pydantic 필드 경로는 제품 스키마에 있는 이름과 배열 index만 노출한다. 알 수 없는 키 이름은 마스킹하고 값·msg·ctx·입력은 내보내지 않는다. 진단 경로는 최대 64개와 전체 오류 수를 남기며 원본 응답 자체는 제한 없이 보관한다. metadata만 존재한다고 제품 검증증 성공이나 READY를 의미하지 않는다.
+
+보관은 best effort다. 파일 쓰기·권한·디스크 실패는 `KIMI_RESPONSE_ARCHIVE_FAILED`라는 안전한 경고와 `response_archive=FAILED`로 식별하며, 기존 오류·usage 처리·파일럿 중단·재시도·slot·lease·제품 성공 판정을 바꾸지 않는다. 보관기가 받지 못한 완전한 응답에는 `NO_RESPONSE`를 남기고 가짜 빈 원본 파일을 만들지 않는다. 이는 provider가 요청을 수신하지 않았거나 과금하지 않았다는 뜻이 아니다. 성공·실패 원본을 다시 파싱하는 로컬 분석은 새 모델 호출과 별개이며 원래 task 이력이나 정식 데이터는 수정하지 않는다.
+
+실행 전에는 대상 경로가 Git 밖의 0700 디렉터리인지, 디스크 여유가 있는지, 합성 MockTransport 호출로 response.body와 metadata/failure의 ID가 연결되는지만 확인한다. 실제 task 11을 보관 기능 시험용으로 재실행하거나 slot을 초기화하지 않는다. 과거 원본이 없으면 현재의 OUTPUT_CONTRACT_ERROR 원인은 UNKNOWN으로 유지한다.
 
 ## 공식 문서
 
