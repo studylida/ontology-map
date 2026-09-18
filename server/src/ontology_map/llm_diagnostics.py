@@ -9,6 +9,7 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass, replace
 
 import httpx
+from pydantic import ValidationError
 
 _STAGES = frozenset(
     {
@@ -22,6 +23,8 @@ _STAGES = frozenset(
         "USAGE",
         "LEDGER_CONFIRM",
         "OUTPUT",
+        "OUTPUT_JSON",
+        "OUTPUT_SCHEMA",
     }
 )
 _REASONS = frozenset(
@@ -35,6 +38,10 @@ _REASONS = frozenset(
         "USAGE_TOTAL",
         "INPUT_LIMIT",
         "OUTPUT_LIMIT",
+        "CHOICES_SHAPE",
+        "FINISH_REASON",
+        "MESSAGE_SHAPE",
+        "CONTENT_SHAPE",
     }
 )
 _CODES = frozenset(
@@ -100,6 +107,10 @@ class _Failure:
     usage_confirmed: bool | None = None
     role: str | None = None
     io_errno: int | None = None
+    response_id: str | None = None
+    response_archive: str | None = None
+    validation_paths: tuple[str, ...] = ()
+    validation_error_count: int | None = None
 
 
 def _chain(error: BaseException) -> Iterator[BaseException]:
@@ -207,3 +218,59 @@ def carry_failure(target: BaseException, source: BaseException, *, role: str) ->
 def failure_diagnostic(error: BaseException) -> dict[str, object]:
     """Safe export only. Does not claim provider receipt, billing or DB success."""
     return {"version": 1, **asdict(_details(error))}
+
+
+def attach_response(error: BaseException, response_id: str | None, status: str) -> None:
+    error.__dict__["_llm_failure"] = replace(
+        _details(error),
+        response_id=(
+            response_id
+            if response_id and re.fullmatch(r"[0-9a-f]{32}", response_id)
+            else None
+        ),
+        response_archive=(
+            status if status in {"SAVED", "FAILED", "NO_RESPONSE"} else None
+        ),
+    )
+
+
+def _schema_names(schema: object) -> set[str]:
+    names: set[str] = set()
+    if isinstance(schema, dict):
+        for key in ("properties", "$defs"):
+            value = schema.get(key)
+            if isinstance(value, dict):
+                names.update(value)
+        for value in schema.values():
+            names.update(_schema_names(value))
+    elif isinstance(schema, list):
+        for value in schema:
+            names.update(_schema_names(value))
+    return names
+
+
+def record_validation(error: ValidationError, schema: object) -> None:
+    """Paths only: extra-key names, input, ctx and custom messages may be secret."""
+    errors = error.errors(include_input=False, include_context=False, include_url=False)
+    names = _schema_names(schema)
+    paths = []
+    for item in errors[:64]:
+        path = "$"
+        for part in item["loc"]:
+            if type(part) is int:
+                path += f"[{part}]"
+            else:
+                path += "." + (part if part in names else "<unknown>")
+        paths.append(path)
+    stage = (
+        "OUTPUT_JSON"
+        if any(e["type"] == "json_invalid" for e in errors)
+        else "OUTPUT_SCHEMA"
+    )
+    record_failure(error, stage=stage)
+    error.__dict__["_llm_failure"] = replace(
+        _details(error),
+        error_code="OUTPUT_CONTRACT_ERROR",
+        validation_paths=tuple(paths),
+        validation_error_count=len(errors),
+    )

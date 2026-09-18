@@ -102,8 +102,9 @@ class KimiModels:
                 schema=schema.model_json_schema(),
                 limits=limits,
             )
-            content = operation()
-            result = schema.model_validate_json(content, strict=True)
+            result = operation.parse(
+                lambda content: schema.model_validate_json(content, strict=True)
+            )
             status = "SUCCESS"
             return result
         except ValidationError:

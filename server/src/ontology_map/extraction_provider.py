@@ -77,9 +77,12 @@ class KimiGenerationAdapter:
         )
 
         def send() -> KnowledgeProposals:
-            content = raw_send()
             try:
-                return KnowledgeProposals.model_validate_json(content, strict=True)
+                return raw_send.parse(
+                    lambda content: KnowledgeProposals.model_validate_json(
+                        content, strict=True
+                    )
+                )
             except ValidationError:
                 raise CallFailed("OUTPUT_CONTRACT_ERROR", fatal=False) from None
 

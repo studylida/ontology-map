@@ -66,9 +66,8 @@ class ModelStudioNodeContextAdapter:
         )
 
         def send() -> NodeContextProposal:
-            content = raw_send()
             try:
-                return product.parse_proposal(content)
+                return raw_send.parse(product.parse_proposal)
             except ValidationError:
                 raise CallFailed("OUTPUT_CONTRACT_ERROR", fatal=False) from None
 

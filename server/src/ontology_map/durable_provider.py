@@ -17,6 +17,7 @@ from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from ontology_map.db import model_tasks as tasks
+from ontology_map.kimi_response_archive import response_task
 from ontology_map.model_studio import CallFailed
 from ontology_map.pilot_budget import PilotBudget, PilotBudgetError, current_pilot
 
@@ -125,7 +126,10 @@ def _execute_prepared_call[T](
         return CallResult("FINAL_FAILED")
     attempted_at = datetime.now(UTC)
     try:
-        value = send()
+        with response_task(
+            getattr(lease, "task_id", None), getattr(slot, "slot_no", None)
+        ):
+            value = send()
     except PilotBudgetError:
         raise
     except ConfirmedProviderFailure as error:
