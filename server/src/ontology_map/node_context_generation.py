@@ -7,12 +7,13 @@ and prompt surface for the time-neutral Korean context.
 
 from typing import Any
 
-from ontology_map.llm_config import MODEL_VERSION as MODEL_VERSION
+from ontology_map.llm_config import role_model
 from ontology_map.node_context_generation_contracts import (
     NodeContextProposal,
     PreparedNodeContext,
 )
 
+MODEL_VERSION = role_model("node_context")
 PROMPT_VERSION = "node-context-215-v1"
 
 SYSTEM_PROMPT = """당신은 한 Node의 공개 패널에 미리 표시할 짧은 한국어 맥락

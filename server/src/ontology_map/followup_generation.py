@@ -21,7 +21,9 @@ from ontology_map.followup_generation_contracts import (
     PreparedFollowup,
     ValidatedFollowup,
 )
-from ontology_map.llm_config import MODEL_VERSION as MODEL_VERSION
+from ontology_map.llm_config import role_model
+
+MODEL_VERSION = role_model("followup")
 
 PROMPT_VERSION = "followup-questions-129-v2"
 

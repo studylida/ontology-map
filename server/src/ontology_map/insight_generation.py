@@ -23,7 +23,9 @@ from ontology_map.insight_generation_contracts import (
     TimeWindow,
     ValidatedInsightBundle,
 )
-from ontology_map.llm_config import MODEL_VERSION as MODEL_VERSION
+from ontology_map.llm_config import role_model
+
+MODEL_VERSION = role_model("insight")
 
 PROMPT_VERSION = "node-insight-68-v2"
 

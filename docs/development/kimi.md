@@ -1,5 +1,7 @@
 # Kimi 국제판 LLM 실행
 
+> 과거 Kimi 실행 계약의 기록이다. #240 전환 브랜치의 새 실행은 [OpenAI 역할별 실행](openai.md)을 따른다. 이전 task·응답·원장에는 당시 provider/model을 그대로 보존하며 이 문서를 이유로 재실행하거나 재표시하지 않는다.
+
 ## 적용 범위와 상태
 
 [Issue #233](https://github.com/studylida/ontology-map/issues/233)의 사용자 승인에 따라 모든 LLM 호출을 Kimi 국제판으로 전환한다. 임시 데모 모드나 provider fallback이 아니다. 이 문서는 해당 구현 브랜치의 실행 계약을 설명하며, 실제 계정 호출과 D1의 DB → READY → 화면 성공은 별도로 검증해야 한다.

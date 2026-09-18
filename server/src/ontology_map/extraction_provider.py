@@ -1,6 +1,6 @@
-"""Kimi generation adapter for the existing durable KNOWLEDGE_EXTRACTION runner.
+"""OpenAI generation adapter for the existing durable KNOWLEDGE_EXTRACTION runner.
 
-The transport prepares exactly one JSON-mode send. The original product schema
+The transport prepares exactly one strict-schema send. The original product schema
 and Mention/temporal validators still run before the durable call can succeed.
 """
 
@@ -35,7 +35,7 @@ CORRECTIVE_INPUT_SEPARATOR = "\n\n명시적 corrective input:\n"
 
 
 class KimiGenerationAdapter:
-    """Prepare one Kimi request; never silently repair or accept malformed claims."""
+    """Prepare one OpenAI request; never silently repair or accept malformed claims."""
 
     def __init__(
         self,
@@ -112,6 +112,9 @@ def run_kimi_extraction(
     )
 
 
-# Import compatibility only; both names now execute Kimi, never Qwen.
+# Import compatibility only; legacy names execute OpenAI, never Qwen/Kimi.
 ModelStudioGenerationAdapter = KimiGenerationAdapter
 run_model_studio_extraction = run_kimi_extraction
+
+OpenAIGenerationAdapter = KimiGenerationAdapter
+run_openai_extraction = run_kimi_extraction

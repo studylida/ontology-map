@@ -25,7 +25,6 @@ from ontology_map.extraction_contracts import (
     AttributeRule,
     BodySelection,
     ClaimProposal,
-    ClaimSupport,
     Ontology,
     PeriodValue,
     RelationRule,
@@ -35,10 +34,9 @@ from ontology_map.extraction_contracts import (
     digest,
 )
 from ontology_map.extraction_metrics import CandidateReview, summarize
-from ontology_map.llm_config import BASE_URL
+from ontology_map.llm_config import BASE_URL, SCHEMA_ROLES, role_model
 from ontology_map.model_studio import (
     FLASH,
-    PLUS,
     Budget,
     CallFailed,
     CallLimits,
@@ -186,15 +184,15 @@ def test_fixed_pipeline_request_contract_and_own_evidence(monkeypatch, caplog, c
         payload = json.loads(request.content)
         calls.append(payload)
         assert str(request.url) == BASE_URL + "/chat/completions"
-        assert payload["max_tokens"] == 1024
-        assert "max_completion_tokens" not in payload
+        assert payload["max_completion_tokens"] == 1024
+        assert "max_tokens" not in payload
         assert not {"tools", "tool_choice", "stream_options"} & payload.keys()
         schema = wire_schema(payload)
         assert schema["additionalProperties"] is False
         name = schema["title"]
         data = json.loads(payload["messages"][1]["content"])
         if name == "BodySelection":
-            assert payload["model"] == FLASH
+            assert payload["model"] == role_model("body")
             pattern = schema["properties"]["source_ids"]["items"]["pattern"]
             for value in ("s17", "COLLABORATES_WITH", "  공동 개발\n계획이다. 😀  "):
                 assert re.fullmatch(pattern, value)
@@ -209,7 +207,7 @@ def test_fixed_pipeline_request_contract_and_own_evidence(monkeypatch, caplog, c
             assert [s["source_id"] for s in data["sources"]] == ["s0", "s1"]
             answer = {"claims": [candidate(), candidate("c2")]}
         else:
-            assert payload["model"] == PLUS
+            assert payload["model"] == role_model(SCHEMA_ROLES[name])
             assert [s["source_id"] for s in data["evidence"]] == ["s0"]
             assert doc.sources[1].quote not in payload["messages"][1]["content"]
             assert "gold" not in data
@@ -240,7 +238,9 @@ def test_fixed_pipeline_request_contract_and_own_evidence(monkeypatch, caplog, c
         "meaning_support",
     ]
     assert len(calls) == 4
-    assert budget.charged_upper_usd < Decimal("0.001")
+    assert budget.charged_upper_usd == sum(
+        record.charged_upper_usd for record in budget.records
+    )
     assert "offline-test-key" not in caplog.text
     assert doc.body not in caplog.text + capsys.readouterr().out
 
@@ -391,7 +391,7 @@ def test_zero_budget_blocks_before_network():
                 "body",
                 "prompt",
                 BodySelection(source_ids=[]),
-                ClaimSupport,
+                BodySelection,
                 limits().body,
             )
     finally:
@@ -671,8 +671,8 @@ def test_endpoint_is_kimi_international_only():
     assert validate_base_url(BASE_URL) == BASE_URL
     for invalid in (
         BASE_URL.replace("https:", "http:"),
-        BASE_URL.replace("moonshot.ai", "moonshot.cn"),
-        BASE_URL.replace(".ai/", ".ai.attacker.example/"),
+        BASE_URL.replace("openai.com", "moonshot.cn"),
+        BASE_URL.replace(".com/", ".com.attacker.example/"),
         BASE_URL.replace("https://", "https://user@"),
         BASE_URL + "?redirect=elsewhere",
     ):

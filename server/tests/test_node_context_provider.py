@@ -76,11 +76,11 @@ def test_prepare_uses_exact_node_context_contract_and_sends_once() -> None:
         settings = node_context_execution.identity_settings()
         structured = settings["structured_request"]
         limits = settings["limits"]
-        assert structured == request_identity_settings()
-        for key, value in structured["wire_options"].items():
+        assert structured == request_identity_settings("node_context")
+        for key, value in structured["role_profiles"]["node_context"].items():
             assert payload[key] == value
         assert structured["local_schema_strict"] is True
-        assert payload["max_tokens"] == limits["max_output_tokens"]
+        assert payload["max_completion_tokens"] == limits["max_output_tokens"]
         assert not {"tools", "tool_choice", "stream_options"} & payload.keys()
         expected_messages = [
             {
@@ -135,7 +135,7 @@ def test_provider_and_identity_share_mutated_execution_limits(
         "max_output_tokens": changed.max_output_tokens,
         "max_request_bytes": changed.max_request_bytes,
     }
-    assert settings["structured_request"] == request_identity_settings()
+    assert settings["structured_request"] == request_identity_settings("node_context")
     adapter = ModelStudioNodeContextAdapter(
         SecretStr("offline-key"),
         base_url=BASE_URL,
@@ -145,7 +145,8 @@ def test_provider_and_identity_share_mutated_execution_limits(
         adapter.prepare(prepared())()
     finally:
         adapter.close()
-    assert seen[0]["max_tokens"] == changed.max_output_tokens
+    assert seen[0]["max_completion_tokens"] == changed.max_output_tokens
+    assert "max_tokens" not in seen[0]
 
 
 @pytest.mark.parametrize(

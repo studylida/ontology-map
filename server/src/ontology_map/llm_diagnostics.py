@@ -42,6 +42,8 @@ _REASONS = frozenset(
         "FINISH_REASON",
         "MESSAGE_SHAPE",
         "CONTENT_SHAPE",
+        "REFUSAL",
+        "USAGE_DETAIL",
     }
 )
 _CODES = frozenset(
@@ -51,6 +53,7 @@ _CODES = frozenset(
         "UNEXPECTED_RETRY",
         "CALL_LIMIT",
         "COST_LIMIT",
+        "PACING_REQUIRED",
         "INVALID_REQUEST",
         "REQUEST_SIZE_LIMIT",
         "PILOT_STOPPED",
@@ -73,6 +76,9 @@ _ROLES = frozenset(
         "meaning_support",
         "entity_resolution",
         "claim_duplicate",
+        "node_context",
+        "followup",
+        "insight",
     }
 )
 _ERROR_TYPES = (
@@ -111,6 +117,8 @@ class _Failure:
     response_archive: str | None = None
     validation_paths: tuple[str, ...] = ()
     validation_error_count: int | None = None
+    rate_limit_headers: tuple[tuple[str, str], ...] = ()
+    rate_limit_kind: str | None = None
 
 
 def _chain(error: BaseException) -> Iterator[BaseException]:
@@ -273,4 +281,21 @@ def record_validation(error: ValidationError, schema: object) -> None:
         error_code="OUTPUT_CONTRACT_ERROR",
         validation_paths=tuple(paths),
         validation_error_count=len(errors),
+    )
+
+
+def record_response_metadata(
+    error: BaseException, headers: dict[str, str], kind: str | None
+) -> None:
+    from ontology_map.llm_response_metadata import safe_headers
+
+    cleaned = safe_headers(httpx.Headers(headers))
+    error.__dict__["_llm_failure"] = replace(
+        _details(error),
+        rate_limit_headers=tuple(sorted(cleaned.items())),
+        rate_limit_kind=(
+            kind
+            if kind in {"QUOTA_OR_BILLING", "TEMPORARY_RATE_LIMIT", "UNKNOWN_429"}
+            else None
+        ),
     )

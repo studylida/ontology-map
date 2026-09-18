@@ -1,6 +1,6 @@
 """Compatibility imports for the former Model Studio boundary.
 
-Every live call now uses Kimi International. ModelStudio, FLASH and PLUS remain
+Every live call now uses OpenAI. ModelStudio, FLASH and PLUS remain
 source-compatible aliases, not alternate providers or models. Product schemas,
 role semantics and durable lifecycle are unchanged.
 """
@@ -16,6 +16,8 @@ from ontology_map.llm_config import (
     BILLABLE_INPUT_CEILING,
     MAX_INPUT_TOKENS,
     MODEL_VERSION,
+    SCHEMA_ROLES,
+    role_model,
 )
 from ontology_map.llm_contracts import (
     RATES,
@@ -28,8 +30,9 @@ from ontology_map.llm_contracts import (
     token_cost,
     validate_base_url,
 )
+from ontology_map.llm_pacing import provider_turn
 
-# Compatibility only: both former tiers resolve to the exact same Kimi model.
+# Compatibility: generation remains FLASH/Terra; helpers select by ROLE_PROFILES.
 FLASH = PLUS = MODEL_VERSION
 
 __all__ = [
@@ -79,21 +82,33 @@ class KimiModels:
         schema: type[T],
         limits: CallLimits,
     ) -> T:
+        with provider_turn():
+            return self._call(role, prompt, payload, schema, limits)
+
+    def _call[T: BaseModel](
+        self,
+        role: Role,
+        prompt: str,
+        payload: BaseModel,
+        schema: type[T],
+        limits: CallLimits,
+    ) -> T:
         if role not in get_args(Role):
             raise CallFailed("UNKNOWN_ROLE", fatal=True)
         check_logging()
+        if SCHEMA_ROLES.get(schema.__name__) != role:
+            raise CallFailed("INVALID_REQUEST", fatal=True)
         from ontology_map.pilot_budget import PilotBudgetError
 
-        reserved = token_cost(
-            MODEL_VERSION, BILLABLE_INPUT_CEILING, limits.max_output_tokens
-        )
+        model = role_model(role)
+        reserved = token_cost(model, BILLABLE_INPUT_CEILING, limits.max_output_tokens)
         self.budget.reserve(reserved)
         operation = None
         started = monotonic()
         status = "RESPONSE_UNKNOWN"
         try:
             operation = self._transport.prepare(
-                model=MODEL_VERSION,
+                model=model,
                 messages=[
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": payload.model_dump_json()},
@@ -130,14 +145,12 @@ class KimiModels:
             if operation is not None and operation.sent:
                 usage = operation.usage
                 input_tokens, output_tokens = usage if usage else (None, None)
-                charged = (
-                    reserved if usage is None else token_cost(MODEL_VERSION, *usage)
-                )
+                charged = reserved if usage is None else token_cost(model, *usage)
                 self.budget.charged_upper_usd += charged - reserved
                 self.budget.records.append(
                     CallRecord(
                         role,
-                        MODEL_VERSION,
+                        model,
                         operation.request_hash,
                         status,
                         input_tokens,

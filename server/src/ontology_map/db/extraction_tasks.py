@@ -38,7 +38,7 @@ from ontology_map.extraction_contracts import (
     Text,
 )
 from ontology_map.llm_config import request_identity_settings
-from ontology_map.model_studio import FLASH, PLUS
+from ontology_map.model_studio import FLASH
 
 TASK_KIND = "KNOWLEDGE_EXTRACTION"
 PROMPT_VERSION = "ke127-generation-" + sha256(GENERATION_PROMPT.encode()).hexdigest()
@@ -243,7 +243,6 @@ def capture_identity(
         "execution": execution.model_dump(mode="json"),
         "references": _references(session, execution.validator_version),
         "runtime_helpers": {
-            "models": [FLASH, PLUS],
             "prompts": [
                 BODY_PROMPT,
                 CLAIM_PROMPT,

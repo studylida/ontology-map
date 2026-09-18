@@ -8,6 +8,7 @@ from typing import Literal
 
 from ontology_map.llm_config import (
     BASE_URL,
+    LUNA_MODEL,
     MAX_INPUT_TOKENS,
     MAX_OUTPUT_TOKENS,
     MODEL_VERSION,
@@ -21,9 +22,13 @@ Role = Literal[
     "entity_resolution",
     "claim_duplicate",
 ]
-# Uncached USD / million tokens, official Kimi International page, 2026-09-18.
-# No cache discounts, vouchers or account balance are assumed.
-RATES = {MODEL_VERSION: (Decimal("0.95"), Decimal("4.00"))}
+# Standard short-context USD / million, official docs checked 2026-09-18.
+# Historical Kimi pricing remains available for reading old records, not sends.
+RATES = {
+    MODEL_VERSION: (Decimal("2.00"), Decimal("12.00")),
+    LUNA_MODEL: (Decimal("0.20"), Decimal("1.20")),
+    "kimi-k2.6": (Decimal("0.95"), Decimal("4.00")),
+}
 
 
 @dataclass(frozen=True)
@@ -104,6 +109,11 @@ def validate_base_url(base_url: str) -> str:
 
 def token_cost(model: str, input_tokens: int, output_tokens: int) -> Decimal:
     input_rate, output_rate = RATES[model]
+    # Worst case: every input token is a cache write (1.25x). No cache discount
+    # is assumed. completion_tokens already INCLUDE reasoning tokens. This is
+    # charged_upper_usd, not an assertion of actual provider billing.
+    if model in {MODEL_VERSION, LUNA_MODEL}:
+        input_rate *= Decimal("1.25")
     return (input_rate * input_tokens + output_rate * output_tokens) / 1_000_000
 
 

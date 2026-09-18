@@ -1,4 +1,4 @@
-"""Kimi International JSON transport shared by all LLM operations.
+"""OpenAI strict JSON transport (legacy module name) shared by all LLM operations.
 
 Preparation finishes before reservation. Each operation sends once, without
 redirects or retries. Callers own product validation and durable lifecycle.
@@ -17,9 +17,12 @@ from ontology_map.kimi_response_archive import ResponseArchive
 from ontology_map.llm_config import (
     BASE_URL,
     DEFAULT_TIMEOUT_SECONDS,
-    MODEL_VERSION,
+    PROVIDER,
+    RESERVATION_REQUEST_BYTE_CEILING,
+    SCHEMA_ROLES,
     json_messages,
     request_options,
+    role_model,
 )
 from ontology_map.llm_contracts import (
     CallFailed,
@@ -27,7 +30,23 @@ from ontology_map.llm_contracts import (
     check_logging,
     validate_base_url,
 )
-from ontology_map.llm_diagnostics import record_failure, record_validation
+from ontology_map.llm_diagnostics import (
+    carry_failure,
+    record_failure,
+    record_response_metadata,
+    record_validation,
+)
+from ontology_map.llm_pacing import (
+    mark_send,
+    provider_turn,
+    require_pacer,
+)
+from ontology_map.llm_response_metadata import (
+    envelope_metadata,
+    rate_limit_kind,
+    safe_headers,
+)
+from ontology_map.openai_schema import wire_schema
 
 if TYPE_CHECKING:
     from ontology_map.pilot_budget import PilotBudget
@@ -58,7 +77,29 @@ def _checked_usage(payload: dict[str, Any], limits: CallLimits) -> tuple[int, in
         raise _unknown_response("USAGE", "INPUT_LIMIT")
     if not 0 <= output_tokens <= limits.max_output_tokens:
         raise _unknown_response("USAGE", "OUTPUT_LIMIT")
+    _checked_details(usage, input_tokens, output_tokens)
     return input_tokens, output_tokens
+
+
+def _checked_details(usage: dict[str, Any], inputs: int, outputs: int) -> None:
+    for group, keys, upper in (
+        ("prompt_tokens_details", ("cached_tokens", "cache_write_tokens"), inputs),
+        ("completion_tokens_details", ("reasoning_tokens",), outputs),
+    ):
+        detail = usage.get(group)
+        if detail is None:
+            continue
+        if not isinstance(detail, dict):
+            raise _unknown_response("USAGE", "USAGE_DETAIL")
+        seen = []
+        for key in keys:
+            value = detail.get(key)
+            if value is not None:
+                if type(value) is not int or not 0 <= value <= upper:
+                    raise _unknown_response("USAGE", "USAGE_DETAIL")
+                seen.append(value)
+        if sum(seen) > upper:
+            raise _unknown_response("USAGE", "USAGE_DETAIL")
 
 
 def _output_error(reason: str) -> CallFailed:
@@ -77,6 +118,8 @@ def _checked_content(payload: dict[str, Any]) -> str:
     message = choice.get("message")
     if not isinstance(message, dict):
         raise _output_error("MESSAGE_SHAPE")
+    if message.get("refusal") is not None:
+        raise _output_error("REFUSAL")
     content = message.get("content")
     if (
         not isinstance(content, str)
@@ -107,6 +150,10 @@ class PreparedJsonCall:
     _invoked: bool = field(default=False, init=False)
 
     def __call__(self) -> str:
+        with provider_turn():
+            return self._send_once()
+
+    def _send_once(self) -> str:
         if self._invoked:
             raise CallFailed("UNEXPECTED_RETRY", fatal=True)
         self._invoked = True
@@ -129,11 +176,16 @@ class PreparedJsonCall:
             if self._pilot is not None:
                 self._pilot.require_active()
             stage = "HTTP_SEND"
+            require_pacer(live=self._owner._pilot_required)
+            mark_send()
             self.sent = True
             response = self._owner._client.send(self._request)
             self.archive.capture(
                 response.content,
                 role=self._role,
+                provider=PROVIDER,
+                model=self._model,
+                headers=safe_headers(response.headers),
                 schema_name=self._schema_name,
                 request_hash=self.request_hash,
                 http_status=response.status_code,
@@ -142,13 +194,20 @@ class PreparedJsonCall:
             )
             http_status = response.status_code
             stage = "HTTP_STATUS"
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as error:
+                record_response_metadata(
+                    error, safe_headers(response.headers), rate_limit_kind(response)
+                )
+                raise
             stage = "RESPONSE_JSON"
             return self._owner._parse(
                 response,
                 model=self._model,
                 limits=self._limits,
                 on_usage=confirm,
+                archive=self.archive,
             )
         except BaseException as error:
             record_failure(
@@ -159,6 +218,7 @@ class PreparedJsonCall:
                 http_status=http_status,
                 usage_confirmed=confirmed,
             )
+            carry_failure(error, error, role=self._role)
             self.archive.failed(error)
             if self._pilot is not None and not confirmed:
                 self._pilot.stop(error)
@@ -181,27 +241,15 @@ class PreparedJsonCall:
                     usage_confirmed=self.usage is not None,
                     http_status=self.archive.http_status,
                 )
+                carry_failure(error, error, role=self._role)
                 self.archive.failed(error)
             except Exception:
                 pass  # Diagnostic failure must not replace the original exception.
             raise
 
 
-_SCHEMA_ROLES = {
-    "BodySelection": "body",
-    "KnowledgeProposals": "generation",
-    "ClaimSupport": "claim_support",
-    "MeaningSupport": "meaning_support",
-    "ResolutionProposal": "entity_resolution",
-    "ClaimDuplicateProposal": "claim_duplicate",
-    "NodeContextProposal": "node_context",
-    "FollowupQuestionsProposal": "followup",
-    "InsightBundleProposal": "insight",
-}
-
-
 class KimiStructuredTransport:
-    """Only the fixed Kimi International model and endpoint are allowed."""
+    """Only the configured OpenAI role/model pairs and endpoint are allowed."""
 
     def __init__(
         self,
@@ -252,7 +300,8 @@ class KimiStructuredTransport:
         limits: CallLimits,
     ) -> PreparedJsonCall:
         check_logging()
-        if model != MODEL_VERSION:
+        role = SCHEMA_ROLES.get(schema_name)
+        if role is None or model != role_model(role):
             raise CallFailed("INVALID_REQUEST", fatal=True)
         try:
             CallLimits(
@@ -263,15 +312,25 @@ class KimiStructuredTransport:
             body = {
                 "model": model,
                 "messages": json_messages(messages, schema_name, schema),
-                "max_tokens": limits.max_output_tokens,
-                **request_options(),
+                "max_completion_tokens": limits.max_output_tokens,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": schema_name,
+                        "strict": True,
+                        "schema": wire_schema(schema),
+                    },
+                },
+                **request_options(role),
             }
             content = json.dumps(
                 body, ensure_ascii=False, separators=(",", ":"), allow_nan=False
             ).encode("utf-8")
         except TypeError, ValueError, OverflowError:
             raise CallFailed("INVALID_REQUEST", fatal=True) from None
-        if len(content) > limits.max_request_bytes:
+        if len(content) > min(
+            limits.max_request_bytes, RESERVATION_REQUEST_BYTE_CEILING
+        ):
             raise CallFailed("REQUEST_SIZE_LIMIT", fatal=True)
         prepared = self._client.build_request(
             "POST",
@@ -288,7 +347,9 @@ class KimiStructuredTransport:
         digest = request_digest(prepared)
         pilot = current_pilot(required=self._pilot_required)
         try:
-            reservation = pilot.reserve(model, limits, digest) if pilot else None
+            require_pacer(live=self._pilot_required)
+            with provider_turn():
+                reservation = pilot.reserve(model, limits, digest) if pilot else None
         except Exception as error:
             record_failure(
                 error,
@@ -308,7 +369,7 @@ class KimiStructuredTransport:
             digest,
             schema_name,
             schema,
-            _SCHEMA_ROLES.get(schema_name, "unknown"),
+            role,
         )
 
     @staticmethod
@@ -318,6 +379,7 @@ class KimiStructuredTransport:
         model: str,
         limits: CallLimits,
         on_usage: Callable[[int, int], None],
+        archive: ResponseArchive | None = None,
     ) -> str:
         try:
             payload = response.json()
@@ -325,7 +387,12 @@ class KimiStructuredTransport:
             raise _unknown_response("RESPONSE_JSON", "JSON_INVALID") from None
         if not isinstance(payload, dict):
             raise _unknown_response("RESPONSE_JSON", "ENVELOPE_NOT_OBJECT")
+        if archive is not None:
+            archive.annotate(envelope_metadata(payload))
         if payload.get("model") != model:
             raise _unknown_response("RESPONSE_MODEL", "MODEL_MISMATCH")
         on_usage(*_checked_usage(payload, limits))
         return _checked_content(payload)
+
+
+OpenAIStructuredTransport = KimiStructuredTransport

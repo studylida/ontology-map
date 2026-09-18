@@ -24,5 +24,5 @@ def identity_settings() -> dict[str, object]:
             "max_output_tokens": limits.max_output_tokens,
             "max_request_bytes": limits.max_request_bytes,
         },
-        "structured_request": request_identity_settings(),
+        "structured_request": request_identity_settings("insight"),
     }

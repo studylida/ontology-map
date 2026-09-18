@@ -34,6 +34,7 @@ from ontology_map.extraction_contracts import (
 )
 from ontology_map.kimi_response_archive import response_task
 from ontology_map.llm_diagnostics import carry_failure
+from ontology_map.llm_pacing import provider_lease
 from ontology_map.model_studio import FLASH, CallFailed, CallLimits, Role
 from ontology_map.pilot_budget import PilotBudgetError, current_pilot
 
@@ -159,7 +160,7 @@ class _RunModels:
     ) -> T:
         self._check_lease()
         if role != "generation":
-            with response_task(self.lease.task_id):
+            with response_task(self.lease.task_id), provider_lease(self._check_lease):
                 return self._helper(role, prompt, payload, schema, limits)
         if (
             not isinstance(payload, harness.GenerationInput)
@@ -216,10 +217,7 @@ class _RunModels:
                 error, (httpx.TimeoutException, APITimeoutError)
             ) or (
                 confirmed is not None
-                and (
-                    confirmed.outcome in ("TIMEOUT", "RATE_LIMITED")
-                    or confirmed.transient
-                )
+                and (confirmed.outcome == "TIMEOUT" or confirmed.transient)
             )
             raise _HelperFailed(transient=transient) from None
 
