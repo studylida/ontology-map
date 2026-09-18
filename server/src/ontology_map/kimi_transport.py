@@ -26,6 +26,7 @@ from ontology_map.llm_contracts import (
     check_logging,
     validate_base_url,
 )
+from ontology_map.llm_diagnostics import record_failure
 
 if TYPE_CHECKING:
     from ontology_map.pilot_budget import PilotBudget
@@ -35,21 +36,27 @@ def _integer(value: object) -> int | None:
     return value if type(value) is int else None
 
 
+def _unknown_response(stage: str, reason: str) -> CallFailed:
+    error = CallFailed("RESPONSE_UNKNOWN", fatal=True)
+    record_failure(error, stage=stage, reason=reason)
+    return error
+
+
 def _checked_usage(payload: dict[str, Any], limits: CallLimits) -> tuple[int, int]:
     usage = payload.get("usage")
     if not isinstance(usage, dict):
-        raise CallFailed("RESPONSE_UNKNOWN", fatal=True)
+        raise _unknown_response("USAGE", "USAGE_MISSING")
     input_tokens = _integer(usage.get("prompt_tokens"))
     output_tokens = _integer(usage.get("completion_tokens"))
     total_tokens = _integer(usage.get("total_tokens"))
     if input_tokens is None or output_tokens is None or total_tokens is None:
-        raise CallFailed("RESPONSE_UNKNOWN", fatal=True)
-    if (
-        total_tokens != input_tokens + output_tokens
-        or not 0 < input_tokens <= limits.max_input_tokens
-        or not 0 <= output_tokens <= limits.max_output_tokens
-    ):
-        raise CallFailed("RESPONSE_UNKNOWN", fatal=True)
+        raise _unknown_response("USAGE", "USAGE_TYPE")
+    if total_tokens != input_tokens + output_tokens:
+        raise _unknown_response("USAGE", "USAGE_TOTAL")
+    if not 0 < input_tokens <= limits.max_input_tokens:
+        raise _unknown_response("USAGE", "INPUT_LIMIT")
+    if not 0 <= output_tokens <= limits.max_output_tokens:
+        raise _unknown_response("USAGE", "OUTPUT_LIMIT")
     return input_tokens, output_tokens
 
 
@@ -93,31 +100,47 @@ class PreparedJsonCall:
             raise CallFailed("UNEXPECTED_RETRY", fatal=True)
         self._invoked = True
         confirmed = False
+        stage = "PILOT_ACTIVE"
+        http_status = None
 
         def confirm(input_tokens: int, output_tokens: int) -> None:
-            nonlocal confirmed
+            nonlocal confirmed, stage
+            stage = "LEDGER_CONFIRM"
             if self._pilot is not None and self._reservation is not None:
                 self._pilot.confirm(
                     self._reservation, self._model, input_tokens, output_tokens
                 )
             self.usage = (input_tokens, output_tokens)
             confirmed = True
+            stage = "OUTPUT"
 
         try:
             if self._pilot is not None:
                 self._pilot.require_active()
+            stage = "HTTP_SEND"
             self.sent = True
             response = self._owner._client.send(self._request)
+            http_status = response.status_code
+            stage = "HTTP_STATUS"
             response.raise_for_status()
+            stage = "RESPONSE_JSON"
             return self._owner._parse(
                 response,
                 model=self._model,
                 limits=self._limits,
                 on_usage=confirm,
             )
-        except BaseException:
+        except BaseException as error:
             if self._pilot is not None and not confirmed:
                 self._pilot.stop()
+            record_failure(
+                error,
+                stage=stage,
+                request_hash=self.request_hash,
+                send_entered=self.sent,
+                http_status=http_status,
+                usage_confirmed=confirmed,
+            )
             raise
 
 
@@ -200,7 +223,17 @@ class KimiStructuredTransport:
 
         digest = request_digest(prepared)
         pilot = current_pilot(required=self._pilot_required)
-        reservation = pilot.reserve(model, limits, digest) if pilot else None
+        try:
+            reservation = pilot.reserve(model, limits, digest) if pilot else None
+        except Exception as error:
+            record_failure(
+                error,
+                stage="PILOT_RESERVE",
+                request_hash=digest,
+                send_entered=False,
+                usage_confirmed=False,
+            )
+            raise
         return PreparedJsonCall(
             self, prepared, model, limits, pilot, reservation, digest
         )
@@ -216,8 +249,10 @@ class KimiStructuredTransport:
         try:
             payload = response.json()
         except ValueError:
-            raise CallFailed("RESPONSE_UNKNOWN", fatal=True) from None
-        if not isinstance(payload, dict) or payload.get("model") != model:
-            raise CallFailed("RESPONSE_UNKNOWN", fatal=True)
+            raise _unknown_response("RESPONSE_JSON", "JSON_INVALID") from None
+        if not isinstance(payload, dict):
+            raise _unknown_response("RESPONSE_JSON", "ENVELOPE_NOT_OBJECT")
+        if payload.get("model") != model:
+            raise _unknown_response("RESPONSE_MODEL", "MODEL_MISMATCH")
         on_usage(*_checked_usage(payload, limits))
         return _checked_content(payload)
