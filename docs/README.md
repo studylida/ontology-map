@@ -16,6 +16,7 @@
 | PostgreSQL 표현 | [물리 스키마](data/physical-schema.md) | 공통 자료형, 이름, 불변성과 변경 규칙을 사람이 관리한다. |
 | 실제 DB 객체 | [스키마 참고 문서](data/schema-reference.md) | SQLAlchemy metadata에서 생성하며 수동으로 수정하지 않는다. |
 | 기술·에이전트 구성 | [구현 스택](development/implementation-stack.md) | 코드·lockfile의 현재 구성, 승인된 미구현 변경, 모델 시험을 구별한다. |
+| Kimi 모델 실행 | [Kimi 국제판](development/kimi.md) | 모든 LLM 역할의 provider·identity·예산·연결과 실제 실행 검증을 구분한다. |
 | 코드 품질 | [코드 규칙](development/code-conventions.md) | 언어, 계층, 검증과 오류 처리 규칙을 기록한다. |
 | 로컬 실행 | [DB 운영](operations/database.md) | 개발 환경의 실행, 검사, 종료와 초기화 절차를 기록한다. |
 

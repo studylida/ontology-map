@@ -5,8 +5,10 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
+from kimi_wire import task_prompt, wire_schema
 from ontology_map import node_context_execution
 from ontology_map import node_context_generation as product
+from ontology_map.llm_config import BASE_URL
 from ontology_map.model_studio import CallFailed, CallLimits
 from ontology_map.node_context_generation_contracts import (
     NodeContextAgentInput,
@@ -15,8 +17,6 @@ from ontology_map.node_context_generation_contracts import (
 )
 from ontology_map.node_context_provider import ModelStudioNodeContextAdapter
 from ontology_map.structured_provider import request_identity_settings
-
-BASE_URL = "https://ws-product-test.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
 
 
 def prepared() -> PreparedNodeContext:
@@ -77,9 +77,9 @@ def test_prepare_uses_exact_node_context_contract_and_sends_once() -> None:
         structured = settings["structured_request"]
         limits = settings["limits"]
         assert structured == request_identity_settings()
-        assert payload["temperature"] == structured["temperature"]
-        assert payload["stream"] == structured["stream"]
-        assert payload["enable_thinking"] == structured["enable_thinking"]
+        for key, value in structured["wire_options"].items():
+            assert payload[key] == value
+        assert structured["local_schema_strict"] is True
         assert payload["max_tokens"] == limits["max_output_tokens"]
         assert not {"tools", "tool_choice", "stream_options"} & payload.keys()
         expected_messages = [
@@ -89,12 +89,9 @@ def test_prepare_uses_exact_node_context_contract_and_sends_once() -> None:
             }
             for role, content in product.build_messages(snapshot)
         ]
-        assert payload["messages"] == expected_messages
-        response_format = payload["response_format"]
-        assert response_format["type"] == structured["response_format"]
-        assert response_format["json_schema"]["name"] == "NodeContextProposal"
-        assert response_format["json_schema"]["strict"] == structured["schema_strict"]
-        assert response_format["json_schema"]["schema"] == product.output_schema()
+        assert task_prompt(payload) == expected_messages[0]["content"]
+        assert payload["messages"][1:] == expected_messages[1:]
+        assert wire_schema(payload) == product.output_schema()
         return response(req)
 
     adapter = ModelStudioNodeContextAdapter(
@@ -110,7 +107,6 @@ def test_prepare_uses_exact_node_context_contract_and_sends_once() -> None:
             send()
     finally:
         adapter.close()
-
     assert isinstance(result, NodeContextProposal)
     assert result.context_text == "짧은 공개 맥락입니다."
     assert len(calls) == 1
@@ -140,7 +136,6 @@ def test_provider_and_identity_share_mutated_execution_limits(
         "max_request_bytes": changed.max_request_bytes,
     }
     assert settings["structured_request"] == request_identity_settings()
-
     adapter = ModelStudioNodeContextAdapter(
         SecretStr("offline-key"),
         base_url=BASE_URL,
@@ -154,8 +149,7 @@ def test_provider_and_identity_share_mutated_execution_limits(
 
 
 @pytest.mark.parametrize(
-    "content",
-    ["not-json", '{"context_text":""}', '{"context_text":"ok","extra":1}'],
+    "content", ["not-json", '{"context_text":""}', '{"context_text":"ok","extra":1}']
 )
 def test_malformed_context_structured_output_is_contract_error(content: str) -> None:
     adapter = ModelStudioNodeContextAdapter(

@@ -21,8 +21,8 @@ from ontology_map.followup_generation_contracts import (
     PreparedFollowup,
     ValidatedFollowup,
 )
+from ontology_map.llm_config import MODEL_VERSION as MODEL_VERSION
 
-MODEL_VERSION = "qwen3.7-flash-2026-07-15"
 PROMPT_VERSION = "followup-questions-129-v2"
 
 SYSTEM_PROMPT = """당신은 현재 Node를 더 이해하기 위한 FOLLOWUP_QUESTIONS를 만든다.

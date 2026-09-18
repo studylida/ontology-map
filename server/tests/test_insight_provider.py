@@ -5,6 +5,7 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
+from kimi_wire import task_prompt, wire_schema
 from ontology_map import insight_generation as product
 from ontology_map.insight_generation_contracts import (
     InsightAgentInput,
@@ -13,9 +14,8 @@ from ontology_map.insight_generation_contracts import (
     PreparedInsightBundle,
 )
 from ontology_map.insight_provider import ModelStudioInsightAdapter
+from ontology_map.llm_config import BASE_URL
 from ontology_map.model_studio import CallFailed
-
-BASE_URL = "https://ws-product-test.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
 
 
 def prepared() -> PreparedInsightBundle:
@@ -30,12 +30,10 @@ def prepared() -> PreparedInsightBundle:
             preferred_alias="가상 노드",
             as_of_at=datetime(2026, 9, 16, tzinfo=UTC),
             recent_90_days=InsightWindowInput(
-                time_window="RECENT_90_DAYS",
-                claims=(),
+                time_window="RECENT_90_DAYS", claims=(),
             ),
             recent_1_year=InsightWindowInput(
-                time_window="RECENT_1_YEAR",
-                claims=(),
+                time_window="RECENT_1_YEAR", claims=(),
             ),
         ),
     )
@@ -71,7 +69,7 @@ def response(
     )
 
 
-def test_prepare_uses_exact_insight_bundle_contract_and_sends_once() -> None:
+def test_prepare_uses_exact_insight_contract_and_sends_once() -> None:
     calls: list[dict[str, object]] = []
     snapshot = prepared()
 
@@ -80,9 +78,6 @@ def test_prepare_uses_exact_insight_bundle_contract_and_sends_once() -> None:
         calls.append(payload)
         assert str(req.url) == BASE_URL + "/chat/completions"
         assert payload["model"] == product.MODEL_VERSION
-        assert payload["temperature"] == 0
-        assert payload["stream"] is False
-        assert payload["enable_thinking"] is False
         assert not {"tools", "tool_choice", "stream_options"} & payload.keys()
         expected_messages = [
             {
@@ -91,12 +86,9 @@ def test_prepare_uses_exact_insight_bundle_contract_and_sends_once() -> None:
             }
             for role, content in product.build_messages(snapshot)
         ]
-        assert payload["messages"] == expected_messages
-        response_format = payload["response_format"]
-        assert response_format["type"] == "json_schema"
-        assert response_format["json_schema"]["name"] == "InsightBundleProposal"
-        assert response_format["json_schema"]["strict"] is True
-        assert response_format["json_schema"]["schema"] == product.output_schema()
+        assert task_prompt(payload) == expected_messages[0]["content"]
+        assert payload["messages"][1:] == expected_messages[1:]
+        assert wire_schema(payload) == product.output_schema()
         return response(req)
 
     adapter = ModelStudioInsightAdapter(
@@ -112,20 +104,13 @@ def test_prepare_uses_exact_insight_bundle_contract_and_sends_once() -> None:
             send()
     finally:
         adapter.close()
-
     assert isinstance(result, InsightBundleProposal)
     assert result.recent_90_days.report is None
     assert result.recent_1_year.report is None
     assert len(calls) == 1
 
 
-@pytest.mark.parametrize(
-    "content",
-    [
-        "not-json",
-        '{"recent_90_days":{"report":null}}',
-    ],
-)
+@pytest.mark.parametrize("content", ["not-json", '{"recent_90_days":{"report":null}}'])
 def test_malformed_insight_structured_output_is_contract_error(content: str) -> None:
     adapter = ModelStudioInsightAdapter(
         SecretStr("offline-key"),

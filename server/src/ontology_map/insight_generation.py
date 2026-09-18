@@ -23,8 +23,8 @@ from ontology_map.insight_generation_contracts import (
     TimeWindow,
     ValidatedInsightBundle,
 )
+from ontology_map.llm_config import MODEL_VERSION as MODEL_VERSION
 
-MODEL_VERSION = "qwen3.7-flash-2026-07-15"
 PROMPT_VERSION = "node-insight-68-v2"
 
 SYSTEM_PROMPT = """당신은 현재 Node의 90일·1년 종합보고서를 한 번에 제안한다.
