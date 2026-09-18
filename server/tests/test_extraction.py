@@ -3,6 +3,7 @@ import json
 import re
 import runpy
 import socket
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -583,6 +584,27 @@ def test_attribute_units_types_and_precision_aware_time_bounds():
         TemporalPoint.model_validate_json(
             '{"value":"2026-06-02T00:00:00Z","precision":"MONTH"}', strict=True
         )
+
+
+def test_calendar_date_temporal_point_uses_utc_anchor_only_for_calendar_precision():
+    for raw, precision, expected in (
+        ("2026-09-18", "DAY", datetime(2026, 9, 18, tzinfo=UTC)),
+        ("2026-09-01", "MONTH", datetime(2026, 9, 1, tzinfo=UTC)),
+        ("2026-01-01", "YEAR", datetime(2026, 1, 1, tzinfo=UTC)),
+    ):
+        point = TemporalPoint.model_validate_json(
+            json.dumps({"value": raw, "precision": precision}), strict=True
+        )
+        assert point.value == expected
+    for raw, precision in (
+        ("2026-09-18", "INSTANT"),
+        ("2026-09-18", "MONTH"),
+        ("2026-13-18", "DAY"),
+    ):
+        with pytest.raises(ValidationError):
+            TemporalPoint.model_validate_json(
+                json.dumps({"value": raw, "precision": precision}), strict=True
+            )
 
 
 def test_literal_topic_mention_requires_catalog_and_separate_meaning_judgment():

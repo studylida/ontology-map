@@ -97,6 +97,26 @@ class TemporalPoint(Contract):
     value: datetime | None
     precision: Precision
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_calendar_date(cls, data: object) -> object:
+        if not isinstance(data, dict) or data.get("precision") not in (
+            "DAY",
+            "MONTH",
+            "YEAR",
+        ):
+            return data
+        raw = data.get("value")
+        if not isinstance(raw, str):
+            return data
+        try:
+            day = date.fromisoformat(raw)
+        except ValueError:
+            return data
+        if day.isoformat() != raw:
+            return data
+        return {**data, "value": datetime.combine(day, datetime.min.time(), UTC)}
+
     @model_validator(mode="after")
     def validate_time(self) -> "TemporalPoint":
         if (self.value is None) != (self.precision == "UNKNOWN"):

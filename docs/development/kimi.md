@@ -19,6 +19,8 @@
 
 제품 JSON Schema는 변경 없이 system message 뒤에 결정적으로 첨부한다. `pattern`, `format`, `$ref`는 provider grammar로 제출하지 않으며, 응답의 필수 필드·타입·Mention·시간 및 각 제품 의미 검증은 기존 코드로 수행한다. JSON mode는 유효한 제품 출력을 보장하지 않는다. 원문·source ID·인용 범위·hash, Claim/Meaning 판정, Entity Resolution, canonical promotion 및 publication READY 조건은 완화하지 않는다. 자동 보정이나 출력 재요청 루프는 없다.
 
+`EVENT_TIME`의 `DAY`·`MONTH`·`YEAR` 값이 정확한 ISO 날짜 문자열이면 `TemporalPoint`는 이를 UTC 자정으로 해석한 뒤 기존 시간대·날짜 anchor 검증을 적용한다. `INSTANT`의 날짜 전용 값, 잘못된 날짜와 월·연도 anchor 위반은 계속 거절한다. 이 변환은 저장된 원문이나 Claim 의미를 바꾸지 않는다.
+
 모든 helper와 durable adapter는 공통 단발 HTTP transport를 사용한다. 요청 byte 상한을 전송 전에 검사하고, redirect·자동 retry·환경 proxy를 사용하지 않는다. 실제 모델과 usage가 확인되지 않은 호출은 보수적인 예약액을 유지하고 pilot을 중단한다. usage가 확인된 잘린 출력은 사용량을 계산하되 제품 출력 실패로 남긴다. 원시 응답·reasoning·키·원문은 ledger에 쓰지 않는다. 수신한 전체 응답은 아래 정책에 따라 별도 비공개 로컬 파일로 보관한다.
 
 ## 한도와 실행 식별
