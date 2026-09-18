@@ -32,6 +32,7 @@ from ontology_map.extraction_contracts import (
     Ontology,
     SourceDocument,
 )
+from ontology_map.llm_diagnostics import carry_failure
 from ontology_map.model_studio import FLASH, CallFailed, CallLimits, Role
 from ontology_map.pilot_budget import PilotBudgetError, current_pilot
 
@@ -198,7 +199,9 @@ class _RunModels:
                     )
                 )
             ):
-                raise PilotBudgetError("PILOT_STOPPED") from None
+                stopped = PilotBudgetError("PILOT_STOPPED")
+                carry_failure(stopped, error, role=role)
+                raise stopped from None
             confirmed = classify_provider_error(error)
             if confirmed is not None and confirmed.outcome == "OUTPUT_CONTRACT_ERROR":
                 # Preserve candidate-level malformed-validator exclusion, without
