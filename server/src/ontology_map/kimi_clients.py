@@ -1,4 +1,6 @@
-"""OpenAI-only application wiring (legacy module name); construction never sends requests or touches DB.
+"""OpenAI-only application wiring (legacy module name).
+
+Construction never sends requests or touches the database.
 
 The existing application_execution.run_document remains the execution boundary.
 No provider fallback, automatic retry, implicit budget or credential discovery.

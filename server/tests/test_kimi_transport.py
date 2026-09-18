@@ -31,7 +31,6 @@ from ontology_map.llm_config import (
     MAX_INPUT_TOKENS,
     MAX_OUTPUT_TOKENS,
     MODEL_VERSION,
-    SCHEMA_SEPARATOR,
     json_messages,
     request_identity_settings,
     role_model,

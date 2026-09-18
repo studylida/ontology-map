@@ -3,7 +3,7 @@
 import re
 from datetime import UTC
 from email.utils import parsedate_to_datetime
-from typing import Any
+from typing import Any, Protocol
 
 import httpx
 
@@ -63,7 +63,16 @@ def safe_headers(headers: httpx.Headers) -> dict[str, str]:
     return result
 
 
-def rate_limit_kind(response: httpx.Response) -> str | None:
+class _JsonResponse(Protocol):
+    """Shared read-only surface of HTTPX and the installed SDK response."""
+
+    @property
+    def status_code(self) -> int: ...
+
+    def json(self) -> Any: ...
+
+
+def rate_limit_kind(response: _JsonResponse) -> str | None:
     if response.status_code != 429:
         return None
     try:

@@ -25,7 +25,6 @@ from ontology_map.extraction_contracts import (
     AttributeRule,
     BodySelection,
     ClaimProposal,
-    ClaimSupport,
     Ontology,
     PeriodValue,
     RelationRule,
@@ -38,7 +37,6 @@ from ontology_map.extraction_metrics import CandidateReview, summarize
 from ontology_map.llm_config import BASE_URL, SCHEMA_ROLES, role_model
 from ontology_map.model_studio import (
     FLASH,
-    PLUS,
     Budget,
     CallFailed,
     CallLimits,
