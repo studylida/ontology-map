@@ -27,6 +27,7 @@ from ontology_map.extraction_provider import (
     run_model_studio_extraction,
 )
 from ontology_map.extraction_runner import RuntimeInput, run_extraction
+from ontology_map.llm_config import BASE_URL
 from ontology_map.model_studio import FLASH
 
 URL = os.environ.get("ONTOLOGY_MAP_KE_TEST_DATABASE_URL")
@@ -288,10 +289,7 @@ def test_model_studio_send_happens_after_reserved_slot_commit(runtime_task):
 
     adapter = ModelStudioGenerationAdapter(
         SecretStr("offline-key"),
-        base_url=(
-            "https://ws-product-test.ap-southeast-1.maas.aliyuncs.com/"
-            "compatible-mode/v1"
-        ),
+        base_url=BASE_URL,
         transport=httpx.MockTransport(handle),
     )
     try:

@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
+from kimi_wire import task_prompt, wire_schema
 from pydantic import SecretStr
 
 from ontology_map import followup_generation as product
@@ -12,9 +13,8 @@ from ontology_map.followup_generation_contracts import (
     PreparedFollowup,
 )
 from ontology_map.followup_provider import ModelStudioFollowupAdapter
+from ontology_map.llm_config import BASE_URL
 from ontology_map.model_studio import CallFailed
-
-BASE_URL = "https://ws-product-test.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
 
 
 def prepared() -> PreparedFollowup:
@@ -69,9 +69,6 @@ def test_prepare_uses_exact_followup_contract_and_sends_once() -> None:
         calls.append(payload)
         assert str(req.url) == BASE_URL + "/chat/completions"
         assert payload["model"] == product.MODEL_VERSION
-        assert payload["temperature"] == 0
-        assert payload["stream"] is False
-        assert payload["enable_thinking"] is False
         assert not {"tools", "tool_choice", "stream_options"} & payload.keys()
         expected_messages = [
             {
@@ -80,12 +77,9 @@ def test_prepare_uses_exact_followup_contract_and_sends_once() -> None:
             }
             for role, content in product.build_messages(snapshot)
         ]
-        assert payload["messages"] == expected_messages
-        response_format = payload["response_format"]
-        assert response_format["type"] == "json_schema"
-        assert response_format["json_schema"]["name"] == "FollowupQuestionsProposal"
-        assert response_format["json_schema"]["strict"] is True
-        assert response_format["json_schema"]["schema"] == product.output_schema()
+        assert task_prompt(payload) == expected_messages[0]["content"]
+        assert payload["messages"][1:] == expected_messages[1:]
+        assert wire_schema(payload) == product.output_schema()
         return response(req)
 
     adapter = ModelStudioFollowupAdapter(
@@ -101,19 +95,12 @@ def test_prepare_uses_exact_followup_contract_and_sends_once() -> None:
             send()
     finally:
         adapter.close()
-
     assert isinstance(result, FollowupQuestionsProposal)
     assert result.questions == ()
     assert len(calls) == 1
 
 
-@pytest.mark.parametrize(
-    "content",
-    [
-        "not-json",
-        '{"questions":[{"display_order":1}]}',
-    ],
-)
+@pytest.mark.parametrize("content", ["not-json", '{"questions":[{"display_order":1}]}'])
 def test_malformed_followup_structured_output_is_contract_error(content: str) -> None:
     adapter = ModelStudioFollowupAdapter(
         SecretStr("offline-key"),

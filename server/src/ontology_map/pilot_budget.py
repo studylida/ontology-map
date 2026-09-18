@@ -14,7 +14,8 @@ from typing import Iterator
 
 import httpx
 
-from ontology_map.model_studio import MAX_INPUT_TOKENS, RATES, CallLimits, token_cost
+from ontology_map.llm_config import BILLABLE_INPUT_CEILING, MAX_INPUT_TOKENS
+from ontology_map.model_studio import RATES, CallLimits, token_cost
 
 
 class PilotBudgetError(RuntimeError):
@@ -138,7 +139,9 @@ class PilotBudget:
             if model not in RATES:
                 self.stopped = True
                 raise PilotBudgetError("PILOT_MODEL_UNPRICED")
-            estimate = token_cost(model, MAX_INPUT_TOKENS, limits.max_output_tokens)
+            estimate = token_cost(
+                model, BILLABLE_INPUT_CEILING, limits.max_output_tokens
+            )
             if (
                 self.calls >= self.max_calls
                 or self.charged_upper_usd + estimate > self.max_usd

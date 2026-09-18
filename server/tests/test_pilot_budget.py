@@ -14,9 +14,9 @@ from ontology_map import durable_provider
 from ontology_map.application_execution import dry_run
 from ontology_map.extraction import BodyInput
 from ontology_map.extraction_contracts import BodySelection
+from ontology_map.llm_config import BASE_URL, BILLABLE_INPUT_CEILING
 from ontology_map.model_studio import (
     FLASH,
-    MAX_INPUT_TOKENS,
     Budget,
     CallFailed,
     CallLimits,
@@ -26,7 +26,6 @@ from ontology_map.model_studio import (
 from ontology_map.pilot_budget import PilotBudget, PilotBudgetError, request_digest
 from ontology_map.structured_provider import ModelStudioStructuredTransport
 
-BASE_URL = "https://ws-pilot-test.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
 LIMITS = CallLimits(2_000, 1_024, 100_000)
 
 
@@ -147,9 +146,7 @@ def test_unknown_usage_stops_pilot_and_existing_file_refuses_resume(tmp_path):
 
     pilot = PilotBudget("unknown-pilot", 3, Decimal("1"), path)
     transport = ModelStudioStructuredTransport(
-        SecretStr("offline"),
-        base_url=BASE_URL,
-        transport=httpx.MockTransport(handle),
+        SecretStr("offline"), base_url=BASE_URL, transport=httpx.MockTransport(handle)
     )
     try:
         with pytest.raises(CallFailed, match="RESPONSE_UNKNOWN"):
@@ -159,7 +156,7 @@ def test_unknown_usage_stops_pilot_and_existing_file_refuses_resume(tmp_path):
         with pytest.raises(PilotBudgetError, match="PILOT_STOPPED"):
             with pilot.activate():
                 _prepare(transport)()
-        pilot.close()  # A fresh process still cannot reuse the pilot file.
+        pilot.close()
         with pytest.raises(PilotBudgetError, match="PILOT_FILE_UNAVAILABLE"):
             PilotBudget("unknown-pilot", 3, Decimal("1"), path)
     finally:
@@ -173,7 +170,7 @@ def test_unknown_usage_stops_pilot_and_existing_file_refuses_resume(tmp_path):
 
 
 def test_usd_cap_uses_confirmed_cost_plus_next_worst_case(tmp_path):
-    estimate = token_cost(FLASH, MAX_INPUT_TOKENS, LIMITS.max_output_tokens)
+    estimate = token_cost(FLASH, BILLABLE_INPUT_CEILING, LIMITS.max_output_tokens)
     actual = token_cost(FLASH, 100, 10)
     pilot = PilotBudget(
         "usd-pilot", 3, actual + estimate - Decimal("0.000001"), tmp_path / "usd.jsonl"

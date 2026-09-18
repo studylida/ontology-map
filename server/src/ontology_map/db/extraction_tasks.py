@@ -37,6 +37,7 @@ from ontology_map.extraction_contracts import (
     MeaningSupport,
     Text,
 )
+from ontology_map.llm_config import request_identity_settings
 from ontology_map.model_studio import FLASH, PLUS
 
 TASK_KIND = "KNOWLEDGE_EXTRACTION"
@@ -237,6 +238,7 @@ def capture_identity(
     execution = ExecutionInput.model_validate_json(execution.model_dump_json())
     contract_id = _output_contract(session)
     effective_input = {
+        "provider_execution": request_identity_settings(),
         "source": _document(session, document_id),
         "execution": execution.model_dump(mode="json"),
         "references": _references(session, execution.validator_version),

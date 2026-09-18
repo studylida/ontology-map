@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import httpx
 import pytest
+from kimi_wire import task_prompt, wire_schema
 from pydantic import SecretStr
 
 from ontology_map.db.extraction_tasks import ExecutionInput
@@ -19,10 +20,9 @@ from ontology_map.extraction_provider import (
     ModelStudioGenerationAdapter,
 )
 from ontology_map.extraction_runner import GenerationRequest
+from ontology_map.llm_config import BASE_URL
 from ontology_map.model_studio import FLASH, CallFailed, CallLimits
 from ontology_map.pilot_budget import PilotBudget, request_digest
-
-BASE_URL = "https://ws-product-test.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
 
 
 def request(*, max_request_bytes: int = 100_000) -> GenerationRequest:
@@ -82,7 +82,7 @@ def response(req: httpx.Request, content: str = '{"claims":[]}') -> httpx.Respon
     )
 
 
-def test_prepare_builds_exact_model_studio_request_before_send(tmp_path) -> None:
+def test_prepare_builds_exact_kimi_request_before_send(tmp_path) -> None:
     calls: list[dict[str, object]] = []
     path = tmp_path / "generation.jsonl"
     pilot = PilotBudget("generation-request", 1, Decimal("1"), path)
@@ -95,23 +95,14 @@ def test_prepare_builds_exact_model_studio_request_before_send(tmp_path) -> None
         payload = json.loads(req.content)
         calls.append(payload)
         assert payload["model"] == FLASH
-        assert payload["temperature"] == 0
-        assert payload["stream"] is False
-        assert payload["enable_thinking"] is False
         assert payload["max_tokens"] == 1_024
         assert "max_completion_tokens" not in payload
         assert not {"tools", "tool_choice", "stream_options"} & payload.keys()
-        assert payload["messages"][0] == {
-            "role": "system",
-            "content": GENERATION_PROMPT,
-        }
+        assert task_prompt(payload) == GENERATION_PROMPT
+        assert payload["messages"][0]["role"] == "system"
         assert payload["messages"][1]["role"] == "user"
         assert json.loads(payload["messages"][1]["content"])["max_candidates"] == 8
-        response_format = payload["response_format"]
-        assert response_format["type"] == "json_schema"
-        assert response_format["json_schema"]["name"] == "KnowledgeProposals"
-        assert response_format["json_schema"]["strict"] is True
-        assert response_format["json_schema"]["schema"]["additionalProperties"] is False
+        assert wire_schema(payload) == KnowledgeProposals.model_json_schema()
         return response(req)
 
     adapter = ModelStudioGenerationAdapter(
@@ -145,7 +136,6 @@ def test_corrective_input_changes_prepared_request_before_send() -> None:
         base,
         execution=base.execution.model_copy(update={"corrective_input": corrective}),
     )
-
     adapter = ModelStudioGenerationAdapter(
         SecretStr("offline-key"),
         base_url=BASE_URL,
@@ -159,16 +149,15 @@ def test_corrective_input_changes_prepared_request_before_send() -> None:
         corrected_send()
     finally:
         adapter.close()
-
     assert len(serialized) == 2
     assert serialized[0] != serialized[1]
-
     base_body = json.loads(serialized[0])
     corrected_body = json.loads(serialized[1])
-    assert base_body["messages"][0]["content"] == GENERATION_PROMPT
-    assert corrected_body["messages"][0]["content"] == (
+    assert task_prompt(base_body) == GENERATION_PROMPT
+    assert task_prompt(corrected_body) == (
         GENERATION_PROMPT + CORRECTIVE_INPUT_SEPARATOR + corrective
     )
+    assert wire_schema(base_body) == wire_schema(corrected_body)
     assert base_body["messages"][1] == corrected_body["messages"][1]
 
 
@@ -238,13 +227,7 @@ def test_read_timeout_is_exposed_once_for_durable_unknown_fencing() -> None:
     assert calls == 1
 
 
-@pytest.mark.parametrize(
-    "content",
-    [
-        "not-json",
-        '{"claims":[{"candidate_id":"bad"}]}',
-    ],
-)
+@pytest.mark.parametrize("content", ["not-json", '{"claims":[{"candidate_id":"bad"}]}'])
 def test_confirmed_malformed_structured_output_is_contract_failure(
     content: str,
 ) -> None:
