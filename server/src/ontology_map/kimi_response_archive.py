@@ -30,9 +30,7 @@ def _positive(value: object) -> int | None:
 
 
 @contextmanager
-def response_task(
-    task_id: int | None, slot_no: int | None = None
-) -> Iterator[None]:
+def response_task(task_id: int | None, slot_no: int | None = None) -> Iterator[None]:
     """The slot is a provider reservation number, not a fabricated attempt row."""
     token = _task.set((_positive(task_id), _positive(slot_no)))
     try:

@@ -220,9 +220,7 @@ def failure_diagnostic(error: BaseException) -> dict[str, object]:
     return {"version": 1, **asdict(_details(error))}
 
 
-def attach_response(
-    error: BaseException, response_id: str | None, status: str
-) -> None:
+def attach_response(error: BaseException, response_id: str | None, status: str) -> None:
     error.__dict__["_llm_failure"] = replace(
         _details(error),
         response_id=(
@@ -253,9 +251,7 @@ def _schema_names(schema: object) -> set[str]:
 
 def record_validation(error: ValidationError, schema: object) -> None:
     """Paths only: extra-key names, input, ctx and custom messages may be secret."""
-    errors = error.errors(
-        include_input=False, include_context=False, include_url=False
-    )
+    errors = error.errors(include_input=False, include_context=False, include_url=False)
     names = _schema_names(schema)
     paths = []
     for item in errors[:64]:
