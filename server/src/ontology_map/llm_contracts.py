@@ -112,8 +112,7 @@ def check_logging() -> None:
     # an already-enabled legacy global debug/verbose configuration.
     globals_module = sys.modules.get("langchain_core.globals")
     if globals_module is not None and (
-        getattr(globals_module, "get_debug")()
-        or getattr(globals_module, "get_verbose")()
+        globals_module.get_debug() or globals_module.get_verbose()
     ):
         raise CallFailed("UNSAFE_LOGGING_CONFIGURATION", fatal=True)
     for name in ("openai", "httpx", "httpcore", "langchain_core", "langsmith"):

@@ -59,10 +59,12 @@ def reply(request, content='{"source_ids":[]}', **changes):
             "completion_tokens": 20,
             "total_tokens": 120,
         },
-        "choices": [{
-            "finish_reason": "stop",
-            "message": {"role": "assistant", "content": content},
-        }],
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": content},
+            }
+        ],
     }
     data.update(changes)
     return httpx.Response(200, request=request, json=data)
@@ -87,15 +89,24 @@ def prepare(transport, **changes):
 def forbid_network(monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("NETWORK_FORBIDDEN")
+
     monkeypatch.setattr(socket.socket, "connect", forbidden)
 
 
-@pytest.mark.parametrize("role", [
-    "body", "generation", "claim_support", "meaning_support",
-    "entity_resolution", "claim_duplicate",
-])
+@pytest.mark.parametrize(
+    "role",
+    [
+        "body",
+        "generation",
+        "claim_support",
+        "meaning_support",
+        "entity_resolution",
+        "claim_duplicate",
+    ],
+)
 def test_every_helper_role_uses_kimi_and_local_validation(role, caplog):
     calls = []
+
     def handle(request):
         calls.append(request)
         body = json.loads(request.content)
@@ -105,25 +116,44 @@ def test_every_helper_role_uses_kimi_and_local_validation(role, caplog):
         assert body["thinking"] == {"type": "disabled"}
         assert body["stream"] is False
         assert body["max_tokens"] == 1024
-        assert not {
-            "temperature", "top_p", "enable_thinking", "tools", "tool_choice",
-            "max_completion_tokens", "json_schema",
-        } & body.keys()
+        assert (
+            not {
+                "temperature",
+                "top_p",
+                "enable_thinking",
+                "tools",
+                "tool_choice",
+                "max_completion_tokens",
+                "json_schema",
+            }
+            & body.keys()
+        )
         original_schema = BodySelection.model_json_schema()
-        transmitted = json.loads(body["messages"][0]["content"].split(SCHEMA_SEPARATOR)[1])
+        transmitted = json.loads(
+            body["messages"][0]["content"].split(SCHEMA_SEPARATOR)[1]
+        )
         assert transmitted == original_schema
         assert "pattern" in transmitted["properties"]["source_ids"]["items"]
-        assert json.loads(body["messages"][1]["content"]) == {"source_ids": [PRIVATE_TEXT]}
+        assert json.loads(body["messages"][1]["content"]) == {
+            "source_ids": [PRIVATE_TEXT]
+        }
         return reply(request)
+
     budget = Budget(1, Decimal("1"))
     client = KimiModels(
         SecretStr(PRIVATE_KEY), budget, transport=httpx.MockTransport(handle)
     )
     try:
-        assert client.call(
-            role, "prompt", BodySelection(source_ids=[PRIVATE_TEXT]),
-            BodySelection, LIMITS,
-        ).source_ids == []
+        assert (
+            client.call(
+                role,
+                "prompt",
+                BodySelection(source_ids=[PRIVATE_TEXT]),
+                BodySelection,
+                LIMITS,
+            ).source_ids
+            == []
+        )
     finally:
         client.close()
     assert len(calls) == 1
@@ -141,15 +171,18 @@ def test_compatibility_names_are_kimi_only():
     assert ModelStudioStructuredTransport is KimiStructuredTransport
 
 
-@pytest.mark.parametrize("url", [
-    "http://api.moonshot.ai/v1",
-    "https://api.moonshot.cn/v1",
-    "https://api.moonshot.ai.attacker.example/v1",
-    "https://user@api.moonshot.ai/v1",
-    BASE_URL + "?redirect=evil",
-    BASE_URL + "/",
-    "https://ws-old.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
-])
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://api.moonshot.ai/v1",
+        "https://api.moonshot.cn/v1",
+        "https://api.moonshot.ai.attacker.example/v1",
+        "https://user@api.moonshot.ai/v1",
+        BASE_URL + "?redirect=evil",
+        BASE_URL + "/",
+        "https://ws-old.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+    ],
+)
 def test_no_alternate_endpoint_or_key_redirect(url):
     with pytest.raises(CallFailed, match="UNAPPROVED_ENDPOINT"):
         KimiStructuredTransport(SecretStr(PRIVATE_KEY), base_url=url)
@@ -171,15 +204,19 @@ def test_options_and_schema_attachment_are_immutable_and_versioned():
     assert baseline["wire_options"]["response_format"] == {"type": "json_object"}
     schema = BodySelection.model_json_schema()
     original = deepcopy(schema)
-    messages = [{"role": "system", "content": "task"}, {"role": "user", "content": PRIVATE_TEXT}]
+    messages = [
+        {"role": "system", "content": "task"},
+        {"role": "user", "content": PRIVATE_TEXT},
+    ]
     unchanged = deepcopy(messages)
     first = json_messages(messages, "BodySelection", schema)
     assert json_messages(messages, "BodySelection", schema) == first
     assert schema == original and messages == unchanged
     assert first[1] == messages[1]
-    assert sha256(json.dumps(baseline, sort_keys=True).encode()).digest() != sha256(
-        json.dumps(settings, sort_keys=True).encode()
-    ).digest()
+    assert (
+        sha256(json.dumps(baseline, sort_keys=True).encode()).digest()
+        != sha256(json.dumps(settings, sort_keys=True).encode()).digest()
+    )
 
 
 def test_limits_fit_the_combined_context():
@@ -221,13 +258,17 @@ def test_preparation_reserves_once_and_send_cannot_replay(tmp_path, caplog):
     calls = []
     path = tmp_path / "pilot.jsonl"
     pilot = PilotBudget("one-send", 1, Decimal("1"), path)
+
     def handle(request):
         calls.append(request)
         reserved = json.loads(path.read_text().splitlines()[-1])
         assert reserved["kind"] == "reserved"
         assert reserved["request_sha256"] == request_digest(request)
         return reply(request)
-    client = KimiStructuredTransport(SecretStr(PRIVATE_KEY), transport=httpx.MockTransport(handle))
+
+    client = KimiStructuredTransport(
+        SecretStr(PRIVATE_KEY), transport=httpx.MockTransport(handle)
+    )
     try:
         with pilot.activate():
             operation = prepare(client)
@@ -238,7 +279,11 @@ def test_preparation_reserves_once_and_send_cannot_replay(tmp_path, caplog):
         assert len(calls) == 1
         assert operation.usage == (100, 20)
         events = [json.loads(line) for line in path.read_text().splitlines()]
-        assert [event.get("kind") for event in events] == [None, "reserved", "confirmed"]
+        assert [event.get("kind") for event in events] == [
+            None,
+            "reserved",
+            "confirmed",
+        ]
         assert pilot.charged_upper_usd == token_cost(MODEL_VERSION, 100, 20)
         assert path.stat().st_mode & 0o777 == 0o600
         for hidden in (PRIVATE_KEY, PRIVATE_TEXT):
@@ -260,10 +305,16 @@ def test_real_transport_needs_explicit_pilot_before_network():
 @pytest.mark.parametrize("status", [307, 400, 401, 429, 500])
 def test_http_errors_do_not_retry_or_follow_redirects(status):
     calls = []
+
     def handle(request):
         calls.append(request)
-        return httpx.Response(status, headers={"Location": "https://attacker.example"}, request=request)
-    client = KimiStructuredTransport(SecretStr(PRIVATE_KEY), transport=httpx.MockTransport(handle))
+        return httpx.Response(
+            status, headers={"Location": "https://attacker.example"}, request=request
+        )
+
+    client = KimiStructuredTransport(
+        SecretStr(PRIVATE_KEY), transport=httpx.MockTransport(handle)
+    )
     try:
         operation = prepare(client)
         with pytest.raises(httpx.HTTPStatusError):
@@ -278,7 +329,10 @@ def test_http_errors_do_not_retry_or_follow_redirects(status):
 def test_timeout_remains_typed_for_durable_unknown_fencing():
     def handle(request):
         raise httpx.ReadTimeout("private text", request=request)
-    client = KimiStructuredTransport(SecretStr(PRIVATE_KEY), transport=httpx.MockTransport(handle))
+
+    client = KimiStructuredTransport(
+        SecretStr(PRIVATE_KEY), transport=httpx.MockTransport(handle)
+    )
     try:
         operation = prepare(client)
         with pytest.raises(httpx.ReadTimeout):
@@ -288,12 +342,16 @@ def test_timeout_remains_typed_for_durable_unknown_fencing():
         client.close()
 
 
-@pytest.mark.parametrize("bad_usage", [
-    None, {},
-    {"prompt_tokens": True, "completion_tokens": 20, "total_tokens": 21},
-    {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 121},
-    {"prompt_tokens": 2001, "completion_tokens": 20, "total_tokens": 2021},
-])
+@pytest.mark.parametrize(
+    "bad_usage",
+    [
+        None,
+        {},
+        {"prompt_tokens": True, "completion_tokens": 20, "total_tokens": 21},
+        {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 121},
+        {"prompt_tokens": 2001, "completion_tokens": 20, "total_tokens": 2021},
+    ],
+)
 def test_unconfirmed_usage_keeps_reservation_and_stops(bad_usage, tmp_path):
     client = KimiStructuredTransport(
         SecretStr(PRIVATE_KEY),
@@ -306,7 +364,9 @@ def test_unconfirmed_usage_keeps_reservation_and_stops(bad_usage, tmp_path):
             with pytest.raises(CallFailed, match="RESPONSE_UNKNOWN"):
                 operation()
         assert pilot.stopped and operation.usage is None
-        assert pilot.charged_upper_usd == token_cost(MODEL_VERSION, BILLABLE_INPUT_CEILING, 1024)
+        assert pilot.charged_upper_usd == token_cost(
+            MODEL_VERSION, BILLABLE_INPUT_CEILING, 1024
+        )
     finally:
         client.close()
         pilot.close()
@@ -316,9 +376,17 @@ def test_unconfirmed_usage_keeps_reservation_and_stops(bad_usage, tmp_path):
 def test_confirmed_truncation_is_failure_not_success_but_usage_is_counted(finish):
     client = KimiStructuredTransport(
         SecretStr(PRIVATE_KEY),
-        transport=httpx.MockTransport(lambda req: reply(req, choices=[{
-            "finish_reason": finish, "message": {"content": '{"source_ids":[]}'},
-        }])),
+        transport=httpx.MockTransport(
+            lambda req: reply(
+                req,
+                choices=[
+                    {
+                        "finish_reason": finish,
+                        "message": {"content": '{"source_ids":[]}'},
+                    }
+                ],
+            )
+        ),
     )
     try:
         operation = prepare(client)
@@ -329,15 +397,20 @@ def test_confirmed_truncation_is_failure_not_success_but_usage_is_counted(finish
         client.close()
 
 
-@pytest.mark.parametrize("content", ["not JSON", '{"source_ids":[123]}', '{"source_ids":[],"extra":1}'])
+@pytest.mark.parametrize(
+    "content", ["not JSON", '{"source_ids":[123]}', '{"source_ids":[],"extra":1}']
+)
 def test_json_mode_does_not_relax_helper_contract(content):
     client = KimiModels(
-        SecretStr(PRIVATE_KEY), Budget(1, Decimal("1")),
+        SecretStr(PRIVATE_KEY),
+        Budget(1, Decimal("1")),
         transport=httpx.MockTransport(lambda req: reply(req, content)),
     )
     try:
         with pytest.raises(CallFailed, match="OUTPUT_CONTRACT_ERROR"):
-            client.call("body", "prompt", BodySelection(source_ids=[]), BodySelection, LIMITS)
+            client.call(
+                "body", "prompt", BodySelection(source_ids=[]), BodySelection, LIMITS
+            )
         assert client.budget.records[0].status == "OUTPUT_CONTRACT_ERROR"
     finally:
         client.close()
@@ -346,21 +419,35 @@ def test_json_mode_does_not_relax_helper_contract(content):
 @pytest.mark.parametrize("topic_name", [None, "incorrect topic", ""])
 def test_generation_preserves_mention_validator(topic_name):
     mention = {
-        "mention_id": "m1", "text": "한빛", "node_type": "COMPANY",
-        "source_ids": ["s1"], "topic_name": topic_name,
+        "mention_id": "m1",
+        "text": "한빛",
+        "node_type": "COMPANY",
+        "source_ids": ["s1"],
+        "topic_name": topic_name,
     }
-    output = {"claims": [{
-        "candidate_id": "c1", "statement": "한빛이 발표했다.", "modality": "FACT",
-        "source_ids": ["s1"], "mentions": [mention], "bindings": [],
-    }]}
+    output = {
+        "claims": [
+            {
+                "candidate_id": "c1",
+                "statement": "한빛이 발표했다.",
+                "modality": "FACT",
+                "source_ids": ["s1"],
+                "mentions": [mention],
+                "bindings": [],
+            }
+        ]
+    }
     adapter = KimiGenerationAdapter(
         SecretStr(PRIVATE_KEY),
         transport=httpx.MockTransport(lambda req: reply(req, json.dumps(output))),
     )
     # Only this adapter boundary is under test; no task/DB executor is simulated.
     request = SimpleNamespace(
-        model=MODEL_VERSION, output_schema=KnowledgeProposals, prompt="generation",
-        payload=BodySelection(source_ids=["s1"]), limits=LIMITS,
+        model=MODEL_VERSION,
+        output_schema=KnowledgeProposals,
+        prompt="generation",
+        payload=BodySelection(source_ids=["s1"]),
+        limits=LIMITS,
         execution=SimpleNamespace(corrective_input="Preserve every actor."),
     )
     try:
@@ -377,15 +464,24 @@ def test_generation_preserves_mention_validator(topic_name):
 def test_topic_null_and_source_hash_guards_are_unchanged():
     with pytest.raises(ValidationError):
         Mention(
-            mention_id="m1", text="AI", node_type="TOPIC",
-            source_ids=["s1"], topic_name=None,
+            mention_id="m1",
+            text="AI",
+            node_type="TOPIC",
+            source_ids=["s1"],
+            topic_name=None,
         )
     text = "원문 😀"
     span = SourceSpan(
-        source_id="s1", start=0, end=len(text), quote=text,
-        quote_hash=digest(text), paragraph_id=None,
+        source_id="s1",
+        start=0,
+        end=len(text),
+        quote=text,
+        quote_hash=digest(text),
+        paragraph_id=None,
     )
-    source = SourceDocument(document_id="1", body=text, body_hash=digest(text), sources=(span,))
+    source = SourceDocument(
+        document_id="1", body=text, body_hash=digest(text), sources=(span,)
+    )
     wrong = source.model_dump(mode="json")
     wrong["sources"][0]["quote_hash"] = "0" * 64
     with pytest.raises(ValidationError, match="SOURCE_QUOTE_HASH"):
@@ -395,7 +491,9 @@ def test_topic_null_and_source_hash_guards_are_unchanged():
 def test_debug_guard_sends_nothing():
     logger = logging.getLogger("httpx")
     previous = logger.level
-    client = KimiStructuredTransport(SecretStr(PRIVATE_KEY), transport=httpx.MockTransport(reply))
+    client = KimiStructuredTransport(
+        SecretStr(PRIVATE_KEY), transport=httpx.MockTransport(reply)
+    )
     try:
         logger.setLevel(logging.DEBUG)
         with pytest.raises(CallFailed, match="UNSAFE_LOGGING_CONFIGURATION"):
@@ -408,7 +506,8 @@ def test_debug_guard_sends_nothing():
 def test_helper_local_preflight_failure_does_not_consume_or_poison_next_call(tmp_path):
     calls = []
     client = KimiModels(
-        SecretStr(PRIVATE_KEY), Budget(1, Decimal("1")),
+        SecretStr(PRIVATE_KEY),
+        Budget(1, Decimal("1")),
         transport=httpx.MockTransport(lambda req: calls.append(req) or reply(req)),
     )
     pilot = PilotBudget("helper-preflight", 1, Decimal("1"), tmp_path / "pilot.jsonl")
@@ -416,15 +515,25 @@ def test_helper_local_preflight_failure_does_not_consume_or_poison_next_call(tmp
         with pilot.activate():
             with pytest.raises(CallFailed, match="REQUEST_SIZE_LIMIT"):
                 client.call(
-                    "body", "prompt", BodySelection(source_ids=[]), BodySelection,
+                    "body",
+                    "prompt",
+                    BodySelection(source_ids=[]),
+                    BodySelection,
                     CallLimits(2000, 1024, 1),
                 )
             assert not client.budget.stopped
             assert client.budget.charged_upper_usd == 0
             assert pilot.calls == 0 and not calls
-            assert client.call(
-                "body", "prompt", BodySelection(source_ids=[]), BodySelection, LIMITS,
-            ).source_ids == []
+            assert (
+                client.call(
+                    "body",
+                    "prompt",
+                    BodySelection(source_ids=[]),
+                    BodySelection,
+                    LIMITS,
+                ).source_ids
+                == []
+            )
         assert len(calls) == 1 and pilot.calls == 1
     finally:
         client.close()

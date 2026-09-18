@@ -4,9 +4,9 @@ from decimal import Decimal
 
 import httpx
 import pytest
+from kimi_wire import task_prompt, wire_schema
 from pydantic import SecretStr
 
-from kimi_wire import task_prompt, wire_schema
 from ontology_map.db.extraction_tasks import ExecutionInput
 from ontology_map.extraction import GENERATION_PROMPT, GenerationInput
 from ontology_map.extraction_contracts import (
@@ -227,10 +227,10 @@ def test_read_timeout_is_exposed_once_for_durable_unknown_fencing() -> None:
     assert calls == 1
 
 
-@pytest.mark.parametrize(
-    "content", ["not-json", '{"claims":[{"candidate_id":"bad"}]}']
-)
-def test_confirmed_malformed_structured_output_is_contract_failure(content: str) -> None:
+@pytest.mark.parametrize("content", ["not-json", '{"claims":[{"candidate_id":"bad"}]}'])
+def test_confirmed_malformed_structured_output_is_contract_failure(
+    content: str,
+) -> None:
     adapter = ModelStudioGenerationAdapter(
         SecretStr("offline-key"),
         base_url=BASE_URL,

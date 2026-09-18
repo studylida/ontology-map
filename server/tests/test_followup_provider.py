@@ -3,9 +3,9 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
+from kimi_wire import task_prompt, wire_schema
 from pydantic import SecretStr
 
-from kimi_wire import task_prompt, wire_schema
 from ontology_map import followup_generation as product
 from ontology_map.followup_generation_contracts import (
     FollowupAgentInput,

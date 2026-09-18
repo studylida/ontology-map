@@ -113,15 +113,22 @@ def test_helper_and_two_durable_tasks_accumulate_before_each_send(tmp_path):
     assert observed == [1, 2, 3]
     events = [json.loads(line) for line in path.read_text().splitlines()]
     assert [event["kind"] for event in events[1:]] == [
-        "reserved", "confirmed", "reserved", "confirmed", "reserved", "confirmed",
+        "reserved",
+        "confirmed",
+        "reserved",
+        "confirmed",
+        "reserved",
+        "confirmed",
     ]
     assert all(
         event["input_tokens"] == 100 and event["output_tokens"] == 10
-        for event in events if event.get("kind") == "confirmed"
+        for event in events
+        if event.get("kind") == "confirmed"
     )
     assert all(
         event["charged_upper_usd"] == str(token_cost(FLASH, 100, 10))
-        for event in events if event.get("kind") == "confirmed"
+        for event in events
+        if event.get("kind") == "confirmed"
     )
     assert os.stat(path).st_mode & 0o777 == 0o600
     assert "private-key" not in path.read_text()
@@ -157,7 +164,8 @@ def test_unknown_usage_stops_pilot_and_existing_file_refuses_resume(tmp_path):
         pilot.close()
     assert calls == [1]
     assert [json.loads(line).get("kind") for line in path.read_text().splitlines()] == [
-        None, "reserved",
+        None,
+        "reserved",
     ]
 
 
@@ -194,8 +202,11 @@ def test_failed_fsync_blocks_before_http(tmp_path, monkeypatch):
     pilot = PilotBudget("fsync-pilot", 1, Decimal("1"), path)
     calls = []
     transport = ModelStudioStructuredTransport(
-        SecretStr("offline"), base_url=BASE_URL,
-        transport=httpx.MockTransport(lambda request: calls.append(1) or _response(request)),
+        SecretStr("offline"),
+        base_url=BASE_URL,
+        transport=httpx.MockTransport(
+            lambda request: calls.append(1) or _response(request)
+        ),
     )
     try:
         with pilot.activate():
@@ -218,7 +229,8 @@ def test_dry_run_never_creates_pilot_file(tmp_path):
 
 def test_budget_refusal_never_writes_a_provider_outcome(monkeypatch):
     monkeypatch.setattr(
-        durable_provider, "Session",
+        durable_provider,
+        "Session",
         lambda _engine: (_ for _ in ()).throw(AssertionError("DB touched")),
     )
 
@@ -260,26 +272,31 @@ def test_document_preflight_failure_allows_next_document_send(tmp_path, monkeypa
     monkeypatch.setattr(app, "Session", FakeSession)
     monkeypatch.setattr(durable_provider, "Session", FakeSession)
     monkeypatch.setattr(
-        app.extraction_tasks, "enqueue_extraction",
+        app.extraction_tasks,
+        "enqueue_extraction",
         lambda _session, document_id, _execution: SimpleNamespace(task_id=document_id),
     )
     monkeypatch.setattr(
-        durable_provider.tasks, "fail_execution",
+        durable_provider.tasks,
+        "fail_execution",
         lambda _session, lease, *, transient: (
             failures.append((lease, transient)) or "FINAL_FAILED"
         ),
     )
     monkeypatch.setattr(
-        durable_provider.tasks, "reserve_slot",
+        durable_provider.tasks,
+        "reserve_slot",
         lambda _session, lease: SimpleNamespace(lease=lease),
     )
     monkeypatch.setattr(
-        durable_provider.tasks, "record_terminal",
+        durable_provider.tasks,
+        "record_terminal",
         lambda _session, _slot, result: terminals.append(result.outcome) or "RUNNING",
     )
 
     def fake_extraction(engine, task_id, *_args):
         if task_id == 1:
+
             def too_large():
                 return transport.prepare(
                     model=FLASH,
@@ -288,10 +305,13 @@ def test_document_preflight_failure_allows_next_document_send(tmp_path, monkeypa
                     schema=BodySelection.model_json_schema(),
                     limits=CallLimits(2_000, 1_024, 1),
                 )
+
             with pytest.raises(CallFailed, match="REQUEST_SIZE_LIMIT"):
                 durable_provider.execute_call(engine, task_id, too_large)
             return SimpleNamespace(disposition="FAILED", task_status="FINAL_FAILED")
-        result = durable_provider.execute_call(engine, task_id, lambda: _prepare(transport))
+        result = durable_provider.execute_call(
+            engine, task_id, lambda: _prepare(transport)
+        )
         assert result.value == '{"source_ids":[]}'
         return SimpleNamespace(disposition="FAILED", task_status="RUNNING")
 
@@ -300,15 +320,26 @@ def test_document_preflight_failure_allows_next_document_send(tmp_path, monkeypa
     def run_document(document_id: int):
         runtime = SimpleNamespace(
             document=SimpleNamespace(document_id=str(document_id)),
-            ontology=object(), identity_settings=lambda: {"document": document_id},
+            ontology=object(),
+            identity_settings=lambda: {"document": document_id},
         )
         execution = SimpleNamespace(
             runtime_settings={"extraction_runner": runtime.identity_settings()}
         )
         return app.run_document(
-            object(), document_id, "worker", execution, runtime, object(),
-            lambda *_args: None, lambda *_args: None, lambda *_args: None,
-            lambda *_args: None, lambda *_args: None, lambda *_args: None, pilot=pilot,
+            object(),
+            document_id,
+            "worker",
+            execution,
+            runtime,
+            object(),
+            lambda *_args: None,
+            lambda *_args: None,
+            lambda *_args: None,
+            lambda *_args: None,
+            lambda *_args: None,
+            lambda *_args: None,
+            pilot=pilot,
         )
 
     try:
@@ -344,7 +375,9 @@ def test_other_preflight_errors_still_stop_pilot(tmp_path, monkeypatch, reserve_
     pilot = PilotBudget("failed-preflight", 2, Decimal("1"), tmp_path / "failed.jsonl")
     monkeypatch.setattr(durable_provider, "Session", FakeSession)
     monkeypatch.setattr(
-        durable_provider.tasks, "fail_execution", lambda *_args, **_kwargs: "FINAL_FAILED"
+        durable_provider.tasks,
+        "fail_execution",
+        lambda *_args, **_kwargs: "FINAL_FAILED",
     )
 
     def preflight():
@@ -366,7 +399,8 @@ def test_other_preflight_errors_still_stop_pilot(tmp_path, monkeypatch, reserve_
 @pytest.mark.parametrize("supplied_transport", [False, True])
 def test_live_transport_requires_explicit_pilot(supplied_transport):
     transport = ModelStudioStructuredTransport(
-        SecretStr("offline"), base_url=BASE_URL,
+        SecretStr("offline"),
+        base_url=BASE_URL,
         transport=httpx.HTTPTransport(retries=0) if supplied_transport else None,
     )
     try:

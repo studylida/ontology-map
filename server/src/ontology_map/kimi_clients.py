@@ -60,28 +60,22 @@ def kimi_clients(
     helper_budget alone never authorizes a live send. ExitStack also closes
     already-created clients if later construction fails.
     """
-    key = api_key if api_key is not None else SecretStr(
-        os.environ.get("MOONSHOT_API_KEY", "")
+    key = (
+        api_key
+        if api_key is not None
+        else SecretStr(os.environ.get("MOONSHOT_API_KEY", ""))
     )
     with ExitStack() as stack:
-        helpers = KimiModels(
-            key, helper_budget, base_url=BASE_URL, transport=transport
-        )
+        helpers = KimiModels(key, helper_budget, base_url=BASE_URL, transport=transport)
         stack.callback(helpers.close)
-        generation = KimiGenerationAdapter(
-            key, base_url=BASE_URL, transport=transport
-        )
+        generation = KimiGenerationAdapter(key, base_url=BASE_URL, transport=transport)
         stack.callback(generation.close)
         node_context = KimiNodeContextAdapter(
             key, base_url=BASE_URL, transport=transport
         )
         stack.callback(node_context.close)
-        followup = KimiFollowupAdapter(
-            key, base_url=BASE_URL, transport=transport
-        )
+        followup = KimiFollowupAdapter(key, base_url=BASE_URL, transport=transport)
         stack.callback(followup.close)
-        insight = KimiInsightAdapter(
-            key, base_url=BASE_URL, transport=transport
-        )
+        insight = KimiInsightAdapter(key, base_url=BASE_URL, transport=transport)
         stack.callback(insight.close)
         yield KimiClients(helpers, generation, node_context, followup, insight)

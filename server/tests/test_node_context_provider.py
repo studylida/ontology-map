@@ -3,9 +3,9 @@ from hashlib import sha256
 
 import httpx
 import pytest
+from kimi_wire import task_prompt, wire_schema
 from pydantic import SecretStr
 
-from kimi_wire import task_prompt, wire_schema
 from ontology_map import node_context_execution
 from ontology_map import node_context_generation as product
 from ontology_map.llm_config import BASE_URL

@@ -8,7 +8,6 @@ and prompt surface for the time-neutral Korean context.
 from typing import Any
 
 from ontology_map.llm_config import MODEL_VERSION as MODEL_VERSION
-
 from ontology_map.node_context_generation_contracts import (
     NodeContextProposal,
     PreparedNodeContext,

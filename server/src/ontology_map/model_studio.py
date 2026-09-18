@@ -112,7 +112,8 @@ class KimiModels:
         except CallFailed as error:
             status = error.code
             local_preflight = operation is None and error.code in {
-                "REQUEST_SIZE_LIMIT", "INVALID_REQUEST"
+                "REQUEST_SIZE_LIMIT",
+                "INVALID_REQUEST",
             }
             self.budget.stopped = error.fatal and not local_preflight
             raise

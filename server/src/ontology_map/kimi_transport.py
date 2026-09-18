@@ -182,7 +182,7 @@ class KimiStructuredTransport:
             content = json.dumps(
                 body, ensure_ascii=False, separators=(",", ":"), allow_nan=False
             ).encode("utf-8")
-        except (TypeError, ValueError, OverflowError):
+        except TypeError, ValueError, OverflowError:
             raise CallFailed("INVALID_REQUEST", fatal=True) from None
         if len(content) > limits.max_request_bytes:
             raise CallFailed("REQUEST_SIZE_LIMIT", fatal=True)

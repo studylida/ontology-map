@@ -3,9 +3,9 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
+from kimi_wire import task_prompt, wire_schema
 from pydantic import SecretStr
 
-from kimi_wire import task_prompt, wire_schema
 from ontology_map import insight_generation as product
 from ontology_map.insight_generation_contracts import (
     InsightAgentInput,
@@ -30,10 +30,12 @@ def prepared() -> PreparedInsightBundle:
             preferred_alias="가상 노드",
             as_of_at=datetime(2026, 9, 16, tzinfo=UTC),
             recent_90_days=InsightWindowInput(
-                time_window="RECENT_90_DAYS", claims=(),
+                time_window="RECENT_90_DAYS",
+                claims=(),
             ),
             recent_1_year=InsightWindowInput(
-                time_window="RECENT_1_YEAR", claims=(),
+                time_window="RECENT_1_YEAR",
+                claims=(),
             ),
         ),
     )
