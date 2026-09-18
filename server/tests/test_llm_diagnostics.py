@@ -386,3 +386,30 @@ def test_runner_helper_stop_keeps_diagnostic_and_never_uses_durable_slot(tmp_pat
     finally:
         helpers.close()
         pilot.close()
+
+
+def test_durable_failure_survives_later_pilot_stop_check(tmp_path):
+    def handle(request):
+        return httpx.Response(429, request=request)
+
+    pilot = PilotBudget("durable", 4, Decimal("3"), tmp_path / "pilot.jsonl")
+    transport = KimiStructuredTransport(
+        SecretStr(PRIVATE), transport=httpx.MockTransport(handle)
+    )
+    try:
+        with pilot.activate():
+            operation = prepare(transport)
+            with pytest.raises(httpx.HTTPStatusError):
+                operation()
+            with pytest.raises(PilotBudgetError, match="PILOT_STOPPED") as caught:
+                pilot.require_active()
+            details = export(caught.value)
+            assert details["exception_type"] == "HTTPStatusError"
+            assert details["stage"] == "HTTP_STATUS"
+            assert details["http_status"] == 429
+            assert details["request_sha256"] == operation.request_hash
+            assert details["send_entered"] is True
+            assert details["usage_confirmed"] is False
+    finally:
+        transport.close()
+        pilot.close()

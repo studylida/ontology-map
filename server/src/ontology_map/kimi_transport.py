@@ -131,8 +131,6 @@ class PreparedJsonCall:
                 on_usage=confirm,
             )
         except BaseException as error:
-            if self._pilot is not None and not confirmed:
-                self._pilot.stop()
             record_failure(
                 error,
                 stage=stage,
@@ -141,6 +139,8 @@ class PreparedJsonCall:
                 http_status=http_status,
                 usage_confirmed=confirmed,
             )
+            if self._pilot is not None and not confirmed:
+                self._pilot.stop(error)
             raise
 
 

@@ -15,6 +15,7 @@ from typing import Iterator
 import httpx
 
 from ontology_map.llm_config import BILLABLE_INPUT_CEILING, MAX_INPUT_TOKENS
+from ontology_map.llm_diagnostics import carry_failure
 from ontology_map.model_studio import RATES, CallLimits, token_cost
 
 
@@ -64,6 +65,7 @@ class PilotBudget:
         self.max_usd = max_usd
         self.path = path
         self.stopped = False
+        self._failure: PilotBudgetError | None = None
         self.calls = 0
         self.charged_upper_usd = Decimal(0)
         self._estimates: dict[int, tuple[str, int, Decimal]] = {}
@@ -195,12 +197,19 @@ class PilotBudget:
             self.charged_upper_usd += actual - estimate
             del self._estimates[sequence]
 
-    def stop(self) -> None:
+    def stop(self, error: BaseException | None = None) -> None:
         self.stopped = True
+        if error is not None and self._failure is None:
+            safe = PilotBudgetError("PILOT_STOPPED")
+            carry_failure(safe, error, role="")
+            self._failure = safe
 
     def require_active(self) -> None:
         if self.stopped or self._fd < 0:
-            raise PilotBudgetError("PILOT_STOPPED")
+            stopped = PilotBudgetError("PILOT_STOPPED")
+            if self._failure is not None:
+                carry_failure(stopped, self._failure, role="")
+            raise stopped
 
     def close(self) -> None:
         self.stopped = True

@@ -23,7 +23,7 @@
 
 ## 한도와 실행 식별
 
-K2.6의 공식 context는 256K다. 애플리케이션은 보수적으로 입력 223,232 + 출력 32,768 = 256,000 token을 상한으로 사용한다. 기존 1,000,000 입력 상한을 지정한 로컬 caller는 새 상한 이하로 명시적으로 변경하고 runtime identity를 다시 구성해야 한다. model window와 실제 tokenizer의 경계 판단은 provider가 담당하며 로컬에서 정확한 token 수를 추측하지 않는다.
+K2.6의 공식 context는 256K다. 애플리케이션은 보수적으로 입력 223,232 + 출력 32,768 = 256,000 token을 허용 상한으로 사용한다. 실제 publication 요청의 출력 한도는 NODE_CONTEXT 2,048, FOLLOWUP_QUESTIONS 2,048, NODE_INSIGHT 8,192 token이며 각 task identity에 포함된다. 기존 1,000,000 입력 상한을 지정한 로컬 caller는 새 상한 이하로 명시적으로 변경하고 runtime identity를 다시 구성해야 한다. model window와 실제 tokenizer의 경계 판단은 provider가 담당하며 로컬에서 정확한 token 수를 추측하지 않는다.
 
 유료 전송 상한은 caller의 명시적 `PilotBudget`이 소유한다. helper의 `Budget`만으로는 실제 전송이 허용되지 않는다. 단가는 2026-09-18 공식 국제판의 uncached 입력 $0.95 / 출력 $4.00 (백만 token 기준)를 사용한다. cache 할인·충전액·프로모션은 가정하지 않는다. 불확실한 입력 사용량은 262,144 token으로 보수적으로 예약한다. 가격이나 모델 변경 시 설정·한도·테스트를 함께 갱신한다.
 
