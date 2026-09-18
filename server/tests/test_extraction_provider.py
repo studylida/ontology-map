@@ -101,8 +101,8 @@ def test_prepare_builds_exact_kimi_request_before_send(tmp_path) -> None:
         payload = json.loads(req.content)
         calls.append(payload)
         assert payload["model"] == FLASH
-        assert payload["max_tokens"] == 1_024
-        assert "max_completion_tokens" not in payload
+        assert payload["max_completion_tokens"] == 1_024
+        assert "max_tokens" not in payload
         assert not {"tools", "tool_choice", "stream_options"} & payload.keys()
         assert task_prompt(payload) == GENERATION_PROMPT
         assert payload["messages"][0]["role"] == "system"

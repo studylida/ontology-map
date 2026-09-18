@@ -15,7 +15,7 @@ from ontology_map import durable_provider
 from ontology_map.followup_provider import ModelStudioFollowupAdapter
 from ontology_map.insight_provider import ModelStudioInsightAdapter
 from ontology_map.kimi_transport import KimiStructuredTransport
-from ontology_map.llm_config import BASE_URL, MODEL_VERSION
+from ontology_map.llm_config import BASE_URL, role_model
 from ontology_map.llm_contracts import CallFailed, CallLimits
 from ontology_map.llm_diagnostics import failure_diagnostic
 from ontology_map.node_context_provider import ModelStudioNodeContextAdapter
@@ -23,7 +23,7 @@ from ontology_map.node_context_provider import ModelStudioNodeContextAdapter
 
 @pytest.fixture(autouse=True)
 def isolation(tmp_path, monkeypatch):
-    monkeypatch.setenv("ONTOLOGY_MAP_KIMI_RESPONSE_DIR", str(tmp_path / "responses"))
+    monkeypatch.setenv("ONTOLOGY_MAP_OPENAI_RESPONSE_DIR", str(tmp_path / "responses"))
 
     def forbidden(*args, **kwargs):
         pytest.fail("NETWORK_FORBIDDEN")
@@ -36,7 +36,7 @@ def response(request, content):
         200,
         request=request,
         json={
-            "model": MODEL_VERSION,
+            "model": json.loads(request.content)["model"],
             "usage": {
                 "prompt_tokens": 100,
                 "completion_tokens": 20,
@@ -128,10 +128,10 @@ def test_real_durable_send_boundary_supplies_task_and_slot(monkeypatch, tmp_path
     )
     try:
         send = client.prepare(
-            model=MODEL_VERSION,
+            model=role_model("node_context"),
             messages=[{"role": "system", "content": "synthetic"}],
             schema_name="NodeContextProposal",
-            schema={"type": "object"},
+            schema={"type": "object", "properties": {}, "additionalProperties": False},
             limits=CallLimits(2000, 2048, 10000),
         )
         result = durable_provider._execute_prepared_call(

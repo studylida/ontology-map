@@ -14,7 +14,7 @@ from ontology_map.extraction_contracts import BodySelection, KnowledgeProposals
 from ontology_map.extraction_provider import KimiGenerationAdapter
 from ontology_map.kimi_response_archive import response_task
 from ontology_map.kimi_transport import KimiStructuredTransport
-from ontology_map.llm_config import MODEL_VERSION
+from ontology_map.llm_config import MODEL_VERSION, SCHEMA_ROLES, role_model
 from ontology_map.llm_contracts import Budget, CallFailed, CallLimits
 from ontology_map.llm_diagnostics import failure_diagnostic
 from ontology_map.model_studio import KimiModels
@@ -27,7 +27,7 @@ KEY = "secret-key-not-in-body"
 
 @pytest.fixture(autouse=True)
 def isolation(tmp_path, monkeypatch):
-    monkeypatch.setenv("ONTOLOGY_MAP_KIMI_RESPONSE_DIR", str(tmp_path / "responses"))
+    monkeypatch.setenv("ONTOLOGY_MAP_OPENAI_RESPONSE_DIR", str(tmp_path / "responses"))
 
     def forbidden(*args, **kwargs):
         pytest.fail("NETWORK_FORBIDDEN")
@@ -75,7 +75,7 @@ def transport(raw, status=200):
 
 def prepare(client, name="KnowledgeProposals", schema=None):
     return client.prepare(
-        model=MODEL_VERSION,
+        model=role_model(SCHEMA_ROLES[name]),
         messages=[{"role": "system", "content": "synthetic"}],
         schema_name=name,
         schema=schema or KnowledgeProposals.model_json_schema(),
@@ -337,7 +337,7 @@ def test_unsafe_archive_location_is_rejected_without_changing_result(
     else:
         (target / ".git").write_text("gitdir: somewhere")
         chosen = target / "responses"
-    monkeypatch.setenv("ONTOLOGY_MAP_KIMI_RESPONSE_DIR", str(chosen))
+    monkeypatch.setenv("ONTOLOGY_MAP_OPENAI_RESPONSE_DIR", str(chosen))
     client = transport(body())
     try:
         call = prepare(client)
@@ -349,7 +349,7 @@ def test_unsafe_archive_location_is_rejected_without_changing_result(
 
 
 def test_helper_uses_common_archive_without_fabricating_durable_attempt(tmp_path):
-    raw = body('{"source_ids":[]}')
+    raw = body('{"source_ids":[]}', model=role_model("body"))
     helpers = KimiModels(
         SecretStr(KEY),
         Budget(1, Decimal("3")),

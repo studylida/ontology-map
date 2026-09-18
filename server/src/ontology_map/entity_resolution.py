@@ -7,6 +7,7 @@ semantic validation and publication remain with their owning use cases.
 
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from sqlalchemy.orm import Session
@@ -110,7 +111,7 @@ def _same_node(
 
 
 def _validate_proposal(
-    session: Session,
+    new_type_active: bool,
     mention: EntityMention,
     candidates: CandidateSet,
     proposal: ResolutionProposal,
@@ -124,23 +125,21 @@ def _validate_proposal(
         candidates.truncated
         or mention.node_type == "TOPIC"
         or not _usable_name(mention.text)
-        or queries.active_type_id(session, mention.node_type) is None
+        or not new_type_active
     ):
         return "UNRESOLVED", None
     return "NEW", None
 
 
-def resolve_mention(
-    session: Session,
-    mention: EntityMention,
-    propose: Callable[[list[tuple[str, str]]], object],
-) -> Resolution:
-    """Read and judge only: no Node, Observation, task or alias writes.
+@dataclass(frozen=True)
+class PreparedResolution:
+    result: Resolution = field(repr=False)
+    model_input: ResolutionInput | None = field(default=None, repr=False)
+    new_type_active: bool = False
 
-    Run this outside the short write transaction, against a consistent read
-    snapshot. Lookup/transport/Structured Output failures propagate; they are
-    never disguised as an empty lookup or an eligible NEW result.
-    """
+
+def prepare_resolution(session: Session, mention: EntityMention) -> PreparedResolution:
+    """Capture the SAME lookup snapshot, without model IO or pacing waits."""
     context = queries.verified_context(session, mention)
     if mention.node_type == "TOPIC":
         candidates = _topic_candidates(session, mention)
@@ -149,49 +148,79 @@ def resolve_mention(
             if len(candidates.nodes) == 1
             else None
         )
-        topic_decision: ResolutionStatus = (
-            "SAME" if node_id is not None else "UNRESOLVED"
+        decision: ResolutionStatus = "SAME" if node_id is not None else "UNRESOLVED"
+        return PreparedResolution(
+            Resolution(mention, decision, node_id, context, candidates, ())
         )
-        return Resolution(mention, topic_decision, node_id, context, candidates, ())
     identifiers = queries.identifier_matches(session, mention)
     candidates = CandidateSet((), False)
     node_id = None
-    decision: ResolutionStatus = "UNRESOLVED"
+    decision = "UNRESOLVED"
+    model_input = None
+    active = False
     if identifiers:
-        # Recheck the unique canonical identity and actual stored type; a
-        # mismatch is not delegated to an Agent and cannot fall back to NEW.
         if len(identifiers) == 1:
             node_id = _same_node(mention, identifiers[0].candidate.node_id, identifiers)
             decision = "SAME" if node_id is not None else "UNRESOLVED"
     else:
         candidates = queries.name_candidates(session, mention)
         if _usable_name(mention.text):
-            input_value = ResolutionInput(
+            model_input = ResolutionInput(
                 mention_text=mention.text,
                 node_type=mention.node_type,
                 context=tuple(item.source for item in context),
                 candidates=tuple(item.candidate for item in candidates.nodes),
                 candidates_truncated=candidates.truncated,
             )
-            # A zero-candidate path still asks for a specificity judgment.
-            # #128 permits but does not require skipping this call.
-            raw = propose(
-                [
-                    ("system", SYSTEM_PROMPT),
-                    ("human", input_value.model_dump_json()),
-                ]
-            )
-            if isinstance(raw, ResolutionProposal):
-                raw = raw.model_dump()
-            proposal = (
-                ResolutionProposal.model_validate_json(raw)
-                if isinstance(raw, str)
-                else ResolutionProposal.model_validate(raw)
-            )
-            decision, node_id = _validate_proposal(
-                session, mention, candidates, proposal
-            )
-    return Resolution(mention, decision, node_id, context, candidates, identifiers)
+            active = queries.active_type_id(session, mention.node_type) is not None
+    return PreparedResolution(
+        Resolution(mention, decision, node_id, context, candidates, identifiers),
+        model_input,
+        active,
+    )
+
+
+def finish_resolution(
+    prepared: PreparedResolution,
+    propose: Callable[[list[tuple[str, str]]], object],
+) -> Resolution:
+    """Use the captured input outside transactions; promotion revalidates it."""
+    result = prepared.result
+    if prepared.model_input is None:
+        return result
+    raw = propose(
+        [
+            ("system", SYSTEM_PROMPT),
+            ("human", prepared.model_input.model_dump_json()),
+        ]
+    )
+    if isinstance(raw, ResolutionProposal):
+        raw = raw.model_dump()
+    proposal = (
+        ResolutionProposal.model_validate_json(raw)
+        if isinstance(raw, str)
+        else ResolutionProposal.model_validate(raw)
+    )
+    decision, node_id = _validate_proposal(
+        prepared.new_type_active, result.mention, result.candidates, proposal
+    )
+    return Resolution(
+        result.mention,
+        decision,
+        node_id,
+        result.context,
+        result.candidates,
+        result.identifier_nodes,
+    )
+
+
+def resolve_mention(
+    session: Session,
+    mention: EntityMention,
+    propose: Callable[[list[tuple[str, str]]], object],
+) -> Resolution:
+    """Compatibility API. Production uses separate prepare/finish boundaries."""
+    return finish_resolution(prepare_resolution(session, mention), propose)
 
 
 def _by_mention_id(resolutions: Sequence[Resolution]) -> dict[str, Resolution]:

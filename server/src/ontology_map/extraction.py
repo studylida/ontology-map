@@ -25,7 +25,8 @@ from ontology_map.extraction_contracts import (
     SourceSpan,
     digest,
 )
-from ontology_map.model_studio import FLASH, PLUS, CallFailed, CallLimits, Role
+from ontology_map.llm_config import request_identity_settings
+from ontology_map.model_studio import CallFailed, CallLimits, Role
 
 
 class ExtractionModels(Protocol):
@@ -447,7 +448,7 @@ def extract_knowledge(
                 "ontology": ontology.model_dump(mode="json"),
                 "limits": asdict(limits),
                 "structure": include_structure,
-                "models": [FLASH, PLUS],
+                "provider_execution": request_identity_settings(),
                 "prompts": [
                     BODY_PROMPT,
                     GENERATION_PROMPT,

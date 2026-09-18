@@ -18,6 +18,7 @@ from hashlib import sha256
 from pathlib import Path
 from uuid import uuid4
 
+from ontology_map.llm_config import MODEL_VERSION, PROVIDER
 from ontology_map.llm_diagnostics import attach_response, failure_diagnostic
 
 _task: ContextVar[tuple[int | None, int | None]] = ContextVar(
@@ -99,7 +100,7 @@ def _write(directory: Path, name: str, content: bytes) -> None:
 
 def _warning() -> None:
     try:
-        logging.getLogger(__name__).warning("KIMI_RESPONSE_ARCHIVE_FAILED")
+        logging.getLogger(__name__).warning("LLM_RESPONSE_ARCHIVE_FAILED")
     except Exception:
         pass  # Even a broken logging handler must not change a product outcome.
 
@@ -118,6 +119,9 @@ class ResponseArchive:
         body: bytes,
         *,
         role: str,
+        provider: str = PROVIDER,
+        model: str = MODEL_VERSION,
+        headers: dict[str, str] | None = None,
         schema_name: str,
         request_hash: str,
         http_status: int,
@@ -129,11 +133,13 @@ class ResponseArchive:
             self.response_id = uuid4().hex
             self.status = "FAILED"
             default = (
-                pilot_path.parent / "kimi-responses"
+                pilot_path.parent / "openai-responses"
                 if pilot_path is not None
-                else Path.home() / ".local/state/ontology-map/kimi-responses"
+                else Path.home() / ".local/state/ontology-map/openai-responses"
             )
-            root = Path(os.environ.get("ONTOLOGY_MAP_KIMI_RESPONSE_DIR", str(default)))
+            root = Path(
+                os.environ.get("ONTOLOGY_MAP_OPENAI_RESPONSE_DIR", str(default))
+            )
             root_fd = _directory(root)
             try:
                 os.mkdir(self.response_id, 0o700, dir_fd=root_fd)
@@ -146,6 +152,9 @@ class ResponseArchive:
                 "version": 1,
                 "response_id": self.response_id,
                 "role": role,
+                "provider": provider,
+                "request_model": model,
+                "rate_limit_headers": headers or {},
                 "schema_name": schema_name,
                 "request_sha256": request_hash,
                 "response_sha256": sha256(body).hexdigest(),
@@ -159,6 +168,14 @@ class ResponseArchive:
             }
             _write(self.directory, "metadata.json", json.dumps(metadata).encode())
             self.status = "SAVED"
+        except Exception:
+            _warning()
+
+    def annotate(self, metadata: dict[str, object]) -> None:
+        """A separate safe sidecar; never replace captured bytes or metadata."""
+        try:
+            if self.directory is not None:
+                _write(self.directory, "envelope.json", json.dumps(metadata).encode())
         except Exception:
             _warning()
 

@@ -57,6 +57,7 @@ from ontology_map.extraction_runner import (
     RuntimeInput,
     classify_provider_error,
 )
+from ontology_map.llm_pacing import provider_lease
 from ontology_map.model_studio import CallLimits, ModelStudio
 
 ResolutionProposer = Callable[[list[tuple[str, str]]], object]
@@ -204,18 +205,18 @@ def _resolve(
     mentions: Sequence[EntityMention],
     propose: ResolutionProposer,
 ) -> tuple[Resolution, ...]:
-    # Official #128 API requires one consistent lookup snapshot. It is kept
-    # separate from the later write transaction and cannot persist results.
+    # Capture one consistent lookup snapshot, then RELEASE the transaction
+    # before any helper pacing/model IO. Official promotion revalidation remains.
     with engine.connect().execution_options(
         isolation_level="REPEATABLE READ"
     ) as connection:
         with connection.begin():
             connection.exec_driver_sql("SET TRANSACTION READ ONLY")
             with Session(bind=connection) as session:
-                return tuple(
-                    er.resolve_mention(session, mention, propose)
-                    for mention in mentions
+                prepared = tuple(
+                    er.prepare_resolution(session, mention) for mention in mentions
                 )
+    return tuple(er.finish_resolution(item, propose) for item in prepared)
 
 
 def model_studio_resolution_proposer(
@@ -872,7 +873,7 @@ def _is_transient_failure(error: Exception) -> bool:
     confirmed = classify_provider_error(error)
     return bool(
         confirmed is not None
-        and (confirmed.transient or confirmed.outcome in {"TIMEOUT", "RATE_LIMITED"})
+        and (confirmed.transient or confirmed.outcome == "TIMEOUT")
     )
 
 
@@ -999,17 +1000,17 @@ def _claim_same_node_ids(
     return tuple(sorted(result))
 
 
-def _judge_claim_duplicates(
+def _duplicate_snapshots(
     engine: Engine,
     runtime: RuntimeInput,
     selection: _ResolutionSelection,
-    propose_duplicate: ClaimDuplicateProposer,
-) -> _ResolutionSelection:
+) -> list[
+    tuple[
+        ClaimProposal, tuple[str, ...], tuple[promotion_db.ClaimCandidateSnapshot, ...]
+    ]
+]:
     resolutions = {item.mention.mention_id: item for item in selection.resolutions}
-    accepted: list[ClaimProposal] = []
-    excluded = list(selection.excluded_ids)
-    decisions: dict[str, _ClaimDuplicateDecision] = {}
-    document_id = _document_id(runtime)
+    rows = []
     with engine.connect().execution_options(
         isolation_level="REPEATABLE READ"
     ) as connection:
@@ -1017,10 +1018,9 @@ def _judge_claim_duplicates(
             connection.exec_driver_sql("SET TRANSACTION READ ONLY")
             with Session(bind=connection) as session:
                 _validate_active_ontology(session, runtime)
-                document = promotion_db.source_document(session, document_id)
+                document = promotion_db.source_document(session, _document_id(runtime))
                 if runtime.document.body != document["normalized_body"]:
                     raise inputs.InputChanged("RUNNER_SOURCE_MISMATCH")
-                language = str(document["original_language"])
                 for claim in selection.accepted:
                     semantic_targets = _proposal_semantic_targets(
                         claim, runtime, resolutions
@@ -1028,47 +1028,58 @@ def _judge_claim_duplicates(
                     candidates = promotion_db.claim_duplicate_candidates(
                         session,
                         statement=claim.statement,
-                        language=language,
+                        language=str(document["original_language"]),
                         modality=claim.modality,
                         node_ids=_claim_same_node_ids(claim, resolutions),
                     )
-                    exact = tuple(
-                        item
-                        for item in candidates
-                        if item.statement == claim.statement
-                        and item.semantic_targets == semantic_targets
-                    )
-                    if len(exact) > 1:
-                        raise ValueError("AMBIGUOUS_EXACT_CLAIM_DUPLICATE")
-                    existing: promotion_db.ClaimCandidateSnapshot | None = None
-                    if exact:
-                        existing = exact[0]
-                    elif candidates:
-                        duplicate_input = ClaimDuplicateInput(
-                            statement=claim.statement,
-                            modality=claim.modality,
-                            semantic_targets=semantic_targets,
-                            candidates=tuple(
-                                _candidate_contract(item) for item in candidates
-                            ),
-                        )
-                        proposal = _validated_duplicate_proposal(
-                            propose_duplicate(duplicate_input), candidates
-                        )
-                        if proposal.decision == "UNRESOLVED":
-                            excluded.append(claim.candidate_id)
-                            continue
-                        if proposal.decision == "SAME":
-                            existing = next(
-                                item
-                                for item in candidates
-                                if item.claim_id == proposal.claim_id
-                            )
-                    decisions[claim.candidate_id] = _ClaimDuplicateDecision(
-                        semantic_targets=semantic_targets,
-                        existing=existing,
-                    )
-                    accepted.append(claim)
+                    rows.append((claim, semantic_targets, candidates))
+    return rows
+
+
+def _judge_claim_duplicates(
+    engine: Engine,
+    runtime: RuntimeInput,
+    selection: _ResolutionSelection,
+    propose_duplicate: ClaimDuplicateProposer,
+) -> _ResolutionSelection:
+    accepted: list[ClaimProposal] = []
+    excluded = list(selection.excluded_ids)
+    decisions: dict[str, _ClaimDuplicateDecision] = {}
+    for claim, semantic_targets, candidates in _duplicate_snapshots(
+        engine, runtime, selection
+    ):
+        exact = tuple(
+            item
+            for item in candidates
+            if item.statement == claim.statement
+            and item.semantic_targets == semantic_targets
+        )
+        if len(exact) > 1:
+            raise ValueError("AMBIGUOUS_EXACT_CLAIM_DUPLICATE")
+        existing: promotion_db.ClaimCandidateSnapshot | None = None
+        if exact:
+            existing = exact[0]
+        elif candidates:
+            duplicate_input = ClaimDuplicateInput(
+                statement=claim.statement,
+                modality=claim.modality,
+                semantic_targets=semantic_targets,
+                candidates=tuple(_candidate_contract(item) for item in candidates),
+            )
+            proposal = _validated_duplicate_proposal(
+                propose_duplicate(duplicate_input), candidates
+            )
+            if proposal.decision == "UNRESOLVED":
+                excluded.append(claim.candidate_id)
+                continue
+            if proposal.decision == "SAME":
+                existing = next(
+                    item for item in candidates if item.claim_id == proposal.claim_id
+                )
+        decisions[claim.candidate_id] = _ClaimDuplicateDecision(
+            semantic_targets=semantic_targets, existing=existing
+        )
+        accepted.append(claim)
     accepted_ids = tuple(claim.candidate_id for claim in accepted)
     required_mentions = frozenset(
         mention.mention_id for claim in accepted for mention in claim.mentions
@@ -1328,15 +1339,21 @@ def finalize_extraction(
         raise ValueError("RUNNER_RESULT_NOT_FINALIZABLE")
     try:
         _precheck_verified(engine, lease, execution, runtime)
-        selection = _resolve_verified_claims(
-            engine,
-            runtime,
-            runner.extraction.verified,
-            propose_resolution,
-        )
-        selection = _judge_claim_duplicates(
-            engine, runtime, selection, propose_claim_duplicate
-        )
+
+        def check_lease() -> None:
+            with Session(engine) as session, session.begin():
+                tasks.require_lease(session, lease)
+
+        with provider_lease(check_lease):
+            selection = _resolve_verified_claims(
+                engine,
+                runtime,
+                runner.extraction.verified,
+                propose_resolution,
+            )
+            selection = _judge_claim_duplicates(
+                engine, runtime, selection, propose_claim_duplicate
+            )
         selection = _exclude_unsupported_relations(engine, runtime, selection)
     except Exception as error:
         return _fail_after_rollback(engine, lease, error)

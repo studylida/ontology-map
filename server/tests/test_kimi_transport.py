@@ -10,6 +10,8 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from kimi_wire import wire_schema
+from openai_cases import CASES
 from pydantic import SecretStr, ValidationError
 
 from ontology_map.extraction_contracts import (
@@ -32,6 +34,7 @@ from ontology_map.llm_config import (
     SCHEMA_SEPARATOR,
     json_messages,
     request_identity_settings,
+    role_model,
 )
 from ontology_map.model_studio import (
     FLASH,
@@ -53,7 +56,7 @@ PRIVATE_TEXT = "공개 로그에 남기면 안 되는 시험 원문"
 
 def reply(request, content='{"source_ids":[]}', **changes):
     data = {
-        "model": MODEL_VERSION,
+        "model": json.loads(request.content)["model"],
         "usage": {
             "prompt_tokens": 100,
             "completion_tokens": 20,
@@ -72,7 +75,7 @@ def reply(request, content='{"source_ids":[]}', **changes):
 
 def prepare(transport, **changes):
     values = {
-        "model": MODEL_VERSION,
+        "model": role_model("body"),
         "messages": [
             {"role": "system", "content": "Return the selected sources."},
             {"role": "user", "content": PRIVATE_TEXT},
@@ -104,63 +107,38 @@ def forbid_network(monkeypatch):
         "claim_duplicate",
     ],
 )
-def test_every_helper_role_uses_kimi_and_local_validation(role, caplog):
+def test_every_helper_role_uses_openai_and_local_validation(role, caplog):
     calls = []
+    schema, value = CASES[role]
 
     def handle(request):
         calls.append(request)
         body = json.loads(request.content)
         assert str(request.url) == BASE_URL + "/chat/completions"
-        assert body["model"] == MODEL_VERSION
-        assert body["response_format"] == {"type": "json_object"}
-        assert body["thinking"] == {"type": "disabled"}
-        assert body["stream"] is False
-        assert body["max_tokens"] == 1024
-        assert (
-            not {
-                "temperature",
-                "top_p",
-                "enable_thinking",
-                "tools",
-                "tool_choice",
-                "max_completion_tokens",
-                "json_schema",
-            }
-            & body.keys()
-        )
-        original_schema = BodySelection.model_json_schema()
-        transmitted = json.loads(
-            body["messages"][0]["content"].split(SCHEMA_SEPARATOR)[1]
-        )
-        assert transmitted == original_schema
-        assert "pattern" in transmitted["properties"]["source_ids"]["items"]
+        assert body["model"] == role_model(role)
+        assert body["max_completion_tokens"] == 1024
+        assert wire_schema(body) == schema.model_json_schema()
         assert json.loads(body["messages"][1]["content"]) == {
             "source_ids": [PRIVATE_TEXT]
         }
-        return reply(request)
+        return reply(request, json.dumps(value))
 
     budget = Budget(1, Decimal("1"))
     client = KimiModels(
         SecretStr(PRIVATE_KEY), budget, transport=httpx.MockTransport(handle)
     )
     try:
-        assert (
-            client.call(
-                role,
-                "prompt",
-                BodySelection(source_ids=[PRIVATE_TEXT]),
-                BodySelection,
-                LIMITS,
-            ).source_ids
-            == []
+        result = client.call(
+            role, "prompt", BodySelection(source_ids=[PRIVATE_TEXT]), schema, LIMITS
         )
+        assert result.model_dump(mode="json") == value
     finally:
         client.close()
     assert len(calls) == 1
-    assert budget.records[0].model == MODEL_VERSION
+    assert budget.records[0].model == role_model(role)
     assert budget.records[0].role == role
     assert budget.records[0].request_hash == request_digest(calls[0])
-    assert budget.charged_upper_usd == token_cost(MODEL_VERSION, 100, 20)
+    assert budget.charged_upper_usd == token_cost(role_model(role), 100, 20)
     assert PRIVATE_KEY not in caplog.text
     assert PRIVATE_TEXT not in caplog.text
 
@@ -197,11 +175,11 @@ def test_credentials_fail_locally(key):
 def test_options_and_schema_attachment_are_immutable_and_versioned():
     settings = request_identity_settings()
     baseline = deepcopy(settings)
-    settings["wire_options"]["thinking"]["type"] = "enabled"
+    settings["role_profiles"]["body"]["reasoning_effort"] = "high"
     assert request_identity_settings() == baseline
-    assert baseline["provider"] == "moonshot"
+    assert baseline["provider"] == "openai"
     assert baseline["model"] == MODEL_VERSION
-    assert baseline["wire_options"]["response_format"] == {"type": "json_object"}
+    assert baseline["response_format"] == "json_schema"
     schema = BodySelection.model_json_schema()
     original = deepcopy(schema)
     messages = [
@@ -284,7 +262,7 @@ def test_preparation_reserves_once_and_send_cannot_replay(tmp_path, caplog):
             "reserved",
             "confirmed",
         ]
-        assert pilot.charged_upper_usd == token_cost(MODEL_VERSION, 100, 20)
+        assert pilot.charged_upper_usd == token_cost(role_model("body"), 100, 20)
         assert path.stat().st_mode & 0o777 == 0o600
         for hidden in (PRIVATE_KEY, PRIVATE_TEXT):
             assert hidden not in path.read_text() + caplog.text + repr(operation)
@@ -365,7 +343,7 @@ def test_unconfirmed_usage_keeps_reservation_and_stops(bad_usage, tmp_path):
                 operation()
         assert pilot.stopped and operation.usage is None
         assert pilot.charged_upper_usd == token_cost(
-            MODEL_VERSION, BILLABLE_INPUT_CEILING, 1024
+            role_model("body"), BILLABLE_INPUT_CEILING, 1024
         )
     finally:
         client.close()

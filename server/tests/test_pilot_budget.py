@@ -14,7 +14,7 @@ from ontology_map import durable_provider
 from ontology_map.application_execution import dry_run
 from ontology_map.extraction import BodyInput
 from ontology_map.extraction_contracts import BodySelection
-from ontology_map.llm_config import BASE_URL, BILLABLE_INPUT_CEILING
+from ontology_map.llm_config import BASE_URL, BILLABLE_INPUT_CEILING, role_model
 from ontology_map.model_studio import (
     FLASH,
     Budget,
@@ -59,7 +59,7 @@ def _response(request: httpx.Request, *, usage: bool = True) -> httpx.Response:
 
 def _prepare(transport: ModelStudioStructuredTransport):
     return transport.prepare(
-        model=FLASH,
+        model=role_model("body"),
         messages=[{"role": "system", "content": "private prompt"}],
         schema_name="BodySelection",
         schema=BodySelection.model_json_schema(),
@@ -126,7 +126,7 @@ def test_helper_and_two_durable_tasks_accumulate_before_each_send(tmp_path):
         if event.get("kind") == "confirmed"
     )
     assert all(
-        event["charged_upper_usd"] == str(token_cost(FLASH, 100, 10))
+        event["charged_upper_usd"] == str(token_cost(role_model("body"), 100, 10))
         for event in events
         if event.get("kind") == "confirmed"
     )
@@ -271,6 +271,7 @@ def test_document_preflight_failure_allows_next_document_send(tmp_path, monkeypa
     monkeypatch.setattr(app, "_require_ready", lambda *_args: None)
     monkeypatch.setattr(app, "Session", FakeSession)
     monkeypatch.setattr(durable_provider, "Session", FakeSession)
+    monkeypatch.setattr(durable_provider.tasks, "require_lease", lambda *_args: None)
     monkeypatch.setattr(
         app.extraction_tasks,
         "enqueue_extraction",
@@ -299,7 +300,7 @@ def test_document_preflight_failure_allows_next_document_send(tmp_path, monkeypa
 
             def too_large():
                 return transport.prepare(
-                    model=FLASH,
+                    model=role_model("body"),
                     messages=[{"role": "system", "content": "private prompt"}],
                     schema_name="BodySelection",
                     schema=BodySelection.model_json_schema(),
@@ -374,6 +375,7 @@ def test_other_preflight_errors_still_stop_pilot(tmp_path, monkeypatch, reserve_
 
     pilot = PilotBudget("failed-preflight", 2, Decimal("1"), tmp_path / "failed.jsonl")
     monkeypatch.setattr(durable_provider, "Session", FakeSession)
+    monkeypatch.setattr(durable_provider.tasks, "require_lease", lambda *_args: None)
     monkeypatch.setattr(
         durable_provider.tasks,
         "fail_execution",

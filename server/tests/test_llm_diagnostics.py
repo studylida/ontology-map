@@ -5,12 +5,12 @@ import json
 import os
 import socket
 from decimal import Decimal
-from typing import Literal
 
 import httpx
 import pytest
-from pydantic import BaseModel, ConfigDict, SecretStr
+from pydantic import SecretStr
 
+from ontology_map.extraction_contracts import MeaningSupport as Verdict
 from ontology_map.kimi_transport import KimiStructuredTransport
 from ontology_map.llm_config import MODEL_VERSION
 from ontology_map.llm_contracts import Budget, CallFailed, CallLimits, token_cost
@@ -24,11 +24,6 @@ from ontology_map.pilot_budget import PilotBudget, PilotBudgetError
 
 PRIVATE = "SECRET-key-source-response-path"
 LIMITS = CallLimits(2_000, 256, 100_000)
-
-
-class Verdict(BaseModel):
-    model_config = ConfigDict(strict=True, extra="forbid")
-    verdict: Literal["TRUE", "FALSE", "UNRESOLVED"]
 
 
 @pytest.fixture(autouse=True)
@@ -62,7 +57,7 @@ def prepare(client):
     return client.prepare(
         model=MODEL_VERSION,
         messages=[{"role": "system", "content": PRIVATE}],
-        schema_name="Verdict",
+        schema_name="MeaningSupport",
         schema=Verdict.model_json_schema(),
         limits=LIMITS,
     )

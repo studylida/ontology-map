@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 
 from ontology_map.db import model_tasks as tasks
 from ontology_map.kimi_response_archive import response_task
+from ontology_map.llm_pacing import provider_lease, provider_turn
+from ontology_map.llm_response_metadata import rate_limit_kind
 from ontology_map.model_studio import CallFailed
 from ontology_map.pilot_budget import PilotBudget, PilotBudgetError, current_pilot
 
@@ -99,6 +101,8 @@ def classify_provider_error(error: Exception) -> ConfirmedProviderFailure | None
     if isinstance(error, httpx.ConnectError):
         return ConfirmedProviderFailure("PROVIDER_ERROR", transient=True)
     if isinstance(error, (httpx.HTTPStatusError, APIStatusError)):
+        if rate_limit_kind(error.response) == "QUOTA_OR_BILLING":
+            return ConfirmedProviderFailure("RATE_LIMITED", transient=False)
         return _http_failure(
             error.response.status_code, error.response.headers.get("Retry-After")
         )
@@ -190,6 +194,20 @@ def execute_call[T](
     preflight: Callable[[], Callable[[], T]],
 ) -> CallResult[T]:
     """Allow only recorded, no-send document preflight failures to continue."""
+
+    def check() -> None:
+        with Session(engine) as session, session.begin():
+            tasks.require_lease(session, lease)
+
+    with provider_lease(check), provider_turn():
+        return _execute_call(engine, lease, preflight)
+
+
+def _execute_call[T](
+    engine: Engine,
+    lease: tasks.Lease,
+    preflight: Callable[[], Callable[[], T]],
+) -> CallResult[T]:
     pilot = current_pilot(required=False)
     calls_before = pilot.calls if pilot is not None else 0
     try:
