@@ -27,6 +27,8 @@
 
 K2.6의 공식 context는 256K다. 애플리케이션은 보수적으로 입력 223,232 + 출력 32,768 = 256,000 token을 허용 상한으로 사용한다. 실제 publication 요청의 출력 한도는 NODE_CONTEXT 2,048, FOLLOWUP_QUESTIONS 2,048, NODE_INSIGHT 8,192 token이며 각 task identity에 포함된다. 기존 1,000,000 입력 상한을 지정한 로컬 caller는 새 상한 이하로 명시적으로 변경하고 runtime identity를 다시 구성해야 한다. model window와 실제 tokenizer의 경계 판단은 provider가 담당하며 로컬에서 정확한 token 수를 추측하지 않는다.
 
+비스트리밍 지식 생성 요청은 HTTP 응답을 기다리는 read timeout만 180초로 둔다. 연결·쓰기·pool timeout과 다른 Kimi 역할의 read timeout은 60초다. read timeout은 전체 실행 시간 상한이 아니라 응답 데이터 사이의 대기 시간이며, durable task의 10분 lease와 기존 slot·retry 계약은 그대로 적용한다.
+
 유료 전송 상한은 caller의 명시적 `PilotBudget`이 소유한다. helper의 `Budget`만으로는 실제 전송이 허용되지 않는다. 단가는 2026-09-18 공식 국제판의 uncached 입력 $0.95 / 출력 $4.00 (백만 token 기준)를 사용한다. cache 할인·충전액·프로모션은 가정하지 않는다. 불확실한 입력 사용량은 262,144 token으로 보수적으로 예약한다. 가격이나 모델 변경 시 설정·한도·테스트를 함께 갱신한다.
 
 `llm_config.request_identity_settings()`의 provider·endpoint·model·wire option·출력 지시문 hash·profile 버전은 실제 요청 구성과 공유된다. KE effective input에는 이 설정을 직접 포함하고, NODE_CONTEXT/FOLLOWUP/INSIGHT는 기존 `*_execution.py`의 structured request identity를 통해 포함한다. 제품 모델 식별자도 실제 Kimi 모델로 바꾼다. 제품 output schema는 그대로이므로 이 변경만을 위한 schema migration이나 활성 schema 덮어쓰기는 필요하지 않다.

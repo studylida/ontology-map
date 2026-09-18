@@ -14,7 +14,12 @@ from pydantic import SecretStr, ValidationError
 
 from ontology_map.extraction_contracts import KnowledgeProposals
 from ontology_map.kimi_transport import KimiStructuredTransport
-from ontology_map.llm_config import BASE_URL, DEFAULT_TIMEOUT_SECONDS, MODEL_VERSION
+from ontology_map.llm_config import (
+    BASE_URL,
+    DEFAULT_TIMEOUT_SECONDS,
+    GENERATION_READ_TIMEOUT_SECONDS,
+    MODEL_VERSION,
+)
 from ontology_map.model_studio import CallFailed
 
 if TYPE_CHECKING:
@@ -38,12 +43,14 @@ class KimiGenerationAdapter:
         *,
         base_url: str = BASE_URL,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        read_timeout_seconds: float = GENERATION_READ_TIMEOUT_SECONDS,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self._transport = KimiStructuredTransport(
             api_key,
             base_url=base_url,
             timeout_seconds=timeout_seconds,
+            read_timeout_seconds=read_timeout_seconds,
             transport=transport,
         )
 

@@ -209,6 +209,7 @@ class KimiStructuredTransport:
         *,
         base_url: str = BASE_URL,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        read_timeout_seconds: float | None = None,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self._base_url = validate_base_url(base_url)
@@ -217,6 +218,10 @@ class KimiStructuredTransport:
             raise CallFailed("AUTHENTICATION_ERROR", fatal=True)
         if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
             raise CallFailed("INVALID_REQUEST", fatal=True)
+        if read_timeout_seconds is not None and (
+            not math.isfinite(read_timeout_seconds) or read_timeout_seconds <= 0
+        ):
+            raise CallFailed("INVALID_REQUEST", fatal=True)
         self._endpoint = self._base_url + "/chat/completions"
         self._authorization = "Bearer " + key
         self._pilot_required = not isinstance(transport, httpx.MockTransport)
@@ -224,7 +229,10 @@ class KimiStructuredTransport:
             transport=transport or httpx.HTTPTransport(retries=0),
             trust_env=False,
             follow_redirects=False,
-            timeout=httpx.Timeout(timeout_seconds),
+            timeout=httpx.Timeout(
+                timeout_seconds,
+                read=read_timeout_seconds or timeout_seconds,
+            ),
         )
 
     @property

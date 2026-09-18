@@ -20,7 +20,11 @@ from ontology_map.extraction_provider import (
     ModelStudioGenerationAdapter,
 )
 from ontology_map.extraction_runner import GenerationRequest
-from ontology_map.llm_config import BASE_URL
+from ontology_map.llm_config import (
+    BASE_URL,
+    DEFAULT_TIMEOUT_SECONDS,
+    GENERATION_READ_TIMEOUT_SECONDS,
+)
 from ontology_map.model_studio import FLASH, CallFailed, CallLimits
 from ontology_map.pilot_budget import PilotBudget, request_digest
 
@@ -88,6 +92,8 @@ def test_prepare_builds_exact_kimi_request_before_send(tmp_path) -> None:
     pilot = PilotBudget("generation-request", 1, Decimal("1"), path)
 
     def handle(req: httpx.Request) -> httpx.Response:
+        assert req.extensions["timeout"]["read"] == GENERATION_READ_TIMEOUT_SECONDS
+        assert req.extensions["timeout"]["connect"] == DEFAULT_TIMEOUT_SECONDS
         reserved = json.loads(path.read_text().splitlines()[-1])
         assert reserved["kind"] == "reserved"
         assert reserved["request_sha256"] == request_digest(req)

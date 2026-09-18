@@ -22,6 +22,7 @@ MAX_INPUT_TOKENS = CONTEXT_CAP_TOKENS - MAX_OUTPUT_TOKENS
 # application's admission limit. Official model window: 256K (256 * 1024).
 BILLABLE_INPUT_CEILING = 262_144
 DEFAULT_TIMEOUT_SECONDS = 60.0
+GENERATION_READ_TIMEOUT_SECONDS = 180.0
 SCHEMA_SEPARATOR = "\n\nOUTPUT_SCHEMA_JSON:\n"
 OUTPUT_INSTRUCTION = (
     "Return exactly one JSON object matching the output contract below. "
