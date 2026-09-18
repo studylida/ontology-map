@@ -145,7 +145,8 @@ def test_provider_and_identity_share_mutated_execution_limits(
         adapter.prepare(prepared())()
     finally:
         adapter.close()
-    assert seen[0]["max_tokens"] == changed.max_output_tokens
+    assert seen[0]["max_completion_tokens"] == changed.max_output_tokens
+    assert "max_tokens" not in seen[0]
 
 
 @pytest.mark.parametrize(
