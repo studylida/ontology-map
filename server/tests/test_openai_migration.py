@@ -5,6 +5,7 @@ quality. In particular an empty valid fixture does not establish D1 success.
 """
 
 import json
+import re
 import socket
 from copy import deepcopy
 from decimal import Decimal
@@ -15,6 +16,7 @@ import pytest
 from openai_cases import CASES
 from pydantic import SecretStr, ValidationError
 
+from ontology_map.extraction_contracts import KnowledgeProposals
 from ontology_map.kimi_response_archive import response_task
 from ontology_map.kimi_transport import OpenAIStructuredTransport
 from ontology_map.llm_config import (
@@ -39,6 +41,36 @@ from ontology_map.openai_schema import wire_schema
 from ontology_map.pilot_budget import PilotBudget
 
 LIMITS = CallLimits(2000, 1024, 100_000)
+
+
+def test_decimal_wire_regex_keeps_product_numeric_strings() -> None:
+    original = KnowledgeProposals.model_json_schema()
+    wire = wire_schema(original)
+    path = ("$defs", "NumberValue", "properties", "value", "anyOf")
+    product_pattern = original[path[0]][path[1]][path[2]][path[3]][path[4]][1][
+        "pattern"
+    ]
+    wire_pattern = wire[path[0]][path[1]][path[2]][path[3]][path[4]][1]["pattern"]
+    assert "(?!" in product_pattern and "(?!" not in wire_pattern
+    for value in (
+        "0",
+        "1",
+        "+1",
+        "-0.5",
+        ".5",
+        "1.",
+        "000.20",
+        "",
+        "+",
+        ".",
+        "-.",
+        "1e3",
+        "1..2",
+    ):
+        assert bool(re.fullmatch(product_pattern, value)) == bool(
+            re.fullmatch(wire_pattern, value)
+        )
+    assert original == KnowledgeProposals.model_json_schema()
 
 
 @pytest.fixture(autouse=True)

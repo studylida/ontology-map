@@ -22,9 +22,12 @@ Issue #240의 전환 브랜치 구현이다. 코드/MockTransport 검증, 실제
 
 단일 endpoint는 `POST https://api.openai.com/v1/chat/completions`다. 현재 단발 Chat Completions 실행기와 응답/usage 계약을 유지하는 최소 변경을 선택했다. Responses API, conversation loop와 이중 endpoint 지원은 구현하지 않는다. 직접 HTTPX 전송에 `retries=0`, `follow_redirects=False`, `trust_env=False`를 적용한다. `stream=false`, `store=false`, 역할별 `reasoning_effort`, `max_completion_tokens`, `response_format.type=json_schema`와 `strict=true`를 보낸다. Kimi `thinking`, `max_tokens`, 임의 sampling 옵션은 보내지 않는다.
 
-`openai_schema.wire_schema()`는 원본 Pydantic schema를 복사해 별도 전송 schema를 만든다. 모든 object를 닫고 모든 property를 required로 만들되 nullable은 원래 허용한 필드에만 유지한다. `const`는 같은 값의 singleton enum으로 표현하고 `default` 주석만 제거한다. 기존 `pattern`, 지원되는 `format`, 숫자/배열 제약, `$defs/$ref/anyOf`를 유지하며 알 수 없는 의미 키워드는 예약 전에 거절한다. 이는 임의 JSON Schema를 모두 지원하는 변환기가 아니다. 실제 9개 DTO의 Mock 변환 성공을 실제 API 수락으로 취급하지 않는다.
+`openai_schema.wire_schema()`는 원본 Pydantic schema를 복사해 별도 전송 schema를 만든다. 모든 object를 닫고 모든 property를 required로 만들되 nullable은 원래 허용한 필드에만 유지한다. `const`는 같은 값의 singleton enum으로 표현하고 `default` 주석만 제거한다. `pattern`, 지원되는 `format`, 숫자/배열 제약, `$defs/$ref/anyOf`를 유지한다. 다만 실제 OpenAI D1 요청에서 거절된 Pydantic Decimal의 lookahead 정규식만 동등한 정규식으로 바꾼다. 원본 schema와 Decimal 검증은 그대로다. 알 수 없는 의미 키워드는 예약 전에 거절한다. 이는 임의 JSON Schema를 모두 지원하는 변환기가 아니다. 실제 9개 DTO의 Mock 변환 성공을 실제 API 수락으로 취급하지 않는다.
 
 원본 schema는 prompt에도 그대로 첨부하고 원본 DTO strict parser를 유지한다. Mention TOPIC/topic_name 교차 조건은 wire 설명으로 유도하지만 Python validator를 제거하지 않는다. 날짜·UTC·precision·modality·stance·관계 방향·Claim/Meaning·Entity Resolution·원문 ID/version/quote/offset/hash 검증은 유지한다. DTO를 provider 출력에 맞춰 완화하지 않는다. refusal, 비정상 finish_reason(잘림/content_filter 등), JSON/제품 schema 오류는 정상 empty가 아니다.
+실제 D1 생성에서는 binding의 언급 참조에 원문 text가 들어가 모든 의미 연결이 제외됐다. 생성 지시문은 같은 Claim의 `mentions[].mention_id`를 정확히 쓰도록 명시하며, 출력의 잘못된 참조를 자동 보정하지 않는다.
+
+Issue #242의 내부 D1–D3 데모에서는 공동 사실을 불필요하게 분해하지 않는 기존 규칙을 유지하면서, 서로 독립적으로 중요한 사실을 하나의 headline Claim으로 압축하지 않고 원자 Claim으로 제안하도록 generation 지시문을 보완한다. FOLLOWUP_QUESTIONS와 NODE_INSIGHT는 이미 여러 Claim의 종합·근거 한계·사실과 해석의 구분을 요구하므로 prompt와 identity를 바꾸지 않는다.
 
 응답 model은 실제 요청 model과 정확하게 일치해야 한다. 공식 문서로 확인하지 않은 dated snapshot 접두사를 임의 허용하지 않는다. 실제 API가 다른 snapshot을 반환하면 해당 계약을 별도 확인하기 전에는 fail-closed로 중단한다.
 

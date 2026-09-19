@@ -50,6 +50,8 @@ _FORMATS = frozenset(
         "uuid",
     }
 )
+_PYDANTIC_DECIMAL_PATTERN = r"^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$"
+_WIRE_DECIMAL_PATTERN = r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$"
 
 
 def _object(node: dict[str, Any]) -> None:
@@ -71,6 +73,10 @@ def _visit(node: Any) -> None:
     if not isinstance(node, dict) or set(node) - _ALLOWED:
         raise ValueError("UNSUPPORTED_WIRE_SCHEMA")
     node.pop("default", None)
+    # OpenAI rejects Pydantic's lookahead; this equivalent regex keeps the
+    # string constraint, while the original Decimal parser stays authoritative.
+    if node.get("pattern") == _PYDANTIC_DECIMAL_PATTERN:
+        node["pattern"] = _WIRE_DECIMAL_PATTERN
     if "const" in node:
         value = node.pop("const")
         if "enum" in node and node["enum"] != [value]:

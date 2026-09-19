@@ -15,7 +15,7 @@ BASE_URL = "https://api.openai.com/v1"
 MODEL_VERSION = "gpt-5.6-terra"
 LUNA_MODEL = "gpt-5.6-luna"
 PROFILE_VERSION = "openai-strict-roles-v1"
-WIRE_SCHEMA_VERSION = "openai-product-schema-v1"
+WIRE_SCHEMA_VERSION = "openai-product-schema-v2"
 # Existing application caps; do not expand to the provider context window.
 # Keep a full 32K output allowance even when a particular call uses less.
 CONTEXT_CAP_TOKENS = 256_000
