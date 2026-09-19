@@ -14,6 +14,8 @@ const harness = vi.hoisted(() => ({
   options: new Map<string, (...args: never[]) => unknown>(),
   nodes: new Map<string, THREE.Group>(),
   links: new Map<string, THREE.Group>(),
+  controlListeners: new Map<string, Set<() => void>>(),
+  cameraMoves: [] as { duration: number; position: THREE.Vector3 }[],
 }));
 
 // WebGL 경계만 대체하고 실제 GraphCanvas의 effect·frame·DOM 수명주기를 실행한다.
@@ -31,8 +33,14 @@ vi.mock("3d-force-graph", () => ({
       target: new THREE.Vector3(),
       mouseButtons: {},
       touches: {},
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
+      addEventListener: vi.fn((name: string, listener: () => void) => {
+        const listeners = harness.controlListeners.get(name) ?? new Set();
+        listeners.add(listener);
+        harness.controlListeners.set(name, listeners);
+      }),
+      removeEventListener: vi.fn((name: string, listener: () => void) => {
+        harness.controlListeners.get(name)?.delete(listener);
+      }),
       update: vi.fn(),
     };
     harness.camera = camera;
@@ -47,9 +55,17 @@ vi.mock("3d-force-graph", () => ({
         if (key === "camera") return () => camera;
         if (key === "scene") return () => scene;
         if (key === "cameraPosition")
-          return (position: THREE.Vector3, target: THREE.Vector3) => {
+          return (
+            position: THREE.Vector3,
+            target: THREE.Vector3,
+            duration = 0,
+          ) => {
             camera.position.copy(position);
             controls.target.copy(target);
+            harness.cameraMoves.push({
+              duration,
+              position: camera.position.clone(),
+            });
             return proxy;
           };
         if (key === "enableNavigationControls")
@@ -117,6 +133,8 @@ beforeEach(() => {
   harness.options.clear();
   harness.nodes.clear();
   harness.links.clear();
+  harness.controlListeners.clear();
+  harness.cameraMoves.length = 0;
   vi.useFakeTimers();
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
     window.setTimeout(() => callback(performance.now()), 16),
@@ -297,7 +315,7 @@ it("요청한 관계만 잠시 강조한 뒤 camera 이동 없이 원래 상태�
     <GraphCanvas
       {...callbacks}
       view={data}
-      focusRequest={{ key: 1, nodeId: "2", relationId: "edge" }}
+      focusRequest={{ key: 1, nodeIds: ["1", "2"], relationIds: ["edge"] }}
     />,
   );
   expect(queryByRole("status")?.textContent).toContain("관련 기술");
@@ -308,6 +326,60 @@ it("요청한 관계만 잠시 강조한 뒤 camera 이동 없이 원래 상태�
   expect(harness.camera?.position).toEqual(camera);
   expect(harness.target).toEqual(target);
   expect(callbacks.onSelect).not.toHaveBeenCalled();
+});
+
+it("전체 지도는 현재 노드를 맞춰 보여준 뒤 복귀하며 직접 조작하면 복귀를 멈춘다", () => {
+  const callbacks = props();
+  const onOverviewActiveChange = vi.fn();
+  const overviewRequest = { key: 1, action: "show" } as const;
+  const { rerender } = render(
+    <GraphCanvas
+      {...callbacks}
+      designPreview
+      onOverviewActiveChange={onOverviewActiveChange}
+    />,
+  );
+  const before = harness.camera?.position.clone();
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      designPreview
+      overviewRequest={overviewRequest}
+      onOverviewActiveChange={onOverviewActiveChange}
+    />,
+  );
+  expect(onOverviewActiveChange).toHaveBeenLastCalledWith(true);
+  expect(harness.cameraMoves.at(-1)?.duration).toBe(1000);
+
+  act(() => vi.advanceTimersByTime(5000));
+  expect(harness.cameraMoves.at(-1)?.duration).toBe(1000);
+  act(() => vi.advanceTimersByTime(1000));
+  expect(onOverviewActiveChange).toHaveBeenLastCalledWith(false);
+  expect(harness.camera?.position).toEqual(before);
+  const moveCount = harness.cameraMoves.length;
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      designPreview
+      panelOpen={false}
+      overviewRequest={overviewRequest}
+      onOverviewActiveChange={onOverviewActiveChange}
+    />,
+  );
+  expect(harness.cameraMoves).toHaveLength(moveCount);
+
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      designPreview
+      overviewRequest={{ key: 2, action: "show" }}
+      onOverviewActiveChange={onOverviewActiveChange}
+    />,
+  );
+  for (const listener of harness.controlListeners.get("start") ?? [])
+    listener();
+  act(() => vi.advanceTimersByTime(6000));
+  expect(onOverviewActiveChange).toHaveBeenLastCalledWith(true);
 });
 
 function visual(id: string) {
@@ -1345,7 +1417,7 @@ it("추가 page가 기본 밝기를 갱신해도 WebGL 프레임 전에 거리�
   expect(visual("5").visible).toBe(false);
 });
 
-it("이웃 hover는 숨겨진 연결 노드를 발광 없이 드러내고 해제 시 복귀한다", () => {
+it("이웃 hover는 연결 노드의 이름과 유형색을 드러내고 해제 시 복귀한다", () => {
   const data = {
     ...view,
     nodes: [
@@ -1394,8 +1466,8 @@ it("이웃 hover는 숨겨진 연결 노드를 발광 없이 드러내고 해제
   act(() => vi.advanceTimersByTime(250));
   draw();
   expect(visual("3").userData.reveal).toBe(1);
-  expect(visual("3").userData.hoverOpacity).toBe(0);
-  expect(visual("3").userData.label.visible).toBe(false);
+  expect(visual("3").userData.hoverOpacity).toBe(1);
+  expect(visual("3").userData.label.visible).toBe(true);
   expect(visual("4").visible).toBe(false);
   expect(harness.links.get("neighbor")?.userData.reveal).toBe(1);
   expect(camera.position).toEqual(position);

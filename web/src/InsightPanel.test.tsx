@@ -157,12 +157,16 @@ it("목차에서 보고서를 열고 복수 근거를 비교한 뒤 원래 초�
   fireEvent.click(screen.getByRole("button", { name: /근거 문장 2/ }));
   await waitFor(() =>
     expect(
-      screen.getAllByRole("link", { name: "발표 자료 원문 열기" }),
+      screen.getAllByRole("link", {
+        name: "원문 기사 열기 · 발표 자료",
+      }),
     ).toHaveLength(2),
   );
   fireEvent.click(screen.getByRole("button", { name: "모두 접기" }));
   expect(
-    screen.queryAllByRole("link", { name: "발표 자료 원문 열기" }),
+    screen.queryAllByRole("link", {
+      name: "원문 기사 열기 · 발표 자료",
+    }),
   ).toHaveLength(0);
   fireEvent(screen.getByRole("dialog"), new Event("cancel", { bubbles: true }));
   expect(screen.queryByRole("dialog")).toBeNull();
@@ -187,12 +191,47 @@ it("질문은 답변만 펼치며 연결된 보고서 절도 중심을 바꾸지
   });
   fireEvent.click(question);
   await screen.findByText("질문의 짧은 답변");
+  expect(
+    await screen.findByRole("link", { name: "원문 · 발표 자료" }),
+  ).toBeTruthy();
+  expect(screen.queryByText("근거 문장 1")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "관련 분석 읽기" }));
   await screen.findByText("근거를 종합한 해석");
   expect(props.onSelect).not.toHaveBeenCalled();
   expect(
     request.mock.calls.every(([path]) => !path.includes("/exploration/")),
   ).toBe(true);
+});
+
+it("답변의 추가 기록은 옆에서 확인하고 기록 탭으로 이어서 본다", async () => {
+  request.mockImplementation(async (path: string) => ({
+    ok: true,
+    status: 200,
+    json: async () => {
+      const value = result(path);
+      return path.includes("/questions/31")
+        ? { ...value, claims: [claim(1), claim(2)] }
+        : value;
+    },
+  }));
+  render(<DetailPanel {...props} />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /이 노드를 이해하려면/ }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: "이 답변에 사용한 기록 더 보기",
+    }),
+  );
+  expect(
+    screen.getByRole("heading", { name: "이 답변을 뒷받침한 기록" }),
+  ).toBeTruthy();
+  expect(screen.getByText("근거 문장 1")).toBeTruthy();
+  expect(screen.getByText("근거 문장 2")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "기록 전체 보기" }));
+  expect(
+    screen.getByRole("tab", { name: "기록" }).getAttribute("aria-selected"),
+  ).toBe("true");
 });
 
 it("준비 실패를 재시도하고 기간 변경 시 이전 상세와 요청을 초기화한다", async () => {

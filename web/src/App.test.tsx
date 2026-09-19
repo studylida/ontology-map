@@ -20,14 +20,16 @@ vi.mock("./GraphCanvas", () => ({
     pendingNodeId,
     hiddenKinds,
     focusRequest,
+    overviewRequest,
   }: {
     view: { centerId: string; nodes: { id: string }[] };
     pendingNodeId: string | null;
     hiddenKinds: readonly string[];
     focusRequest?: {
-      nodeId: string;
-      relationId?: string;
+      nodeIds: string[];
+      relationIds?: string[];
     } | null;
+    overviewRequest?: { action: "show" | "restore" } | null;
     onReady: () => void;
     onSelect: (nodeId: string) => void;
     onTransitionComplete: (nodeId: string) => void;
@@ -36,8 +38,9 @@ vi.mock("./GraphCanvas", () => ({
       aria-label="동적 지식맵"
       data-pending-node={pendingNodeId ?? ""}
       data-hidden-kinds={hiddenKinds.join(",")}
-      data-focus-node={focusRequest?.nodeId ?? ""}
-      data-focus-relation={focusRequest?.relationId ?? ""}
+      data-focus-node={focusRequest?.nodeIds.join(",") ?? ""}
+      data-focus-relation={focusRequest?.relationIds?.join(",") ?? ""}
+      data-overview-action={overviewRequest?.action ?? ""}
     >
       <span>{`요청 중심: ${view.centerId}`}</span>
       <button type="button" onClick={onReady}>
@@ -243,7 +246,7 @@ describe("exploration API 화면", () => {
       screen.getByText("선택한 기간에 자료에서 확인한 최근 내용입니다."),
     ).toBeTruthy();
     expect(screen.getByRole("tab", { name: "개요" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "자료·원문" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "기록" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "인사이트" })).toBeTruthy();
   });
 
@@ -411,11 +414,15 @@ describe("exploration API 화면", () => {
     const before = fetchMock.mock.calls.length;
     const url = window.location.href;
 
-    fireEvent.click(screen.getByRole("button", { name: "지도에서 연결 강조" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "추천 노드 지도에서 강조" }),
+    );
 
     const map = screen.getByRole("region", { name: "동적 지식맵" });
-    expect(map.dataset.focusNode).toBe("9223372036854775807");
-    expect(map.dataset.focusRelation).toBe("");
+    expect(map.dataset.focusNode).toBe(
+      "9223372036854775806,9223372036854775807",
+    );
+    expect(map.dataset.focusRelation).toBe("relation-9223372036854775807");
     expect(fetchMock).toHaveBeenCalledTimes(before);
     expect(window.location.href).toBe(url);
     expect(screen.getByRole("heading", { name: "SK하이닉스" })).toBeTruthy();

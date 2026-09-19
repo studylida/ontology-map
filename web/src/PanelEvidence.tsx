@@ -1,15 +1,24 @@
-import { useCallback, useId, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import styles from "./App.module.css";
 import { relationPathLabel, type TimeRange, timeRangeLabel } from "./data";
 import {
   type EvidenceSelection,
   PageNotice,
   TraceContent,
+  useModalDialog,
 } from "./RelationPanel";
 import {
   fetchPanelClaims213,
   fetchPanelTraces213,
   type PanelClaim213,
+  type PanelTrace213,
 } from "./read213";
 import { useCursorPage } from "./useCursorPage";
 
@@ -30,6 +39,14 @@ export function PeriodNote({
   );
 }
 
+function uniqueTraces(traces: PanelTrace213[]): PanelTrace213[] {
+  return [
+    ...new Map(
+      traces.map((trace) => [`${trace.url}\u0000${trace.quote}`, trace]),
+    ).values(),
+  ];
+}
+
 function ClaimTraces({
   nodeId,
   claim,
@@ -45,9 +62,10 @@ function ClaimTraces({
     [nodeId, claim, range],
   );
   const page = useCursorPage(claim.id, fetchPage);
+  const traces = uniqueTraces(page.items);
   return (
     <div className={styles.panelTraceList}>
-      {page.items.map((trace) => (
+      {traces.map((trace) => (
         <article key={trace.key} className={styles.evidenceEntry}>
           <small>
             {trace.periodRole === "IN_WINDOW"
@@ -56,15 +74,15 @@ function ClaimTraces({
                 : "이 기간에 게시된 원문"
               : trace.periodRole === "BACKGROUND"
                 ? "이 기간 이전의 배경 원문"
-                : "게시 시점이 확인되지 않은 원문"}
+                : "게시일을 확인할 수 없는 원문"}
           </small>
           <TraceContent trace={trace} claimText={claim.text} />
         </article>
       ))}
       <PageNotice
         {...page}
-        empty={!page.items.length}
-        additional={page.items.length > 0}
+        empty={!traces.length}
+        additional={traces.length > 0}
         onRetry={page.retry}
       />
       {page.nextCursor && (
@@ -80,29 +98,76 @@ function ClaimTraces({
   );
 }
 
-function roleLabel(claim: PanelClaim213): string | null {
-  if (claim.role === "KEY_CLAIM") return "핵심 내용";
-  if (claim.role === "SUPPORTING_CLAIM") return "보충 내용";
-  if (claim.role === "CONTRASTING_CLAIM") return "비교 내용";
-  return null;
-}
-
 function modalityLabel(claim: PanelClaim213): string | null {
-  if (claim.modality === "PLAN_OR_TARGET") return "계획·목표";
-  if (claim.modality === "PREDICTION_OR_ESTIMATE") return "예측·추정";
-  if (claim.modality === "OPINION_OR_EVALUATION") return "의견·평가";
+  if (claim.modality === "PLAN_OR_TARGET") return "계획";
+  if (claim.modality === "PREDICTION_OR_ESTIMATE") return "추정";
+  if (claim.modality === "OPINION_OR_EVALUATION") return "의견";
   return null;
 }
 
-function claimKindLabel(claim: PanelClaim213): string {
-  const role = roleLabel(claim);
-  if (role) return role;
-  const attribute = claim.connections.find((c) => c.kind === "ATTRIBUTE");
-  if (attribute) return attribute.label;
-  if (claim.connections.some((c) => c.kind === "EVENT_TIME"))
-    return "사건 시점";
-  if (claim.connections.some((c) => c.kind === "RELATION")) return "연결";
-  return "확인된 내용";
+function ClaimDetails({
+  nodeId,
+  claim,
+  range,
+  onEvidence,
+  onLocate,
+}: {
+  nodeId: string;
+  claim: PanelClaim213;
+  range: TimeRange;
+  onEvidence: (selection: EvidenceSelection) => void;
+  onLocate: (nodeId: string, relationId?: string) => void;
+}) {
+  const relationConnections = claim.connections.filter(
+    (connection) => connection.kind === "RELATION" && connection.relation,
+  );
+  return (
+    <>
+      <ClaimTraces nodeId={nodeId} claim={claim} range={range} />
+      {relationConnections.map((connection) => {
+        const relation = connection.relation;
+        if (!relation) return null;
+        const label = relationPathLabel(
+          relation.sourceNode.name,
+          relation.displayName,
+          relation.targetNode.name,
+          relation.directionality,
+        );
+        return (
+          <div
+            key={`${connection.kind}:${relation.id}:${relation.stance}`}
+            className={styles.relationCard}
+          >
+            <div className={styles.relationToggle}>
+              <span>
+                <small>{label}</small>
+                <small>
+                  {relation.stance === "SUPPORT"
+                    ? "연결을 뒷받침"
+                    : "연결과 상충"}
+                </small>
+              </span>
+              <span className={styles.relationActions}>
+                <button
+                  type="button"
+                  onClick={() => onLocate(relation.otherNode.id, relation.id)}
+                >
+                  지도에서 강조
+                </button>
+                <button
+                  type="button"
+                  aria-label={`${relation.otherNode.name} ${relation.displayName} 연결 원문 보기`}
+                  onClick={() => onEvidence({ id: relation.id, label })}
+                >
+                  연결 원문
+                </button>
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
 }
 
 export function ClaimCard({
@@ -126,16 +191,6 @@ export function ClaimCard({
   const open = expanded ?? localOpen;
   const id = useId();
   const modality = modalityLabel(claim);
-  const conflict = claim.connections.some(
-    (connection) => connection.kind === "CONFLICT",
-  );
-  const relationConnections = claim.connections.filter(
-    (connection) => connection.kind === "RELATION" && connection.relation,
-  );
-  const otherConnections = claim.connections.filter(
-    (connection) =>
-      connection.kind !== "RELATION" && connection.kind !== "CONFLICT",
-  );
   return (
     <article className={styles.panelClaim}>
       <button
@@ -149,92 +204,154 @@ export function ClaimCard({
         }}
       >
         <span>
-          <small>
-            {claimKindLabel(claim)} ·{" "}
-            {claim.state === "HUMAN_VERIFIED" ? "검토 완료" : "원문 연결됨"}
-            {modality ? ` · ${modality}` : ""}
-            {conflict ? " · 충돌" : ""}
-          </small>
+          {modality && <small>{modality}</small>}
           <span>{claim.text}</span>
-          <small>서로 다른 근거 {claim.evidenceGroupCount}개</small>
         </span>
-        <span>{open ? "접기" : "원문과 연결 보기"}</span>
+        <span>{open ? "접기" : "원문 보기"}</span>
       </button>
-
       <div id={id} hidden={!open}>
         {open && (
-          <>
-            <ClaimTraces nodeId={nodeId} claim={claim} range={range} />
-            {otherConnections.length > 0 && (
-              <div className={styles.connectionTags}>
-                {otherConnections.map((connection) => (
-                  <small
-                    key={`${connection.kind}:${connection.id}:${connection.position}`}
-                  >
-                    {connection.label}
-                  </small>
-                ))}
-              </div>
-            )}
-            {relationConnections.map((connection) => {
-              const relation = connection.relation;
-              if (!relation) return null;
-              return (
-                <div
-                  key={`${connection.kind}:${relation.id}:${relation.stance}`}
-                  className={styles.relationCard}
-                >
-                  <div className={styles.relationToggle}>
-                    <span>
-                      <small>
-                        {relationPathLabel(
-                          relation.sourceNode.name,
-                          relation.displayName,
-                          relation.targetNode.name,
-                          relation.directionality,
-                        )}
-                      </small>
-                      <small>
-                        {relation.stance === "SUPPORT"
-                          ? "연결을 뒷받침"
-                          : "연결과 상충"}
-                      </small>
-                    </span>
-                    <span className={styles.relationActions}>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onLocate(relation.otherNode.id, relation.id)
-                        }
-                      >
-                        지도에서 강조
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`${relation.otherNode.name} ${relation.displayName} 연결 원문 보기`}
-                        onClick={() =>
-                          onEvidence({
-                            id: relation.id,
-                            label: relationPathLabel(
-                              relation.sourceNode.name,
-                              relation.displayName,
-                              relation.targetNode.name,
-                              relation.directionality,
-                            ),
-                          })
-                        }
-                      >
-                        연결 원문
-                      </button>
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </>
+          <ClaimDetails
+            nodeId={nodeId}
+            claim={claim}
+            range={range}
+            onEvidence={onEvidence}
+            onLocate={onLocate}
+          />
         )}
       </div>
     </article>
+  );
+}
+
+function ClaimEvidenceDialog({
+  nodeId,
+  claim,
+  range,
+  onClose,
+  onEvidence,
+  onLocate,
+}: {
+  nodeId: string;
+  claim: PanelClaim213;
+  range: TimeRange;
+  onClose: () => void;
+  onEvidence: (selection: EvidenceSelection) => void;
+  onLocate: (nodeId: string, relationId?: string) => void;
+}) {
+  const dialogRef = useModalDialog(onClose);
+  const titleId = useId();
+  const modality = modalityLabel(claim);
+  return (
+    <dialog
+      ref={dialogRef}
+      className={styles.evidenceDialog}
+      aria-labelledby={titleId}
+      onCancel={onClose}
+    >
+      <header>
+        <h2 id={titleId}>이 기록을 확인한 원문</h2>
+        <button type="button" onClick={onClose} aria-label="원문 창 닫기">
+          ×
+        </button>
+      </header>
+      {modality && <p className={styles.panelMeta}>{modality}</p>}
+      <p className={styles.recordStatement}>{claim.text}</p>
+      <ClaimDetails
+        nodeId={nodeId}
+        claim={claim}
+        range={range}
+        onEvidence={onEvidence}
+        onLocate={(targetId, relationId) => {
+          onClose();
+          onLocate(targetId, relationId);
+        }}
+      />
+    </dialog>
+  );
+}
+
+export function RecordPeek({
+  nodeId,
+  claims,
+  range,
+  onClose,
+  onOpenRecords,
+  onEvidence,
+  onLocate,
+}: {
+  nodeId: string;
+  claims: PanelClaim213[];
+  range: TimeRange;
+  onClose: () => void;
+  onOpenRecords: () => void;
+  onEvidence: (selection: EvidenceSelection) => void;
+  onLocate: (nodeId: string, relationId?: string) => void;
+}) {
+  const asideRef = useRef<HTMLElement>(null);
+  const titleId = useId();
+  const close = useEffectEvent(onClose);
+  useEffect(() => {
+    const opener = document.activeElement;
+    const outside = (event: PointerEvent) => {
+      if (!asideRef.current?.contains(event.target as Node)) close();
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", closeOnEscape);
+    asideRef.current?.querySelector<HTMLElement>("button")?.focus();
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", closeOnEscape);
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    };
+  }, []);
+  return (
+    <aside
+      ref={asideRef}
+      className={styles.recordPeek}
+      aria-labelledby={titleId}
+    >
+      <header>
+        <div>
+          <small>질문에 사용한 자료</small>
+          <h2 id={titleId}>이 답변을 뒷받침한 기록</h2>
+        </div>
+        <button type="button" onClick={onClose} aria-label="기록 미리보기 닫기">
+          ×
+        </button>
+      </header>
+      <div className={styles.recordPeekBody}>
+        <div className={styles.recordPeekContent}>
+          {claims.map((claim) => (
+            <article key={claim.id} className={styles.peekClaim}>
+              {modalityLabel(claim) && <small>{modalityLabel(claim)}</small>}
+              <p>{claim.text}</p>
+              <ClaimDetails
+                nodeId={nodeId}
+                claim={claim}
+                range={range}
+                onEvidence={(selection) => {
+                  onClose();
+                  onEvidence(selection);
+                }}
+                onLocate={(targetId, relationId) => {
+                  onClose();
+                  onLocate(targetId, relationId);
+                }}
+              />
+            </article>
+          ))}
+        </div>
+      </div>
+      <footer>
+        <button type="button" onClick={onOpenRecords}>
+          기록 전체 보기
+        </button>
+      </footer>
+    </aside>
   );
 }
 
@@ -249,6 +366,7 @@ export function PanelEvidence({
   onEvidence: (selection: EvidenceSelection) => void;
   onLocate: (nodeId: string, relationId?: string) => void;
 }) {
+  const [selected, setSelected] = useState<PanelClaim213 | null>(null);
   const fetchPage = useCallback(
     (id: string, cursor: string | null, signal: AbortSignal) =>
       fetchPanelClaims213(id, range, cursor, signal),
@@ -256,21 +374,22 @@ export function PanelEvidence({
   );
   const page = useCursorPage(nodeId, fetchPage);
   return (
-    <section aria-label="자료에서 확인한 내용">
-      <h2>자료에서 확인한 내용</h2>
+    <section aria-label="확인된 기록">
+      <h2>확인된 기록</h2>
       <PeriodNote range={range} />
       <p className={styles.panelMeta}>
-        항목을 열어 실제 기사 문장과 출처를 확인할 수 있습니다.
+        기록을 선택하면 기사에서 확인한 문장과 출처를 볼 수 있습니다.
       </p>
       {page.items.map((claim) => (
-        <ClaimCard
-          key={claim.id}
-          nodeId={nodeId}
-          claim={claim}
-          range={range}
-          onEvidence={onEvidence}
-          onLocate={onLocate}
-        />
+        <article key={claim.id} className={styles.recordRow}>
+          <button type="button" onClick={() => setSelected(claim)}>
+            <span>
+              {modalityLabel(claim) && <small>{modalityLabel(claim)}</small>}
+              <span>{claim.text}</span>
+            </span>
+            <span>원문 보기</span>
+          </button>
+        </article>
       ))}
       <PageNotice
         {...page}
@@ -284,8 +403,18 @@ export function PanelEvidence({
           onClick={page.more}
           disabled={page.loading || !!page.error}
         >
-          확인된 내용 더 보기
+          기록 더 보기
         </button>
+      )}
+      {selected && (
+        <ClaimEvidenceDialog
+          nodeId={nodeId}
+          claim={selected}
+          range={range}
+          onClose={() => setSelected(null)}
+          onEvidence={onEvidence}
+          onLocate={onLocate}
+        />
       )}
     </section>
   );

@@ -66,6 +66,7 @@ export interface ExplorationRecommendation {
   node: KnowledgeNode;
   reason: string;
   status: "confirmedRelation" | "connectedPath" | "ambient";
+  path: { id: string; source: string; target: string }[];
   evidenceGroupCount?: number;
 }
 
@@ -180,31 +181,37 @@ export function relationPathLabel(
   return `${source} ${direction === "DIRECTED" ? "→" : "↔"} ${target} · ${ontologyLabel(label)}`;
 }
 
-function recommendationReason(item: JsonObject): string {
+function recommendationDetails(item: JsonObject) {
   const code = member(item.reason_code, [
     "DIRECT",
     "TWO_HOP",
     "AMBIENT",
   ] as const);
-  const path = array(item.path);
-  if (path.length !== { DIRECT: 1, TWO_HOP: 2, AMBIENT: 0 }[code])
+  const rawPath = array(item.path);
+  if (rawPath.length !== { DIRECT: 1, TWO_HOP: 2, AMBIENT: 0 }[code])
     throw new APIRequestError("INVALID_RESPONSE", 0, true);
-  if (code === "AMBIENT")
-    return "현재 중심과의 관계가 확인되지 않은 새 탐색 출발점입니다.";
-  return path
-    .map((value) => {
-      const edge = object(value);
-      string(edge.relation_id);
-      string(edge.source_node_id);
-      string(edge.target_node_id);
-      return relationPathLabel(
+  const path = rawPath.map((value) => {
+    const edge = object(value);
+    return {
+      id: string(edge.relation_id),
+      source: string(edge.source_node_id),
+      target: string(edge.target_node_id),
+      label: relationPathLabel(
         string(edge.source_node_name),
         ontologyLabel(string(edge.relation_type_display_name)),
         string(edge.target_node_name),
         directionality(edge.directionality),
-      );
-    })
-    .join(" · ");
+      ),
+    };
+  });
+  return {
+    code,
+    path,
+    reason:
+      code === "AMBIENT"
+        ? "현재 중심과의 관계가 확인되지 않은 새 탐색 출발점입니다."
+        : path.map(({ label }) => label).join(" · "),
+  };
 }
 
 export function toExplorationView(payload: unknown): ExplorationView {
@@ -246,7 +253,7 @@ export function toExplorationView(payload: unknown): ExplorationView {
     const target = object(item.target_node);
     const targetType = object(target.node_type);
     const id = string(target.node_id);
-    const reasonCode = string(item.reason_code);
+    const details = recommendationDetails(item);
     const graphNode = nodesById.get(id);
     const recommendationNode: KnowledgeNode = graphNode ?? {
       id,
@@ -262,11 +269,16 @@ export function toExplorationView(payload: unknown): ExplorationView {
         : number(item.supporting_evidence_group_count);
     return {
       node: recommendationNode,
-      reason: recommendationReason(item),
+      reason: details.reason,
+      path: details.path.map(({ id, source, target }) => ({
+        id,
+        source,
+        target,
+      })),
       status:
-        reasonCode === "DIRECT"
+        details.code === "DIRECT"
           ? "confirmedRelation"
-          : reasonCode === "TWO_HOP"
+          : details.code === "TWO_HOP"
             ? "connectedPath"
             : "ambient",
       ...(evidenceCount === undefined
@@ -301,12 +313,20 @@ export function toExplorationView(payload: unknown): ExplorationView {
     } satisfies ClaimHighlight;
   });
 
+  const displayNodes = [
+    ...new Map(
+      [...nodes, ...recommendations.map(({ node }) => node)].map((node) => [
+        node.id,
+        node,
+      ]),
+    ).values(),
+  ];
   return {
     centerId: string(root.center_node_id),
     context: string(root.context_text),
     contextIsCurrent: boolean(root.context_is_current),
     periodHighlights,
-    nodes,
+    nodes: displayNodes,
     relations,
     recommendations,
     followups,

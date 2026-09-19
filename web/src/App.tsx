@@ -15,7 +15,11 @@ import {
   type TimeRange,
   timeRangeLabel,
 } from "./data";
-import { GraphCanvas, type GraphFocusRequest } from "./GraphCanvas";
+import {
+  GraphCanvas,
+  type GraphFocusRequest,
+  type GraphOverviewRequest,
+} from "./GraphCanvas";
 import { NodeSearch } from "./NodeSearch";
 import {
   EvidenceDialog,
@@ -415,6 +419,10 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
     null,
   );
   const focusSequenceRef = useRef(0);
+  const [overviewRequest, setOverviewRequest] =
+    useState<GraphOverviewRequest | null>(null);
+  const [mapOverviewActive, setMapOverviewActive] = useState(false);
+  const overviewSequenceRef = useRef(0);
   const [legendOpen, setLegendOpen] = useState(false);
   const [graphReady, setGraphReady] = useState(false);
   const [introComplete, setIntroComplete] = useState(false);
@@ -448,6 +456,8 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
       setPanelOpen(true);
       setEvidence(null);
       setFocusRequest(null);
+      setOverviewRequest(null);
+      setMapOverviewActive(false);
       const navigation = request.navigation;
       if (navigation) {
         setTrail((current) =>
@@ -551,6 +561,8 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
         setTimeRange(location.range);
         setTrail([]);
         setEvidence(null);
+        setOverviewRequest(null);
+        setMapOverviewActive(false);
         setRequestError(null);
         setStatus("start");
         setAnnouncement("탐색할 대상을 검색하거나 주제를 선택해 주세요.");
@@ -684,12 +696,60 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
       current.filter((kind) => !neededKinds.has(kind)),
     );
     const key = ++focusSequenceRef.current;
-    setFocusRequest(relationId ? { key, nodeId, relationId } : { key, nodeId });
+    setFocusRequest({
+      key,
+      nodeIds: visibleNodeIds,
+      ...(relationId ? { relationIds: [relationId] } : {}),
+    });
     setAnnouncement(
       relation
         ? `지도에서 ${node.name}의 해당 연결을 강조합니다.`
         : `지도에서 ${node.name} 주변 연결을 강조합니다.`,
     );
+  };
+
+  const locateManyOnMap = (nodeIds: string[], relationIds: string[]) => {
+    const map = peripheral.graphView;
+    if (!map) return;
+    const validRelations = map.relations.filter((relation) =>
+      relationIds.includes(relation.id),
+    );
+    const visibleNodeIds = [
+      ...new Set([
+        ...nodeIds.filter((id) => map.nodes.some((node) => node.id === id)),
+        ...validRelations.flatMap((relation) => [
+          relation.source,
+          relation.target,
+        ]),
+      ]),
+    ];
+    if (!visibleNodeIds.length) {
+      setAnnouncement("현재 지도 범위에서는 추천 대상을 강조할 수 없습니다.");
+      return;
+    }
+    const neededKinds = new Set(
+      map.nodes
+        .filter((node) => visibleNodeIds.includes(node.id))
+        .map((node) => node.kindCode),
+    );
+    setHiddenKinds((current) =>
+      current.filter((kind) => !neededKinds.has(kind)),
+    );
+    setFocusRequest({
+      key: ++focusSequenceRef.current,
+      nodeIds: visibleNodeIds,
+      relationIds: validRelations.map((relation) => relation.id),
+    });
+    setAnnouncement(
+      `추천 대상 ${nodeIds.length}개와 확인된 연결 경로를 지도에서 강조합니다.`,
+    );
+  };
+
+  const toggleMapOverview = () => {
+    setOverviewRequest({
+      key: ++overviewSequenceRef.current,
+      action: mapOverviewActive ? "restore" : "show",
+    });
   };
 
   return (
@@ -733,6 +793,8 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
               }
               panelOpen={panelOpen}
               focusRequest={focusRequest}
+              overviewRequest={overviewRequest}
+              onOverviewActiveChange={setMapOverviewActive}
               onIntroComplete={() => setIntroComplete(true)}
               view={peripheral.graphView}
               onPanBoundary={
@@ -769,6 +831,13 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                 </div>
                 <div className={styles.scopeSummary}>
                   <strong>{currentNode.name} 주변</strong>
+                  <button
+                    type="button"
+                    aria-pressed={mapOverviewActive}
+                    onClick={toggleMapOverview}
+                  >
+                    {mapOverviewActive ? "원래 보기" : "전체 지도 보기"}
+                  </button>
                 </div>
                 <fieldset
                   className={styles.rangeControl}
@@ -833,11 +902,11 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                     key={`${currentView.centerId}:${timeRange}:${panelTab}`}
                     timeRange={timeRange}
                     view={currentView}
-                    loadedGraph={peripheral.graphView}
                     initialTab={panelTab}
                     onClose={() => setPanelOpen(false)}
                     onSelect={selectNode}
                     onLocate={locateOnMap}
+                    onLocateMany={locateManyOnMap}
                     onEvidence={setEvidence}
                   />
                 )

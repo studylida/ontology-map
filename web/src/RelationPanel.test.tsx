@@ -101,11 +101,13 @@ it("Relation 선택 때만 공용 근거 창을 열고 cursor를 그대로 전�
   fireEvent.click(opener);
   await screen.findByText("원문 인용");
   expect(screen.getByRole("dialog").getAttribute("open")).toBe("");
-  expect(screen.getByText("공개 출처 · 2026-08")).toBeTruthy();
+  expect(screen.getByText("출처 · 공개 출처")).toBeTruthy();
+  expect(screen.getByText("게시일 · 2026-08")).toBeTruthy();
+  expect(screen.queryByText("원문 위치")).toBeNull();
   expect(screen.queryByText("9223372036854775807")).toBeNull();
   expect(
     screen
-      .getByRole("link", { name: "발표 자료 원문 열기" })
+      .getByRole("link", { name: "원문 기사 열기 · 발표 자료" })
       .getAttribute("href"),
   ).toBe("https://example.com/source");
   fireEvent.click(screen.getByRole("button", { name: "원문 더 보기" }));
@@ -117,7 +119,9 @@ it("Relation 선택 때만 공용 근거 창을 열고 cursor를 그대로 전�
   ).toBe("opaque +/?");
   const dialog = screen.getByRole("dialog");
   const first = screen.getByRole("button", { name: "원문 창 닫기" });
-  const last = screen.getByRole("link", { name: "발표 자료 원문 열기" });
+  const last = screen.getByRole("link", {
+    name: "원문 기사 열기 · 발표 자료",
+  });
   // jsdom에는 레이아웃이 없어 현재 표시된 두 조작 요소의 영역을 제공한다.
   for (const element of [first, last]) {
     vi.spyOn(element, "getClientRects").mockReturnValue([
@@ -286,6 +290,6 @@ it("근거 URL의 실행 가능한 scheme을 거부하고 날짜 정밀도를 �
   } as EvidenceTrace;
   expect(publicationLabel(value)).toBe("2026");
   expect(publicationLabel({ ...value, publishedAt: null })).toBe(
-    "발행 시점 미상",
+    "확인되지 않음",
   );
 });

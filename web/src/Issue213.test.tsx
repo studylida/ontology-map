@@ -127,16 +127,20 @@ describe("Issue #213 relation verification UX", () => {
       />,
     );
 
-    const disclosure = await screen.findByRole("button", {
+    const record = await screen.findByRole("button", {
       name: /계획 성격의 비교 근거/,
     });
-    expect(disclosure.textContent).toContain("비교 내용");
-    expect(disclosure.textContent).toContain("계획·목표");
-    expect(disclosure.textContent).not.toContain("충돌");
+    expect(record.textContent).toContain("계획");
+    expect(record.textContent).toContain("원문 보기");
     expect(screen.queryByRole("button", { name: "연결 원문" })).toBeNull();
 
-    fireEvent.click(disclosure);
+    fireEvent.click(record);
+    expect(
+      screen.getByRole("heading", { name: "이 기록을 확인한 원문" }),
+    ).toBeTruthy();
     await screen.findByText("Claim 직접 근거");
+    expect(screen.queryByText("원문 위치")).toBeNull();
+    expect(screen.getByText("출처 · 출처")).toBeTruthy();
     expect(screen.getByText("연결을 뒷받침")).toBeTruthy();
     expect(screen.getByText("연결과 상충")).toBeTruthy();
     const personEvidenceButton = screen.getByRole("button", {

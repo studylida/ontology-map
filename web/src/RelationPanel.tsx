@@ -66,7 +66,7 @@ export function PageNotice({
 
 export function publicationLabel(trace: SourceTrace): string {
   if (trace.publishedAt === null || trace.precision === "UNKNOWN")
-    return "발행 시점 미상";
+    return "확인되지 않음";
   if (trace.precision === "INSTANT")
     return new Date(trace.publishedAt).toLocaleString("ko-KR");
   const length = { DAY: 10, MONTH: 7, YEAR: 4 }[trace.precision];
@@ -199,20 +199,12 @@ export function TraceContent({
   return (
     <>
       {!repeatsClaim && <blockquote>{trace.quote}</blockquote>}
-      <p>
-        {trace.publisher} · {publicationLabel(trace)}
+      <p className={styles.sourceMeta}>
+        <span>출처 · {trace.publisher}</span>
+        <span>게시일 · {publicationLabel(trace)}</span>
       </p>
-      <details className={styles.sourceLocation}>
-        <summary>원문 위치</summary>
-        <p>
-          {trace.paragraph === null
-            ? "문단 번호 미상"
-            : `${trace.paragraph}번 문단`}{" "}
-          · 문자 위치 {trace.start}부터 {trace.end} 직전까지
-        </p>
-      </details>
       <a href={trace.url} target="_blank" rel="noopener noreferrer">
-        {trace.title} 원문 열기
+        원문 기사 열기 · {trace.title}
       </a>
     </>
   );
