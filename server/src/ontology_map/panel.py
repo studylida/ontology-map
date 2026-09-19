@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from ontology_map.db import insights as insight_queries
 from ontology_map.db import panel as queries
 from ontology_map.db.exploration import is_public_node
-from ontology_map.exploration import TimeWindow
+from ontology_map.exploration import ReadTimeWindow, TimeWindow
 from ontology_map.insights import get_insight, list_node_insights
 from ontology_map.pagination import InvalidCursorError, decode_cursor, encode_cursor
 
@@ -33,6 +33,10 @@ def _context(session: Session, node_id: int) -> tuple[dict[str, Any], list[int],
 
 def _start(as_of_at: datetime, window: TimeWindow) -> datetime:
     return as_of_at - timedelta(days=90 if window == TimeWindow.RECENT_90_DAYS else 365)
+
+
+def _read_start(as_of_at: datetime, window: ReadTimeWindow) -> datetime | None:
+    return window.start_at(as_of_at)
 
 
 def _position(
@@ -121,7 +125,7 @@ def _connections(
     *,
     node_id: int,
     basis_ids: list[int],
-    start_at: datetime,
+    start_at: datetime | None,
     as_of_at: datetime,
     claim_id: int,
 ) -> list[dict[str, Any]]:
@@ -139,7 +143,11 @@ def _connections(
 
 
 def list_claims(
-    session: Session, node_id: int, window: TimeWindow, cursor: str | None, limit: int
+    session: Session,
+    node_id: int,
+    window: ReadTimeWindow,
+    cursor: str | None,
+    limit: int,
 ) -> dict[str, Any]:
     context, ids, complete = _context(session, node_id)
     if not complete:
@@ -153,7 +161,7 @@ def list_claims(
     params: dict[str, Any] = {
         "node_id": node_id,
         "basis_ids": ids,
-        "start_at": _start(as_of_at, window),
+        "start_at": _read_start(as_of_at, window),
         "as_of_at": as_of_at,
         "after_id": after_id,
         "limit": limit + 1,
@@ -176,8 +184,40 @@ def list_claims(
     }
 
 
+def list_claim_highlights(
+    session: Session,
+    node_id: int,
+    window: ReadTimeWindow,
+    *,
+    as_of_at: datetime,
+) -> list[dict[str, Any]]:
+    context, ids, complete = _context(session, node_id)
+    if not complete:
+        raise PanelNotReadyError
+    rows = queries.node_claim_highlights(
+        session,
+        {
+            "node_id": node_id,
+            "basis_ids": ids,
+            "start_at": _read_start(as_of_at, window),
+            "as_of_at": as_of_at,
+        },
+    )
+    return [
+        {
+            "claim_id": str(row["claim_id"]),
+            "claim_text": row["statement_text"],
+            "modality": row["modality"],
+            "evidence_group_count": row["evidence_group_count"],
+            "latest_published_at": row["last_published_at"],
+            "latest_published_precision": row["last_published_precision"],
+        }
+        for row in rows
+    ]
+
+
 def _trace(
-    row: dict[str, Any], start_at: datetime, as_of_at: datetime
+    row: dict[str, Any], start_at: datetime | None, as_of_at: datetime
 ) -> dict[str, Any]:
     published = row["published_at"]
     return {
@@ -196,7 +236,11 @@ def _trace(
         "locator": {k: row[k] for k in ("paragraph_number", "start_char", "end_char")},
         "period_role": "UNKNOWN"
         if published is None
-        else ("IN_WINDOW" if start_at <= published < as_of_at else "BACKGROUND"),
+        else (
+            "IN_WINDOW"
+            if start_at is None or start_at <= published < as_of_at
+            else "BACKGROUND"
+        ),
     }
 
 
@@ -204,7 +248,7 @@ def claim_evidence(
     session: Session,
     node_id: int,
     claim_id: int,
-    window: TimeWindow,
+    window: ReadTimeWindow,
     as_of_at: datetime,
     cursor: str | None,
 ) -> dict[str, Any]:
@@ -223,7 +267,9 @@ def claim_evidence(
     after_id, _ = _position(cursor, "panel-traces", scope, as_of_at)
     rows = queries.trace_rows(session, claim_id, after_id)
     return {
-        "items": [_trace(row, _start(as_of_at, window), as_of_at) for row in rows[:20]],
+        "items": [
+            _trace(row, _read_start(as_of_at, window), as_of_at) for row in rows[:20]
+        ],
         "next_cursor": _next(
             rows, 20, "observation_id", "panel-traces", scope, as_of_at
         ),

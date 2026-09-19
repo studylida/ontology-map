@@ -1,14 +1,9 @@
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useId, useState } from "react";
 import styles from "./App.module.css";
-import {
-  type ExplorationView,
-  relationPathLabel,
-  type TimeRange,
-} from "./data";
+import { relationPathLabel, type TimeRange, timeRangeLabel } from "./data";
 import {
   type EvidenceSelection,
   PageNotice,
-  RelationList,
   TraceContent,
 } from "./RelationPanel";
 import {
@@ -27,7 +22,7 @@ export function PeriodNote({
 }) {
   return (
     <p className={styles.panelMeta}>
-      {range === "90d" ? "최근 90일" : "최근 1년"}
+      {timeRangeLabel(range)}
       {asOf
         ? ` · ${new Date(asOf).toLocaleDateString("ko-KR")} 기준`
         : " · 출처 게시일 기준"}
@@ -56,10 +51,12 @@ function ClaimTraces({
         <article key={trace.key} className={styles.evidenceEntry}>
           <small>
             {trace.periodRole === "IN_WINDOW"
-              ? "선택 기간의 근거"
+              ? range === "all"
+                ? "등록된 원문"
+                : "이 기간에 게시된 원문"
               : trace.periodRole === "BACKGROUND"
-                ? "기간 밖 배경 근거"
-                : "게시 시점 미상"}
+                ? "이 기간 이전의 배경 원문"
+                : "게시 시점이 확인되지 않은 원문"}
           </small>
           <TraceContent trace={trace} claimText={claim.text} />
         </article>
@@ -76,7 +73,7 @@ function ClaimTraces({
           onClick={page.more}
           disabled={page.loading || !!page.error}
         >
-          출처 더 보기
+          원문 더 보기
         </button>
       )}
     </div>
@@ -84,9 +81,9 @@ function ClaimTraces({
 }
 
 function roleLabel(claim: PanelClaim213): string | null {
-  if (claim.role === "KEY_CLAIM") return "핵심 근거";
-  if (claim.role === "SUPPORTING_CLAIM") return "보조 근거";
-  if (claim.role === "CONTRASTING_CLAIM") return "비교 근거";
+  if (claim.role === "KEY_CLAIM") return "핵심 내용";
+  if (claim.role === "SUPPORTING_CLAIM") return "보충 내용";
+  if (claim.role === "CONTRASTING_CLAIM") return "비교 내용";
   return null;
 }
 
@@ -100,11 +97,12 @@ function modalityLabel(claim: PanelClaim213): string | null {
 function claimKindLabel(claim: PanelClaim213): string {
   const role = roleLabel(claim);
   if (role) return role;
-  if (claim.connections.some((c) => c.kind === "ATTRIBUTE")) return "노드 속성";
+  const attribute = claim.connections.find((c) => c.kind === "ATTRIBUTE");
+  if (attribute) return attribute.label;
   if (claim.connections.some((c) => c.kind === "EVENT_TIME"))
-    return "사건 시간";
-  if (claim.connections.some((c) => c.kind === "RELATION")) return "관계 근거";
-  return "연결 근거";
+    return "사건 시점";
+  if (claim.connections.some((c) => c.kind === "RELATION")) return "연결";
+  return "확인된 내용";
 }
 
 export function ClaimCard({
@@ -114,7 +112,7 @@ export function ClaimCard({
   expanded,
   onExpanded,
   onEvidence,
-  onSelect,
+  onLocate,
 }: {
   nodeId: string;
   claim: PanelClaim213;
@@ -122,7 +120,7 @@ export function ClaimCard({
   expanded?: boolean;
   onExpanded?: (open: boolean) => void;
   onEvidence: (selection: EvidenceSelection) => void;
-  onSelect: (nodeId: string) => void;
+  onLocate: (nodeId: string, relationId?: string) => void;
 }) {
   const [localOpen, setOpen] = useState(false);
   const open = expanded ?? localOpen;
@@ -153,72 +151,88 @@ export function ClaimCard({
         <span>
           <small>
             {claimKindLabel(claim)} ·{" "}
-            {claim.state === "HUMAN_VERIFIED" ? "사람 확인됨" : "근거 확인됨"}
+            {claim.state === "HUMAN_VERIFIED" ? "검토 완료" : "원문 연결됨"}
             {modality ? ` · ${modality}` : ""}
             {conflict ? " · 충돌" : ""}
           </small>
           <span>{claim.text}</span>
-          <small>기간 내 독립 근거 {claim.evidenceGroupCount}개</small>
+          <small>서로 다른 근거 {claim.evidenceGroupCount}개</small>
         </span>
-        <span aria-hidden="true">{open ? "−" : "+"}</span>
+        <span>{open ? "접기" : "원문과 연결 보기"}</span>
       </button>
 
-      {relationConnections.map((connection) => {
-        const relation = connection.relation;
-        if (!relation) return null;
-        return (
-          <div
-            key={`${connection.kind}:${relation.id}:${relation.stance}`}
-            className={styles.relationCard}
-          >
-            <div className={styles.relationToggle}>
-              <span>
-                <small>
-                  {relationPathLabel(
-                    relation.sourceNode.name,
-                    relation.displayName,
-                    relation.targetNode.name,
-                    relation.directionality,
-                  )}
-                </small>
-                <small>{relation.stance === "SUPPORT" ? "지지" : "반박"}</small>
-              </span>
-              <span>
-                <button
-                  type="button"
-                  onClick={() => onSelect(relation.otherNode.id)}
-                >
-                  {relation.otherNode.name} · {relation.otherNode.kind} · Node
-                  보기
-                </button>
-                <button
-                  type="button"
-                  aria-label={`${relation.otherNode.name} ${relation.displayName} 관계 근거 보기`}
-                  onClick={() =>
-                    onEvidence({
-                      id: relation.id,
-                      label: `${relation.sourceNode.name} · ${relation.displayName} · ${relation.targetNode.name}`,
-                    })
-                  }
-                >
-                  관계 근거
-                </button>
-              </span>
-            </div>
-          </div>
-        );
-      })}
-
-      {otherConnections.map((connection) => (
-        <small
-          key={`${connection.kind}:${connection.id}:${connection.position}`}
-        >
-          {connection.label}
-        </small>
-      ))}
-
       <div id={id} hidden={!open}>
-        {open && <ClaimTraces nodeId={nodeId} claim={claim} range={range} />}
+        {open && (
+          <>
+            <ClaimTraces nodeId={nodeId} claim={claim} range={range} />
+            {otherConnections.length > 0 && (
+              <div className={styles.connectionTags}>
+                {otherConnections.map((connection) => (
+                  <small
+                    key={`${connection.kind}:${connection.id}:${connection.position}`}
+                  >
+                    {connection.label}
+                  </small>
+                ))}
+              </div>
+            )}
+            {relationConnections.map((connection) => {
+              const relation = connection.relation;
+              if (!relation) return null;
+              return (
+                <div
+                  key={`${connection.kind}:${relation.id}:${relation.stance}`}
+                  className={styles.relationCard}
+                >
+                  <div className={styles.relationToggle}>
+                    <span>
+                      <small>
+                        {relationPathLabel(
+                          relation.sourceNode.name,
+                          relation.displayName,
+                          relation.targetNode.name,
+                          relation.directionality,
+                        )}
+                      </small>
+                      <small>
+                        {relation.stance === "SUPPORT"
+                          ? "연결을 뒷받침"
+                          : "연결과 상충"}
+                      </small>
+                    </span>
+                    <span className={styles.relationActions}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onLocate(relation.otherNode.id, relation.id)
+                        }
+                      >
+                        지도에서 강조
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`${relation.otherNode.name} ${relation.displayName} 연결 원문 보기`}
+                        onClick={() =>
+                          onEvidence({
+                            id: relation.id,
+                            label: relationPathLabel(
+                              relation.sourceNode.name,
+                              relation.displayName,
+                              relation.targetNode.name,
+                              relation.directionality,
+                            ),
+                          })
+                        }
+                      >
+                        연결 원문
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
     </article>
   );
@@ -226,20 +240,14 @@ export function ClaimCard({
 
 export function PanelEvidence({
   nodeId,
-  nodeName,
   range,
   onEvidence,
-  onSelect,
-  loadedGraph,
-  hiddenKinds,
+  onLocate,
 }: {
   nodeId: string;
-  nodeName: string;
   range: TimeRange;
   onEvidence: (selection: EvidenceSelection) => void;
-  onSelect: (nodeId: string) => void;
-  loadedGraph: ExplorationView | null;
-  hiddenKinds: readonly string[];
+  onLocate: (nodeId: string, relationId?: string) => void;
 }) {
   const fetchPage = useCallback(
     (id: string, cursor: string | null, signal: AbortSignal) =>
@@ -247,81 +255,38 @@ export function PanelEvidence({
     [range],
   );
   const page = useCursorPage(nodeId, fetchPage);
-  const [subview, setSubview] = useState<"claims" | "relations">("claims");
-  const claimsSectionRef = useRef<HTMLElement>(null);
-  const relationOpenerRef = useRef<HTMLButtonElement>(null);
-  const savedScrollRef = useRef(0);
-
-  const openRelations = () => {
-    const panel = claimsSectionRef.current?.closest("aside");
-    savedScrollRef.current = panel?.scrollTop ?? 0;
-    setSubview("relations");
-  };
-  const closeRelations = () => {
-    setSubview("claims");
-    requestAnimationFrame(() => {
-      const panel = claimsSectionRef.current?.closest("aside");
-      if (panel) panel.scrollTop = savedScrollRef.current;
-      relationOpenerRef.current?.focus();
-    });
-  };
-
   return (
-    <>
-      <section
-        ref={claimsSectionRef}
-        aria-label="노드와 관계의 근거"
-        hidden={subview !== "claims"}
-      >
-        <h2>주장과 근거</h2>
-        <PeriodNote range={range} />
-        <p className={styles.panelMeta}>
-          주장을 펼쳐 원문과 출처를 확인하세요.
-        </p>
-        <button ref={relationOpenerRef} type="button" onClick={openRelations}>
-          전체 관계 보기
-        </button>
-        {page.items.map((claim) => (
-          <ClaimCard
-            key={claim.id}
-            nodeId={nodeId}
-            claim={claim}
-            range={range}
-            onEvidence={onEvidence}
-            onSelect={onSelect}
-          />
-        ))}
-        <PageNotice
-          {...page}
-          empty={!page.items.length}
-          additional={page.items.length > 0}
-          onRetry={page.retry}
+    <section aria-label="자료에서 확인한 내용">
+      <h2>자료에서 확인한 내용</h2>
+      <PeriodNote range={range} />
+      <p className={styles.panelMeta}>
+        항목을 열어 실제 기사 문장과 출처를 확인할 수 있습니다.
+      </p>
+      {page.items.map((claim) => (
+        <ClaimCard
+          key={claim.id}
+          nodeId={nodeId}
+          claim={claim}
+          range={range}
+          onEvidence={onEvidence}
+          onLocate={onLocate}
         />
-        {page.nextCursor && (
-          <button
-            type="button"
-            onClick={page.more}
-            disabled={page.loading || !!page.error}
-          >
-            주장 더 보기
-          </button>
-        )}
-      </section>
-      {subview === "relations" && (
-        <section aria-label="전체 관계 보기">
-          <button type="button" onClick={closeRelations}>
-            주장과 근거로 돌아가기
-          </button>
-          <RelationList
-            nodeId={nodeId}
-            nodeName={nodeName}
-            onEvidence={onEvidence}
-            onSelect={onSelect}
-            loadedGraph={loadedGraph}
-            hiddenKinds={hiddenKinds}
-          />
-        </section>
+      ))}
+      <PageNotice
+        {...page}
+        empty={!page.items.length}
+        additional={page.items.length > 0}
+        onRetry={page.retry}
+      />
+      {page.nextCursor && (
+        <button
+          type="button"
+          onClick={page.more}
+          disabled={page.loading || !!page.error}
+        >
+          확인된 내용 더 보기
+        </button>
       )}
-    </>
+    </section>
   );
 }

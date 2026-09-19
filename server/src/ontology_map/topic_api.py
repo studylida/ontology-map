@@ -14,7 +14,7 @@ from ontology_map.api import (
 )
 from ontology_map.db.session import open_read_session
 from ontology_map.db.topic_references import list_topic_references
-from ontology_map.exploration import TimeWindow
+from ontology_map.exploration import ReadTimeWindow
 from ontology_map.topic_exploration import (
     TopicExplorationNotFoundError,
     get_topic_exploration,
@@ -37,7 +37,7 @@ class TopicReferenceListResponse(BaseModel):
 
 class TopicExplorationResponse(BaseModel):
     topic: TopicReferenceResponse
-    time_window: TimeWindow
+    time_window: ReadTimeWindow
     total_public_membership_count: int = Field(ge=0)
     recent_member_count: int = Field(ge=0)
     recent_activity_evidence_group_count: int = Field(ge=0)
@@ -90,7 +90,7 @@ def read_topic_references(
 )
 def read_topic_exploration(
     topic_node_id: Annotated[str, Path(pattern=r"^[1-9][0-9]{0,18}$")],
-    time_window: Annotated[TimeWindow, Query()],
+    time_window: Annotated[ReadTimeWindow, Query()],
     session: Annotated[Session, Depends(open_read_session)],
 ) -> TopicExplorationResponse:
     try:

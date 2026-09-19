@@ -5,7 +5,9 @@ import {
   fetchPanelReport,
   type KnowledgeNode,
   type KnowledgeRelation,
+  relationPathLabel,
   type TimeRange,
+  timeRangeLabel,
 } from "./data";
 import { type EvidenceSelection, PageNotice } from "./RelationPanel";
 import topicStyles from "./Topic.module.css";
@@ -16,6 +18,7 @@ interface TopicPanelProps {
   timeRange: TimeRange;
   onClose: () => void;
   onSelect: (nodeId: string) => void;
+  onLocate: (nodeId: string, relationId?: string) => void;
   onSelectInsight: (nodeId: string) => void;
   onEvidence?: (selection: EvidenceSelection) => void;
 }
@@ -107,19 +110,19 @@ function MemberActions({
   node,
   relation,
   topicName,
-  onSelect,
+  onLocate,
   onEvidence,
 }: {
   node: KnowledgeNode;
   relation: KnowledgeRelation | undefined;
   topicName: string;
-  onSelect: (nodeId: string) => void;
+  onLocate: (nodeId: string, relationId?: string) => void;
   onEvidence: (selection: EvidenceSelection) => void;
 }) {
   return (
-    <span>
-      <button type="button" onClick={() => onSelect(node.id)}>
-        Node 보기
+    <span className={topicStyles.topicActions}>
+      <button type="button" onClick={() => onLocate(node.id, relation?.id)}>
+        지도에서 강조
       </button>
       {relation && (
         <button
@@ -127,11 +130,16 @@ function MemberActions({
           onClick={() =>
             onEvidence({
               id: relation.id,
-              label: `${node.name} · ${relation.label} · ${topicName}`,
+              label: relationPathLabel(
+                relation.source === node.id ? node.name : topicName,
+                relation.label,
+                relation.source === node.id ? topicName : node.name,
+                relation.directionality,
+              ),
             })
           }
         >
-          관계 근거
+          연결 원문
         </button>
       )}
     </span>
@@ -143,6 +151,7 @@ export function TopicPanel({
   timeRange,
   onClose,
   onSelect,
+  onLocate,
   onSelectInsight,
   onEvidence = () => undefined,
 }: TopicPanelProps) {
@@ -181,7 +190,7 @@ export function TopicPanel({
       };
     }, [view]);
 
-  const periodLabel = timeRange === "90d" ? "최근 90일" : "최근 1년";
+  const periodLabel = timeRangeLabel(timeRange);
 
   return (
     <aside
@@ -209,7 +218,7 @@ export function TopicPanel({
         ) : (
           <>
             <section>
-              <h2>최근 근거가 많은 연결</h2>
+              <h2>{periodLabel}에 근거가 많은 연결</h2>
               {rich.length > 0 ? (
                 <div className={topicStyles.topicRichCards}>
                   {rich.map((node) => (
@@ -233,27 +242,29 @@ export function TopicPanel({
                         node={node}
                         relation={relationByMember.get(node.id)}
                         topicName={view.topic.name}
-                        onSelect={onSelect}
+                        onLocate={onLocate}
                         onEvidence={onEvidence}
                       />
-                      <TopicInsightTitle
-                        nodeId={node.id}
-                        timeRange={timeRange}
-                        onSelect={() => onSelectInsight(node.id)}
-                      />
+                      {timeRange !== "all" && (
+                        <TopicInsightTitle
+                          nodeId={node.id}
+                          timeRange={timeRange}
+                          onSelect={() => onSelectInsight(node.id)}
+                        />
+                      )}
                     </article>
                   ))}
                 </div>
               ) : (
                 <p className={styles.empty}>
-                  {periodLabel}에 새로 확인된 연결 근거가 없습니다.
+                  {periodLabel}에 확인된 연결 원문이 없습니다.
                 </p>
               )}
             </section>
 
             {remainingRecent.length > 0 && (
               <section>
-                <h2>최근 근거가 있는 연결</h2>
+                <h2>{periodLabel}에 근거가 있는 연결</h2>
                 <div className={topicStyles.topicMemberList}>
                   {remainingRecent.map((node) => (
                     <article key={node.id}>
@@ -265,7 +276,7 @@ export function TopicPanel({
                         node={node}
                         relation={relationByMember.get(node.id)}
                         topicName={view.topic.name}
-                        onSelect={onSelect}
+                        onLocate={onLocate}
                         onEvidence={onEvidence}
                       />
                     </article>
@@ -293,7 +304,7 @@ export function TopicPanel({
                             node={node}
                             relation={relationByMember.get(node.id)}
                             topicName={view.topic.name}
-                            onSelect={onSelect}
+                            onLocate={onLocate}
                             onEvidence={onEvidence}
                           />
                         </article>

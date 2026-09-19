@@ -162,7 +162,7 @@ export function NodeSearch({
           id="node-search"
           type="search"
           role="combobox"
-          aria-label="노드 검색"
+          aria-label="대상 검색"
           aria-autocomplete="list"
           aria-controls={listId}
           aria-expanded={open}

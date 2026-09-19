@@ -1,6 +1,11 @@
 import { useId, useState } from "react";
 import styles from "./App.module.css";
-import type { ExplorationView, TimeRange } from "./data";
+import {
+  type ClaimHighlight,
+  type ExplorationView,
+  type TimeRange,
+  timeRangeLabel,
+} from "./data";
 import { InsightPanel, ReportDialog } from "./InsightPanel";
 import { PanelEvidence } from "./PanelEvidence";
 import { QuestionPanel } from "./QuestionPanel";
@@ -9,10 +14,10 @@ import type { EvidenceSelection } from "./RelationPanel";
 interface DetailPanelProps {
   view: ExplorationView;
   loadedGraph?: ExplorationView | null;
-  hiddenKinds?: readonly string[];
   timeRange: TimeRange;
   onClose: () => void;
   onSelect: (nodeId: string) => void;
+  onLocate: (nodeId: string, relationId?: string) => void;
   onEvidence?: (selection: EvidenceSelection) => void;
   initialTab?: 0 | 1 | 2;
 }
@@ -23,13 +28,24 @@ const recommendationStatusLabel = {
   ambient: "새 탐색 출발점",
 } as const;
 
+function highlightDate(item: ClaimHighlight): string {
+  if (!item.publishedAt || item.precision === "UNKNOWN")
+    return "게시 시점 미상";
+  if (item.precision === "INSTANT")
+    return new Date(item.publishedAt).toLocaleString("ko-KR");
+  return item.publishedAt.slice(
+    0,
+    { DAY: 10, MONTH: 7, YEAR: 4 }[item.precision],
+  );
+}
+
 function DetailPanelContent({
   view,
   loadedGraph = null,
-  hiddenKinds = [],
   timeRange,
   onClose,
   onSelect,
+  onLocate,
   onEvidence = () => undefined,
   initialTab = 0,
 }: DetailPanelProps) {
@@ -65,7 +81,7 @@ function DetailPanelContent({
         aria-label="노드 상세 보기"
         className={styles.panelTabs}
       >
-        {["탐색", "근거", "인사이트"].map((label, index) => (
+        {["개요", "자료·원문", "인사이트"].map((label, index) => (
           <button
             key={label}
             type="button"
@@ -96,16 +112,45 @@ function DetailPanelContent({
       >
         {tab === 0 && (
           <>
-            <p className={styles.panelContext}>{view.context}</p>
+            {view.contextIsCurrent && (
+              <section className={styles.summarySection}>
+                <h2>등록된 자료 전체 요약</h2>
+                <p className={styles.panelContext}>{view.context}</p>
+              </section>
+            )}
+            <section className={styles.summarySection}>
+              <h2>
+                {timeRange === "all"
+                  ? "전체 기간에서 최근 확인된 내용"
+                  : `${timeRangeLabel(timeRange)}에 확인된 내용`}
+              </h2>
+              {view.periodHighlights.length ? (
+                <div className={styles.highlightList}>
+                  {view.periodHighlights.map((item) => (
+                    <article key={item.id} className={styles.highlightItem}>
+                      <p>{item.text}</p>
+                      <small>
+                        {highlightDate(item)} · 서로 다른 근거{" "}
+                        {item.evidenceGroupCount}개
+                      </small>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className={styles.empty}>
+                  이 기간에 확인된 내용이 없습니다.
+                </p>
+              )}
+            </section>
             <QuestionPanel
               nodeId={center.id}
               range={timeRange}
               onReport={setReportSection}
               onEvidence={onEvidence}
-              onSelect={onSelect}
+              onLocate={onLocate}
             />
             <div className={styles.sectionHeading}>
-              <h2>이어서 탐색</h2>
+              <h2>이어서 살펴보기</h2>
               <span>{view.recommendations.length}</span>
             </div>
             {view.recommendations.length ? (
@@ -131,7 +176,7 @@ function DetailPanelContent({
                     <span className={styles.cardMeta}>
                       {recommendationStatusLabel[recommendation.status]}
                       {recommendation.evidenceGroupCount
-                        ? ` · 독립 근거 ${recommendation.evidenceGroupCount}개`
+                        ? ` · 서로 다른 근거 ${recommendation.evidenceGroupCount}개`
                         : ""}
                     </span>
                     <span className={styles.cardArrow} aria-hidden="true">
@@ -143,17 +188,26 @@ function DetailPanelContent({
             ) : (
               <p className={styles.empty}>추천할 탐색 대상이 없습니다.</p>
             )}
+            {loadedGraph?.relations.some(
+              (relation) =>
+                relation.source === center.id || relation.target === center.id,
+            ) && (
+              <button
+                type="button"
+                className={styles.panelAction}
+                onClick={() => onLocate(center.id)}
+              >
+                지도에서 연결 강조
+              </button>
+            )}
           </>
         )}
         {tab === 1 && (
           <PanelEvidence
             nodeId={center.id}
-            nodeName={center.name}
             range={timeRange}
             onEvidence={onEvidence}
-            onSelect={onSelect}
-            loadedGraph={loadedGraph}
-            hiddenKinds={hiddenKinds}
+            onLocate={onLocate}
           />
         )}
         {tab === 2 && (
@@ -172,7 +226,7 @@ function DetailPanelContent({
           sectionId={reportSection}
           onClose={() => setReportSection(null)}
           onEvidence={onEvidence}
-          onSelect={onSelect}
+          onLocate={onLocate}
         />
       )}
     </aside>

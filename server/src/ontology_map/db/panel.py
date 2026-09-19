@@ -109,10 +109,39 @@ _NODE_CLAIMS = (
 ), selected AS (
     SELECT c.claim_id, c.statement_text, c.modality, ki.current_state,
       count(DISTINCT sd.evidence_group_id) FILTER (
-        WHERE sd.published_at >= :start_at AND sd.published_at < :as_of_at
+        WHERE (
+          sd.published_at IS NOT NULL AND sd.published_at < :as_of_at
+          AND (
+            CAST(:start_at AS timestamptz) IS NULL
+            OR sd.published_at >= CAST(:start_at AS timestamptz)
+          )
+        ) OR (
+          CAST(:start_at AS timestamptz) IS NULL
+          AND sd.published_at IS NULL
+        )
       )::integer AS evidence_group_count,
-      max(sd.published_at) FILTER (WHERE sd.published_at < :as_of_at) AS
-      last_published_at
+      max(sd.published_at) FILTER (
+        WHERE sd.published_at < :as_of_at
+          AND (
+            CAST(:start_at AS timestamptz) IS NULL
+            OR sd.published_at >= CAST(:start_at AS timestamptz)
+          )
+      ) AS last_published_at,
+      (array_agg(
+        sd.published_precision
+        ORDER BY sd.published_at DESC NULLS LAST, sd.source_document_id DESC
+      ) FILTER (
+        WHERE (
+          sd.published_at IS NOT NULL AND sd.published_at < :as_of_at
+          AND (
+            CAST(:start_at AS timestamptz) IS NULL
+            OR sd.published_at >= CAST(:start_at AS timestamptz)
+          )
+        ) OR (
+          CAST(:start_at AS timestamptz) IS NULL
+          AND sd.published_at IS NULL
+        )
+      ))[1] AS last_published_precision
     FROM claim c JOIN knowledge_item ki ON ki.knowledge_item_id = c.claim_id
     JOIN claim_observation co USING (claim_id)
     JOIN observation o USING (observation_id)
@@ -132,6 +161,23 @@ def node_claims(session: Session, params: dict[str, Any]) -> list[dict[str, Any]
             + """
         SELECT * FROM selected WHERE evidence_group_count > 0
           AND claim_id > :after_id ORDER BY claim_id LIMIT :limit
+    """
+        ),
+        params,
+    ).mappings()
+    return [dict(row) for row in rows]
+
+
+def node_claim_highlights(
+    session: Session, params: dict[str, Any]
+) -> list[dict[str, Any]]:
+    rows = session.execute(
+        sa.text(
+            _NODE_CLAIMS
+            + """
+        SELECT * FROM selected WHERE evidence_group_count > 0
+        ORDER BY last_published_at DESC NULLS LAST, claim_id ASC
+        LIMIT 3
     """
         ),
         params,

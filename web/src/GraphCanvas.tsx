@@ -43,6 +43,12 @@ interface RuntimeLink extends Omit<KnowledgeViewRelation, "source" | "target"> {
   target: string | RuntimeNode;
 }
 
+export interface GraphFocusRequest {
+  key: number;
+  nodeId: string;
+  relationId?: string;
+}
+
 interface GraphCanvasProps {
   designPreview?: boolean;
   theme?: "dark" | "light";
@@ -56,6 +62,7 @@ interface GraphCanvasProps {
   onReady: () => void;
   onPanBoundary: () => void;
   panelOpen: boolean;
+  focusRequest?: GraphFocusRequest | null;
   onIntroComplete: () => void;
   onEvidence: (selection: EvidenceSelection) => void;
 }
@@ -698,6 +705,7 @@ export function GraphCanvas({
   onEvidence,
   onPanBoundary,
   panelOpen,
+  focusRequest = null,
   onIntroComplete,
 }: GraphCanvasProps) {
   const centerId = view.centerId;
@@ -736,6 +744,9 @@ export function GraphCanvas({
   const onTransitionCompleteRef = useRef(onTransitionComplete);
   const onReadyRef = useRef(onReady);
   const focusPathRef = useRef<(nodeId: string | null) => void>(() => {});
+  const pointerNodeRef = useRef<string | null>(null);
+  const pointerRelationRef = useRef<string | null>(null);
+  const focusTimeoutRef = useRef<number | null>(null);
   const dataInitializedRef = useRef(false);
   const readyRef = useRef(false);
   const readyFrameRef = useRef<number | null>(null);
@@ -769,7 +780,7 @@ export function GraphCanvas({
       const target =
         view.nodes.find((node) => node.id === relation.target)?.name ?? "노드";
       const direction = relation.directionality === "DIRECTED" ? "→" : "↔";
-      return `${source} ${direction} ${target} · ${relation.label} · 독립 근거 ${relation.evidenceGroupCount}개${relation.conflict ? " · 충돌 관계" : ""}`;
+      return `${source} ${direction} ${target} · ${relation.label} · 서로 다른 근거 ${relation.evidenceGroupCount}개${relation.conflict ? " · 충돌 관계" : ""}`;
     },
     [view.nodes],
   );
@@ -964,7 +975,12 @@ export function GraphCanvas({
       })
       .linkDirectionalArrowLength(0)
       .linkHoverPrecision(6)
-      .onLinkHover((link) => focusRelationRef.current(link?.id ?? null))
+      .onLinkHover((link) => {
+        pointerRelationRef.current = link?.id ?? null;
+        if (link) pointerNodeRef.current = null;
+        if (focusTimeoutRef.current === null)
+          focusRelationRef.current(link?.id ?? null);
+      })
       .onLinkClick((link) => {
         const selection = relationActionsRef.current.get(link.id);
         if (selection && linkIsVisible(link)) {
@@ -980,7 +996,13 @@ export function GraphCanvas({
           onSelectRef.current(node.id);
       })
       .onNodeHover((node) => {
-        focusPathRef.current(node && nodeIsVisible(node.id) ? node.id : null);
+        pointerNodeRef.current =
+          node && nodeIsVisible(node.id) ? node.id : null;
+        if (node) pointerRelationRef.current = null;
+        if (focusTimeoutRef.current === null) {
+          setHoveredRelation(null);
+          focusPathRef.current(pointerNodeRef.current);
+        }
         container.style.cursor = node ? "pointer" : "grab";
       })
       .warmupTicks(0)
@@ -1229,6 +1251,8 @@ export function GraphCanvas({
         cancelAnimationFrame(hoverAnimationRef.current);
       if (introTimeoutRef.current !== null)
         window.clearTimeout(introTimeoutRef.current);
+      if (focusTimeoutRef.current !== null)
+        window.clearTimeout(focusTimeoutRef.current);
       for (const visual of nodeVisualsRef.current.values())
         visual.userData.label.element.remove();
       graph._destructor();
@@ -1244,6 +1268,33 @@ export function GraphCanvas({
       focusRelationRef.current = () => {};
     };
   }, [designPreview]);
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    if (focusTimeoutRef.current !== null)
+      window.clearTimeout(focusTimeoutRef.current);
+    if (focusRequest.relationId) {
+      focusRelationRef.current(focusRequest.relationId);
+    } else {
+      setHoveredRelation(null);
+      focusPathRef.current(focusRequest.nodeId);
+    }
+    focusTimeoutRef.current = window.setTimeout(() => {
+      focusTimeoutRef.current = null;
+      if (pointerRelationRef.current) {
+        focusRelationRef.current(pointerRelationRef.current);
+      } else {
+        setHoveredRelation(null);
+        focusPathRef.current(pointerNodeRef.current);
+      }
+    }, 2500);
+    return () => {
+      if (focusTimeoutRef.current !== null) {
+        window.clearTimeout(focusTimeoutRef.current);
+        focusTimeoutRef.current = null;
+      }
+    };
+  }, [focusRequest]);
 
   useEffect(() => {
     const graph = graphRef.current;
@@ -1764,12 +1815,12 @@ export function GraphCanvas({
       </nav>
       <div className={styles.depthNote}>
         {designPreview
-          ? "드래그로 이동 · 스크롤로 확대 · 관계선을 눌러 근거 확인"
+          ? "드래그로 이동 · 스크롤로 확대 · 관계선을 눌러 연결 원문 확인"
           : "얕은 2.5D · z ±32 · 회전 없음"}
       </div>
       <nav
         className={styles.accessibleNodes}
-        aria-label="탐색 가능한 node 목록"
+        aria-label="탐색 가능한 대상 목록"
       >
         {view.nodes
           .filter((node) => !hiddenKinds.includes(node.kindCode))

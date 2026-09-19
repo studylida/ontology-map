@@ -241,7 +241,7 @@
 
 .rangeControl {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   padding: 0;
   border: 0;
 }
@@ -261,8 +261,11 @@
   border-radius: 8px 0 0 8px;
 }
 
-.rangeControl button:last-of-type {
+.rangeControl button + button {
   border-left: 0;
+}
+
+.rangeControl button:last-of-type {
   border-radius: 0 8px 8px 0;
 }
 
@@ -1241,10 +1244,17 @@
 }
 .evidenceDialog button,
 .followupSection > button {
-  color: var(--text-primary);
-  background: var(--surface-elevated);
+  min-height: 44px;
+  padding: 8px 12px;
+  color: var(--interactive);
+  background: transparent;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
+}
+.evidenceDialog header button {
+  width: 44px;
+  padding: 0;
+  border-radius: 50%;
 }
 .evidenceEntry {
   padding: 20px 0;
@@ -1379,9 +1389,65 @@
 }
 
 .panelContext {
-  margin: 0 0 24px;
+  margin: 0;
   line-height: 1.7;
   color: var(--text-primary);
+}
+.summarySection + .summarySection,
+.summarySection + .followupSection {
+  margin-top: 24px;
+}
+.summarySection h2 {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+.highlightList {
+  display: grid;
+  gap: 0;
+}
+.highlightItem {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.highlightItem p {
+  margin: 0 0 6px;
+  line-height: 1.65;
+}
+.highlightItem small,
+.connectionTags {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.panelAction,
+.relationActions button,
+.panelTraceList > button {
+  min-height: 44px;
+  padding: 8px 12px;
+  color: var(--interactive);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.panelAction {
+  width: 100%;
+  margin-top: 20px;
+}
+.relationActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.connectionTags {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0 12px 12px;
+  gap: 8px;
+}
+.connectionTags small {
+  padding: 4px 8px;
+  background: var(--surface-elevated);
+  border-radius: 999px;
 }
 .panelMeta {
   font-size: 12px;
@@ -1412,6 +1478,11 @@
   font-size: 11px;
   opacity: 0.7;
 }
+.panelDisclosure > span:last-child {
+  flex: 0 0 auto;
+  color: var(--interactive);
+  font-size: 12px;
+}
 .questionCard,
 .panelClaim {
   border-bottom: 1px solid var(--border);
@@ -1430,6 +1501,31 @@
 .panelTraceList {
   padding: 0 12px 12px;
   overflow-wrap: anywhere;
+}
+.sourceLocation {
+  margin: 10px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.sourceLocation summary {
+  width: fit-content;
+  min-height: 32px;
+  color: var(--interactive);
+  cursor: pointer;
+}
+.sourceLocation p {
+  margin: 4px 0 0;
+}
+
+@media (max-width: 520px) {
+  .relationToggle {
+    display: grid;
+    align-items: start;
+  }
+
+  .relationActions {
+    justify-content: flex-start;
+  }
 }
 .reportContents {
   display: grid;

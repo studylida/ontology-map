@@ -152,6 +152,8 @@ const node = (id: string, tier: "center" | "direct" | "ambient") => ({
 const view: ExplorationView = {
   centerId: "1",
   context: "",
+  contextIsCurrent: false,
+  periodHighlights: [],
   nodes: [node("1", "center"), node("2", "direct")],
   relations: [],
   recommendations: [],
@@ -269,6 +271,42 @@ it("노드 장식이 간선 선택을 가로채지 않고 이동한 선을 클�
     id: "edge",
     label: expect.stringContaining("관련 기술"),
   });
+  expect(callbacks.onSelect).not.toHaveBeenCalled();
+});
+
+it("요청한 관계만 잠시 강조한 뒤 camera 이동 없이 원래 상태로 돌아간다", () => {
+  const callbacks = props();
+  const relation: KnowledgeRelation = {
+    id: "edge",
+    source: "1",
+    target: "2",
+    label: "관련 기술",
+    tier: "direct",
+    directionality: "DIRECTED",
+    evidenceGroupCount: 3,
+    conflict: false,
+  };
+  const data = { ...view, relations: [relation] };
+  const { rerender, queryByRole } = render(
+    <GraphCanvas {...callbacks} view={data} />,
+  );
+  const camera = harness.camera?.position.clone();
+  const target = harness.target?.clone();
+
+  rerender(
+    <GraphCanvas
+      {...callbacks}
+      view={data}
+      focusRequest={{ key: 1, nodeId: "2", relationId: "edge" }}
+    />,
+  );
+  expect(queryByRole("status")?.textContent).toContain("관련 기술");
+  act(() => vi.advanceTimersByTime(2499));
+  expect(queryByRole("status")).toBeTruthy();
+  act(() => vi.advanceTimersByTime(1));
+  expect(queryByRole("status")).toBeNull();
+  expect(harness.camera?.position).toEqual(camera);
+  expect(harness.target).toEqual(target);
   expect(callbacks.onSelect).not.toHaveBeenCalled();
 });
 
@@ -987,7 +1025,7 @@ it("유형 필터는 좌표·배율을 보존하며 숨긴 노드와 연결을 �
   expect(visual("2").visible).toBe(false);
   expect(harness.links.get("filtered")?.visible).toBe(false);
   expect(queryByRole("button", { name: "2 · 회사" })).toBeNull();
-  expect(queryByRole("button", { name: /독립 근거/ })).toBeNull();
+  expect(queryByRole("button", { name: /서로 다른 근거/ })).toBeNull();
   act(() => {
     harness.options.get("onNodeClick")?.(data.nodes[1] as never);
     harness.options.get("onLinkClick")?.(relation as never);

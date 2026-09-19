@@ -16,14 +16,14 @@ export function ReportDialog({
   sectionId,
   onClose,
   onEvidence,
-  onSelect,
+  onLocate,
 }: {
   nodeId: string;
   timeRange: TimeRange;
   sectionId: string;
   onClose: () => void;
   onEvidence: (selection: EvidenceSelection) => void;
-  onSelect: (nodeId: string) => void;
+  onLocate: (nodeId: string, relationId?: string) => void;
 }) {
   const [expanded, setExpanded] = useState(new Set<string>());
   const updateExpanded = (key: string, open: boolean) =>
@@ -78,7 +78,7 @@ export function ReportDialog({
             <h3>핵심 해석</h3>
             <p className={styles.dialogSummary}>{report.summary}</p>
             <p className={styles.panelMeta}>
-              기간 내 독립 근거 {report.evidenceGroupCount}개
+              서로 다른 근거 {report.evidenceGroupCount}개
             </p>
             <nav aria-label="보고서 목차" className={styles.reportContents}>
               {report.sections.map((section) => (
@@ -104,7 +104,7 @@ export function ReportDialog({
                   <h4>해석과 판단</h4>
                   <p>{section.synthesis}</p>
                 </div>
-                <h4>이 해석의 근거</h4>
+                <h4>이 분석에 사용한 원문</h4>
                 {section.claims.map((claim) => (
                   <ClaimCard
                     key={claim.id}
@@ -116,7 +116,7 @@ export function ReportDialog({
                     }
                     range={timeRange}
                     onEvidence={onEvidence}
-                    onSelect={onSelect}
+                    onLocate={onLocate}
                   />
                 ))}
                 {section.caveat && (
@@ -143,7 +143,7 @@ export function ReportDialog({
   );
 }
 
-export function InsightPanel({
+function GeneratedInsightPanel({
   nodeId,
   timeRange,
   onReport,
@@ -175,7 +175,7 @@ export function InsightPanel({
           <h4>핵심 해석</h4>
           <p>{report.summary}</p>
           <p className={styles.panelMeta}>
-            기간 내 독립 근거 {report.evidenceGroupCount}개
+            서로 다른 근거 {report.evidenceGroupCount}개
           </p>
           <div className={styles.reportContents}>
             {report.sections.map((section) => (
@@ -196,4 +196,21 @@ export function InsightPanel({
       )}
     </section>
   );
+}
+
+export function InsightPanel(props: {
+  nodeId: string;
+  timeRange: TimeRange;
+  onReport: (sectionId: string) => void;
+}) {
+  if (props.timeRange === "all")
+    return (
+      <section aria-label="인사이트 보고서">
+        <h2>인사이트</h2>
+        <p className={styles.panelMeta}>
+          최근 90일 또는 최근 1년을 선택하면 기간별 인사이트를 볼 수 있습니다.
+        </p>
+      </section>
+    );
+  return <GeneratedInsightPanel {...props} />;
 }

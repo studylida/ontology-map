@@ -26,6 +26,8 @@ const node = (id: string, tier: "center" | "ambient") => ({
 const view: ExplorationView = {
   centerId: "a",
   context: "",
+  contextIsCurrent: false,
+  periodHighlights: [],
   nodes: [node("a", "center")],
   relations: [],
   recommendations: [],

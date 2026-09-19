@@ -16,7 +16,7 @@ type Props = {
   range: TimeRange;
   onReport: (sectionId: string) => void;
   onEvidence: (selection: EvidenceSelection) => void;
-  onSelect: (nodeId: string) => void;
+  onLocate: (nodeId: string, relationId?: string) => void;
 };
 function Answer({
   questionId,
@@ -24,7 +24,7 @@ function Answer({
   range,
   onReport,
   onEvidence,
-  onSelect,
+  onLocate,
 }: Props & { questionId: string }) {
   const page = useCursorPage(questionId, fetchPanelAnswer213);
   const answer = page.items[0];
@@ -45,7 +45,7 @@ function Answer({
               claim={claim}
               range={range}
               onEvidence={onEvidence}
-              onSelect={onSelect}
+              onLocate={onLocate}
             />
           ))}
           {answer.sectionId && (
@@ -77,7 +77,7 @@ function Question({
         onClick={() => setOpen(!open)}
       >
         <span>{question.text}</span>
-        <span aria-hidden="true">{open ? "−" : "+"}</span>
+        <span>{open ? "접기" : "답변 보기"}</span>
       </button>
       <div id={id} hidden={!open}>
         {open && <Answer {...props} questionId={question.id} />}
@@ -85,7 +85,7 @@ function Question({
     </article>
   );
 }
-export function QuestionPanel(props: Props) {
+function GeneratedQuestionPanel(props: Props) {
   const { nodeId, range } = props;
   const fetchPage = useCallback(
     (id: string, cursor: string | null, signal: AbortSignal) =>
@@ -94,8 +94,8 @@ export function QuestionPanel(props: Props) {
   );
   const page = useCursorPage(nodeId, fetchPage);
   return (
-    <section className={styles.followupSection} aria-label="후속 질문">
-      <h2>후속 질문</h2>
+    <section className={styles.followupSection} aria-label="더 알아보기">
+      <h2>더 알아보기</h2>
       <PeriodNote range={range} />
       {page.items.map((question) => (
         <Question key={question.id} question={question} {...props} />
@@ -104,7 +104,7 @@ export function QuestionPanel(props: Props) {
         {...page}
         empty={!page.items.length}
         additional={page.items.length > 0}
-        emptyMessage="이 기간에는 공개된 후속 질문이 없습니다."
+        emptyMessage="이 기간에는 공개된 질문이 없습니다."
         onRetry={page.retry}
       />
       {page.nextCursor && (
@@ -118,4 +118,17 @@ export function QuestionPanel(props: Props) {
       )}
     </section>
   );
+}
+
+export function QuestionPanel(props: Props) {
+  if (props.range === "all")
+    return (
+      <section className={styles.followupSection} aria-label="더 알아보기">
+        <h2>더 알아보기</h2>
+        <p className={styles.panelMeta}>
+          최근 90일 또는 최근 1년을 선택하면 질문과 답변을 볼 수 있습니다.
+        </p>
+      </section>
+    );
+  return <GeneratedQuestionPanel {...props} />;
 }

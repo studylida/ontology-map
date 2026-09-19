@@ -19,10 +19,15 @@ vi.mock("./GraphCanvas", () => ({
     onTransitionComplete,
     pendingNodeId,
     hiddenKinds,
+    focusRequest,
   }: {
     view: { centerId: string; nodes: { id: string }[] };
     pendingNodeId: string | null;
     hiddenKinds: readonly string[];
+    focusRequest?: {
+      nodeId: string;
+      relationId?: string;
+    } | null;
     onReady: () => void;
     onSelect: (nodeId: string) => void;
     onTransitionComplete: (nodeId: string) => void;
@@ -31,6 +36,8 @@ vi.mock("./GraphCanvas", () => ({
       aria-label="동적 지식맵"
       data-pending-node={pendingNodeId ?? ""}
       data-hidden-kinds={hiddenKinds.join(",")}
+      data-focus-node={focusRequest?.nodeId ?? ""}
+      data-focus-relation={focusRequest?.relationId ?? ""}
     >
       <span>{`요청 중심: ${view.centerId}`}</span>
       <button type="button" onClick={onReady}>
@@ -71,6 +78,17 @@ function exploration(centerId = "9223372036854775807") {
   return {
     center_node_id: centerId,
     context_text: `${names[centerId]} 중심의 공개 관계입니다.`,
+    context_is_current: false,
+    period_highlights: [
+      {
+        claim_id: "claim-1",
+        claim_text: "선택한 기간에 자료에서 확인한 최근 내용입니다.",
+        modality: "FACT",
+        evidence_group_count: 2,
+        latest_published_at: "2026-09-18T00:00:00Z",
+        latest_published_precision: "DAY",
+      },
+    ],
     graph: {
       nodes: [
         {
@@ -220,6 +238,12 @@ describe("exploration API 화면", () => {
     );
     expect(searchInput().disabled).toBe(false);
     expect(screen.queryByText("Evidence Trace")).toBeNull();
+    expect(screen.queryByText("SK하이닉스 중심의 공개 관계입니다.")).toBeNull();
+    expect(
+      screen.getByText("선택한 기간에 자료에서 확인한 최근 내용입니다."),
+    ).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "개요" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "자료·원문" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "인사이트" })).toBeTruthy();
   });
 
@@ -352,13 +376,58 @@ describe("exploration API 화면", () => {
     );
   });
 
+  it("전체 기간은 이력 조회만 요청하고 기간별 질문과 인사이트를 안내한다", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { name: "SK하이닉스" });
+
+    fireEvent.click(screen.getByRole("button", { name: "전체 기간" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "/api/v1/exploration/9223372036854775807?time_window=ALL_TIME",
+    );
+    expect(new URL(window.location.href).searchParams.get("range")).toBe("all");
+    expect(
+      screen.getByText(
+        "최근 90일 또는 최근 1년을 선택하면 질문과 답변을 볼 수 있습니다.",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "인사이트" }));
+    expect(
+      screen.getByText(
+        "최근 90일 또는 최근 1년을 선택하면 기간별 인사이트를 볼 수 있습니다.",
+      ),
+    ).toBeTruthy();
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        /\/(questions|insight-report)(\?|$)/.test(input),
+      ),
+    ).toBe(false);
+  });
+
+  it("지도 강조는 중심·주소·조회 횟수를 유지한다", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { name: "SK하이닉스" });
+    const before = fetchMock.mock.calls.length;
+    const url = window.location.href;
+
+    fireEvent.click(screen.getByRole("button", { name: "지도에서 연결 강조" }));
+
+    const map = screen.getByRole("region", { name: "동적 지식맵" });
+    expect(map.dataset.focusNode).toBe("9223372036854775807");
+    expect(map.dataset.focusRelation).toBe("");
+    expect(fetchMock).toHaveBeenCalledTimes(before);
+    expect(window.location.href).toBe(url);
+    expect(screen.getByRole("heading", { name: "SK하이닉스" })).toBeTruthy();
+  });
+
   it("404를 재시도 불가 상태로 표시한다", async () => {
     fetchMock.mockResolvedValue(
       response({ error: { code: "NODE_NOT_FOUND", retryable: false } }, 404),
     );
     render(<App />);
     expect((await screen.findByRole("alert")).textContent).toContain(
-      "요청한 Node를 찾을 수 없습니다.",
+      "요청한 대상을 찾을 수 없습니다.",
     );
     expect(screen.queryByRole("button", { name: "다시 조회" })).toBeNull();
     expect(
@@ -377,7 +446,7 @@ describe("exploration API 화면", () => {
       .mockResolvedValueOnce(response(exploration()));
     render(<App />);
     expect((await screen.findByRole("alert")).textContent).toContain(
-      "현재 이 Node의 공개 탐색 자료를 불러올 수 없습니다.",
+      "현재 이 대상의 공개 탐색 자료를 불러올 수 없습니다.",
     );
     fireEvent.click(screen.getByRole("button", { name: "다시 조회" }));
     expect(
@@ -565,7 +634,7 @@ describe("exploration API 화면", () => {
     expect(
       (
         await screen.findAllByText(
-          "탐색할 Node를 검색하거나 주제를 선택해 주세요.",
+          "탐색할 대상을 검색하거나 주제를 선택해 주세요.",
         )
       )[0],
     ).toBeTruthy();
@@ -580,7 +649,7 @@ describe("exploration API 화면", () => {
     );
     render(<App />);
     expect((await screen.findByRole("alert")).textContent).toContain(
-      "요청을 확인할 수 없습니다. 다른 Node를 검색하거나 주제를 선택해 주세요.",
+      "요청을 확인할 수 없습니다. 다른 대상을 검색하거나 주제를 선택해 주세요.",
     );
     expect(screen.queryByRole("button", { name: "다시 조회" })).toBeNull();
     expect(searchInput().disabled).toBe(false);
@@ -619,7 +688,7 @@ describe("exploration API 화면", () => {
       screen.getByRole("button", { name: "다른 graph node 선택" }),
     );
     expect((await screen.findByRole("alert")).textContent).toContain(
-      "HBF를 열 수 없습니다.",
+      "HBF 대상을 열 수 없습니다.",
     );
     expect(screen.getByRole("heading", { name: "SK하이닉스" })).toBeTruthy();
     expect(
@@ -643,9 +712,9 @@ describe("exploration API 화면", () => {
       screen.getByRole("button", { name: "다른 graph node 선택" }),
     );
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain("HBF를 열 수 없습니다.");
+    expect(alert.textContent).toContain("HBF 대상을 열 수 없습니다.");
     expect(alert.textContent).toContain(
-      "현재 이 Node의 공개 탐색 자료를 불러올 수 없습니다.",
+      "현재 이 대상의 공개 탐색 자료를 불러올 수 없습니다.",
     );
     expect(alert.textContent).not.toMatch(/준비 중|복구 중|생성 중|곧 제공/);
     expect(screen.getByRole("heading", { name: "SK하이닉스" })).toBeTruthy();

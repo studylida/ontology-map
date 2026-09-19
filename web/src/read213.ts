@@ -1,8 +1,10 @@
 import {
   APIRequestError,
   type KnowledgeRelation,
+  ontologyLabel,
   type SourceTrace,
   type TimeRange,
+  timeWindowParam,
 } from "./data";
 
 export type ClaimModality =
@@ -164,7 +166,7 @@ export async function fetchNodeRelations213(
         sourceId: string(item.source_node_id),
         targetId: string(item.target_node_id),
         directionality: directionality(item.directionality),
-        label: string(item.relation_type_display_name),
+        label: ontologyLabel(string(item.relation_type_display_name)),
         other: readNode(item.other_node),
         evidenceGroupCount: number(item.supporting_evidence_group_count),
         conflict: boolean(item.has_conflict),
@@ -297,7 +299,7 @@ function panelClaim(value: unknown): PanelClaim213 {
         const item = object(rawRelation);
         relation = {
           id: string(item.relation_id),
-          displayName: string(item.display_name),
+          displayName: ontologyLabel(string(item.display_name)),
           directionality: directionality(item.directionality),
           sourceNode: readNode(item.source_node),
           targetNode: readNode(item.target_node),
@@ -312,7 +314,7 @@ function panelClaim(value: unknown): PanelClaim213 {
         kind,
         id: string(connection.target_id),
         position: nullableString(connection.position),
-        label: string(connection.label),
+        label: ontologyLabel(string(connection.label)),
         relation,
       };
     }),
@@ -355,7 +357,7 @@ export interface PanelReport213 {
 
 function panelParams(range: TimeRange, cursor: string | null = null) {
   const params = new URLSearchParams({
-    time_window: range === "90d" ? "RECENT_90_DAYS" : "RECENT_1_YEAR",
+    time_window: timeWindowParam(range),
   });
   if (cursor) params.set("cursor", cursor);
   return params;

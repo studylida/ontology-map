@@ -64,6 +64,8 @@ const questions = {
 const view: ExplorationView = {
   centerId: "1",
   context: "맥락",
+  contextIsCurrent: false,
+  periodHighlights: [],
   nodes: [
     {
       id: "1",
@@ -83,6 +85,7 @@ const props = {
   timeRange: "90d" as const,
   onClose: vi.fn(),
   onSelect: vi.fn(),
+  onLocate: vi.fn(),
 };
 function result(path: string) {
   if (path.includes("/insight-report"))
@@ -135,7 +138,7 @@ afterEach(() => {
 
 it("목차에서 보고서를 열고 복수 근거를 비교한 뒤 원래 초점으로 돌아온다", async () => {
   render(<DetailPanel {...props} />);
-  fireEvent.keyDown(screen.getByRole("tab", { name: "탐색" }), {
+  fireEvent.keyDown(screen.getByRole("tab", { name: "개요" }), {
     key: "ArrowLeft",
   });
   expect(document.activeElement).toBe(
@@ -149,7 +152,7 @@ it("목차에서 보고서를 열고 복수 근거를 비교한 뒤 원래 초�
     [...screen.getByRole("dialog").querySelectorAll("h4")].map(
       (heading) => heading.textContent,
     ),
-  ).toEqual(["해석과 판단", "이 해석의 근거"]);
+  ).toEqual(["해석과 판단", "이 분석에 사용한 원문"]);
   fireEvent.click(screen.getByRole("button", { name: /근거 문장 1/ }));
   fireEvent.click(screen.getByRole("button", { name: /근거 문장 2/ }));
   await waitFor(() =>
@@ -180,7 +183,7 @@ it("목차에서 보고서를 열고 복수 근거를 비교한 뒤 원래 초�
 it("질문은 답변만 펼치며 연결된 보고서 절도 중심을 바꾸지 않는다", async () => {
   render(<DetailPanel {...props} />);
   const question = await screen.findByRole("button", {
-    name: "이 노드를 이해하려면?",
+    name: /이 노드를 이해하려면\?/,
   });
   fireEvent.click(question);
   await screen.findByText("질문의 짧은 답변");
@@ -223,7 +226,7 @@ it("FOLLOWUP 성공 0건은 error가 아니라 승인된 normal empty를 표시�
   }));
   render(<DetailPanel {...props} />);
   expect(
-    await screen.findByText("이 기간에는 공개된 후속 질문이 없습니다."),
+    await screen.findByText("이 기간에는 공개된 질문이 없습니다."),
   ).toBeTruthy();
   expect(screen.queryByRole("alert")).toBeNull();
 });

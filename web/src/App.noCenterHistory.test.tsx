@@ -28,6 +28,8 @@ function exploration() {
   return {
     center_node_id: B,
     context_text: "HBF 중심 공개 관계",
+    context_is_current: false,
+    period_highlights: [],
     graph: {
       nodes: [
         {
@@ -105,13 +107,13 @@ describe("no-center history restoration", () => {
     expect(
       (
         await screen.findAllByText(
-          "탐색할 Node를 검색하거나 주제를 선택해 주세요.",
+          "탐색할 대상을 검색하거나 주제를 선택해 주세요.",
         )
       ).length,
     ).toBeGreaterThan(0);
     expect(reads).toHaveLength(0);
 
-    fireEvent.change(screen.getByRole("combobox", { name: "노드 검색" }), {
+    fireEvent.change(screen.getByRole("combobox", { name: "대상 검색" }), {
       target: { value: "HBF" },
     });
     fireEvent.click(await screen.findByRole("option", { name: /HBF/ }));
@@ -135,7 +137,7 @@ describe("no-center history restoration", () => {
       ).queryByText("HBF"),
     ).toBeNull();
     expect(
-      screen.getAllByText("탐색할 Node를 검색하거나 주제를 선택해 주세요.")
+      screen.getAllByText("탐색할 대상을 검색하거나 주제를 선택해 주세요.")
         .length,
     ).toBeGreaterThan(0);
     expect(reads).toHaveLength(1);

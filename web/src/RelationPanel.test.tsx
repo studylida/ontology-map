@@ -1,5 +1,4 @@
 import {
-  act,
   cleanup,
   fireEvent,
   render,
@@ -13,7 +12,6 @@ import {
   EvidenceDialog,
   type EvidenceSelection,
   publicationLabel,
-  RelationList,
 } from "./RelationPanel";
 
 const request = vi.fn();
@@ -22,20 +20,6 @@ const response = (body: unknown, status = 200) => ({
   status,
   json: async () => body,
 });
-const relation = {
-  source_node_id: "1",
-  target_node_id: "2",
-  directionality: "DIRECTED",
-  relation_id: "9223372036854775807",
-  relation_type_display_name: "관련 기술",
-  other_node: {
-    node_id: "2",
-    name: "HBF",
-    node_type: { code: "TECHNOLOGY", display_name: "기술" },
-  },
-  supporting_evidence_group_count: 3,
-  has_conflict: false,
-};
 const trace = {
   item_key: "opaque-item-key",
   claim_text: "확인한 기술 관계",
@@ -83,11 +67,14 @@ function Flow() {
   const [selection, setSelection] = useState<EvidenceSelection | null>(null);
   return (
     <>
-      <RelationList
-        nodeId="1"
-        nodeName="SK하이닉스"
-        onEvidence={setSelection}
-      />
+      <button
+        type="button"
+        onClick={() =>
+          setSelection({ id: "1", label: "SK하이닉스 → HBF · 관련 기술" })
+        }
+      >
+        HBF 연결 원문
+      </button>
       {selection && (
         <EvidenceDialog
           key={selection.id}
@@ -101,8 +88,6 @@ function Flow() {
 
 it("Relation 선택 때만 공용 근거 창을 열고 cursor를 그대로 전달하며 닫은 뒤 focus를 복귀한다", async () => {
   request.mockImplementation(async (path: string) => {
-    if (path.includes("/nodes/"))
-      return response({ items: [relation], next_cursor: null });
     return response({
       items: path.includes("cursor=") ? [] : [trace],
       next_cursor: path.includes("cursor=") ? null : "opaque +/?",
@@ -110,8 +95,8 @@ it("Relation 선택 때만 공용 근거 창을 열고 cursor를 그대로 전�
     });
   });
   render(<Flow />);
-  const opener = await screen.findByRole("button", { name: /HBF.*근거 보기/ });
-  expect(request).toHaveBeenCalledTimes(1);
+  const opener = screen.getByRole("button", { name: "HBF 연결 원문" });
+  expect(request).not.toHaveBeenCalled();
   opener.focus();
   fireEvent.click(opener);
   await screen.findByText("원문 인용");
@@ -123,15 +108,15 @@ it("Relation 선택 때만 공용 근거 창을 열고 cursor를 그대로 전�
       .getByRole("link", { name: "발표 자료 원문 열기" })
       .getAttribute("href"),
   ).toBe("https://example.com/source");
-  fireEvent.click(screen.getByRole("button", { name: "근거 더 보기" }));
-  await waitFor(() => expect(request).toHaveBeenCalledTimes(3));
+  fireEvent.click(screen.getByRole("button", { name: "원문 더 보기" }));
+  await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
   expect(
-    new URL(request.mock.calls[2]?.[0], "https://example.com").searchParams.get(
+    new URL(request.mock.calls[1]?.[0], "https://example.com").searchParams.get(
       "cursor",
     ),
   ).toBe("opaque +/?");
   const dialog = screen.getByRole("dialog");
-  const first = screen.getByRole("button", { name: "근거 창 닫기" });
+  const first = screen.getByRole("button", { name: "원문 창 닫기" });
   const last = screen.getByRole("link", { name: "발표 자료 원문 열기" });
   // jsdom에는 레이아웃이 없어 현재 표시된 두 조작 요소의 영역을 제공한다.
   for (const element of [first, last]) {
@@ -155,7 +140,7 @@ it("Relation 선택 때만 공용 근거 창을 열고 cursor를 그대로 전�
   expect(document.activeElement).toBe(opener);
 });
 
-it("Claim과 원문 인용이 같으면 문장을 한 번만 표시한다", async () => {
+it("Claim과 원문 인용이 같아도 정확한 원문만 한 번 표시한다", async () => {
   request.mockResolvedValue(
     response({
       items: [{ ...trace, quote_text: trace.claim_text }],
@@ -171,7 +156,7 @@ it("Claim과 원문 인용이 같으면 문장을 한 번만 표시한다", asyn
   );
   await screen.findByText(trace.claim_text);
   expect(screen.getAllByText(trace.claim_text)).toHaveLength(1);
-  expect(container.querySelector("blockquote")).toBeNull();
+  expect(container.querySelectorAll("blockquote")).toHaveLength(1);
 });
 
 it.each([404, 422, 503, 0])(
@@ -196,41 +181,19 @@ it.each([404, 422, 503, 0])(
         ),
       );
     request.mockResolvedValue(
-      response({ items: [relation], next_cursor: null }),
+      response({ items: [trace], next_cursor: null, trace_count: 1 }),
     );
     render(<Flow />);
+    fireEvent.click(screen.getByRole("button", { name: "HBF 연결 원문" }));
     await screen.findByRole("alert");
     expect(screen.queryByText("현재 공개된 자료가 없습니다.")).toBeNull();
     if (status === 503 || status === 0) {
       fireEvent.click(screen.getByRole("button", { name: "다시 조회" }));
-      expect(
-        await screen.findByRole("button", { name: /HBF.*근거 보기/ }),
-      ).toBeTruthy();
+      expect(await screen.findByText("원문 인용")).toBeTruthy();
     } else
       expect(screen.queryByRole("button", { name: "다시 조회" })).toBeNull();
   },
 );
-
-it("중심이 바뀌면 진행 중 요청을 취소하고 이전 결과를 표시하지 않는다", async () => {
-  let finish: (value: unknown) => void = () => {};
-  request.mockImplementationOnce(
-    () =>
-      new Promise((resolve) => {
-        finish = resolve;
-      }),
-  );
-  request.mockResolvedValue(response({ items: [], next_cursor: null }));
-  const props = { nodeName: "중심", onEvidence: vi.fn() };
-  const { rerender } = render(<RelationList key="1" nodeId="1" {...props} />);
-  const signal = request.mock.calls[0]?.[1]?.signal as AbortSignal;
-  rerender(<RelationList key="2" nodeId="2" {...props} />);
-  await screen.findByText("현재 공개된 자료가 없습니다.");
-  expect(signal.aborted).toBe(true);
-  await act(async () =>
-    finish(response({ items: [relation], next_cursor: null })),
-  );
-  expect(screen.queryByRole("button", { name: /HBF.*근거 보기/ })).toBeNull();
-});
 
 it("Evidence dialog 첫 read 실패가 dialog를 닫지 않고 retry와 사용자 close를 유지한다", async () => {
   request.mockResolvedValueOnce(
@@ -245,27 +208,7 @@ it("Evidence dialog 첫 read 실패가 dialog를 닫지 않고 retry와 사용�
   expect(await screen.findByRole("alert")).toBeTruthy();
   expect(screen.getByRole("dialog").getAttribute("open")).toBe("");
   expect(screen.getByRole("button", { name: "다시 조회" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "근거 창 닫기" })).toBeTruthy();
-});
-
-it("Relation next page 404에서도 이미 읽은 item을 유지하고 추가 read 위치에 안내한다", async () => {
-  request
-    .mockResolvedValueOnce(response({ items: [relation], next_cursor: "next" }))
-    .mockResolvedValueOnce(
-      response({ error: { code: "PANEL_NOT_FOUND", retryable: false } }, 404),
-    );
-  render(
-    <RelationList nodeId="1" nodeName="SK하이닉스" onEvidence={vi.fn()} />,
-  );
-  expect(
-    await screen.findByRole("button", { name: /HBF.*근거 보기/ }),
-  ).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "관계 더 보기" }));
-  expect((await screen.findByRole("alert")).textContent).toContain(
-    "추가 자료를 불러올 수 없습니다. 이미 불러온 내용은 계속 볼 수 있습니다.",
-  );
-  expect(screen.getByRole("button", { name: /HBF.*근거 보기/ })).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "다시 조회" })).toBeNull();
+  expect(screen.getByRole("button", { name: "원문 창 닫기" })).toBeTruthy();
 });
 
 it("Trace page1 성공 뒤 next page 404에서도 page1과 dialog를 유지한다", async () => {
@@ -283,7 +226,7 @@ it("Trace page1 성공 뒤 next page 404에서도 page1과 dialog를 유지한�
     />,
   );
   await screen.findByText("원문 인용");
-  fireEvent.click(screen.getByRole("button", { name: "근거 더 보기" }));
+  fireEvent.click(screen.getByRole("button", { name: "원문 더 보기" }));
   expect((await screen.findByRole("alert")).textContent).toContain(
     "추가 자료를 불러올 수 없습니다. 이미 불러온 내용은 계속 볼 수 있습니다.",
   );
@@ -313,7 +256,7 @@ it("Trace 추가 조회 503은 기존 근거를 유지하고 같은 cursor로 �
     />,
   );
   await screen.findByText("원문 인용");
-  fireEvent.click(screen.getByRole("button", { name: "근거 더 보기" }));
+  fireEvent.click(screen.getByRole("button", { name: "원문 더 보기" }));
   await screen.findByRole("alert");
   expect(screen.getByText("원문 인용")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "다시 조회" }));

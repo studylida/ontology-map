@@ -1,5 +1,46 @@
-export type TimeRange = "90d" | "1y";
+export type TimeRange = "90d" | "1y" | "all";
 export type NodeTier = "center" | "direct" | "twoHop" | "threeHop" | "ambient";
+
+export function timeWindowParam(
+  range: TimeRange,
+): "RECENT_90_DAYS" | "RECENT_1_YEAR" | "ALL_TIME" {
+  if (range === "90d") return "RECENT_90_DAYS";
+  if (range === "1y") return "RECENT_1_YEAR";
+  return "ALL_TIME";
+}
+
+export function timeRangeLabel(range: TimeRange): string {
+  if (range === "90d") return "최근 90일";
+  if (range === "1y") return "최근 1년";
+  return "전체 기간";
+}
+
+const ontologyLabels: Record<string, string> = {
+  AFFILIATED_WITH: "소속",
+  DEVELOPS: "개발",
+  COLLABORATES_WITH: "협력",
+  ANNOUNCES: "발표",
+  INVESTS_IN: "투자",
+  ADOPTS: "도입",
+  TESTS: "시험",
+  SUPPLIES: "공급",
+  SUPPLIES_TO: "공급 관계",
+  INCLUDES: "포함",
+  PARTICIPATES_IN: "참여",
+  MENTIONS: "언급",
+  RELATED_TO: "관련",
+  HAS_TOPIC: "관련 주제",
+  ROLE_TITLE: "직책",
+  TECHNOLOGY_VERSION: "기술 버전",
+  COMMERCIALIZATION_STATUS: "상용화 상태",
+  COMMERCIALIZATION_SCHEDULE: "상용화 일정",
+  CORE_COUNT: "코어 수",
+  MAX_MEMORY_BANDWIDTH: "최대 메모리 대역폭",
+};
+
+export function ontologyLabel(value: string): string {
+  return ontologyLabels[value] ?? value;
+}
 
 export interface KnowledgeNode {
   id: string;
@@ -37,10 +78,21 @@ export interface FollowupQuestion {
 export interface ExplorationView {
   centerId: string;
   context: string;
+  contextIsCurrent: boolean;
+  periodHighlights: ClaimHighlight[];
   nodes: KnowledgeNode[];
   relations: KnowledgeRelation[];
   recommendations: ExplorationRecommendation[];
   followups: FollowupQuestion[];
+}
+
+export interface ClaimHighlight {
+  id: string;
+  text: string;
+  modality: string;
+  evidenceGroupCount: number;
+  publishedAt: string | null;
+  precision: "INSTANT" | "DAY" | "MONTH" | "YEAR" | "UNKNOWN";
 }
 
 export interface SearchCandidate {
@@ -125,7 +177,7 @@ export function relationPathLabel(
   target: string,
   direction: KnowledgeRelation["directionality"],
 ): string {
-  return `${source} — ${label} ${direction === "DIRECTED" ? "→" : "—"} ${target}`;
+  return `${source} ${direction === "DIRECTED" ? "→" : "↔"} ${target} · ${ontologyLabel(label)}`;
 }
 
 function recommendationReason(item: JsonObject): string {
@@ -147,7 +199,7 @@ function recommendationReason(item: JsonObject): string {
       string(edge.target_node_id);
       return relationPathLabel(
         string(edge.source_node_name),
-        string(edge.relation_type_display_name),
+        ontologyLabel(string(edge.relation_type_display_name)),
         string(edge.target_node_name),
         directionality(edge.directionality),
       );
@@ -182,7 +234,7 @@ export function toExplorationView(payload: unknown): ExplorationView {
       id: string(item.relation_id),
       source: source.id,
       target: target.id,
-      label: string(item.relation_type_display_name),
+      label: ontologyLabel(string(item.relation_type_display_name)),
       directionality: directionality(item.directionality),
       evidenceGroupCount: number(item.supporting_evidence_group_count),
       conflict: boolean(item.has_conflict),
@@ -231,10 +283,29 @@ export function toExplorationView(payload: unknown): ExplorationView {
       targetNodeId: string(item.target_node_id),
     } satisfies FollowupQuestion;
   });
+  const periodHighlights = array(root.period_highlights).map((value) => {
+    const item = object(value);
+    return {
+      id: string(item.claim_id),
+      text: string(item.claim_text),
+      modality: string(item.modality),
+      evidenceGroupCount: number(item.evidence_group_count),
+      publishedAt: nullableString(item.latest_published_at),
+      precision: member(item.latest_published_precision, [
+        "INSTANT",
+        "DAY",
+        "MONTH",
+        "YEAR",
+        "UNKNOWN",
+      ] as const),
+    } satisfies ClaimHighlight;
+  });
 
   return {
     centerId: string(root.center_node_id),
     context: string(root.context_text),
+    contextIsCurrent: boolean(root.context_is_current),
+    periodHighlights,
     nodes,
     relations,
     recommendations,
@@ -293,7 +364,7 @@ export async function fetchExploration(
 ): Promise<ExplorationView> {
   const path = `/api/v1/exploration/${encodeURIComponent(
     centerId,
-  )}?time_window=${timeRange === "90d" ? "RECENT_90_DAYS" : "RECENT_1_YEAR"}`;
+  )}?time_window=${timeWindowParam(timeRange)}`;
   return toExplorationView(await fetchAPI(path, signal));
 }
 
@@ -390,7 +461,7 @@ export async function fetchNodeRelations(
         sourceId: string(item.source_node_id),
         targetId: string(item.target_node_id),
         directionality: directionality(item.directionality),
-        label: string(item.relation_type_display_name),
+        label: ontologyLabel(string(item.relation_type_display_name)),
         otherName: string(other.name),
         otherKind: string(object(other.node_type).display_name),
         evidenceGroupCount: number(item.supporting_evidence_group_count),
@@ -482,7 +553,7 @@ export async function fetchPeripheral(
   signal: AbortSignal,
 ): Promise<PeripheralPage> {
   const params = new URLSearchParams({
-    time_window: range === "90d" ? "RECENT_90_DAYS" : "RECENT_1_YEAR",
+    time_window: timeWindowParam(range),
     limit: "20",
   });
   if (cursor !== null) params.set("cursor", cursor);
@@ -517,7 +588,7 @@ export async function fetchPeripheral(
       id: string(item.relation_id),
       source,
       target,
-      label: string(item.relation_type_display_name),
+      label: ontologyLabel(string(item.relation_type_display_name)),
       directionality: directionality(item.directionality),
       evidenceGroupCount: number(item.supporting_evidence_group_count),
       conflict: boolean(item.has_conflict),
@@ -560,7 +631,7 @@ export async function fetchNodeInsights(
   signal: AbortSignal,
 ): Promise<CursorPage<InsightItem>> {
   const params = new URLSearchParams({
-    time_window: range === "90d" ? "RECENT_90_DAYS" : "RECENT_1_YEAR",
+    time_window: timeWindowParam(range),
   });
   const payload = object(
     await fetchAPI(
@@ -651,7 +722,7 @@ export interface PanelReport {
 }
 function panelParams(range: TimeRange, cursor: string | null = null) {
   const params = new URLSearchParams({
-    time_window: range === "90d" ? "RECENT_90_DAYS" : "RECENT_1_YEAR",
+    time_window: timeWindowParam(range),
   });
   if (cursor) params.set("cursor", cursor);
   return params;

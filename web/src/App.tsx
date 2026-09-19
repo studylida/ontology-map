@@ -13,8 +13,9 @@ import {
   type ExplorationView,
   type KnowledgeNode,
   type TimeRange,
+  timeRangeLabel,
 } from "./data";
-import { GraphCanvas } from "./GraphCanvas";
+import { GraphCanvas, type GraphFocusRequest } from "./GraphCanvas";
 import { NodeSearch } from "./NodeSearch";
 import {
   EvidenceDialog,
@@ -67,7 +68,10 @@ function readLocation(): LocationState {
   const params = new URLSearchParams(window.location.search);
   return {
     centerId: params.get("center") || readConfiguredCenter(),
-    range: params.get("range") === "1y" ? "1y" : "90d",
+    range:
+      params.get("range") === "1y" || params.get("range") === "all"
+        ? (params.get("range") as "1y" | "all")
+        : "90d",
   };
 }
 
@@ -94,21 +98,21 @@ function errorCopy(error: APIRequestError | null): {
     error?.status === 404
   ) {
     return {
-      title: "요청한 Node를 찾을 수 없습니다.",
-      detail: "다른 Node를 검색하거나 주제를 선택해 주세요.",
+      title: "요청한 대상을 찾을 수 없습니다.",
+      detail: "다른 대상을 검색하거나 주제를 선택해 주세요.",
     };
   }
   if (error?.code === "INVALID_REQUEST" || error?.status === 422) {
     return {
       title:
-        "요청을 확인할 수 없습니다. 다른 Node를 검색하거나 주제를 선택해 주세요.",
+        "요청을 확인할 수 없습니다. 다른 대상을 검색하거나 주제를 선택해 주세요.",
       detail: "",
     };
   }
   if (error?.code === "PUBLICATION_NOT_READY" || error?.status === 503) {
     return {
-      title: "현재 이 Node의 공개 탐색 자료를 불러올 수 없습니다.",
-      detail: "다른 Node를 검색하거나 주제를 선택할 수 있습니다.",
+      title: "현재 이 대상의 공개 탐색 자료를 불러올 수 없습니다.",
+      detail: "다른 대상을 검색하거나 주제를 선택할 수 있습니다.",
     };
   }
   return {
@@ -337,7 +341,7 @@ function LoadNotice({
   if (status === "start" && !hasView) {
     return (
       <div className={styles.fullStatus} role="status">
-        <strong>탐색할 Node를 검색하거나 주제를 선택해 주세요.</strong>
+        <strong>탐색할 대상을 검색하거나 주제를 선택해 주세요.</strong>
       </div>
     );
   }
@@ -346,18 +350,16 @@ function LoadNotice({
       <div className={styles.requestStatus} role="alert">
         <strong>
           {moving
-            ? `${failedTargetName ?? "선택한 Node"}를 열 수 없습니다.`
+            ? `${failedTargetName ?? "선택한 대상"} 대상을 열 수 없습니다.`
             : copy.title}
         </strong>
         {moving ? (
           <>
-            <span>{`현재 ${currentName ?? "열려 있던 Node"} 화면을 계속 표시합니다.`}</span>
+            <span>{`현재 ${currentName ?? "열려 있던 대상"} 화면을 계속 표시합니다.`}</span>
             <span>{copy.title}</span>
           </>
         ) : changingRange ? (
-          <span>{`현재 ${currentName ?? "열려 있던 Node"}의 ${
-            currentRange === "90d" ? "최근 90일" : "최근 1년"
-          } 화면을 계속 표시합니다.`}</span>
+          <span>{`현재 ${currentName ?? "열려 있던 대상"}의 ${timeRangeLabel(currentRange)} 화면을 계속 표시합니다.`}</span>
         ) : (
           copy.detail && <span>{copy.detail}</span>
         )}
@@ -371,7 +373,7 @@ function LoadNotice({
       <div className={styles.fullStatus} role={empty ? "status" : "alert"}>
         <strong>{empty ? "표시할 탐색 데이터가 없습니다." : copy.title}</strong>
         <span>
-          {empty ? "다른 Node를 검색하거나 주제를 선택해 주세요." : copy.detail}
+          {empty ? "다른 대상을 검색하거나 주제를 선택해 주세요." : copy.detail}
         </span>
         {!empty && actions}
       </div>
@@ -409,6 +411,10 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelTab, setPanelTab] = useState<0 | 1 | 2>(0);
   const [evidence, setEvidence] = useState<EvidenceSelection | null>(null);
+  const [focusRequest, setFocusRequest] = useState<GraphFocusRequest | null>(
+    null,
+  );
+  const focusSequenceRef = useRef(0);
   const [legendOpen, setLegendOpen] = useState(false);
   const [graphReady, setGraphReady] = useState(false);
   const [introComplete, setIntroComplete] = useState(false);
@@ -441,6 +447,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
       setPanelTab(request.panelTab ?? 0);
       setPanelOpen(true);
       setEvidence(null);
+      setFocusRequest(null);
       const navigation = request.navigation;
       if (navigation) {
         setTrail((current) =>
@@ -459,13 +466,11 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
         setAnnouncement("최신 공개 상태로 다시 불러왔습니다.");
       } else if (navigation) {
         setAnnouncement(
-          `${nodeCacheRef.current.get(view.centerId)?.name ?? "선택한 Node"} 중심으로 이동했습니다.`,
+          `${nodeCacheRef.current.get(view.centerId)?.name ?? "선택한 대상"} 중심으로 이동했습니다.`,
         );
       } else {
         setAnnouncement(
-          request.range === "90d"
-            ? "최근 90일 탐색 데이터를 표시합니다."
-            : "최근 1년 탐색 데이터를 표시합니다.",
+          `${timeRangeLabel(request.range)} 탐색 데이터를 표시합니다.`,
         );
       }
     },
@@ -530,7 +535,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
     } else {
       setRequestError(null);
       setStatus("start");
-      setAnnouncement("탐색할 Node를 검색하거나 주제를 선택해 주세요.");
+      setAnnouncement("탐색할 대상을 검색하거나 주제를 선택해 주세요.");
     }
 
     const onPopState = () => {
@@ -548,7 +553,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
         setEvidence(null);
         setRequestError(null);
         setStatus("start");
-        setAnnouncement("탐색할 Node를 검색하거나 주제를 선택해 주세요.");
+        setAnnouncement("탐색할 대상을 검색하거나 주제를 선택해 주세요.");
         return;
       }
       void loadExploration({
@@ -657,6 +662,36 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
     ? (nodeCacheRef.current.get(failedRequest.centerId)?.name ?? null)
     : null;
 
+  const locateOnMap = (nodeId: string, relationId?: string) => {
+    const map = peripheral.graphView;
+    const node = map?.nodes.find((item) => item.id === nodeId);
+    const relation = relationId
+      ? map?.relations.find((item) => item.id === relationId)
+      : undefined;
+    if (!map || !node || (relationId && !relation)) {
+      setAnnouncement("현재 지도 범위에서는 이 연결을 강조할 수 없습니다.");
+      return;
+    }
+    const visibleNodeIds = relation
+      ? [relation.source, relation.target]
+      : [nodeId];
+    const neededKinds = new Set(
+      map.nodes
+        .filter((item) => visibleNodeIds.includes(item.id))
+        .map((item) => item.kindCode),
+    );
+    setHiddenKinds((current) =>
+      current.filter((kind) => !neededKinds.has(kind)),
+    );
+    const key = ++focusSequenceRef.current;
+    setFocusRequest(relationId ? { key, nodeId, relationId } : { key, nodeId });
+    setAnnouncement(
+      relation
+        ? `지도에서 ${node.name}의 해당 연결을 강조합니다.`
+        : `지도에서 ${node.name} 주변 연결을 강조합니다.`,
+    );
+  };
+
   return (
     <>
       <main
@@ -697,6 +732,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                   : null
               }
               panelOpen={panelOpen}
+              focusRequest={focusRequest}
               onIntroComplete={() => setIntroComplete(true)}
               view={peripheral.graphView}
               onPanBoundary={
@@ -715,7 +751,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
 
           {!currentView && status !== "loading" && (
             <div className={styles.controls}>
-              <label htmlFor="node-search">Node 검색</label>
+              <label htmlFor="node-search">대상 검색</label>
               <div className={styles.searchWithTopics}>
                 <NodeSearch onSelect={selectNode} />
                 <TopicPicker onSelect={selectNode} />
@@ -726,7 +762,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
           {currentView && currentNode && (
             <>
               <div className={styles.controls}>
-                <label htmlFor="node-search">노드 검색</label>
+                <label htmlFor="node-search">대상 검색</label>
                 <div className={styles.searchWithTopics}>
                   <NodeSearch onSelect={selectNode} />
                   <TopicPicker onSelect={selectNode} />
@@ -752,6 +788,13 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                     onClick={() => changeRange("1y")}
                   >
                     최근 1년
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={timeRange === "all"}
+                    onClick={() => changeRange("all")}
+                  >
+                    전체 기간
                   </button>
                 </fieldset>
                 {allNodesFiltered && (
@@ -781,6 +824,7 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                     view={currentView}
                     onClose={() => setPanelOpen(false)}
                     onSelect={selectNode}
+                    onLocate={locateOnMap}
                     onSelectInsight={selectNodeInsight}
                     onEvidence={setEvidence}
                   />
@@ -790,10 +834,10 @@ export function App({ designPreview = true }: { designPreview?: boolean }) {
                     timeRange={timeRange}
                     view={currentView}
                     loadedGraph={peripheral.graphView}
-                    hiddenKinds={hiddenKinds}
                     initialTab={panelTab}
                     onClose={() => setPanelOpen(false)}
                     onSelect={selectNode}
+                    onLocate={locateOnMap}
                     onEvidence={setEvidence}
                   />
                 )

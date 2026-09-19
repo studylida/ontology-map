@@ -10,7 +10,7 @@ from ontology_map.db import panel as queries
 from ontology_map.db import schema as s
 from ontology_map.db.fixture import load_hbf_fixture
 from ontology_map.db.panel_fixture import load_panel_fixture
-from ontology_map.exploration import TimeWindow
+from ontology_map.exploration import ReadTimeWindow, TimeWindow
 from ontology_map.pagination import InvalidCursorError
 
 WINDOW = TimeWindow.RECENT_90_DAYS
@@ -40,6 +40,8 @@ def test_http_question_answer_report_and_claim_trace() -> None:
     assert len(report["items"][0]["sections"]) == 2
     assert answer["section_id"] == report["items"][0]["sections"][0]["section_id"]
     assert request(f"{base}/questions?time_window=ALL")[0] == 422
+    assert request(f"{base}/questions?time_window=ALL_TIME")[0] == 422
+    assert request(f"{base}/insight-report?time_window=ALL_TIME")[0] == 422
     assert request("/api/v1/questions/9223372036854775808")[0] == 422
     assert (
         request(f"{base}/claims/1/evidence?time_window={WINDOW}&as_of_at=2026-01-01")[0]
@@ -188,6 +190,34 @@ def test_period_counts_background_unknown_and_event_claims() -> None:
                 session, ids["gaon"], TimeWindow.RECENT_1_YEAR, None, 20
             )["items"]
         }
+        all_claims = panel.list_claims(
+            session, ids["gaon"], ReadTimeWindow.ALL_TIME, None, 20
+        )
+        assert claim_id in {int(c["claim_id"]) for c in all_claims["items"]}
+        assert (
+            panel.claim_evidence(
+                session,
+                ids["gaon"],
+                claim_id,
+                ReadTimeWindow.ALL_TIME,
+                as_of,
+                None,
+            )["items"][0]["period_role"]
+            == "IN_WINDOW"
+        )
+        highlights = panel.list_claim_highlights(
+            session,
+            ids["gaon"],
+            ReadTimeWindow.ALL_TIME,
+            as_of_at=as_of,
+        )
+        assert len(highlights) <= 3
+        published = [item["latest_published_at"] for item in highlights]
+        assert published == sorted(
+            published,
+            key=lambda value: value or datetime.min.replace(tzinfo=UTC),
+            reverse=True,
+        )
         assert (
             panel.claim_evidence(session, ids["gaon"], claim_id, WINDOW, as_of, None)[
                 "items"
@@ -205,6 +235,12 @@ def test_period_counts_background_unknown_and_event_claims() -> None:
             ][0]["period_role"]
             == "UNKNOWN"
         )
+        assert claim_id in {
+            int(c["claim_id"])
+            for c in panel.list_claims(
+                session, ids["gaon"], ReadTimeWindow.ALL_TIME, None, 20
+            )["items"]
+        }
         event = panel.list_claims(session, legacy["fms_2026"], WINDOW, None, 20)
         assert any(
             any(c["kind"] == "EVENT_TIME" for c in item["connections"])

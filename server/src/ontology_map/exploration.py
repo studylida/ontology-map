@@ -5,6 +5,7 @@ from typing import Literal
 
 from sqlalchemy.orm import Session
 
+from ontology_map import node_context_generation
 from ontology_map.db.exploration import (
     AdjacencyRow,
     NodeRow,
@@ -35,6 +36,18 @@ class TimeWindow(StrEnum):
 
     def start_at(self, end_at: datetime) -> datetime:
         days = 90 if self is TimeWindow.RECENT_90_DAYS else 365
+        return end_at - timedelta(days=days)
+
+
+class ReadTimeWindow(StrEnum):
+    RECENT_90_DAYS = "RECENT_90_DAYS"
+    RECENT_1_YEAR = "RECENT_1_YEAR"
+    ALL_TIME = "ALL_TIME"
+
+    def start_at(self, end_at: datetime) -> datetime | None:
+        if self is ReadTimeWindow.ALL_TIME:
+            return None
+        days = 90 if self is ReadTimeWindow.RECENT_90_DAYS else 365
         return end_at - timedelta(days=days)
 
 
@@ -105,6 +118,7 @@ class FollowupQuestion:
 class Exploration:
     center_node_id: int
     context_text: str
+    context_is_current: bool
     graph: Graph
     recommendations: list[Recommendation]
     followup_questions: list[FollowupQuestion]
@@ -372,7 +386,7 @@ def _recommendation_paths(
 def get_exploration(
     session: Session,
     center_node_id: int,
-    time_window: TimeWindow,
+    time_window: ReadTimeWindow,
     *,
     now: datetime | None = None,
 ) -> Exploration:
@@ -505,6 +519,9 @@ def get_exploration(
     return Exploration(
         center_node_id=center_node_id,
         context_text=center.context_text,
+        context_is_current=(
+            center.context_prompt_version == node_context_generation.PROMPT_VERSION
+        ),
         graph=Graph(nodes=graph_nodes, relations=graph_relations),
         recommendations=_recommendation_paths(
             _recommendations(direct, two_hop, ambient, all_activity_counts),
@@ -525,7 +542,7 @@ def get_exploration(
 def _peripheral_position(
     cursor: str | None,
     center_node_id: int,
-    time_window: TimeWindow,
+    time_window: ReadTimeWindow,
 ) -> int:
     if cursor is None:
         return 0
@@ -559,7 +576,7 @@ def _connects_page_to_active(
 def list_peripheral_nodes(
     session: Session,
     center_node_id: int,
-    time_window: TimeWindow,
+    time_window: ReadTimeWindow,
     *,
     cursor: str | None,
     limit: int,
