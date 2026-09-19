@@ -27,6 +27,8 @@ Issue #240의 전환 브랜치 구현이다. 코드/MockTransport 검증, 실제
 원본 schema는 prompt에도 그대로 첨부하고 원본 DTO strict parser를 유지한다. Mention TOPIC/topic_name 교차 조건은 wire 설명으로 유도하지만 Python validator를 제거하지 않는다. 날짜·UTC·precision·modality·stance·관계 방향·Claim/Meaning·Entity Resolution·원문 ID/version/quote/offset/hash 검증은 유지한다. DTO를 provider 출력에 맞춰 완화하지 않는다. refusal, 비정상 finish_reason(잘림/content_filter 등), JSON/제품 schema 오류는 정상 empty가 아니다.
 실제 D1 생성에서는 binding의 언급 참조에 원문 text가 들어가 모든 의미 연결이 제외됐다. 생성 지시문은 같은 Claim의 `mentions[].mention_id`를 정확히 쓰도록 명시하며, 출력의 잘못된 참조를 자동 보정하지 않는다.
 
+Issue #242의 내부 D1–D3 데모에서는 공동 사실을 불필요하게 분해하지 않는 기존 규칙을 유지하면서, 서로 독립적으로 중요한 사실을 하나의 headline Claim으로 압축하지 않고 원자 Claim으로 제안하도록 generation 지시문을 보완한다. FOLLOWUP_QUESTIONS와 NODE_INSIGHT는 이미 여러 Claim의 종합·근거 한계·사실과 해석의 구분을 요구하므로 prompt와 identity를 바꾸지 않는다.
+
 응답 model은 실제 요청 model과 정확하게 일치해야 한다. 공식 문서로 확인하지 않은 dated snapshot 접두사를 임의 허용하지 않는다. 실제 API가 다른 snapshot을 반환하면 해당 계약을 별도 확인하기 전에는 fail-closed로 중단한다.
 
 ## identity와 과거 task
