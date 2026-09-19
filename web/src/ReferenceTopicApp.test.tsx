@@ -83,6 +83,8 @@ const topicPayload = {
 const memberExploration = {
   center_node_id: "10",
   context_text: "회사 A의 공개 탐색 문맥입니다.",
+  context_is_current: false,
+  period_highlights: [],
   graph: {
     nodes: [
       {

@@ -111,9 +111,30 @@ div:has(> .topicPicker) > :first-child {
   background: rgba(127, 149, 255, 0.07);
 }
 
+.topicActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.topicActions button {
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(127, 149, 255, 0.24);
+  border-radius: 0.65rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.topicActions button:hover,
+.topicActions button:focus-visible {
+  background: rgba(127, 149, 255, 0.1);
+}
+
 .topicMemberButton,
 .topicInsightLink,
-.topicMemberList button {
+.topicMemberList > article > button {
   border: 0;
   background: transparent;
   color: inherit;
@@ -147,7 +168,7 @@ div:has(> .topicPicker) > :first-child {
   opacity: 0.82;
 }
 
-.topicMemberList button {
+.topicMemberList > article > button {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -161,8 +182,8 @@ div:has(> .topicPicker) > :first-child {
 .topicMemberButton:focus-visible,
 .topicInsightLink:hover,
 .topicInsightLink:focus-visible,
-.topicMemberList button:hover,
-.topicMemberList button:focus-visible {
+.topicMemberList > article > button:hover,
+.topicMemberList > article > button:focus-visible {
   text-decoration: underline;
   text-underline-offset: 0.18em;
 }

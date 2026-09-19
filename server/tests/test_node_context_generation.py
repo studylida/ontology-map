@@ -59,6 +59,9 @@ def test_prompt_uses_only_deterministic_search_input() -> None:
     assert "FOLLOWUP_QUESTIONS" in system
     assert "NODE_INSIGHT" in system
     assert "사용하지 않는다" in system
+    assert "일반적인 소개가 아니라" in system
+    assert "지속적인 관심사" in system
+    assert "등록된 자료에서는" in system
     assert '"identity_text":"예시 회사\\nExample Corp"' in human
     assert '"knowledge_text":"유형: 회사\\n주장: 검증된 공개 지식"' in human
     assert "time_window" not in human

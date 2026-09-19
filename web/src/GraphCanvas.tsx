@@ -43,6 +43,24 @@ interface RuntimeLink extends Omit<KnowledgeViewRelation, "source" | "target"> {
   target: string | RuntimeNode;
 }
 
+interface CameraSnapshot {
+  position: THREE.Vector3;
+  target: THREE.Vector3;
+  far: number;
+  maxDistance: number;
+}
+
+export interface GraphFocusRequest {
+  key: number;
+  nodeIds: string[];
+  relationIds?: string[];
+}
+
+export interface GraphOverviewRequest {
+  key: number;
+  action: "show" | "restore";
+}
+
 interface GraphCanvasProps {
   designPreview?: boolean;
   theme?: "dark" | "light";
@@ -56,11 +74,40 @@ interface GraphCanvasProps {
   onReady: () => void;
   onPanBoundary: () => void;
   panelOpen: boolean;
+  focusRequest?: GraphFocusRequest | null;
+  overviewRequest?: GraphOverviewRequest | null;
+  onOverviewActiveChange?: (active: boolean) => void;
   onIntroComplete: () => void;
   onEvidence: (selection: EvidenceSelection) => void;
 }
 
 type GraphControls = OrbitControls;
+
+function overviewDistance(
+  nodes: RuntimeNode[],
+  center: RuntimeNode,
+  camera: THREE.PerspectiveCamera,
+  width: number,
+  height: number,
+  panelOpen: boolean,
+): number {
+  const tangent = Math.tan((camera.fov * Math.PI) / 360);
+  const sideInset = Math.max(340, panelOpen ? 408 : 24);
+  const usableWidth = Math.max(220, width - sideInset * 2);
+  const usableHeight = Math.max(220, height - 64);
+  const horizontal = (tangent * usableWidth) / usableHeight;
+  let distance = 150;
+  for (const node of nodes) {
+    const depth = (node.z ?? 0) - (center.z ?? 0);
+    const radius = radiusFor(node) + 20;
+    distance = Math.max(
+      distance,
+      depth + (Math.abs((node.x ?? 0) - (center.x ?? 0)) + radius) / horizontal,
+      depth + (Math.abs((node.y ?? 0) - (center.y ?? 0)) + radius) / tangent,
+    );
+  }
+  return distance * 1.15;
+}
 
 interface NodeStyle {
   opacity: number;
@@ -249,31 +296,34 @@ function paintPreviewNode(
   visual: NodeVisual,
   node: RuntimeNode,
   reveal: number,
+  overview = false,
 ) {
   const { style, hoverOpacity: focus } = visual.userData;
   const base = styleFor(node.tier, true);
   const presence = Math.min(1, style.opacity / base.opacity);
   const near = node.tier === "center" || node.tier === "direct";
   const distanceOpacity = near ? 1 : reveal;
-  const revealFocus = Math.max(focus, visual.userData.neighborReveal);
+  const revealFocus = overview
+    ? 1
+    : Math.max(focus, visual.userData.neighborReveal);
   const opacity = distanceOpacity + (1 - distanceOpacity) * revealFocus;
   const baseLabel = near ? 1 : 0;
-  const labelOpacity = baseLabel + (1 - baseLabel) * focus;
+  const labelOpacity = baseLabel + (1 - baseLabel) * revealFocus;
   visual.userData.reveal = opacity;
   visual.userData.surface.material.opacity =
-    (style.opacity + (1 - base.opacity) * presence * focus) * opacity;
+    (style.opacity + (1 - base.opacity) * presence * revealFocus) * opacity;
   const { surface, core, lightMode } = visual.userData;
-  if (near || node.tier === "twoHop") {
+  if (overview || near || node.tier === "twoHop") {
     surface.material.emissive.copy(core.material.color);
   } else {
     surface.material.emissive
       .set(lightMode ? "#707070" : "#808080")
-      .lerp(core.material.color, focus);
+      .lerp(core.material.color, revealFocus);
   }
   visual.userData.occluder.material.opacity = opacity * presence;
   visual.userData.label.visible = opacity * labelOpacity * presence > 0.001;
   visual.userData.label.element.style.opacity = String(
-    (style.labelOpacity + (1 - base.labelOpacity) * presence * focus) *
+    (style.labelOpacity + (1 - base.labelOpacity) * presence * revealFocus) *
       opacity *
       labelOpacity,
   );
@@ -698,9 +748,16 @@ export function GraphCanvas({
   onEvidence,
   onPanBoundary,
   panelOpen,
+  focusRequest = null,
+  overviewRequest = null,
+  onOverviewActiveChange = () => undefined,
   onIntroComplete,
 }: GraphCanvasProps) {
   const centerId = view.centerId;
+  const centerIdRef = useRef(centerId);
+  centerIdRef.current = centerId;
+  const panelOpenRef = useRef(panelOpen);
+  panelOpenRef.current = panelOpen;
   const hiddenKindsRef = useRef(hiddenKinds);
   const filterChangedAtRef = useRef(-Infinity);
   const refreshVisibilityRef = useRef<() => void>(() => {});
@@ -736,6 +793,19 @@ export function GraphCanvas({
   const onTransitionCompleteRef = useRef(onTransitionComplete);
   const onReadyRef = useRef(onReady);
   const focusPathRef = useRef<(nodeId: string | null) => void>(() => {});
+  const focusSelectionRef = useRef<
+    (nodeIds: string[], relationIds: string[]) => void
+  >(() => {});
+  const pointerNodeRef = useRef<string | null>(null);
+  const pointerRelationRef = useRef<string | null>(null);
+  const focusTimeoutRef = useRef<number | null>(null);
+  const overviewVisibleRef = useRef(false);
+  const overviewActiveRef = useRef(false);
+  const overviewSnapshotRef = useRef<CameraSnapshot | null>(null);
+  const overviewReturnRef = useRef<number | null>(null);
+  const overviewFinishRef = useRef<number | null>(null);
+  const restoreOverviewRef = useRef<() => void>(() => {});
+  const resetOverviewRef = useRef<() => void>(() => {});
   const dataInitializedRef = useRef(false);
   const readyRef = useRef(false);
   const readyFrameRef = useRef<number | null>(null);
@@ -750,6 +820,10 @@ export function GraphCanvas({
   const [hoveredRelation, setHoveredRelation] = useState<string | null>(null);
   const focusRelationRef = useRef<(id: string | null) => void>(() => {});
   const onEvidenceRef = useRef(onEvidence);
+  const onOverviewActiveRef = useRef(onOverviewActiveChange);
+  useEffect(() => {
+    onOverviewActiveRef.current = onOverviewActiveChange;
+  }, [onOverviewActiveChange]);
   const onIntroRef = useRef(onIntroComplete);
   useEffect(() => {
     onIntroRef.current = onIntroComplete;
@@ -769,7 +843,7 @@ export function GraphCanvas({
       const target =
         view.nodes.find((node) => node.id === relation.target)?.name ?? "노드";
       const direction = relation.directionality === "DIRECTED" ? "→" : "↔";
-      return `${source} ${direction} ${target} · ${relation.label} · 독립 근거 ${relation.evidenceGroupCount}개${relation.conflict ? " · 충돌 관계" : ""}`;
+      return `${source} ${direction} ${target} · ${relation.label} · 서로 다른 근거 ${relation.evidenceGroupCount}개${relation.conflict ? " · 충돌 관계" : ""}`;
     },
     [view.nodes],
   );
@@ -813,6 +887,7 @@ export function GraphCanvas({
       nodeIsVisible(endpointId(link.source)) &&
       nodeIsVisible(endpointId(link.target)) &&
       (!designPreview ||
+        overviewVisibleRef.current ||
         link.tier === "direct" ||
         linkFocusRef.current(link) ||
         (!closeView && link.tier === "twoHop"));
@@ -855,7 +930,8 @@ export function GraphCanvas({
         }
         for (const [id, visual] of nodeVisualsRef.current) {
           const node = nodesRef.current.get(id);
-          if (node) paintPreviewNode(visual, node, reveal);
+          if (node)
+            paintPreviewNode(visual, node, reveal, overviewVisibleRef.current);
         }
       }
       const pulse = filterPulse(
@@ -892,7 +968,9 @@ export function GraphCanvas({
         const reveal = Math.min(
           source?.userData.reveal ?? 0,
           target?.userData.reveal ?? 0,
-          link.tier === "direct" || linkFocusRef.current(link)
+          link.tier === "direct" ||
+            linkFocusRef.current(link) ||
+            overviewVisibleRef.current
             ? 1
             : neighborhoodReveal,
         );
@@ -900,6 +978,7 @@ export function GraphCanvas({
           visual,
           linkIsVisible(link) ? reveal : 0,
           !designPreview ||
+            overviewVisibleRef.current ||
             link.tier === "direct" ||
             linkFocusRef.current(link),
         );
@@ -964,7 +1043,12 @@ export function GraphCanvas({
       })
       .linkDirectionalArrowLength(0)
       .linkHoverPrecision(6)
-      .onLinkHover((link) => focusRelationRef.current(link?.id ?? null))
+      .onLinkHover((link) => {
+        pointerRelationRef.current = link?.id ?? null;
+        if (link) pointerNodeRef.current = null;
+        if (focusTimeoutRef.current === null)
+          focusRelationRef.current(link?.id ?? null);
+      })
       .onLinkClick((link) => {
         const selection = relationActionsRef.current.get(link.id);
         if (selection && linkIsVisible(link)) {
@@ -980,21 +1064,28 @@ export function GraphCanvas({
           onSelectRef.current(node.id);
       })
       .onNodeHover((node) => {
-        focusPathRef.current(node && nodeIsVisible(node.id) ? node.id : null);
+        pointerNodeRef.current =
+          node && nodeIsVisible(node.id) ? node.id : null;
+        if (node) pointerRelationRef.current = null;
+        if (focusTimeoutRef.current === null) {
+          setHoveredRelation(null);
+          focusPathRef.current(pointerNodeRef.current);
+        }
         container.style.cursor = node ? "pointer" : "grab";
       })
       .warmupTicks(0)
       .cooldownTicks(0);
 
     graph.linkVisibility(linkIsVisible);
-    const highlight = (nodeIds: Set<string>, relationId: string | null) => {
-      container.style.cursor = nodeIds.size || relationId ? "pointer" : "grab";
+    const highlight = (nodeIds: Set<string>, relationIds: Set<string>) => {
+      container.style.cursor =
+        nodeIds.size || relationIds.size ? "pointer" : "grab";
       const reducedMotion = window.matchMedia(
         "(prefers-reduced-motion: reduce)",
       ).matches;
       const isFocused = (link: RuntimeLink) =>
-        relationId !== null
-          ? link.id === relationId
+        relationIds.size > 0
+          ? relationIds.has(link.id)
           : nodeIds.has(endpointId(link.source)) ||
             nodeIds.has(endpointId(link.target));
       linkFocusRef.current = isFocused;
@@ -1004,6 +1095,7 @@ export function GraphCanvas({
         neighbors.add(endpointId(link.source));
         neighbors.add(endpointId(link.target));
       }
+      const emphasizedNodes = new Set([...nodeIds, ...neighbors]);
       graph.linkVisibility(linkIsVisible);
       if (hoverAnimationRef.current !== null)
         cancelAnimationFrame(hoverAnimationRef.current);
@@ -1013,17 +1105,17 @@ export function GraphCanvas({
           if (designPreview) {
             if (!visual.userData.shell.visible)
               visual.userData.shell.material.opacity = 0;
-            visual.userData.shell.visible ||= nodeIds.has(item.id);
+            visual.userData.shell.visible ||= emphasizedNodes.has(item.id);
             visual.userData.shell.material.blending = THREE.NormalBlending;
             visual.userData.shell.material.color.set(
               themeRef.current === "light" ? "#245ac1" : "#e6f0ff",
             );
           }
           visual.userData.label.element.dataset.focused = String(
-            nodeIds.has(item.id),
+            emphasizedNodes.has(item.id),
           );
           visual.userData.label.element.style.opacity = String(
-            nodeIds.has(item.id)
+            emphasizedNodes.has(item.id)
               ? 0.98
               : styleFor(item.tier, designPreview).labelOpacity,
           );
@@ -1031,14 +1123,14 @@ export function GraphCanvas({
         return {
           visual,
           shellFrom: visual?.userData.hoverOpacity ?? 0,
-          shellTo: nodeIds.has(item.id) ? 1 : 0,
+          shellTo: emphasizedNodes.has(item.id) ? 1 : 0,
           neighborFrom: visual?.userData.neighborReveal ?? 0,
           neighborTo: neighbors.has(item.id) ? 1 : 0,
           from: visual
             ? (visual.userData.halo.material as THREE.SpriteMaterial).opacity
             : 0,
           to:
-            nodeIds.has(item.id) && item.tier !== "center"
+            emphasizedNodes.has(item.id) && item.tier !== "center"
               ? Math.min(
                   nodeStyles.center.haloOpacity - 0.01,
                   nodeStyles[item.tier].haloOpacity + 0.14,
@@ -1052,7 +1144,11 @@ export function GraphCanvas({
         return {
           visual,
           focused,
-          expanded: !designPreview || link.tier === "direct" || focused,
+          expanded:
+            !designPreview ||
+            overviewVisibleRef.current ||
+            link.tier === "direct" ||
+            focused,
           colors:
             visual?.userData.lines.map((line) =>
               (line.material as THREE.LineBasicMaterial).color.clone(),
@@ -1117,14 +1213,19 @@ export function GraphCanvas({
     };
 
     focusPathRef.current = (id) =>
-      highlight(new Set(id && nodeIsVisible(id) ? [id] : []), null);
+      highlight(new Set(id && nodeIsVisible(id) ? [id] : []), new Set());
+    focusSelectionRef.current = (nodeIds, relationIds) =>
+      highlight(
+        new Set(nodeIds.filter(nodeIsVisible)),
+        new Set(relationIds.filter((id) => linksRef.current.has(id))),
+      );
     focusRelationRef.current = (id) => {
       const relation = id ? linksRef.current.get(id) : undefined;
       setHoveredRelation(id);
       const nodeIds = relation
         ? [endpointId(relation.source), endpointId(relation.target)]
         : [];
-      highlight(new Set(nodeIds), id);
+      highlight(new Set(nodeIds), new Set(id ? [id] : []));
     };
 
     graph.d3Force("charge", null);
@@ -1140,6 +1241,21 @@ export function GraphCanvas({
     controls.dampingFactor = 0.08;
     controls.minDistance = 95;
     controls.maxDistance = 2400;
+    const interruptOverview = () => {
+      if (!overviewActiveRef.current) return;
+      if (overviewReturnRef.current !== null)
+        window.clearTimeout(overviewReturnRef.current);
+      if (overviewFinishRef.current !== null)
+        window.clearTimeout(overviewFinishRef.current);
+      overviewReturnRef.current = null;
+      overviewFinishRef.current = null;
+      graph.cameraPosition(
+        graph.camera().position.clone(),
+        controls.target.clone(),
+        0,
+      );
+    };
+    controls.addEventListener("start", interruptOverview);
     const stopWatchingPan = watchBoundaryPan(
       controls,
       () =>
@@ -1219,6 +1335,7 @@ export function GraphCanvas({
 
     return () => {
       stopWatchingPan();
+      controls.removeEventListener("start", interruptOverview);
       observer.disconnect();
       if (readyFrameRef.current !== null)
         cancelAnimationFrame(readyFrameRef.current);
@@ -1229,6 +1346,12 @@ export function GraphCanvas({
         cancelAnimationFrame(hoverAnimationRef.current);
       if (introTimeoutRef.current !== null)
         window.clearTimeout(introTimeoutRef.current);
+      if (focusTimeoutRef.current !== null)
+        window.clearTimeout(focusTimeoutRef.current);
+      if (overviewReturnRef.current !== null)
+        window.clearTimeout(overviewReturnRef.current);
+      if (overviewFinishRef.current !== null)
+        window.clearTimeout(overviewFinishRef.current);
       for (const visual of nodeVisualsRef.current.values())
         visual.userData.label.element.remove();
       graph._destructor();
@@ -1241,9 +1364,140 @@ export function GraphCanvas({
       nodeVisualsRef.current.clear();
       linkVisualsRef.current.clear();
       focusPathRef.current = () => {};
+      focusSelectionRef.current = () => {};
       focusRelationRef.current = () => {};
+      restoreOverviewRef.current = () => {};
+      resetOverviewRef.current = () => {};
     };
   }, [designPreview]);
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    if (focusTimeoutRef.current !== null)
+      window.clearTimeout(focusTimeoutRef.current);
+    setHoveredRelation(
+      focusRequest.relationIds?.length === 1
+        ? (focusRequest.relationIds[0] ?? null)
+        : null,
+    );
+    focusSelectionRef.current(
+      focusRequest.nodeIds,
+      focusRequest.relationIds ?? [],
+    );
+    focusTimeoutRef.current = window.setTimeout(() => {
+      focusTimeoutRef.current = null;
+      if (pointerRelationRef.current) {
+        focusRelationRef.current(pointerRelationRef.current);
+      } else {
+        setHoveredRelation(null);
+        focusPathRef.current(pointerNodeRef.current);
+      }
+    }, 2500);
+    return () => {
+      if (focusTimeoutRef.current !== null) {
+        window.clearTimeout(focusTimeoutRef.current);
+        focusTimeoutRef.current = null;
+      }
+    };
+  }, [focusRequest]);
+
+  const overviewViewRef = useRef(view);
+  useEffect(() => {
+    if (overviewViewRef.current !== view) resetOverviewRef.current();
+    overviewViewRef.current = view;
+  }, [view]);
+
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!graph) return;
+    const controls = graph.controls() as GraphControls;
+    const camera = graph.camera() as THREE.PerspectiveCamera;
+    const clearTimers = () => {
+      if (overviewReturnRef.current !== null)
+        window.clearTimeout(overviewReturnRef.current);
+      if (overviewFinishRef.current !== null)
+        window.clearTimeout(overviewFinishRef.current);
+      overviewReturnRef.current = null;
+      overviewFinishRef.current = null;
+    };
+    const finish = () => {
+      clearTimers();
+      const snapshot = overviewSnapshotRef.current;
+      if (snapshot) {
+        camera.far = snapshot.far;
+        controls.maxDistance = snapshot.maxDistance;
+        camera.updateProjectionMatrix();
+      }
+      overviewSnapshotRef.current = null;
+      overviewVisibleRef.current = false;
+      overviewActiveRef.current = false;
+      refreshVisibilityRef.current();
+      onOverviewActiveRef.current(false);
+    };
+    resetOverviewRef.current = finish;
+    restoreOverviewRef.current = () => {
+      const snapshot = overviewSnapshotRef.current;
+      if (!snapshot) return finish();
+      clearTimers();
+      const duration = window.matchMedia("(prefers-reduced-motion: reduce)")
+        .matches
+        ? 0
+        : 1000;
+      graph.cameraPosition(snapshot.position, snapshot.target, duration);
+      if (duration === 0) finish();
+      else overviewFinishRef.current = window.setTimeout(finish, duration);
+    };
+    if (!overviewRequest) return;
+    if (overviewRequest.action === "restore") {
+      restoreOverviewRef.current();
+      return;
+    }
+    const center = nodesRef.current.get(centerIdRef.current);
+    if (!center) return;
+    clearTimers();
+    overviewSnapshotRef.current ??= {
+      position: camera.position.clone(),
+      target: controls.target.clone(),
+      far: camera.far,
+      maxDistance: controls.maxDistance,
+    };
+    const nodes = [...nodesRef.current.values()].filter(
+      (node) => !hiddenKindsRef.current.includes(node.kindCode),
+    );
+    const distance = overviewDistance(
+      nodes,
+      center,
+      camera,
+      graph.width(),
+      graph.height(),
+      panelOpenRef.current,
+    );
+    const duration = window.matchMedia("(prefers-reduced-motion: reduce)")
+      .matches
+      ? 0
+      : 1000;
+    camera.far = Math.max(camera.far, distance * 2);
+    controls.maxDistance = Math.max(controls.maxDistance, distance);
+    camera.updateProjectionMatrix();
+    overviewVisibleRef.current = true;
+    overviewActiveRef.current = true;
+    refreshVisibilityRef.current();
+    onOverviewActiveRef.current(true);
+    const target = new THREE.Vector3(
+      center.x ?? 0,
+      center.y ?? 0,
+      center.z ?? 0,
+    );
+    graph.cameraPosition(
+      { x: target.x, y: target.y, z: target.z + distance },
+      target,
+      duration,
+    );
+    overviewReturnRef.current = window.setTimeout(
+      () => restoreOverviewRef.current(),
+      duration + 4000,
+    );
+  }, [overviewRequest]);
 
   useEffect(() => {
     const graph = graphRef.current;
@@ -1516,6 +1770,7 @@ export function GraphCanvas({
           visual,
           visual.userData.reveal,
           !designPreview ||
+            overviewVisibleRef.current ||
             link.tier === "direct" ||
             linkFocusRef.current(link),
         );
@@ -1764,12 +2019,12 @@ export function GraphCanvas({
       </nav>
       <div className={styles.depthNote}>
         {designPreview
-          ? "드래그로 이동 · 스크롤로 확대 · 관계선을 눌러 근거 확인"
+          ? "드래그로 이동 · 스크롤로 확대 · 관계선을 눌러 연결 원문 확인"
           : "얕은 2.5D · z ±32 · 회전 없음"}
       </div>
       <nav
         className={styles.accessibleNodes}
-        aria-label="탐색 가능한 node 목록"
+        aria-label="탐색 가능한 대상 목록"
       >
         {view.nodes
           .filter((node) => !hiddenKinds.includes(node.kindCode))

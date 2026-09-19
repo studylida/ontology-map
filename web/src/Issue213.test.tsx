@@ -1,14 +1,7 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ExplorationView } from "./data";
 import { PanelEvidence } from "./PanelEvidence";
-import { EvidenceDialog, RelationList } from "./RelationPanel";
+import { EvidenceDialog } from "./RelationPanel";
 import { TopicPanel } from "./TopicPanel";
 import type { TopicExplorationView } from "./topicData";
 
@@ -71,54 +64,6 @@ const claim = {
   ],
 };
 
-const relationRow = {
-  source_node_id: "1",
-  target_node_id: "2",
-  directionality: "DIRECTED",
-  relation_id: "100",
-  relation_type_display_name: "관련",
-  other_node: technology,
-  supporting_evidence_group_count: 2,
-  has_conflict: false,
-};
-
-const loadedGraph: ExplorationView = {
-  centerId: "1",
-  context: "",
-  nodes: [
-    {
-      id: "1",
-      name: center.name,
-      kind: "회사",
-      kindCode: "COMPANY",
-      tier: "center",
-      activityEvidenceGroupCount: 2,
-    },
-    {
-      id: "2",
-      name: technology.name,
-      kind: "기술",
-      kindCode: "TECHNOLOGY",
-      tier: "direct",
-      activityEvidenceGroupCount: 2,
-    },
-  ],
-  relations: [
-    {
-      id: "100",
-      source: "1",
-      target: "2",
-      label: "관련",
-      directionality: "DIRECTED",
-      evidenceGroupCount: 2,
-      conflict: false,
-      tier: "direct",
-    },
-  ],
-  recommendations: [],
-  followups: [],
-};
-
 beforeEach(() => {
   request.mockReset();
   vi.stubGlobal("fetch", request);
@@ -169,38 +114,37 @@ describe("Issue #213 relation verification UX", () => {
           next_cursor: null,
         });
       }
-      if (path.includes("/relations")) {
-        return response({ items: [relationRow], next_cursor: null });
-      }
       return response({ items: [claim], next_cursor: null });
     });
     const onEvidence = vi.fn();
-    const onSelect = vi.fn();
+    const onLocate = vi.fn();
     render(
       <PanelEvidence
         nodeId="1"
-        nodeName={center.name}
         range="90d"
         onEvidence={onEvidence}
-        onSelect={onSelect}
-        loadedGraph={loadedGraph}
-        hiddenKinds={[]}
+        onLocate={onLocate}
       />,
     );
 
-    const disclosure = await screen.findByRole("button", {
+    const record = await screen.findByRole("button", {
       name: /계획 성격의 비교 근거/,
     });
-    expect(disclosure.textContent).toContain("비교 근거");
-    expect(disclosure.textContent).toContain("계획·목표");
-    expect(disclosure.textContent).not.toContain("충돌");
-    expect(screen.getByText("지지")).toBeTruthy();
-    expect(screen.getByText("반박")).toBeTruthy();
+    expect(record.textContent).toContain("계획");
+    expect(record.textContent).toContain("원문 보기");
+    expect(screen.queryByRole("button", { name: "연결 원문" })).toBeNull();
+
+    fireEvent.click(record);
     expect(
-      screen.getByRole("button", { name: "HBF 관련 관계 근거 보기" }),
+      screen.getByRole("heading", { name: "이 기록을 확인한 원문" }),
     ).toBeTruthy();
+    await screen.findByText("Claim 직접 근거");
+    expect(screen.queryByText("원문 위치")).toBeNull();
+    expect(screen.getByText("출처 · 출처")).toBeTruthy();
+    expect(screen.getByText("연결을 뒷받침")).toBeTruthy();
+    expect(screen.getByText("연결과 상충")).toBeTruthy();
     const personEvidenceButton = screen.getByRole("button", {
-      name: "연결 인물 관련 관계 근거 보기",
+      name: "연결 인물 관련 연결 원문 보기",
     });
 
     fireEvent.click(personEvidenceButton);
@@ -208,98 +152,12 @@ describe("Issue #213 relation verification UX", () => {
       expect.objectContaining({ id: "101" }),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: /HBF · 기술 · Node 보기/ }),
+      screen.getAllByRole("button", {
+        name: "지도에서 강조",
+      })[0] as HTMLElement,
     );
-    expect(onSelect).toHaveBeenCalledWith("2");
-
-    fireEvent.click(disclosure);
-    await screen.findByText("Claim 직접 근거");
-    const relationSubviewOpener = screen.getByRole("button", {
-      name: "전체 관계 보기",
-    });
-    relationSubviewOpener.focus();
-    fireEvent.click(relationSubviewOpener);
-    expect(
-      await screen.findByRole("heading", { name: "전체 관계" }),
-    ).toBeTruthy();
-    expect(screen.getByText("현재 지도에 포함됨")).toBeTruthy();
-    fireEvent.click(
-      screen.getByRole("button", { name: "주장과 근거로 돌아가기" }),
-    );
-    await waitFor(() =>
-      expect(document.activeElement).toBe(relationSubviewOpener),
-    );
-    expect(screen.getByText("Claim 직접 근거")).toBeTruthy();
-  });
-
-  it("derives graph badges from loaded graph membership and type filters only", async () => {
-    request.mockResolvedValue(
-      response({ items: [relationRow], next_cursor: null }),
-    );
-    const { rerender } = render(
-      <RelationList
-        nodeId="1"
-        nodeName={center.name}
-        onEvidence={vi.fn()}
-        loadedGraph={loadedGraph}
-        hiddenKinds={[]}
-      />,
-    );
-    expect(await screen.findByText("현재 지도에 포함됨")).toBeTruthy();
-
-    rerender(
-      <RelationList
-        nodeId="1"
-        nodeName={center.name}
-        onEvidence={vi.fn()}
-        loadedGraph={loadedGraph}
-        hiddenKinds={["TECHNOLOGY"]}
-      />,
-    );
-    expect(screen.getByText("지도 유형 필터로 숨김")).toBeTruthy();
-
-    rerender(
-      <RelationList
-        nodeId="1"
-        nodeName={center.name}
-        onEvidence={vi.fn()}
-        loadedGraph={{ ...loadedGraph, relations: [] }}
-        hiddenKinds={[]}
-      />,
-    );
-    expect(screen.queryByText("현재 지도에 포함됨")).toBeNull();
-    expect(screen.queryByText("지도 유형 필터로 숨김")).toBeNull();
-  });
-
-  it("preserves source-to-target direction in incoming Relation Evidence actions", async () => {
-    request.mockResolvedValue(
-      response({
-        items: [
-          {
-            ...relationRow,
-            source_node_id: "2",
-            target_node_id: "1",
-          },
-        ],
-        next_cursor: null,
-      }),
-    );
-    const onEvidence = vi.fn();
-    render(
-      <RelationList
-        nodeId="1"
-        nodeName={center.name}
-        onEvidence={onEvidence}
-      />,
-    );
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "HBF 관계 근거 보기" }),
-    );
-    expect(onEvidence).toHaveBeenCalledWith({
-      id: "100",
-      label: "HBF · 관련 · 중심 회사",
-    });
+    expect(onLocate).toHaveBeenCalledWith("2", "100");
+    expect(screen.queryByText("전체 관계")).toBeNull();
   });
 
   it("uses opaque Evidence item identity so same source and locator keeps separate Claim/stance items", async () => {
@@ -346,10 +204,11 @@ describe("Issue #213 relation verification UX", () => {
         onClose={vi.fn()}
       />,
     );
-    expect(await screen.findByText("서로 다른 지지 Claim")).toBeTruthy();
-    expect(screen.getByText("서로 다른 반박 Claim")).toBeTruthy();
-    expect(screen.getByText("지지 근거")).toBeTruthy();
-    expect(screen.getByText("반박 근거")).toBeTruthy();
+    expect(await screen.findAllByText("같은 인용")).toHaveLength(2);
+    expect(screen.queryByText("서로 다른 지지 Claim")).toBeNull();
+    expect(screen.queryByText("서로 다른 반박 Claim")).toBeNull();
+    expect(screen.getByText("연결을 뒷받침")).toBeTruthy();
+    expect(screen.getByText("연결과 상충")).toBeTruthy();
     expect(screen.getByText("예측·추정")).toBeTruthy();
     expect(
       consoleError.mock.calls.some((call) =>
@@ -363,6 +222,8 @@ describe("Issue #213 relation verification UX", () => {
     const topicView: TopicExplorationView = {
       centerId: "77",
       context: "",
+      contextIsCurrent: false,
+      periodHighlights: [],
       nodes: [
         {
           id: "77",
@@ -406,11 +267,12 @@ describe("Issue #213 relation verification UX", () => {
         timeRange="90d"
         onClose={vi.fn()}
         onSelect={onSelect}
+        onLocate={vi.fn()}
         onSelectInsight={vi.fn()}
         onEvidence={onEvidence}
       />,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "관계 근거" }));
+    fireEvent.click(await screen.findByRole("button", { name: "연결 원문" }));
     expect(onEvidence).toHaveBeenCalledWith(
       expect.objectContaining({ id: "700" }),
     );

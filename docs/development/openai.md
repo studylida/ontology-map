@@ -29,6 +29,8 @@ Issue #240의 전환 브랜치 구현이다. 코드/MockTransport 검증, 실제
 
 Issue #242의 내부 D1–D3 데모에서는 공동 사실을 불필요하게 분해하지 않는 기존 규칙을 유지하면서, 서로 독립적으로 중요한 사실을 하나의 headline Claim으로 압축하지 않고 원자 Claim으로 제안하도록 generation 지시문을 보완한다. FOLLOWUP_QUESTIONS와 NODE_INSIGHT는 이미 여러 Claim의 종합·근거 한계·사실과 해석의 구분을 요구하므로 prompt와 identity를 바꾸지 않는다.
 
+NODE_CONTEXT의 `node-context-244-v2`는 일반적인 인물·회사 소개가 아니라 등록된 공개 자료 전체에서 대상이 어떤 활동·관계·발언으로 나타나는지 1–3문장으로 요약한다. 제한된 자료를 주요 사업·전문 분야·지속적인 관심사나 전체 입장으로 일반화하지 않으며, 자료 범위가 좁으면 그 한계를 문장에 드러낸다. 입력과 출력 DTO는 유지하지만 prompt version이 task identity에 포함되므로 이전 version의 READY 결과는 현재 요약으로 간주하지 않는다. 읽기 API는 version 일치 여부를 반환하고 web은 정상 publication으로 새 결과가 준비될 때까지 이전 설명을 숨긴다. 이 변경은 provider 호출이나 기존 결과의 자동 재생성을 수행하지 않는다.
+
 응답 model은 실제 요청 model과 정확하게 일치해야 한다. 공식 문서로 확인하지 않은 dated snapshot 접두사를 임의 허용하지 않는다. 실제 API가 다른 snapshot을 반환하면 해당 계약을 별도 확인하기 전에는 fail-closed로 중단한다.
 
 ## identity와 과거 task

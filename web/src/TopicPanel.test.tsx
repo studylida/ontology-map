@@ -32,6 +32,8 @@ function topicView(members: KnowledgeNode[]): TopicExplorationView {
   return {
     centerId: "77",
     context: "",
+    contextIsCurrent: false,
+    periodHighlights: [],
     nodes: [
       {
         id: "77",
@@ -103,12 +105,13 @@ describe("TopicPanel", () => {
         timeRange="90d"
         onClose={() => undefined}
         onSelect={() => undefined}
+        onLocate={() => undefined}
         onSelectInsight={() => undefined}
       />,
     );
 
     const richSection = screen.getByRole("heading", {
-      name: "최근 근거가 많은 연결",
+      name: "최근 90일에 근거가 많은 연결",
     }).parentElement;
     expect(richSection).not.toBeNull();
     const rich = within(richSection as HTMLElement);
@@ -119,7 +122,7 @@ describe("TopicPanel", () => {
     expect(richSection?.textContent).not.toMatch(/근거\s*\d|\d+개/);
 
     const recentSection = screen.getByRole("heading", {
-      name: "최근 근거가 있는 연결",
+      name: "최근 90일에 근거가 있는 연결",
     }).parentElement;
     expect(
       within(recentSection as HTMLElement).getByText("라 회사"),
@@ -147,6 +150,7 @@ describe("TopicPanel", () => {
         timeRange="90d"
         onClose={() => undefined}
         onSelect={() => undefined}
+        onLocate={() => undefined}
         onSelectInsight={() => undefined}
       />,
     );
@@ -165,11 +169,12 @@ describe("TopicPanel", () => {
         timeRange="1y"
         onClose={() => undefined}
         onSelect={() => undefined}
+        onLocate={() => undefined}
         onSelectInsight={() => undefined}
       />,
     );
     expect(
-      screen.getByText("최근 1년에 새로 확인된 연결 근거가 없습니다."),
+      screen.getByText("최근 1년에 확인된 연결 원문이 없습니다."),
     ).toBeTruthy();
     expect(screen.getByText("마 기술")).toBeTruthy();
   });
@@ -187,6 +192,7 @@ describe("TopicPanel", () => {
         timeRange="90d"
         onClose={() => undefined}
         onSelect={() => undefined}
+        onLocate={() => undefined}
         onSelectInsight={onSelectInsight}
       />,
     );
@@ -222,6 +228,7 @@ describe("TopicPanel", () => {
         timeRange="90d"
         onClose={() => undefined}
         onSelect={() => undefined}
+        onLocate={() => undefined}
         onSelectInsight={() => undefined}
       />,
     );

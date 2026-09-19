@@ -239,9 +239,19 @@
   font-weight: 550;
 }
 
+.scopeSummary button {
+  width: fit-content;
+  min-height: 32px;
+  padding: 0;
+  color: var(--interactive);
+  font-size: 12px;
+  background: transparent;
+  border: 0;
+}
+
 .rangeControl {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   padding: 0;
   border: 0;
 }
@@ -261,8 +271,11 @@
   border-radius: 8px 0 0 8px;
 }
 
-.rangeControl button:last-of-type {
+.rangeControl button + button {
   border-left: 0;
+}
+
+.rangeControl button:last-of-type {
   border-radius: 0 8px 8px 0;
 }
 
@@ -1219,6 +1232,7 @@
 .evidenceDialog {
   width: min(720px, calc(100vw - 96px));
   max-height: calc(100vh - 96px);
+  overflow-y: auto;
   padding: 24px;
   color: var(--text-primary);
   background: var(--surface);
@@ -1241,10 +1255,17 @@
 }
 .evidenceDialog button,
 .followupSection > button {
-  color: var(--text-primary);
-  background: var(--surface-elevated);
+  min-height: 44px;
+  padding: 8px 12px;
+  color: var(--interactive);
+  background: transparent;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
+}
+.evidenceDialog header button {
+  width: 44px;
+  padding: 0;
+  border-radius: 50%;
 }
 .evidenceEntry {
   padding: 20px 0;
@@ -1264,6 +1285,11 @@
 .evidenceEntry p {
   color: var(--text-secondary);
   font-size: 12px;
+}
+.sourceMeta {
+  display: grid;
+  margin: 10px 0;
+  gap: 4px;
 }
 .evidenceEntry a {
   display: inline-flex;
@@ -1379,9 +1405,106 @@
 }
 
 .panelContext {
-  margin: 0 0 24px;
+  margin: 0;
   line-height: 1.7;
   color: var(--text-primary);
+}
+.recordRow {
+  border-bottom: 1px solid var(--border);
+}
+.recordRow > button {
+  display: flex;
+  width: 100%;
+  min-height: 72px;
+  padding: 14px 0;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-primary);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  gap: 14px;
+}
+.recordRow > button:hover,
+.recordRow > button:focus-visible {
+  background: var(--surface-elevated);
+}
+.recordRow > button > span:first-child {
+  display: grid;
+  min-width: 0;
+  line-height: 1.65;
+  gap: 5px;
+}
+.recordRow small,
+.peekClaim > small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.recordRow > button > span:last-child {
+  flex: 0 0 auto;
+  color: var(--interactive);
+  font-size: 12px;
+}
+.recordStatement {
+  margin: 18px 0 4px;
+  font-size: 15px;
+  line-height: 1.75;
+}
+.summarySection + .summarySection,
+.summarySection + .followupSection {
+  margin-top: 24px;
+}
+.summarySection h2 {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+.highlightList {
+  display: grid;
+  gap: 0;
+}
+.highlightItem {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.highlightItem p {
+  margin: 0 0 6px;
+  line-height: 1.65;
+}
+.highlightItem small,
+.connectionTags {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.panelAction,
+.relationActions button,
+.panelTraceList > button {
+  min-height: 44px;
+  padding: 8px 12px;
+  color: var(--interactive);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.panelAction {
+  width: 100%;
+  margin-top: 20px;
+}
+.relationActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.connectionTags {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0 12px 12px;
+  gap: 8px;
+}
+.connectionTags small {
+  padding: 4px 8px;
+  background: var(--surface-elevated);
+  border-radius: 999px;
 }
 .panelMeta {
   font-size: 12px;
@@ -1412,6 +1535,11 @@
   font-size: 11px;
   opacity: 0.7;
 }
+.panelDisclosure > span:last-child {
+  flex: 0 0 auto;
+  color: var(--interactive);
+  font-size: 12px;
+}
 .questionCard,
 .panelClaim {
   border-bottom: 1px solid var(--border);
@@ -1420,6 +1548,45 @@
   padding: 0 0 20px 12px;
   border-left: 2px solid var(--border);
   line-height: 1.75;
+}
+.answerSource {
+  display: flex;
+  min-width: 0;
+  margin-top: 12px;
+  align-items: center;
+  gap: 8px;
+}
+.answerSource a {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--interactive);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.answerSource button {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--interactive);
+  font-size: 20px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+.answerSourceStatus,
+.answerSourceRetry {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.answerSourceRetry {
+  min-height: 32px;
+  padding: 0;
+  color: var(--interactive);
+  background: transparent;
+  border: 0;
 }
 .panelCaveat {
   padding: 12px 14px;
@@ -1430,6 +1597,95 @@
 .panelTraceList {
   padding: 0 12px 12px;
   overflow-wrap: anywhere;
+}
+
+.recordPeek {
+  position: absolute;
+  top: 16px;
+  right: 408px;
+  bottom: 16px;
+  z-index: 10;
+  display: flex;
+  width: 360px;
+  flex-direction: column;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+}
+.recordPeek > header,
+.recordPeek > footer {
+  display: flex;
+  flex: 0 0 auto;
+  padding: 16px 20px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+.recordPeek > footer {
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+}
+.recordPeek h2 {
+  margin: 3px 0 0;
+  font-size: 17px;
+}
+.recordPeek header small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.recordPeek header > button {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: 22px;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+}
+.recordPeekBody {
+  min-height: 0;
+  overflow-y: auto;
+}
+.recordPeekContent {
+  padding: 0 20px;
+}
+.peekClaim {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+.peekClaim > p {
+  margin: 6px 0 0;
+  line-height: 1.7;
+}
+.recordPeek footer button {
+  width: 100%;
+  min-height: 44px;
+  color: var(--interactive);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+@media (max-width: 1279px) {
+  .recordPeek {
+    right: 24px;
+  }
+}
+
+@media (max-width: 520px) {
+  .relationToggle {
+    display: grid;
+    align-items: start;
+  }
+
+  .relationActions {
+    justify-content: flex-start;
+  }
 }
 .reportContents {
   display: grid;

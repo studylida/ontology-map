@@ -14,13 +14,14 @@ from ontology_map.api import (
     _resource_id,
 )
 from ontology_map.db.session import open_read_session
-from ontology_map.exploration import TimeWindow
+from ontology_map.exploration import ReadTimeWindow, TimeWindow
 from ontology_map.pagination import InvalidCursorError
 
 router = APIRouter(prefix="/api/v1")
 ResourceId = Annotated[str, Path(pattern=r"^[1-9][0-9]{0,18}$")]
 ReadSession = Annotated[Session, Depends(open_read_session)]
 Window = Annotated[TimeWindow, Query()]
+ReadWindow = Annotated[ReadTimeWindow, Query()]
 Cursor = Annotated[str | None, Query(min_length=1, max_length=2048)]
 
 
@@ -83,7 +84,7 @@ class TracePage(BaseModel):
 
 
 class TraceQuery(BaseModel):
-    time_window: TimeWindow
+    time_window: ReadTimeWindow
     as_of_at: datetime
     cursor: str | None = Field(default=None, min_length=1, max_length=2048)
 
@@ -146,7 +147,7 @@ class ReportPage(BaseModel):
 @router.get("/nodes/{node_id}/claims", response_model=ClaimPage)
 def claims(
     node_id: ResourceId,
-    time_window: Window,
+    time_window: ReadWindow,
     session: ReadSession,
     cursor: Cursor = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 10,

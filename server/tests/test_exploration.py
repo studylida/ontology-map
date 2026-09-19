@@ -41,6 +41,7 @@ from ontology_map.exploration import (
     MAX_RELATIONS,
     MAX_TWO_HOP_NODES,
     PublicationNotReadyError,
+    ReadTimeWindow,
     TimeWindow,
     get_exploration,
 )
@@ -155,7 +156,7 @@ def test_repository_builds_hbf_graph_and_can_change_center(directionality: str) 
             relation_type_revision.update().values(directionality=directionality)
         )
         first = get_exploration(
-            session, node_ids["sk_hynix"], TimeWindow.RECENT_90_DAYS, now=NOW
+            session, node_ids["sk_hynix"], ReadTimeWindow.RECENT_90_DAYS, now=NOW
         )
         next_node_id = next(
             graph_node.node_id
@@ -163,7 +164,7 @@ def test_repository_builds_hbf_graph_and_can_change_center(directionality: str) 
             if graph_node.node_id != first.center_node_id
         )
         second = get_exploration(
-            session, next_node_id, TimeWindow.RECENT_1_YEAR, now=NOW
+            session, next_node_id, ReadTimeWindow.RECENT_1_YEAR, now=NOW
         )
 
     assert first.graph.nodes[0].tier == "CENTER"
@@ -179,6 +180,7 @@ def test_repository_builds_hbf_graph_and_can_change_center(directionality: str) 
     assert len(first.graph.relations) <= MAX_RELATIONS
     assert len(first.recommendations) == 4
     assert [question.slot for question in first.followup_questions] == [1, 2]
+    assert first.context_is_current is False
     assert second.center_node_id == next_node_id
     assert second.graph.nodes[0].node_id == next_node_id
 
@@ -435,11 +437,27 @@ def test_http_contract_returns_string_ids_and_only_approved_fields() -> None:
     assert set(body) == {
         "center_node_id",
         "context_text",
+        "context_is_current",
+        "period_highlights",
         "graph",
         "recommendations",
         "followup_questions",
     }
     assert isinstance(body["center_node_id"], str)
+    assert body["context_is_current"] is False
+    assert len(body["period_highlights"]) <= 3
+    assert all(
+        set(item)
+        == {
+            "claim_id",
+            "claim_text",
+            "modality",
+            "evidence_group_count",
+            "latest_published_at",
+            "latest_published_precision",
+        }
+        for item in body["period_highlights"]
+    )
     assert set(body["graph"]["nodes"][0]) == {
         "node_id",
         "name",
@@ -486,6 +504,12 @@ def test_http_contract_returns_string_ids_and_only_approved_fields() -> None:
     )
     assert next_status == 200
     assert next_body["center_node_id"] == target_id
+
+    all_status, all_body = request(
+        f"/api/v1/exploration/{node_ids['sk_hynix']}?time_window=ALL_TIME"
+    )
+    assert all_status == 200
+    assert all_body["center_node_id"] == str(node_ids["sk_hynix"])
 
 
 @pytest.mark.parametrize(

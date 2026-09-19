@@ -5,7 +5,9 @@ import {
   type KnowledgeNode,
   type KnowledgeRelation,
   type NodeTier,
+  ontologyLabel,
   type TimeRange,
+  timeWindowParam,
 } from "./data";
 
 export interface TopicReference {
@@ -152,7 +154,7 @@ export function toTopicExplorationView(payload: unknown): TopicExplorationView {
       id: string(item.relation_id),
       source: source.id,
       target: target.id,
-      label: string(item.relation_type_display_name),
+      label: ontologyLabel(string(item.relation_type_display_name)),
       directionality: directionality(item.directionality),
       evidenceGroupCount: number(item.supporting_evidence_group_count),
       conflict: boolean(item.has_conflict),
@@ -167,6 +169,8 @@ export function toTopicExplorationView(payload: unknown): TopicExplorationView {
   return {
     centerId: topicReference.nodeId,
     context: "",
+    contextIsCurrent: false,
+    periodHighlights: [],
     nodes,
     relations,
     recommendations: [],
@@ -188,7 +192,7 @@ export async function fetchTopicExploration(
   signal?: AbortSignal,
 ): Promise<TopicExplorationView> {
   const params = new URLSearchParams({
-    time_window: range === "90d" ? "RECENT_90_DAYS" : "RECENT_1_YEAR",
+    time_window: timeWindowParam(range),
   });
   return toTopicExplorationView(
     await fetchJSON(

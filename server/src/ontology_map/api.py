@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request
@@ -10,12 +10,14 @@ from ontology_map.db.session import open_read_session
 from ontology_map.exploration import (
     ExplorationNotFoundError,
     PublicationNotReadyError,
+    ReadTimeWindow,
     TimeWindow,
     get_exploration,
     list_peripheral_nodes,
 )
 from ontology_map.insights import InsightNotFoundError, get_insight, list_node_insights
 from ontology_map.pagination import InvalidCursorError
+from ontology_map.panel import PanelNotReadyError, list_claim_highlights
 from ontology_map.relations import (
     NodeRelationsNotFoundError,
     RelationEvidenceNotFoundError,
@@ -92,9 +94,25 @@ class FollowupQuestionResponse(BaseModel):
     target_node_id: str
 
 
+class ClaimHighlightResponse(BaseModel):
+    claim_id: str
+    claim_text: str
+    modality: Literal[
+        "FACT",
+        "PLAN_OR_TARGET",
+        "PREDICTION_OR_ESTIMATE",
+        "OPINION_OR_EVALUATION",
+    ]
+    evidence_group_count: int = Field(ge=1)
+    latest_published_at: datetime | None
+    latest_published_precision: Literal["INSTANT", "DAY", "MONTH", "YEAR", "UNKNOWN"]
+
+
 class ExplorationResponse(BaseModel):
     center_node_id: str
     context_text: str
+    context_is_current: bool
+    period_highlights: list[ClaimHighlightResponse]
     graph: GraphResponse
     recommendations: list[RecommendationResponse]
     followup_questions: list[FollowupQuestionResponse]
@@ -232,23 +250,37 @@ def read_exploration(
         str,
         Path(pattern=r"^[1-9][0-9]{0,18}$"),
     ],
-    time_window: Annotated[TimeWindow, Query()],
+    time_window: Annotated[ReadTimeWindow, Query()],
     session: Annotated[Session, Depends(open_read_session)],
 ) -> ExplorationResponse:
+    as_of_at = datetime.now(UTC)
     try:
         result = get_exploration(
             session,
             _resource_id(center_node_id),
             time_window,
+            now=as_of_at,
+        )
+        highlights = list_claim_highlights(
+            session,
+            _resource_id(center_node_id),
+            time_window,
+            as_of_at=as_of_at,
         )
     except ExplorationNotFoundError as error:
         raise APIError(404, "NODE_NOT_FOUND", retryable=False) from error
     except PublicationNotReadyError as error:
         raise APIError(503, "PUBLICATION_NOT_READY", retryable=True) from error
+    except PanelNotReadyError as error:
+        raise APIError(503, "PUBLICATION_NOT_READY", retryable=True) from error
 
     return ExplorationResponse(
         center_node_id=str(result.center_node_id),
         context_text=result.context_text,
+        context_is_current=result.context_is_current,
+        period_highlights=[
+            ClaimHighlightResponse.model_validate(item) for item in highlights
+        ],
         graph=GraphResponse(
             nodes=[
                 GraphNodeResponse(
@@ -347,7 +379,7 @@ def read_peripheral_nodes(
         str,
         Path(pattern=r"^[1-9][0-9]{0,18}$"),
     ],
-    time_window: Annotated[TimeWindow, Query()],
+    time_window: Annotated[ReadTimeWindow, Query()],
     session: Annotated[Session, Depends(open_read_session)],
     cursor: Annotated[str | None, Query(max_length=2048)] = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,

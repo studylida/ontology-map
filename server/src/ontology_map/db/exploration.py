@@ -18,6 +18,7 @@ class NodeRow:
 class CenterRow(NodeRow):
     node_context_id: int
     context_text: str
+    context_prompt_version: str
 
 
 @dataclass(frozen=True)
@@ -119,8 +120,20 @@ eligible_claim_evidence AS (
     JOIN source_document AS sd ON sd.source_document_id = o.source_document_id
     WHERE cki.item_kind = 'CLAIM'
       AND cki.current_state IN ('EVIDENCE_VERIFIED', 'HUMAN_VERIFIED')
-      AND sd.published_at >= :start_at
-      AND sd.published_at < :end_at
+      AND (
+          (
+              sd.published_at IS NOT NULL
+              AND sd.published_at < :end_at
+              AND (
+                  CAST(:start_at AS timestamptz) IS NULL
+                  OR sd.published_at >= CAST(:start_at AS timestamptz)
+              )
+          )
+          OR (
+              CAST(:start_at AS timestamptz) IS NULL
+              AND sd.published_at IS NULL
+          )
+      )
       AND NOT EXISTS (
           SELECT 1
           FROM lint_finding AS lf
@@ -219,7 +232,8 @@ def get_center(session: Session, node_id: int) -> CenterRow | None:
             pn.node_type_code,
             pn.node_type_display_name,
             nc.node_context_id,
-            nc.context_text
+            nc.context_text,
+            mt.prompt_version AS context_prompt_version
         FROM public_nodes AS pn
         JOIN node_context AS nc
           ON nc.node_context_id = pn.node_context_id
@@ -241,6 +255,7 @@ def get_center(session: Session, node_id: int) -> CenterRow | None:
         node_type_display_name=str(row["node_type_display_name"]),
         node_context_id=int(row["node_context_id"]),
         context_text=str(row["context_text"]),
+        context_prompt_version=str(row["context_prompt_version"]),
     )
 
 
@@ -407,7 +422,7 @@ def list_adjacencies(session: Session, owner_node_ids: list[int]) -> list[Adjace
 def get_activity_counts(
     session: Session,
     node_ids: list[int],
-    start_at: datetime,
+    start_at: datetime | None,
     end_at: datetime,
 ) -> dict[int, int]:
     if not node_ids:
@@ -436,7 +451,7 @@ def get_activity_counts(
 def list_ambient_nodes(
     session: Session,
     excluded_node_ids: list[int],
-    start_at: datetime,
+    start_at: datetime | None,
     end_at: datetime,
     limit: int,
 ) -> list[tuple[NodeRow, int]]:
@@ -483,7 +498,7 @@ def list_ambient_nodes(
 def list_peripheral_node_rows(
     session: Session,
     excluded_node_ids: list[int],
-    start_at: datetime,
+    start_at: datetime | None,
     end_at: datetime,
     after_node_id: int,
     limit: int,

@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from unittest.mock import Mock
 
 from ontology_map import exploration as exploration_service
-from ontology_map import topic_api
+from ontology_map import node_context_generation, topic_api
 from ontology_map.db.exploration import (
     AdjacencyRow,
     CenterRow,
@@ -55,6 +55,7 @@ def test_general_exploration_caps_direct_neighbors_at_24(monkeypatch) -> None:
             node_type_display_name="회사",
             node_context_id=1,
             context_text="context",
+            context_prompt_version=node_context_generation.PROMPT_VERSION,
         ),
     )
 
@@ -99,6 +100,7 @@ def test_general_exploration_caps_direct_neighbors_at_24(monkeypatch) -> None:
     assert len(direct_nodes) == 24
     assert [node.node_id for node in direct_nodes] == list(range(2, 26))
     assert all(node.tier != "TWO_HOP" for node in result.graph.nodes)
+    assert result.context_is_current is True
 
 
 def test_topic_api_lists_active_and_inactive_references(monkeypatch) -> None:

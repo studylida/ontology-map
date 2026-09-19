@@ -101,7 +101,7 @@ UI 문구는 한국어를 기본으로 한다. node type, relation type, model i
 
 제품 Reference Topic은 일반 evidence-backed 지식이 아니라 승인 controlled vocabulary다. canonical 표시 이름은 `topic_reference` 정의가 소유하고 일반 검색 문서나 alias Evidence를 만들지 않는다. #203은 lifecycle/schema/read boundary를 제공하고 #201의 명시적 reference-data activation이 승인 Topic 9개를 실제 제품 row로 활성화한다. 앱 startup이 누락 Topic을 자동 생성하거나 보정하지 않는다.
 
-일반 검색에는 Reference Topic을 포함하지 않는다. Topic 진입은 승인 Topic/카테고리 목록 또는 일반 graph에 이미 표시된 Topic 선택을 전제로 한다. `GET /api/v1/topics/{topic_node_id}/exploration?time_window=RECENT_90_DAYS|RECENT_1_YEAR`는 공개 가능한 direct `HAS_TOPIC` membership만 반환하고 Topic 중심 2-hop·3-hop 확장은 하지 않는다. 응답은 전체 공개 membership 수와 선택 기간의 최근 member 수·최근 Evidence Group 수를 구분한다.
+일반 검색에는 Reference Topic을 포함하지 않는다. Topic 진입은 승인 Topic/카테고리 목록 또는 일반 graph에 이미 표시된 Topic 선택을 전제로 한다. `GET /api/v1/topics/{topic_node_id}/exploration?time_window=RECENT_90_DAYS|RECENT_1_YEAR|ALL_TIME`은 공개 가능한 direct `HAS_TOPIC` membership만 반환하고 Topic 중심 2-hop·3-hop 확장은 하지 않는다. 응답은 전체 공개 membership 수와 선택 기간의 최근 member 수·최근 Evidence Group 수를 구분한다.
 
 Topic이 비활성화되어도 기존 유효 membership은 삭제·비공개·재해석하지 않고 새 `HAS_TOPIC` 생성만 차단한다. 연결된 일반 Node를 선택하면 기존 exploration을 그대로 사용한다. 일반 Node exploration의 직접 이웃 상한은 24개이며 direct `HAS_TOPIC` Reference Topic도 같은 후보군에 포함하지만 Topic 전용 quota·별도 graph layer는 두지 않는다.
 
@@ -128,7 +128,9 @@ Topic이 비활성화되어도 기존 유효 membership은 삭제·비공개·�
 
 다크 모드에서 중심에 직접 연결된 일반 간선과 현재 조작 대상의 연결은 파란색 `#72A7FF`, 나머지는 회청색 `#829bb5`이다. 일반 2단계 간선의 기본 불투명도는 0.32로, 직접 연결의 0.90보다 낮게 유지하되 연결 형태를 따라갈 수 있게 한다. 라이트 모드의 회청색은 `#576d83`을 사용한다. 직접 이웃은 본체 불투명도 0.98과 일정한 얇은 테두리로 2단계 이웃보다 선명하게 표시하고 반복 발광하지 않는다. 2단계 node는 유형 색을 유지하되 기본 불투명도를 0.55로 낮춘다. 3단계와 주변부는 유형 색 없이 중립색 실루엣으로 표시하며 기본 불투명도는 각각 0.28과 0.18이다. node·간선 hover 또는 키보드 초점에서는 기존 400ms 전환으로 원래 유형 색과 선명함을 복구하고, 벗어나면 실루엣으로 돌아간다. 거리·진입 페이드와 유형 필터는 그대로 적용한다. 테두리는 hover·필터 강조로 자연스럽게 이어진다. 평소 숨긴 3단계 이후 간선도 해당 node를 hover하거나 키보드로 focus하면 그 node에 연결된 간선만 일시적으로 표시하고 파란색으로 강조한다. 충돌은 강조 여부와 관계없이 빨간색 `#F26D78`과 점선으로 표시하며 범례·접근 가능한 관계 이름·상세 내용에서도 문자로 구분한다. 미리보기에서는 충돌 token도 같은 빨간색을 사용하지만 실패 상태와는 문구·형태로 구분한다. node와 겹치는 간선은 뒤에 가리고 클릭하면 기존 Relation 근거를 연다. 축소나 주변부 조회로 간선이 다시 나타난 직후에도 hover와 선택이 동작해야 하며 지도 갱신이 멈추지 않아야 한다.
 
-미리보기의 node·Relation hover와 키보드 초점은 이름 테두리, node 외곽선과 연결선으로 표시한다. 첫 렌더 프레임의 현재 밝기에서 400ms 동안 강조 상태로 전환한 뒤 일정 밝기를 유지한다. 먼 node도 hover·초점에서는 본체와 이름의 거리·단계 흐릿함을 서서히 해제하고, 벗어나면 현재 조망에 맞는 흐릿함으로 복귀한다. 강조 전환은 현재 대상 node에만 적용하며 다른 node의 외곽선 크기나 밝기를 바꾸지 않는다. 라이트 모드의 외곽선은 유형 색을 가리지 않는 낮은 불투명도로 제한한다. 유형 필터와 데이터 이탈 상태는 초점보다 우선한다. 반복 맥동과 외곽선 크기 진동은 사용하지 않고 전환이 끝나면 강조용 animation frame을 종료한다. 빠르게 대상을 바꾸면 현재 표시 상태에서 이어지며 벗어나면 기본 밝기로 복귀한다. 테마 전환도 외곽선의 현재 밝기를 보존한다. 인식 영역 자체의 크기는 바꾸지 않으며 충돌의 빨간색·점선은 유지한다. 동작 줄이기에서는 즉시 정적으로 강조한다. 중심 전환은 현재 camera 거리를 유지하고 전환 도중 사용한 wheel 배율도 보존한다.
+미리보기의 node·Relation hover와 키보드 초점은 이름 테두리, node 외곽선과 연결선으로 표시한다. 첫 렌더 프레임의 현재 밝기에서 400ms 동안 강조 상태로 전환한 뒤 일정 밝기를 유지한다. 먼 node도 hover·초점에서는 본체와 이름의 거리·단계 흐릿함을 서서히 해제하고, 벗어나면 현재 조망에 맞는 흐릿함으로 복귀한다. node를 강조하면 현재 node와 표시된 연결의 양 끝 node 이름을 함께 보여주고 중립색 실루엣은 각 node의 유형 색으로 되돌린다. Relation 강조도 양 끝 node에 같은 규칙을 적용한다. 라이트 모드의 외곽선은 유형 색을 가리지 않는 낮은 불투명도로 제한한다. 유형 필터와 데이터 이탈 상태는 초점보다 우선한다. 반복 맥동과 외곽선 크기 진동은 사용하지 않고 전환이 끝나면 강조용 animation frame을 종료한다. 빠르게 대상을 바꾸면 현재 표시 상태에서 이어지며 벗어나면 기본 밝기로 복귀한다. 테마 전환도 외곽선의 현재 밝기를 보존한다. 인식 영역 자체의 크기는 바꾸지 않으며 충돌의 빨간색·점선은 유지한다. 동작 줄이기에서는 즉시 정적으로 강조한다. 중심 전환은 현재 camera 거리를 유지하고 전환 도중 사용한 wheel 배율도 보존한다.
+
+`전체 지도 보기`는 현재 브라우저가 이미 불러온 node와 Relation만 중심 node 기준으로 화면에 맞춘다. 전체 corpus를 추가 조회하거나 고정된 전체 지도를 뜻하지 않는다. 카메라는 1초 동안 조망 위치로 이동하고 4초 동안 유지한 뒤 1초 동안 원래 위치로 돌아간다. 이 상태에서 사용자가 지도를 직접 이동하거나 확대하면 자동 복귀를 취소하고 조작한 시점을 유지하며 `원래 보기`로 돌아갈 수 있다. 동작 줄이기 설정에서는 카메라 이동을 즉시 적용한다.
 
 node hover·키보드 초점에서는 연결된 node의 근접 조망 숨김을 400ms 동안 해제해 관계선의 반대편을 표시한다. 연결 node는 단계별 본체 밝기와 이름 표시 규칙을 유지하며 hover 발광은 추가하지 않는다. 초점이 빠지면 현재 밝기에서 조망의 숨김 상태로 복귀한다. 유형 필터를 적용한 node와 관계는 복원하지 않으며 좌표·배율을 바꾸지 않는다. 실제 화면 밖에 있는 좌표를 화면 안으로 이동시키는 동작은 포함하지 않는다.
 
@@ -154,7 +156,7 @@ hover·키보드 초점으로 강조한 일반 연결선은 기본 중심 연결
 
 | 화면 흐름 | HTTP endpoint | 주요 응답 | application service | DB query 경로 | web 상태 |
 | --- | --- | --- | --- | --- | --- |
-| 초기 탐색·중심 이동·시간 범위 변경 | `GET /api/v1/exploration/{center_node_id}?time_window=...` | 중심 맥락, 활성 graph, 구조화 추천, 후속 질문 2개 | `get_exploration` | 최신 node별 READY → 검색 문서·basis·context·질문 → 공개 relation·Claim·Evidence Trace 집계 | 연동 완료 |
+| 초기 탐색·중심 이동·시간 범위 변경 | `GET /api/v1/exploration/{center_node_id}?time_window=...` | 등록 자료 전체 맥락과 version 상태, 기간별 Claim 요약, 활성 graph, 구조화 추천, 후속 질문 2개 | `get_exploration` | 최신 node별 READY → 검색 문서·basis·context·질문 → 공개 relation·Claim·Evidence Trace 집계 | 연동 완료 |
 | node 검색 | `GET /api/v1/nodes/search?q=...&limit=5` | node 이름·유형과 `EXACT_ALIAS | FULL_TEXT` 이유 | `search_nodes` | 활성 merge 해소 → 최신 READY 검색 문서 → alias 또는 `simple` expression GIN | 연동 완료 |
 | node의 공개 Relation | `GET /api/v1/nodes/{node_id}/relations?cursor=...&limit=20` | 상대 node, relation 유형, 지지 근거 묶음 수, 충돌 여부 | `list_node_relations` | 최신 READY 검색 문서·basis → relation → 지지 Claim → Observation → Source Document | web 연동 구현 |
 | Relation 근거 | `GET /api/v1/relations/{relation_id}/evidence?cursor=...&limit=10` | Claim stance, source metadata, quote와 locator | `list_relation_evidence` | Claim Relation → Claim Observation → Observation → Source Document | web 연동 구현 |
@@ -166,7 +168,8 @@ hover·키보드 초점으로 강조한 일반 연결선은 기본 중심 연결
 
 | 응답 | 필드 |
 | --- | --- |
-| exploration | `center_node_id`, `context_text`, `graph.nodes[]`, `graph.relations[]`, `recommendations[]`, `followup_questions[]` |
+| exploration | `center_node_id`, `context_text`, `context_is_current`, `period_highlights[]`, `graph.nodes[]`, `graph.relations[]`, `recommendations[]`, `followup_questions[]` |
+| period Claim highlight | `claim_id`, `claim_text`, `modality`, `evidence_group_count`, nullable `latest_published_at`, `latest_published_precision` |
 | graph node | `node_id`, `name`, `node_type { code, display_name }`, `tier`, `activity_evidence_group_count` |
 | graph Relation | `relation_id`, `source_node_id`, `target_node_id`, `relation_type_display_name`, `directionality: DIRECTED | SYMMETRIC`, `supporting_evidence_group_count`, `has_conflict` |
 | recommendation | `target_node`, `reason_code`, nullable `via_node_id`, 직접 근거가 있을 때만 `supporting_evidence_group_count`, 실제 연결의 `path[]` |
@@ -179,7 +182,7 @@ hover·키보드 초점으로 강조한 일반 연결선은 기본 중심 연결
 
 인사이트 목록은 `items[] { insight_id, slot, title, evidence_group_count }`, 상세는 같은 필드와 `summary`, `synthesis`, `caveat`, `claims[] { claim_id, claim_text, role, traces[] { source, quote_text, locator } }`를 반환한다. role은 `KEY_CLAIM | SUPPORTING_CLAIM | CONTRASTING_CLAIM`이며 source와 locator는 기존 Evidence Trace 계약을 재사용한다. 목록은 slot 순서로 최대3개이고 근거 수는 저장 결과의 `as_of_at`을 기준으로 선택한 90일·365일 범위 `[as_of_at - 기간, as_of_at)`에 게시된 연결 Claim 근거의 `COUNT(DISTINCT evidence_group_id)`다. 원문 Trace는 연결 Claim의 전체 출처를 보여주므로 기간 밖 출처가 포함되면 표시 근거 수와 Trace 수는 다를 수 있다. 상세의 Claim ID는 화면 항목 식별에만 사용하고 사용자 문구로 표시하지 않는다.
 
-`time_window`는 필수이며 `RECENT_90_DAYS | RECENT_1_YEAR`만 허용한다. exploration은 중심 1개, 직접 이웃 최대 12개, 중요한 2단계 이웃 최대 18개, 실제 3단계 이웃 최대 20개와 활성 graph Relation 최대 60개를 반환한다. 후보는 지지 독립 근거 묶음 수 내림차순, 선택 기간 활동량 내림차순, 내부 ID 오름차순으로 정렬한다.
+`time_window`는 필수다. exploration·peripheral·Topic exploration·Claim 목록·Claim 원문은 `RECENT_90_DAYS | RECENT_1_YEAR | ALL_TIME`을 허용하고, 질문·답변·인사이트는 생성된 기간 계약을 유지해 `RECENT_90_DAYS | RECENT_1_YEAR`만 허용한다. `ALL_TIME`은 조회 기준 시점보다 앞선 게시일과 게시 시점 미상 자료를 함께 읽는다. exploration은 중심 1개, 직접 이웃 최대 12개, 중요한 2단계 이웃 최대 18개, 실제 3단계 이웃 최대 20개와 활성 graph Relation 최대 60개를 반환한다. 후보는 지지 독립 근거 묶음 수 내림차순, 선택 기간 활동량 내림차순, 내부 ID 오름차순으로 정렬한다.
 
 추천은 backend가 `DIRECT | TWO_HOP | AMBIENT`, 대상 node, 선택적 경유 node와 적용 가능한 근거 수를 반환한다. 사용자에게 보이는 한국어 추천 문장은 frontend가 작성한다. 현재 후속질문은 #162에 따라 기간별 질문과 근거가 연결된 답변을 4개씩 읽으며 총개수는 고정하지 않는다. 질문을 선택하면 답변을 펼치고 지도 중심을 이동하지 않는다. 기존 slot 1·2와 `target_node_id`를 가진 이동형 데이터와 API는 전환 중 보존하지만 현재 패널 계약으로 사용하지 않는다. 질문 선택이나 node 클릭으로 모델을 호출하지 않는다. 생성 작업은 #129, 실제 자료로 진행할 후속 품질 검토는 #181에서 관리한다.
 
@@ -342,13 +345,13 @@ Issue #67의 POC에서 직접 이웃의 관계선 core는 전환 감쇠 전 불�
 
 ### Detail panel
 
-상세 panel의 공통 header는 node 이름과 유형을 표시하고 `탐색`, `근거`, `인사이트` tab을 제공한다. tab bar는 scroll 중에도 상단에 남고 ArrowLeft·ArrowRight로 이동한다. 중심 또는 기간 변경 시 탐색 tab으로 돌아가며 펼친 답변과 보고서를 닫고 이전 요청을 취소한다. 패널의 읽기 요청은 지도 exploration과 분리하여 카메라 이동을 기다리게 하지 않는다.
+상세 panel의 공통 header는 node 이름과 유형을 표시하고 `개요`, `기록`, `인사이트` tab을 제공한다. tab bar는 scroll 중에도 상단에 남고 ArrowLeft·ArrowRight로 이동한다. 중심 또는 기간 변경 시 개요 tab으로 돌아가며 펼친 답변과 보고서를 닫고 이전 요청을 취소한다. 패널의 읽기 요청은 지도 exploration과 분리하여 카메라 이동을 기다리게 하지 않는다.
 
-`탐색`은 현재 node의 맥락 설명 → 후속 질문 → 이어서 탐색 순서다. 후속 질문은 현재 공개 근거로 답할 수 있는 질문과 사전 저장한 짧은 답변이며 node 이동 action이 아니다. 처음 4개와 추가 4개를 server cursor로 표시한다. 총개수를 맞추거나 상한 때문에 유용한 질문을 버리지 않으며 답이 같은 질문은 생성 품질 검토에서 합친다. 답변은 panel 안에서 펼쳐 읽고 사용한 Claim과 구체적인 한계를 확인한다. 연결된 인사이트 절이 현재 유효할 때만 `관련 분석 읽기`를 제공하며 답변 자체는 보고서 없이도 읽을 수 있다. 생성 worker·prompt·실제 모델 품질은 #129에 보류 상태로 남는다.
+`개요`는 현재 prompt version으로 만든 등록 자료 전체 요약 → 선택 기간의 최근 Claim → 더 알아보기 → 이어서 살펴보기 순서다. 전체 요약은 대상의 일반 소개가 아니라 등록된 자료에서 확인한 활동·관계·발언의 흐름이며, 이전 prompt version의 오해하기 쉬운 설명은 새 정상 publication이 준비될 때까지 숨긴다. 기간 Claim은 최근 게시 시점 내림차순으로 최대 3개를 보여준다. 더 알아보기는 현재 공개 근거로 답할 수 있는 질문과 사전 저장한 짧은 답변이며 node 이동 action이 아니다. 처음 4개와 추가 4개를 server cursor로 표시한다. 총개수를 맞추거나 상한 때문에 유용한 질문을 버리지 않으며 답이 같은 질문은 생성 품질 검토에서 합친다. 답변은 panel 안에서 펼쳐 읽고 구체적인 한계, 기준 시점과 대표 원문 링크 한 개를 확인한다. 답변에 Claim이나 원문이 여러 개면 `+`로 임시 기록 미리보기를 열어 사용한 Claim과 원문을 확인하고 `기록 전체 보기`로 기록 tab을 연다. 미리보기는 넓은 화면에서는 상세 panel 왼쪽, 좁은 화면에서는 지도 위에 겹쳐 표시하며 닫기·Escape·바깥 클릭·중심 또는 기간 변경으로 닫는다. 연결된 인사이트 절이 현재 유효할 때만 `관련 분석 읽기`를 제공하며 답변 자체는 보고서 없이도 읽을 수 있다. 생성 worker·prompt·실제 모델 품질은 #129에 보류 상태로 남는다.
 
-이어서 탐색은 기존 추천의 실제 경로, 관계 방향, 독립 근거 수와 상태를 유지한다. 기본 추천은 직접 관계 2개, 2단계 1개와 주변부 1개이며 부족한 범주는 공개 후보로 보완한다. 실제 Relation이 없는 주변부에 관계가 있는 것처럼 표시하지 않는다. 선택한 추천만 중심 node 이동을 수행한다.
+이어서 탐색은 기존 추천의 실제 경로, 관계 방향과 상태를 유지한다. 기본 추천은 직접 관계 2개, 2단계 1개와 주변부 1개이며 부족한 범주는 공개 후보로 보완한다. 실제 Relation이 없는 주변부에 관계가 있는 것처럼 표시하지 않는다. 추천 행을 선택할 때만 중심 node를 이동한다. `추천 노드 지도에서 강조`는 추천 node와 응답에 포함된 실제 경로를 약 2.5초 동안 함께 강조하며 중심·카메라·URL·조회 상태를 바꾸지 않는다.
 
-`근거`는 선택 node의 속성 Claim, 사건 시간 근거, 관계의 지지·반박 Claim과 해당 대상의 공개 충돌 구성원을 Claim 단위로 제공한다. 같은 Claim이 여러 경로로 연결돼도 한 번 표시하고 연결 대상들을 함께 표시한다. 목록을 펼치면 원문 인용·출처·게시 시점·문단과 문자 범위를 조회한다. 독립 근거 수는 기간 내 원문 계보 묶음 수이며 확신 점수가 아니다. 그래프 Relation 선택은 기존 공용 Evidence Trace dialog를 계속 열며 중심을 바꾸지 않는다.
+`기록`은 선택 node의 속성 Claim, 사건 시간 근거, 관계의 지지·반박 Claim과 해당 대상의 공개 충돌 구성원을 Claim 단위로 제공한다. 같은 Claim이 여러 경로로 연결돼도 한 번 표시하고 연결 대상들을 함께 표시한다. 목록은 현재 server cursor 순서를 그대로 사용하며 날짜순이라고 표현하지 않는다. 행을 선택하면 dialog에서 Claim 한 번, 원문 인용, `출처 · 이름`, `게시일 · 날짜`, 원문 기사 링크와 관계 action을 보여준다. 문단 번호와 문자 위치는 검증용 API 데이터로 유지하되 제품 화면에는 표시하지 않는다. `지도에서 강조`는 현재 지도에 있는 node나 관계를 약 2.5초 강조할 뿐 중심·카메라·URL·조회 상태를 바꾸지 않는다. `연결 원문` dialog는 정규화 Claim을 반복하지 않고 원문 인용을 한 번만 표시한다. 서로 다른 근거 수는 기간 내 원문 계보 묶음 수이며 확신 점수가 아니다.
 
 `인사이트`는 선택 기간의 한 종합보고서에 대한 핵심 해석과 발견별 목차를 표시한다. 제목이나 목차에서 큰 modal dialog를 열며 선택한 절로 이동한다. 보고서는 핵심 해석을 먼저 제시하고, 각 발견에서도 해석과 판단을 근거 Claim보다 먼저 읽도록 구성한다. 사용자는 보고서의 관점을 이해한 뒤 근거와 해석의 한계를 확인한다. Claim과 원문을 여러 건 함께 펼쳐 비교할 수 있고 두 건 이상 펼치면 모두 접기를 제공한다. Claim 문장과 원문 인용이 같으면 같은 문장을 반복하지 않는다. 보고서와 관계 근거 팝업은 배경 조작을 막고, 표시된 활성 조작 요소의 양 끝에서 Tab·Shift+Tab을 누르면 팝업 안에서 순환한다. 닫기·Escape·바깥 클릭으로 닫히며 원래 opener로 focus를 돌려준다. 팝업을 여는 것은 지도 중심이나 배율을 바꾸지 않는다.
 
@@ -356,11 +359,11 @@ Issue #67의 POC에서 직접 이웃의 관계선 core는 전환 감쇠 전 불�
 
 화면 높이가 700px 이하이면 우측 패널 제목 영역의 위아래 여백을 20px에서 12px로, 본문 영역은 24px에서 12px로 줄인다. 맥락 설명 아래 여백은 24px에서 16px로 줄인다. 글자 크기·행간·가로 여백·클릭 영역과 보고서 팝업의 간격은 유지한다.
 
-질문·근거·인사이트는 모두 90일·1년 선택을 따른다. 생성물의 기간 계산은 저장한 `as_of_at` 기준이고 목록에 기준일을 표시한다. Claim 목록의 첫 조회는 현재 시각을 기준으로 기간을 고정하고 cursor에 같은 시각을 이어간다. 출처 게시일이 선택 기간에 드는 Claim을 목록에 포함하며 Trace에서는 기간 밖 배경 자료와 게시 시점 미상을 구분해 보존한다. 게시일을 사건 발생일로 해석하지 않는다.
+90일·1년은 지도·Claim·원문·질문·인사이트에 함께 적용한다. 전체 기간에서는 지도·Claim·원문을 읽고, 별도로 생성된 전체 기간 결과가 없는 질문·인사이트에는 90일 또는 1년을 선택하라는 안내를 표시하며 해당 endpoint를 호출하지 않는다. 생성물의 기간 계산은 저장한 `as_of_at` 기준이고 목록에 기준일을 표시한다. Claim 목록의 첫 조회는 현재 시각을 기준으로 기간을 고정하고 cursor에 같은 시각을 이어간다. 출처 게시일이 선택 기간에 드는 Claim을 목록에 포함하며 Trace에서는 기간 밖 배경 자료와 게시 시점 미상을 구분해 보존한다. 게시일을 사건 발생일로 해석하지 않는다.
 
 새 패널 계약은 #162와 #163에서 기존 이동형 질문·개별 인사이트 목록 계약을 대체한다. 기존 `followup_question` 데이터와 exploration의 호환 필드, 기존 인사이트 API는 보존하지만 새 화면에서 이동형 질문을 사용하지 않는다. 기존 답변이나 통합 보고서가 없는 자료를 자동 재해석하지 않는다. 새 기간별 결과가 없으면 `503 PANEL_NOT_READY`, 유효한 빈 묶음 또는 0개 보고서는 정상 빈 목록이다. 선택된 최신 READY의 전체 basis와 사용 Claim을 목록·상세에서 재검증하고 비공개·열린 BLOCKING 근거가 있으면 생성물을 제공하지 않는다. 새 publication 실패는 여전히 유효한 이전 READY를 유지한다. 생성 worker 구현 완료나 실제 생성 품질을 개발 fixture로 증명하지 않는다.
 
-패널 읽기 API는 `GET /api/v1/nodes/{node_id}/questions`, `GET /api/v1/questions/{question_id}`, `GET /api/v1/nodes/{node_id}/claims`, `GET /api/v1/nodes/{node_id}/claims/{claim_id}/evidence`, `GET /api/v1/nodes/{node_id}/insight-report`다. node 목록과 report는 필수 `time_window`를 받는다. questions는 page당 4개, claims는 기본 10·최대 50개, Claim Trace는 20개를 제공하고 server cursor로 이어간다. Trace는 답변·Claim이 제공한 timezone 포함 `as_of_at`을 받는다. report는 `detail=false`에서 요약·목차, `detail=true`에서 절별 본문과 Claim 참조를 반환한다. 잘못된 입력·cursor는 `422 INVALID_REQUEST`, 공개 대상 부재는 `404 PANEL_NOT_FOUND`, 결과 미준비·무효화는 `503 PANEL_NOT_READY`다. 공개 쓰기·모델 실행 endpoint는 추가하지 않는다.
+패널 읽기 API는 `GET /api/v1/nodes/{node_id}/questions`, `GET /api/v1/questions/{question_id}`, `GET /api/v1/nodes/{node_id}/claims`, `GET /api/v1/nodes/{node_id}/claims/{claim_id}/evidence`, `GET /api/v1/nodes/{node_id}/insight-report`다. node 목록과 report는 필수 `time_window`를 받는다. questions는 page당 4개, claims는 기본 10·최대 50개, Claim Trace는 20개를 제공하고 server cursor로 이어간다. Trace는 답변·Claim이 제공한 timezone 포함 `as_of_at`을 받는다. report는 `detail=false`에서 요약·목차, `detail=true`에서 절별 본문과 Claim 참조를 반환한다. 질문·report에 `ALL_TIME`을 보내면 `422 INVALID_REQUEST`이며 web은 이 요청을 만들지 않는다. 공개 대상 부재는 `404 PANEL_NOT_FOUND`, 결과 미준비·무효화는 `503 PANEL_NOT_READY`다. 공개 쓰기·모델 실행 endpoint는 추가하지 않는다.
 
 
 ### 상태

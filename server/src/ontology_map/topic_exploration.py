@@ -15,7 +15,7 @@ from ontology_map.exploration import (
     GraphNode,
     GraphRelation,
     NodeType,
-    TimeWindow,
+    ReadTimeWindow,
 )
 
 
@@ -34,7 +34,7 @@ class TopicReference:
 @dataclass(frozen=True)
 class TopicExploration:
     topic: TopicReference
-    time_window: TimeWindow
+    time_window: ReadTimeWindow
     total_public_membership_count: int
     recent_member_count: int
     recent_activity_evidence_group_count: int
@@ -44,7 +44,7 @@ class TopicExploration:
 def get_topic_exploration(
     session: Session,
     topic_node_id: int,
-    time_window: TimeWindow,
+    time_window: ReadTimeWindow,
     *,
     now: datetime | None = None,
 ) -> TopicExploration:

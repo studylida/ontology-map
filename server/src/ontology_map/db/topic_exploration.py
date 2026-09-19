@@ -339,7 +339,7 @@ def list_topic_memberships(
 def get_topic_activity(
     session: Session,
     topic_node_id: int,
-    start_at: datetime,
+    start_at: datetime | None,
     end_at: datetime,
 ) -> TopicActivity:
     statement = sa.text(
@@ -352,8 +352,13 @@ def get_topic_activity(
         + _MEMBERSHIP_FROM
         + """
           AND tr.node_id = :topic_node_id
-          AND sd.published_at >= :start_at
-          AND sd.published_at < :end_at
+          AND (
+            (sd.published_at IS NOT NULL AND sd.published_at < :end_at
+             AND (CAST(:start_at AS timestamptz) IS NULL
+               OR sd.published_at >= CAST(:start_at AS timestamptz)))
+            OR (CAST(:start_at AS timestamptz) IS NULL
+              AND sd.published_at IS NULL)
+          )
         GROUP BY member.node_id
         ORDER BY member.node_id
         """
@@ -380,8 +385,13 @@ def get_topic_activity(
             + _MEMBERSHIP_FROM
             + """
               AND tr.node_id = :topic_node_id
-              AND sd.published_at >= :start_at
-              AND sd.published_at < :end_at
+              AND (
+                (sd.published_at IS NOT NULL AND sd.published_at < :end_at
+                 AND (CAST(:start_at AS timestamptz) IS NULL
+                   OR sd.published_at >= CAST(:start_at AS timestamptz)))
+                OR (CAST(:start_at AS timestamptz) IS NULL
+                  AND sd.published_at IS NULL)
+              )
             """
         ),
         {

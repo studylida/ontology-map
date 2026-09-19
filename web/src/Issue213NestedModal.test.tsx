@@ -134,7 +134,7 @@ function NestedFlow() {
         sectionId=""
         onClose={vi.fn()}
         onEvidence={setEvidence}
-        onSelect={vi.fn()}
+        onLocate={vi.fn()}
       />
       {evidence && (
         <EvidenceDialog
@@ -181,13 +181,12 @@ afterEach(() => {
   Reflect.deleteProperty(HTMLDialogElement.prototype, "close");
 });
 
-it("shows the structured other Node name and type in a report Claim without graph data", async () => {
+it("shows the report Claim connection after expanding its source details", async () => {
   render(<NestedFlow />);
 
   await screen.findByRole("heading", { name: "종합 보고서" });
-  expect(
-    screen.getByRole("button", { name: "상대 노드 · 기술 · Node 보기" }),
-  ).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /보고서 Claim/ }));
+  expect(screen.getByRole("button", { name: "지도에서 강조" })).toBeTruthy();
 });
 
 it("keeps the report mounted, expanded and scrolled while nested Relation Evidence opens and restores opener focus", async () => {
@@ -201,7 +200,7 @@ it("keeps the report mounted, expanded and scrolled while nested Relation Eviden
 
   reportDialog.scrollTop = 137;
   const evidenceOpener = screen.getByRole("button", {
-    name: "상대 노드 관련 관계 근거 보기",
+    name: "상대 노드 관련 연결 원문 보기",
   });
   evidenceOpener.focus();
   fireEvent.click(evidenceOpener);
@@ -211,7 +210,7 @@ it("keeps the report mounted, expanded and scrolled while nested Relation Eviden
   expect(screen.getByText("Claim 원문 근거")).toBeTruthy();
   expect(reportDialog.scrollTop).toBe(137);
 
-  fireEvent.click(screen.getByRole("button", { name: "근거 창 닫기" }));
+  fireEvent.click(screen.getByRole("button", { name: "원문 창 닫기" }));
   await waitFor(() => expect(screen.getAllByRole("dialog")).toHaveLength(1));
   expect(screen.getByText("Claim 원문 근거")).toBeTruthy();
   expect(reportDialog.scrollTop).toBe(137);
